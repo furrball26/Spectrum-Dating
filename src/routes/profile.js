@@ -18,6 +18,12 @@ router.get('/me', requireAuth, (req, res) => {
   const interestRows = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?').all(userId);
   const interests = interestRows.map(r => r.interest);
 
+  const onboardingComplete = !!(
+    profile.display_name?.trim() &&
+    profile.bio?.trim() &&
+    interests.length > 0
+  );
+
   return res.json({
     userId: profile.user_id,
     displayName: profile.display_name,
@@ -29,6 +35,7 @@ router.get('/me', requireAuth, (req, res) => {
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     interests,
+    onboardingComplete,
   });
 });
 

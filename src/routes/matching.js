@@ -11,9 +11,16 @@ const router = Router();
 router.get('/candidates', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
 
+  // Don't show candidates to users who haven't completed onboarding
+  const viewerProfile = db.prepare('SELECT display_name, bio FROM profiles WHERE user_id = ?').get(userId);
   const viewerInterests = db.prepare(
     'SELECT interest FROM user_interests WHERE user_id = ?'
   ).all(userId).map(r => r.interest);
+
+  const onboardingComplete = !!(viewerProfile?.display_name?.trim() && viewerProfile?.bio?.trim() && viewerInterests.length > 0);
+  if (!onboardingComplete) {
+    return res.json([]); // empty — frontend will redirect to onboarding
+  }
 
   const candidates = getCandidates(db, userId, viewerInterests).slice(0, 10);
 

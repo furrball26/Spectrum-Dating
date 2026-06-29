@@ -25,6 +25,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
     FROM profiles p
     WHERE p.user_id NOT IN (${placeholders})
       AND p.display_name != ''
+      AND p.bio != ''
+      AND (SELECT COUNT(*) FROM user_interests WHERE user_id = p.user_id) > 0
   `).all(...excludeIds);
 
   if (allProfiles.length === 0) return [];
