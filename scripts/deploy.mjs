@@ -7,6 +7,11 @@
 //   TIMEOUT_S   max seconds to wait for health (default: 240)
 
 import { spawnSync } from 'child_process';
+import { writeFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const BUILD_INFO_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'build-info.json');
 
 const HEALTH_URL =
   process.env.HEALTH_URL ||
@@ -53,11 +58,24 @@ async function main() {
   const wantSha = localSha();
   log(wantSha ? `deploying commit ${wantSha.slice(0, 8)}` : 'deploying (git sha unavailable)');
 
+  // Stamp the SHA into a file that railway up uploads, so the running build can
+  // report it on /health. (Railway doesn't inject git metadata for CLI deploys.)
+  if (wantSha) {
+    writeFileSync(BUILD_INFO_PATH, JSON.stringify({ sha: wantSha }) + '\n');
+    log('stamped src/build-info.json');
+  }
+
   log('uploading to Railway (railway up --detach)...');
   const up = spawnSync('railway', ['up', '--detach'], {
     stdio: 'inherit',
     shell: true,
   });
+  // Restore the placeholder so the working tree stays clean — the uploaded
+  // snapshot already captured the real SHA.
+  if (wantSha) {
+    try { writeFileSync(BUILD_INFO_PATH, JSON.stringify({ sha: null }) + '\n'); } catch {}
+  }
+
   if (up.status !== 0) {
     log('ERROR: railway up failed to upload. Aborting.');
     process.exit(1);

@@ -19,6 +19,22 @@ import pushRouter from './routes/push.js';
 import accountRouter from './routes/account.js';
 import { configurePush } from './push/webpush.js';
 import { scheduleBackups } from './backup/scheduler.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Deployed build SHA — stamped into build-info.json by scripts/deploy.mjs at
+// upload time (Railway doesn't inject git metadata for CLI deploys). Lets the
+// deploy guard confirm the NEW build is live, not the old replica.
+const BUILD_SHA = (() => {
+  if (process.env.RAILWAY_GIT_COMMIT_SHA) return process.env.RAILWAY_GIT_COMMIT_SHA;
+  try {
+    const p = join(dirname(fileURLToPath(import.meta.url)), 'build-info.json');
+    return JSON.parse(readFileSync(p, 'utf8')).sha || null;
+  } catch {
+    return null;
+  }
+})();
 
 // Ensure data directory exists
 mkdirSync('data', { recursive: true });
@@ -47,12 +63,7 @@ app.use('/account', accountRouter);
 
 // /health includes the deployed git SHA so the deploy script can confirm the
 // NEW build is live (not the old replica still serving during rollover).
-app.get('/health', (_req, res) =>
-  res.json({
-    status: 'ok',
-    sha: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || null,
-  })
-);
+app.get('/health', (_req, res) => res.json({ status: 'ok', sha: BUILD_SHA }));
 
 const httpServer = createServer(app);
 const io = setupSocketIO(httpServer, db);
