@@ -133,4 +133,21 @@ router.post('/swipe', requireAuth, async (req, res) => {
   return res.json({ matched: true, matchId });
 });
 
+// DELETE /matching/matches/:id — unmatch: remove the match + its conversation
+router.delete('/matches/:id', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const match = db.prepare('SELECT id, user_a_id, user_b_id FROM matches WHERE id = ?').get(req.params.id);
+  if (!match) return res.status(404).json({ error: 'Match not found' });
+  if (match.user_a_id !== userId && match.user_b_id !== userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const unmatch = db.transaction(() => {
+    db.prepare('DELETE FROM conversations WHERE match_id = ?').run(match.id);
+    db.prepare('DELETE FROM matches WHERE id = ?').run(match.id);
+  });
+  unmatch();
+  res.json({ ok: true, unmatched: true });
+});
+
 export default router;

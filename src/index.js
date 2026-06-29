@@ -16,6 +16,7 @@ import photosRouter from './routes/photos.js';
 import exportRouter from './routes/export.js';
 import startersRouter from './routes/starters.js';
 import pushRouter from './routes/push.js';
+import accountRouter from './routes/account.js';
 import { configurePush } from './push/webpush.js';
 
 // Ensure data directory exists
@@ -41,6 +42,7 @@ app.use('/photos', photosRouter);
 app.use('/export', exportRouter);
 app.use('/starters', startersRouter);
 app.use('/push', pushRouter);
+app.use('/account', accountRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

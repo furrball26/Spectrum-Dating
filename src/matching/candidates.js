@@ -5,6 +5,16 @@
 // Excludes: the viewer themselves, users they've already swiped on, existing matches.
 
 export function getCandidates(db, viewerId, viewerInterests) {
+  // Viewer's own profile fields used for weighted scoring (goal + city)
+  const viewerProfile = db.prepare(
+    'SELECT relationship_goal, dist_city FROM profiles WHERE user_id = ?'
+  ).get(viewerId);
+  const viewer = {
+    interests: viewerInterests,
+    relationship_goal: viewerProfile?.relationship_goal ?? '',
+    dist_city: viewerProfile?.dist_city ?? '',
+  };
+
   // Get IDs already swiped on
   const swipedIds = db.prepare(
     'SELECT swiped_id FROM swipes WHERE swiper_id = ?'
@@ -38,7 +48,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
     .map(profile => {
       const interests = getInterests.all(profile.user_id).map(r => r.interest);
       const candidate = { ...profile, interests };
-      return { ...candidate, ...scoreCandidate(viewerInterests, candidate) };
+      return { ...candidate, ...scoreCandidate(viewer, candidate) };
     })
     .sort((a, b) => b.score - a.score || b.updated_at - a.updated_at);
 }

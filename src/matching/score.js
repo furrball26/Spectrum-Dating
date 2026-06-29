@@ -1,21 +1,40 @@
 ﻿// Scores a candidate against the viewer.
 // Returns { score, sharedInterests, whyReasons }.
-// Score = number of shared interests. Tie-break by candidate's updated_at (recency).
+// Weighted score:
+//   sharedInterests.length * 2  (interests weighted higher)
+//   + (sameRelationshipGoal ? 3 : 0)  (goal alignment bonus)
+//   + (sameCity ? 2 : 0)              (proximity bonus)
+// Tie-break by candidate's updated_at (recency) in candidates.js.
 
-export function scoreCandidate(viewerInterests, candidate) {
+export function scoreCandidate(viewer, candidate) {
+  // Back-compat: callers may pass an array of interests, or a viewer object.
+  const viewerInterests = Array.isArray(viewer) ? viewer : (viewer?.interests ?? []);
+  const viewerGoal = Array.isArray(viewer) ? '' : (viewer?.relationship_goal ?? '');
+  const viewerCity = Array.isArray(viewer) ? '' : (viewer?.dist_city ?? '');
+
   const viewerSet = new Set(viewerInterests);
   const sharedInterests = candidate.interests.filter(i => viewerSet.has(i));
-  const score = sharedInterests.length;
 
-  const whyReasons = buildWhyReasons(sharedInterests, candidate);
+  const sameRelationshipGoal = !!viewerGoal && viewerGoal === candidate.relationship_goal;
+  const sameCity = !!viewerCity && viewerCity === candidate.dist_city;
+
+  const score =
+    sharedInterests.length * 2 +
+    (sameRelationshipGoal ? 3 : 0) +
+    (sameCity ? 2 : 0);
+
+  const whyReasons = buildWhyReasons(sharedInterests, candidate, { sameRelationshipGoal, sameCity });
 
   return { score, sharedInterests, whyReasons };
 }
 
-function buildWhyReasons(sharedInterests, candidate) {
+function buildWhyReasons(sharedInterests, candidate, opts = {}) {
   const reasons = [];
   if (sharedInterests.length > 0) {
     reasons.push(`You both enjoy ${listify(sharedInterests.slice(0, 3))}`);
+  }
+  if (opts.sameCity && candidate.dist_city) {
+    reasons.push(`You're both in ${candidate.dist_city}`);
   }
   if (candidate.comm_note) {
     reasons.push(`About talking: "${candidate.comm_note}"`);

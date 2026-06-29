@@ -1,4 +1,5 @@
 ﻿import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
@@ -6,6 +7,18 @@ import { emitNewMessage, emitMessageDeleted, emitConversationArchived } from '..
 import { notifyUser } from '../push/notify.js';
 
 const router = Router();
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 messages per minute per user
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'You are sending messages too quickly. Please slow down.' },
+  keyGenerator: (req) => {
+    // Rate limit per authenticated user, not per IP
+    return req.ctx?.userId || req.headers['x-real-ip'] || req.ip;
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -163,7 +176,7 @@ router.post('/conversations', requireAuth, (req, res) => {
 // POST /messaging/conversations/:id/messages
 // ---------------------------------------------------------------------------
 
-router.post('/conversations/:id/messages', requireAuth, async (req, res) => {
+router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (req, res) => {
   const { db, userId } = req.ctx;
   const conv = isConversationMember(db, req.params.id, userId);
   if (!conv) return res.status(404).json({ error: 'Conversation not found' });
