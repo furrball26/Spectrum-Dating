@@ -1,0 +1,150 @@
+# CLAUDE.md
+
+Guidance for AI assistants (Claude Code and others) working in this repository.
+
+## Current state of the repository
+
+This repository is a **sandbox for experimenting with Claude Code subagents
+and automation** ("SubAgent Testing"). It has no application code yet. As of
+this writing it contains:
+
+- `README.md` — a one-line description ("SubAgent Testing").
+- `CLAUDE.md` — this file.
+- `.claude/` — Claude Code automation config (see "Automation setup" below).
+- `.github/workflows/` — GitHub Actions (auto-review on PRs; see below).
+
+There is **no** source code, build system, dependency manifest, test suite, CI
+configuration, or linter setup in the repository. Do not assume any of these
+exist or invent commands for them. The notes below are intentionally honest
+about this: most "how to build / test / run" guidance cannot be written until
+code is added.
+
+> **Keep this file current.** When real code, tooling, or conventions are
+> introduced, update the relevant sections below so this document reflects the
+> actual state of the codebase. Remove this notice once the project is no
+> longer a bare skeleton.
+
+## Repository facts
+
+- **Default branch:** `main`
+- **Remote:** `furrball26/subagenttesting` on GitHub
+- **Purpose (per README):** "SubAgent Testing" — a sandbox/testing repository.
+
+## Git workflow
+
+- Develop on a dedicated feature branch; do **not** commit directly to `main`.
+- Use clear, descriptive commit messages.
+- Push with `git push -u origin <branch-name>`.
+- Do **not** open a pull request unless explicitly asked.
+- GitHub operations go through the GitHub MCP tools (`mcp__github__*`), not the
+  `gh` CLI (which is unavailable in this environment).
+
+## Automation setup
+
+This repo is configured for automated Claude Code runs. The pieces live under
+`.claude/`:
+
+```
+.claude/
+├── settings.json            # registers the SessionStart hook
+├── hooks/
+│   └── session-start.sh     # runs once at the start of every session
+├── agents/
+│   └── test-runner.md       # a sample subagent definition
+└── routines/
+    └── nightly-health-check.md  # sample cloud-routine spec (template, not executed)
+```
+
+### SessionStart hook
+
+`settings.json` wires a `SessionStart` hook to `.claude/hooks/session-start.sh`.
+It runs once at the start of **every** session — interactive, headless
+(`claude -p`), or cloud routine — and prints repo context (branch, HEAD) to the
+session. This is the place to install dependencies and warm caches so every
+automated session is reproducible; there's a `TODO` marker in the script for
+exactly that. The hook is intentionally side-effect-free today because the repo
+has no build tooling.
+
+Test the hook directly with:
+
+```bash
+bash .claude/hooks/session-start.sh
+```
+
+### Sample subagent: `test-runner`
+
+`.claude/agents/test-runner.md` defines a subagent that detects and runs the
+project's test suite and reports a concise pass/fail summary. Its frontmatter
+(`name`, `description`, `tools`, `model`) tells Claude when to **auto-delegate**
+to it — no explicit invocation required, though you can also ask for it by name
+("use the test-runner subagent"). It's a template: adjust its assumptions once a
+real test suite exists.
+
+### Sample cloud routine
+
+`.claude/routines/nightly-health-check.md` is a **template**, not an executable
+config. Cloud Routines are stored in your claude.ai account and run on
+Anthropic infrastructure — there is no repo file Claude Code reads to define
+one. The file documents a self-contained prompt and the settings to paste into
+the routine creation form (web, Desktop, or `/schedule`), plus how to add API
+or GitHub triggers. The sample routine does a nightly check that this repo's
+docs match its actual state and opens a docs-sync PR only when it finds drift.
+
+### GitHub Actions: auto-review on PRs
+
+`.github/workflows/claude-review.yml` runs an automated Claude code review on
+every non-draft PR when it's opened or updated (`pull_request: [opened,
+synchronize]`). It uses `anthropics/claude-code-action@v1` with the official
+`code-review` plugin and posts findings as PR comments.
+
+The review step is **gated on the `ANTHROPIC_API_KEY` secret**: until it's set,
+the job skips that step and stays green (a notice explains why) rather than
+failing on every PR. Once the secret exists, the review runs automatically.
+
+**Two one-time prerequisites** (repo admin) to actually enable reviews:
+
+1. Install the Claude GitHub App: <https://github.com/apps/claude> (or run
+   `/install-github-app` from the CLI).
+2. Add an `ANTHROPIC_API_KEY` repository secret under
+   Settings → Secrets and variables → Actions.
+
+The job is scoped to `contents: read` + `pull-requests: write` and uses a
+concurrency group so repeated pushes cancel stale review runs.
+
+### Running Claude automatically
+
+Common ways to drive Claude/subagents here without interactive prompting:
+
+- **Headless / scripts / CI:** `claude -p "<prompt>" --output-format json`
+- **Recurring within an open session:** `/loop 5m <prompt>`
+- **Unattended scheduled or event-driven runs:** Cloud Routines
+  (`/schedule …` or claude.ai/code/routines) — note each run gets a *fresh
+  clone*, so nothing local persists between runs.
+- **On PR/push:** GitHub Actions (`anthropics/claude-code-action`) or a Routine
+  with a GitHub trigger.
+- **Orchestrating many subagents:** a Workflow script.
+
+When you add new agents, hooks, or skills, document them in this section.
+
+## Conventions to follow
+
+Because there is no established codebase yet, follow these baseline principles
+when adding the first code:
+
+- Match the language, style, and structure already present before introducing
+  a new pattern. When the project is empty, pick conventional defaults for the
+  chosen language/framework and document them here.
+- When you add a build, test, or run workflow, record the exact commands in a
+  new "Development" section of this file so future sessions can rely on them.
+- Keep `README.md` accurate as the project grows.
+
+## When you add code, document
+
+Update this file with at least:
+
+1. **Project structure** — top-level directories and what each contains.
+2. **Build / install** — how to install dependencies and build.
+3. **Test** — how to run the test suite (and a single test).
+4. **Lint / format** — the linter/formatter commands and config.
+5. **Run** — how to start the app or use the library.
+6. **Key conventions** — naming, module boundaries, error handling, etc.
