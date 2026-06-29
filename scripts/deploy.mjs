@@ -41,9 +41,10 @@ async function checkHealth(wantSha) {
     if (res.status !== 200) return 'down';
     const body = await res.json().catch(() => ({}));
     if (body.status !== 'ok') return 'down';
-    // If we can't determine the deployed sha on either side, fall back to a
-    // plain health check (don't block deploys when sha is unavailable).
-    if (!wantSha || !body.sha) return 'match';
+    // If we can't determine OUR target sha (e.g. git unavailable), fall back to
+    // a plain health check. But once we know the target, a missing or different
+    // sha means the old replica is still serving — keep waiting ('stale').
+    if (!wantSha) return 'match';
     return body.sha === wantSha ? 'match' : 'stale';
   } catch {
     return 'down';
