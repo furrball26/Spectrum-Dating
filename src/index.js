@@ -23,6 +23,8 @@ const app = express();
 const db = getDb();
 const PORT = process.env.PORT || 3001;
 
+// Trust Railway's reverse proxy so express-rate-limit reads the real client IP
+app.set('trust proxy', 1);
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173' }));
 app.use(express.json());
 app.use(optionalAuth);
