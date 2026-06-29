@@ -1,11 +1,28 @@
 ﻿import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import jwt from 'jsonwebtoken';
 import { coarseLabel } from '../utils/time.js';
 
 const router = Router();
 
-router.get('/conversations', requireAuth, (req, res) => {
-  const { db, userId } = req.ctx;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+router.get('/conversations', (req, res) => {
+  // Accept token from Authorization header OR ?token= query param (needed for
+  // browser download links that cannot send custom headers).
+  let userId = req.ctx?.userId ?? null;
+
+  if (!userId && req.query.token) {
+    try {
+      const payload = jwt.verify(req.query.token, JWT_SECRET);
+      userId = payload.sub || payload.userId || payload.id || null;
+    } catch {
+      return res.status(401).json({ error: 'Invalid token.' });
+    }
+  }
+
+  if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+
+  const { db } = req.ctx;
 
   // Fetch all conversations the user is part of (including archived)
   const conversations = db.prepare(`

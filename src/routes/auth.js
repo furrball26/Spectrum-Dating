@@ -14,6 +14,16 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again in 15 minutes.' },
   skipSuccessfulRequests: false,
+  // Use real client IP from proxy headers (Railway / Cloudflare) before
+  // falling back to req.ip, which is the proxy address behind Railway.
+  keyGenerator: (req) => {
+    return (
+      req.headers['x-real-ip'] ||
+      req.headers['cf-connecting-ip'] ||
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.ip
+    );
+  },
 });
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
