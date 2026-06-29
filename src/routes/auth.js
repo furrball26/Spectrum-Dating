@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import rateLimit from 'express-rate-limit';
 import { newId } from '../utils/ids.js';
-import { signToken } from '../middleware/auth.js';
+import { signToken, requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
@@ -67,7 +67,7 @@ router.post('/register', authLimiter, async (req, res) => {
     insertProfile.run(userId, now);
   })();
 
-  const token = signToken(userId);
+  const token = signToken(userId, 0);
   return res.status(201).json({ token, userId });
 });
 
@@ -83,7 +83,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 
   const { db } = req.ctx;
-  const user = db.prepare('SELECT id, password_hash FROM users WHERE email = ?').get(normalizedEmail);
+  const user = db.prepare('SELECT id, password_hash, token_version FROM users WHERE email = ?').get(normalizedEmail);
 
   // Use constant-time comparison even if user not found (timing safety)
   const dummyHash = '$2b$12$invalidhashfortimingprotection000000000000000000000000';
@@ -94,8 +94,25 @@ router.post('/login', authLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
-  const token = signToken(user.id);
+  const tv = user.token_version ?? 0;
+  const token = signToken(user.id, tv);
   return res.json({ token, userId: user.id });
+});
+
+// POST /auth/sign-out — invalidate current user's tokens
+router.post('/sign-out', requireAuth, (req, res) => {
+  const { db } = req.ctx;
+  const userId = req.user.id;
+  db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
+  res.json({ ok: true });
+});
+
+// POST /auth/sign-out-all — same effect but clearly named
+router.post('/sign-out-all', requireAuth, (req, res) => {
+  const { db } = req.ctx;
+  const userId = req.user.id;
+  db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
+  res.json({ ok: true });
 });
 
 export default router;
