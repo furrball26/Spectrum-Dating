@@ -45,7 +45,14 @@ app.use('/starters', startersRouter);
 app.use('/push', pushRouter);
 app.use('/account', accountRouter);
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+// /health includes the deployed git SHA so the deploy script can confirm the
+// NEW build is live (not the old replica still serving during rollover).
+app.get('/health', (_req, res) =>
+  res.json({
+    status: 'ok',
+    sha: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || null,
+  })
+);
 
 const httpServer = createServer(app);
 const io = setupSocketIO(httpServer, db);

@@ -18,17 +18,30 @@ function log(msg) {
   console.log(`[deploy] ${msg}`);
 }
 
-async function checkHealth() {
+// The commit we're deploying. The guard waits until /health reports THIS sha,
+// so it can't be fooled by the old replica still answering during rollover.
+function localSha() {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
+// Returns: 'match' (new build live), 'stale' (healthy but old build),
+// 'down' (no healthy response).
+async function checkHealth(wantSha) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(HEALTH_URL, { signal: ctrl.signal });
     clearTimeout(timer);
-    if (res.status !== 200) return false;
+    if (res.status !== 200) return 'down';
     const body = await res.json().catch(() => ({}));
-    return body.status === 'ok';
+    if (body.status !== 'ok') return 'down';
+    // If we can't determine the deployed sha on either side, fall back to a
+    // plain health check (don't block deploys when sha is unavailable).
+    if (!wantSha || !body.sha) return 'match';
+    return body.sha === wantSha ? 'match' : 'stale';
   } catch {
-    return false;
+    return 'down';
   }
 }
 
@@ -37,6 +50,9 @@ async function sleep(s) {
 }
 
 async function main() {
+  const wantSha = localSha();
+  log(wantSha ? `deploying commit ${wantSha.slice(0, 8)}` : 'deploying (git sha unavailable)');
+
   log('uploading to Railway (railway up --detach)...');
   const up = spawnSync('railway', ['up', '--detach'], {
     stdio: 'inherit',
@@ -47,27 +63,38 @@ async function main() {
     process.exit(1);
   }
 
-  log(`upload done. Polling ${HEALTH_URL} for up to ${TIMEOUT_S}s...`);
+  log(`upload done. Polling ${HEALTH_URL} for the NEW build (up to ${TIMEOUT_S}s)...`);
   const deadline = Date.now() + TIMEOUT_S * 1000;
   let attempt = 0;
+  let sawStale = false;
 
   // Give the builder a head start before the first poll.
   await sleep(POLL_S);
 
   while (Date.now() < deadline) {
     attempt++;
-    if (await checkHealth()) {
-      log(`✓ HEALTHY after ${attempt} check(s). Deploy verified.`);
+    const state = await checkHealth(wantSha);
+    if (state === 'match') {
+      log(`✓ HEALTHY — new build is live and verified after ${attempt} check(s).`);
       process.exit(0);
     }
-    log(`check ${attempt}: not healthy yet...`);
+    if (state === 'stale') {
+      sawStale = true;
+      log(`check ${attempt}: old build still serving (rollover in progress)...`);
+    } else {
+      log(`check ${attempt}: not healthy yet...`);
+    }
     await sleep(POLL_S);
   }
 
   log('');
-  log(`✗ FAILED: service did not return healthy within ${TIMEOUT_S}s.`);
-  log('  The deploy may have crashed at startup. Check:');
-  log('    railway logs --deployment');
+  if (sawStale) {
+    log(`✗ FAILED: old build kept serving for ${TIMEOUT_S}s — the new build never`);
+    log('  became healthy. It likely crashed at startup while the old replica held on.');
+  } else {
+    log(`✗ FAILED: service did not return healthy within ${TIMEOUT_S}s.`);
+  }
+  log('  Check:  railway logs --deployment');
   log('  Do NOT assume the deploy succeeded.');
   process.exit(1);
 }
