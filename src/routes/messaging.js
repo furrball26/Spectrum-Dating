@@ -174,6 +174,17 @@ router.post('/conversations/:id/messages', requireAuth, (req, res) => {
     emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeGroup });
   }
 
+  // Async push to recipient — don't await
+  const { notifyUser } = await import('../push/notify.js');
+  notifyUser(db, otherId, {
+    title: 'New message',
+    body: 'Someone sent you a message on Spectrum Dating.',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: `conv-${req.params.id}`,
+    data: { url: '/' },
+  }).catch(() => {});
+
   res.status(201).json({ messageId, timeGroup });
 });
 

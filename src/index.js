@@ -15,6 +15,8 @@ import reactionsRouter from './routes/reactions.js';
 import photosRouter from './routes/photos.js';
 import exportRouter from './routes/export.js';
 import startersRouter from './routes/starters.js';
+import pushRouter from './routes/push.js';
+import { configurePush } from './push/webpush.js';
 
 // Ensure data directory exists
 mkdirSync('data', { recursive: true });
@@ -38,6 +40,7 @@ app.use('/reactions', reactionsRouter);
 app.use('/photos', photosRouter);
 app.use('/export', exportRouter);
 app.use('/starters', startersRouter);
+app.use('/push', pushRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -46,6 +49,7 @@ const io = setupSocketIO(httpServer, db);
 
 // Make io available to route handlers via app.locals
 app.locals.io = io;
+configurePush();
 
 httpServer.listen(PORT, () => console.log(`Spectrum Dating server on :${PORT}`));
 

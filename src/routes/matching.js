@@ -109,6 +109,19 @@ router.post('/swipe', requireAuth, (req, res) => {
     emitNewMatch(io, userId, candidateId, matchId);
   }
 
+  // Async push — don't await, don't block response
+  const { notifyUser } = await import('../push/notify.js');
+  const matchPayload = {
+    title: 'New match! 💚',
+    body: "You've matched on Spectrum Dating.",
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: `match-${matchId}`,
+    data: { url: '/' },
+  };
+  notifyUser(db, userId, matchPayload).catch(() => {});
+  notifyUser(db, candidateId, matchPayload).catch(() => {});
+
   return res.json({ matched: true, matchId });
 });
 
