@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
 import { emitNewMessage, emitMessageDeleted, emitConversationArchived } from '../socket/emitters.js';
+import { notifyUser } from '../push/notify.js';
 
 const router = Router();
 
@@ -38,6 +39,7 @@ router.get('/conversations', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
   const rows = db.prepare(`
     SELECT c.id, c.user_a_id, c.user_b_id,
+           c.last_read_at_a, c.last_read_at_b,
            m.sent_at as last_sent_at, m.sender_id as last_sender_id
     FROM conversations c
     LEFT JOIN messages m ON m.id = (
@@ -51,11 +53,14 @@ router.get('/conversations', requireAuth, (req, res) => {
   const conversations = rows.map(row => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const otherProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get(otherId);
+    const isUserA = row.user_a_id === userId;
+    const lastReadAt = isUserA ? (row.last_read_at_a || 0) : (row.last_read_at_b || 0);
+    const hasUnread = !!(row.last_sent_at && row.last_sender_id !== userId && row.last_sent_at > lastReadAt);
     return {
       id: row.id,
       otherUser: { userId: otherId, displayName: otherProfile?.display_name || '' },
       lastMessageGroup: row.last_sent_at ? coarseLabel(row.last_sent_at) : null,
-      hasUnread: false,
+      hasUnread,
     };
   });
 
@@ -87,7 +92,7 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
     senderId: m.sender_id,
     body: m.deleted ? null : m.body,
     deleted: !!m.deleted,
-    timeGroup: coarseLabel(m.sent_at),
+    timeLabel: coarseLabel(m.sent_at),
   }));
 
   res.json({
@@ -97,6 +102,21 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
     },
     messages,
   });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /messaging/conversations/:id/read
+// ---------------------------------------------------------------------------
+
+router.put('/conversations/:id/read', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const conv = isConversationMember(db, req.params.id, userId);
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  const isUserA = conv.user_a_id === userId;
+  const col = isUserA ? 'last_read_at_a' : 'last_read_at_b';
+  db.prepare(`UPDATE conversations SET ${col} = ? WHERE id = ?`).run(Date.now(), req.params.id);
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -143,7 +163,7 @@ router.post('/conversations', requireAuth, (req, res) => {
 // POST /messaging/conversations/:id/messages
 // ---------------------------------------------------------------------------
 
-router.post('/conversations/:id/messages', requireAuth, (req, res) => {
+router.post('/conversations/:id/messages', requireAuth, async (req, res) => {
   const { db, userId } = req.ctx;
   const conv = isConversationMember(db, req.params.id, userId);
   if (!conv) return res.status(404).json({ error: 'Conversation not found' });
@@ -167,25 +187,54 @@ router.post('/conversations/:id/messages', requireAuth, (req, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(messageId, req.params.id, userId, body, now);
 
-  const timeGroup = coarseLabel(now);
+  const timeLabel = coarseLabel(now);
 
   const { io } = req.app.locals;
   if (io) {
-    emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeGroup });
+    emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeLabel });
   }
 
-  // Async push to recipient — don't await
-  const { notifyUser } = await import('../push/notify.js');
-  notifyUser(db, otherId, {
-    title: 'New message',
-    body: 'Someone sent you a message on Spectrum Dating.',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: `conv-${req.params.id}`,
-    data: { url: '/' },
-  }).catch(() => {});
+  // Async push to recipient — tier-aware, don't await
+  const recipientProfile = db.prepare('SELECT notification_tier FROM profiles WHERE user_id = ?').get(otherId);
+  const tier = recipientProfile?.notification_tier || 'in_app';
 
-  res.status(201).json({ messageId, timeGroup });
+  let pushPayload = null;
+  if (tier === 'in_app') {
+    pushPayload = {
+      title: 'New message',
+      body: 'Someone sent you a message on Spectrum Dating.',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `conv-${req.params.id}`,
+      data: { url: '/' },
+    };
+  } else if (tier === 'name_only') {
+    const senderProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get(userId);
+    pushPayload = {
+      title: senderProfile?.display_name || 'Someone',
+      body: 'Sent you a message.',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `conv-${req.params.id}`,
+      data: { url: '/' },
+    };
+  } else if (tier === 'silent_push') {
+    pushPayload = {
+      title: 'Spectrum Dating',
+      body: '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `conv-${req.params.id}`,
+      data: { url: '/' },
+    };
+  }
+  // tier === 'none' or anything else → no push
+
+  if (pushPayload) {
+    notifyUser(db, otherId, pushPayload).catch(() => {});
+  }
+
+  res.status(201).json({ messageId, timeLabel });
 });
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { getCandidates } from '../matching/candidates.js';
 import { newId } from '../utils/ids.js';
 import { emitNewMatch } from '../socket/emitters.js';
+import { notifyUser } from '../push/notify.js';
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     interests: c.interests,
     sharedInterests: c.sharedInterests,
     whyReasons: c.whyReasons,
+    photoUrl: c.photo_url || null,
     matchedAt: null,
   }));
 
@@ -42,7 +44,7 @@ router.get('/candidates', requireAuth, (req, res) => {
 
 // POST /matching/swipe
 // Body: { candidateId: string, decision: 'like' | 'skip' }
-router.post('/swipe', requireAuth, (req, res) => {
+router.post('/swipe', requireAuth, async (req, res) => {
   const { db, userId } = req.ctx;
   const { candidateId, decision } = req.body ?? {};
 
@@ -117,7 +119,6 @@ router.post('/swipe', requireAuth, (req, res) => {
   }
 
   // Async push — don't await, don't block response
-  const { notifyUser } = await import('../push/notify.js');
   const matchPayload = {
     title: 'New match! 💚',
     body: "You've matched on Spectrum Dating.",

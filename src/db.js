@@ -25,4 +25,5 @@ function runMigrations(db) {
   db.exec(readFileSync(join(__dirname, 'migrations', '005_profile_photos.sql'), 'utf8'));
   db.exec(readFileSync(join(__dirname, 'migrations', '006_push_subscriptions.sql'), 'utf8'));
   db.exec(readFileSync(join(__dirname, 'migrations', '007_token_version.sql'), 'utf8'));
+  db.exec(readFileSync(join(__dirname, 'migrations', '008_read_cursors.sql'), 'utf8'));
 }
