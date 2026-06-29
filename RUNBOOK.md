@@ -1,0 +1,198 @@
+# Spectrum Dating — Operations Runbook
+
+Autism-friendly dating platform. This is the operational source of truth:
+how to deploy, seed, back up, and activate optional services.
+
+- **Frontend:** Vercel — https://spectrum-dating-eta.vercel.app
+- **Backend:** Railway — https://spectrum-dating-server-production.up.railway.app
+- **Repos:** `Spectrum-Dating` (frontend, Vite+React), `Spectrum-Dating-Server` (this repo)
+- **DB:** SQLite (better-sqlite3) on Railway persistent volume at `/data/spectrum.db`
+
+---
+
+## 1. Deploying
+
+### Backend (Railway)
+
+**Always use the health-gated deploy — never `railway up --detach` by hand.**
+
+```bash
+cd Spectrum-Dating-Server
+npm run deploy
+```
+
+This runs `railway up`, then polls `/health` until it returns `{"status":"ok"}`,
+and **exits non-zero if the service does not come up within 4 minutes.** A broken
+deploy fails loudly instead of silently crashing behind a detached upload.
+
+> **Why this exists:** earlier in the project, several `--detach` deploys shipped
+> onto a backend that was crash-looping at startup (a non-idempotent migration +
+> an express-rate-limit v8 validation error). Nobody noticed for hours because the
+> uploads "succeeded." `npm run deploy` makes that failure mode impossible.
+
+If it fails:
+```bash
+railway logs --deployment        # read the startup crash
+railway status                   # ● Online / ● Crashed
+```
+
+### Frontend (Vercel)
+
+```bash
+cd Spectrum-Dating
+npm run build                    # must be clean first
+npx vercel --prod --yes
+```
+
+Production alias: `spectrum-dating-eta.vercel.app`.
+Frontend talks to the backend via `VITE_API_URL` (set in Vercel project env).
+
+---
+
+## 2. Environment variables (Railway)
+
+The app runs without any of these — optional features degrade gracefully
+(return 503 / no-op) rather than crashing. Set with PowerShell (NOT Git Bash —
+it mangles values containing `/`):
+
+```powershell
+railway variables set KEY="value"
+```
+
+### Core (already set)
+| Var | Purpose |
+|-----|---------|
+| `JWT_SECRET` | Signs auth tokens |
+| `DB_PATH` | `/data/spectrum.db` (persistent volume) |
+| `ALLOWED_ORIGIN` | CORS origin = the Vercel URL |
+
+### Photos — Cloudflare R2 (public bucket)
+| Var | Notes |
+|-----|-------|
+| `R2_ACCOUNT_ID` | Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | R2 API token |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
+| `R2_BUCKET_NAME` | e.g. `spectrum-dating-photos` (public access ON) |
+| `R2_PUBLIC_URL` | e.g. `https://pub-xxx.r2.dev` |
+
+Bucket needs a CORS rule allowing `PUT`/`GET` from the Vercel origin (see §5).
+
+### Push notifications — VAPID
+| Var | Notes |
+|-----|-------|
+| `VAPID_PUBLIC_KEY` | from `web-push` keygen |
+| `VAPID_PRIVATE_KEY` | keep secret |
+| `VAPID_CONTACT_EMAIL` | `ttitleman@gmail.com` |
+
+Regenerate keys: `node -e "import('web-push').then(m=>console.log(m.default.generateVAPIDKeys()))"`
+
+### Email verification — Resend
+| Var | Notes |
+|-----|-------|
+| `RESEND_API_KEY` | from resend.com |
+| `EMAIL_FROM` | `Spectrum Dating <onboarding@resend.dev>` or a verified domain |
+| `APP_URL` | `https://spectrum-dating-eta.vercel.app` (used in verify links) |
+
+### Backups — private R2 bucket (see §4)
+| Var | Notes |
+|-----|-------|
+| `R2_BACKUP_BUCKET` | **Separate, PRIVATE bucket** — never the public photos bucket |
+
+Uses the same `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` creds.
+
+---
+
+## 3. Seeding sample data
+
+24 diverse sample users live in `scripts/seed-users.mjs`.
+
+```bash
+npm run seed                          # all 24 (full set)
+START=20 npm run seed                 # only indices 20–23 (resume)
+START=0 COUNT=10 npm run seed         # first 10 only
+```
+
+**Rate-limit note:** registration is capped at **20 requests / 15 min per IP**.
+Seeding all 24 at once will create 20 and 429 the last 4 — wait out the window
+and run `START=20 npm run seed` to finish. All sample accounts share the
+password `SamplePass123!` and use `*.@sample.spectrum-dating.app` emails.
+
+---
+
+## 4. Backups
+
+Daily online SQLite snapshots upload to `R2_BACKUP_BUCKET` under
+`backups/YYYY-MM-DD/spectrum-<timestamp>.db`. The snapshot is consistent even
+under live writes (better-sqlite3 `.backup()`, WAL-safe). Disabled with a log
+line if `R2_BACKUP_BUCKET` is unset.
+
+**Set up:**
+1. Create a **private** R2 bucket, e.g. `spectrum-dating-backups` (public access OFF).
+2. `railway variables set R2_BACKUP_BUCKET="spectrum-dating-backups"`
+3. Add an R2 **lifecycle rule** to expire objects older than ~30 days (retention).
+4. Redeploy. Log shows `[backup] enabled — first snapshot in 60s...`
+
+**Restore:**
+1. Download the desired `.db` from the backup bucket.
+2. Upload it to the Railway volume as `/data/spectrum.db` (stop the service, or
+   use a one-off shell), or set `DB_PATH` to the restored file.
+3. Redeploy and verify `/health` + a test login.
+
+> Backups are **not** a substitute for testing restores. Do a dry-run restore
+> before you ever need a real one.
+
+---
+
+## 5. Cloudflare R2 CORS (photo uploads)
+
+On the **public photos** bucket → Settings → CORS:
+
+```json
+[{
+  "AllowedOrigins": ["https://spectrum-dating-eta.vercel.app"],
+  "AllowedMethods": ["PUT", "GET"],
+  "AllowedHeaders": ["Content-Type"],
+  "MaxAgeSeconds": 3600
+}]
+```
+
+---
+
+## 6. Database migrations
+
+Plain `.sql` files in `src/migrations/`, run in order on every boot by
+`src/db.js`. The runner is **idempotent**: `ALTER TABLE ADD COLUMN` re-runs are
+caught (`duplicate column name` is ignored) so restarts never crash.
+
+To add a migration: create `NNN_name.sql`, append its filename to the
+`MIGRATIONS` array in `src/db.js`. Use `CREATE TABLE IF NOT EXISTS`. For new
+columns, a bare `ALTER TABLE ADD COLUMN` is fine — the runner tolerates re-runs.
+
+Current migrations: `001_init` · `002_matching` · `003_messaging` ·
+`004_reactions_photos` · `005_profile_photos` · `006_push_subscriptions` ·
+`007_token_version` · `008_read_cursors` · `009_email_verification`.
+
+---
+
+## 7. Known limitations / open items
+
+- **Auth login rate limiter on Railway:** keys on client IP via `X-Real-IP` /
+  `X-Forwarded-For`. Behind Railway's proxy this is now functional, but if IP
+  forwarding regresses, the limiter weakens. The *message* limiter keys on
+  `userId` and is unaffected.
+- **Email verification is non-blocking** by design — unverified users can still
+  use the app; the status is shown as a dismissible banner.
+- **Photos/push/email are inert** until their env vars are set (graceful).
+- **No admin/moderation dashboard** yet.
+
+---
+
+## 8. Quick health checks
+
+```bash
+curl -s https://spectrum-dating-server-production.up.railway.app/health
+# {"status":"ok"}
+
+railway status            # ● Online, replicas 1/1
+railway logs --deployment # tail recent logs
+```
