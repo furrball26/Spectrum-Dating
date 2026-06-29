@@ -17,14 +17,34 @@ export function getDb() {
   return _db;
 }
 
+const MIGRATIONS = [
+  '001_init.sql',
+  '002_matching.sql',
+  '003_messaging.sql',
+  '004_reactions_photos.sql',
+  '005_profile_photos.sql',
+  '006_push_subscriptions.sql',
+  '007_token_version.sql',
+  '008_read_cursors.sql',
+  '009_email_verification.sql',
+];
+
+// SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a
+// migration that adds a column throws "duplicate column name" on every boot
+// after the first. Migrations are idempotent by design here (CREATE TABLE IF
+// NOT EXISTS, etc.), so we tolerate that specific, safe-to-ignore error and
+// keep going. Any other SQL error is a real problem and is re-thrown.
 function runMigrations(db) {
-  db.exec(readFileSync(join(__dirname, 'migrations', '001_init.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '002_matching.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '003_messaging.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '004_reactions_photos.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '005_profile_photos.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '006_push_subscriptions.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '007_token_version.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '008_read_cursors.sql'), 'utf8'));
-  db.exec(readFileSync(join(__dirname, 'migrations', '009_email_verification.sql'), 'utf8'));
+  for (const file of MIGRATIONS) {
+    const sql = readFileSync(join(__dirname, 'migrations', file), 'utf8');
+    try {
+      db.exec(sql);
+    } catch (err) {
+      if (/duplicate column name/i.test(err.message)) {
+        // Column already added on a prior boot — migration already applied.
+        continue;
+      }
+      throw err;
+    }
+  }
 }

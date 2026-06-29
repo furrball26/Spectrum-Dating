@@ -1,5 +1,5 @@
 ﻿import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
@@ -15,8 +15,10 @@ const messageLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'You are sending messages too quickly. Please slow down.' },
   keyGenerator: (req) => {
-    // Rate limit per authenticated user, not per IP
-    return req.ctx?.userId || req.headers['x-real-ip'] || req.ip;
+    // Rate limit per authenticated user, not per IP. Fall back to the
+    // IPv6-safe ipKeyGenerator helper when there's no user (required by
+    // express-rate-limit v8 to avoid ERR_ERL_KEY_GEN_IPV6 at startup).
+    return req.ctx?.userId ? `user:${req.ctx.userId}` : ipKeyGenerator(req.ip);
   },
 });
 

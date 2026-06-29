@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { randomBytes } from 'crypto';
 import { newId } from '../utils/ids.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
@@ -19,12 +19,15 @@ const authLimiter = rateLimit({
   // Use real client IP from proxy headers (Railway / Cloudflare) before
   // falling back to req.ip, which is the proxy address behind Railway.
   keyGenerator: (req) => {
-    return (
+    // Prefer real client IP from proxy headers (Railway / Cloudflare), then
+    // normalise through the IPv6-safe helper required by express-rate-limit v8
+    // (avoids ERR_ERL_KEY_GEN_IPV6 at startup).
+    const ip =
       req.headers['x-real-ip'] ||
       req.headers['cf-connecting-ip'] ||
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-      req.ip
-    );
+      req.ip;
+    return ipKeyGenerator(ip);
   },
 });
 
