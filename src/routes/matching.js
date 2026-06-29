@@ -23,7 +23,12 @@ router.get('/candidates', requireAuth, (req, res) => {
     return res.json([]); // empty — frontend will redirect to onboarding
   }
 
-  const candidates = getCandidates(db, userId, viewerInterests).slice(0, 10);
+  const offset = Math.max(0, parseInt(req.query.offset) || 0);
+  const limit = Math.min(20, Math.max(1, parseInt(req.query.limit) || 10));
+
+  const scored = getCandidates(db, userId, viewerInterests);
+  const candidates = scored.slice(offset, offset + limit);
+  res.set('X-Has-More', String(scored.length > offset + limit));
 
   const result = candidates.map(c => ({
     memberId: c.user_id,

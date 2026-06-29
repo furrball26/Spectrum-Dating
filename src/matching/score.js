@@ -16,7 +16,8 @@ export function scoreCandidate(viewer, candidate) {
   const sharedInterests = candidate.interests.filter(i => viewerSet.has(i));
 
   const sameRelationshipGoal = !!viewerGoal && viewerGoal === candidate.relationship_goal;
-  const sameCity = !!viewerCity && viewerCity === candidate.dist_city;
+  const normCity = (s) => (s || '').trim().toLowerCase();
+  const sameCity = normCity(viewerCity) !== '' && normCity(viewerCity) === normCity(candidate.dist_city);
 
   const score =
     sharedInterests.length * 2 +

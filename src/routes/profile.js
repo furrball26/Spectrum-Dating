@@ -1,5 +1,6 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { emailConfigured } from '../email/resend.js';
 
 const router = Router();
 
@@ -24,6 +25,8 @@ router.get('/me', requireAuth, (req, res) => {
     interests.length > 0
   );
 
+  const userRow = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(userId);
+
   return res.json({
     userId: profile.user_id,
     displayName: profile.display_name,
@@ -36,6 +39,8 @@ router.get('/me', requireAuth, (req, res) => {
     photoUrl: profile.photo_url || '',
     interests,
     onboardingComplete,
+    emailVerified: !!userRow?.email_verified,
+    emailVerificationEnabled: emailConfigured(),
   });
 });
 
