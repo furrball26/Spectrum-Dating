@@ -37,3 +37,31 @@ export async function deleteObject(key) {
   if (!client) return;
   await client.send(new DeleteObjectCommand({ Bucket: BUCKET(), Key: key }));
 }
+
+// ─── Backups ────────────────────────────────────────────────────────────────
+// Backups go to a SEPARATE, PRIVATE bucket — never the public photos bucket.
+// A DB dump in a public bucket would expose every user's data.
+
+const BACKUP_BUCKET = () => process.env.R2_BACKUP_BUCKET || '';
+
+export function backupConfigured() {
+  return !!(
+    process.env.R2_ACCOUNT_ID &&
+    process.env.R2_ACCESS_KEY_ID &&
+    process.env.R2_SECRET_ACCESS_KEY &&
+    process.env.R2_BACKUP_BUCKET
+  );
+}
+
+export async function putBackup(key, body, contentType = 'application/octet-stream') {
+  const client = getR2Client();
+  if (!client || !BACKUP_BUCKET()) throw new Error('Backups not configured');
+  await client.send(
+    new PutObjectCommand({
+      Bucket: BACKUP_BUCKET(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  );
+}

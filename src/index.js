@@ -18,6 +18,7 @@ import startersRouter from './routes/starters.js';
 import pushRouter from './routes/push.js';
 import accountRouter from './routes/account.js';
 import { configurePush } from './push/webpush.js';
+import { scheduleBackups } from './backup/scheduler.js';
 
 // Ensure data directory exists
 mkdirSync('data', { recursive: true });
@@ -52,6 +53,7 @@ const io = setupSocketIO(httpServer, db);
 // Make io available to route handlers via app.locals
 app.locals.io = io;
 configurePush();
+scheduleBackups(db);
 
 httpServer.listen(PORT, () => console.log(`Spectrum Dating server on :${PORT}`));
 
