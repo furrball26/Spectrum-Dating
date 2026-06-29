@@ -7,7 +7,9 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "deploy": "node scripts/deploy.mjs",
+    "seed": "node scripts/seed-users.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1076.0",
