@@ -27,6 +27,7 @@ router.get('/me', requireAuth, (req, res) => {
     relationshipGoal: profile.relationship_goal,
     distCity: profile.dist_city,
     notificationTier: profile.notification_tier,
+    photoUrl: profile.photo_url || '',
     interests,
   });
 });
@@ -139,6 +140,7 @@ router.put('/me', requireAuth, (req, res) => {
     relationshipGoal: profile.relationship_goal,
     distCity: profile.dist_city,
     notificationTier: profile.notification_tier,
+    photoUrl: profile.photo_url || '',
     interests: interestRows.map(r => r.interest),
   });
 });
