@@ -4,6 +4,10 @@
 
 const API = process.argv[2] || 'https://spectrum-dating-server-production.up.railway.app';
 const PASSWORD = 'SamplePass123!';
+// Resume support: seed only a slice to stay under the 20-per-15-min auth rate
+// limit. e.g. START=20 COUNT=4 node scripts/seed-users.mjs
+const START = parseInt(process.env.START) || 0;
+const COUNT = parseInt(process.env.COUNT) || Infinity;
 
 // Field limits (from profile route): displayName<=30, tagline<=80, bio<=500,
 // commNote<=120, distCity<=100, interest<=30 chars, relationshipGoal in
@@ -204,7 +208,8 @@ async function run() {
   console.log(`Seeding ${USERS.length} users -> ${API}\n`);
   let ok = 0, fail = 0;
 
-  for (let i = 0; i < USERS.length; i++) {
+  const end = Math.min(USERS.length, START + COUNT);
+  for (let i = START; i < end; i++) {
     const u = USERS[i];
     const email = slugEmail(u.name, i);
 
