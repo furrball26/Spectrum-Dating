@@ -1,12 +1,24 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import bcrypt from 'bcrypt';
+import rateLimit from 'express-rate-limit';
 import { newId } from '../utils/ids.js';
 import { signToken } from '../middleware/auth.js';
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
 
-router.post('/register', async (req, res) => {
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,                   // 20 attempts per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again in 15 minutes.' },
+  skipSuccessfulRequests: false,
+});
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+router.post('/register', authLimiter, async (req, res) => {
   const { email, password } = req.body ?? {};
 
   // Validate input
@@ -14,7 +26,7 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
   const normalizedEmail = email.trim().toLowerCase();
-  if (!normalizedEmail.includes('@')) {
+  if (!emailRegex.test(normalizedEmail)) {
     return res.status(400).json({ error: 'Invalid email address.' });
   }
   if (password.length < 8) {
@@ -49,13 +61,16 @@ router.post('/register', async (req, res) => {
   return res.status(201).json({ token, userId });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body ?? {};
 
   if (typeof email !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
   const normalizedEmail = email.trim().toLowerCase();
+  if (!emailRegex.test(normalizedEmail)) {
+    return res.status(400).json({ error: 'Invalid email address.' });
+  }
 
   const { db } = req.ctx;
   const user = db.prepare('SELECT id, password_hash FROM users WHERE email = ?').get(normalizedEmail);
