@@ -8,6 +8,7 @@ import SafetyScreen from "./SafetyScreen.jsx";
 import SettingsScreen, { readA11y } from "./SettingsScreen.jsx";
 import AdminScreen from "./AdminScreen.jsx";
 import AuthScreen from "./AuthScreen.jsx";
+import LandingScreen from "./LandingScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
 import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
@@ -355,6 +356,12 @@ function VerifyEmailBanner({ onDismiss }) {
 export default function App() {
   const [authed, setAuthed] = useState(() => isLoggedIn());
   const [authMessage, setAuthMessage] = useState("");
+  // Unauthenticated flow: a new visitor sees the marketing LandingScreen first.
+  // Choosing an action reveals AuthScreen in the matching mode; "← Back"
+  // returns to the landing page. Returning users with a stored token skip
+  // straight past both (the `authed` branch wins below).
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // "login" | "register"
   const [onboarding, setOnboarding] = useState(false);
   // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety' | 'settings'
   const [activeTab, setActiveTab] = useState("suggestions");
@@ -431,6 +438,10 @@ export default function App() {
       setAuthed(false);
       setOnboarding(false);
       setIsAdmin(false);
+      // Send the user straight to the sign-in form (not the marketing page) so
+      // the expiry message has context.
+      setAuthMode("login");
+      setShowAuth(true);
     }
     window.addEventListener("auth:expired", handleExpired);
     return () => window.removeEventListener("auth:expired", handleExpired);
@@ -460,6 +471,7 @@ export default function App() {
     setOnboarding(false);
     setUnreadCount(0);
     setIsAdmin(false);
+    setShowAuth(false); // back to the landing page
     if (activeTab === "admin") setActiveTab("suggestions");
   }, [activeTab]);
 
@@ -549,7 +561,20 @@ export default function App() {
         <VerifyResultBanner result={verifyResult} onDismiss={() => setVerifyResult(null)} />
       )}
       {!authed
-        ? <AuthScreen onAuth={handleAuthed} />
+        ? showAuth
+          ? (
+            <AuthScreen
+              onAuth={handleAuthed}
+              initialMode={authMode}
+              onBack={() => setShowAuth(false)}
+            />
+          )
+          : (
+            <LandingScreen
+              onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
+              onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
+            />
+          )
         : onboarding
         ? <OnboardingScreen onComplete={() => setOnboarding(false)} />
         : (
@@ -716,6 +741,7 @@ export default function App() {
                     setOnboarding(false);
                     setUnreadCount(0);
                     setIsAdmin(false);
+                    setShowAuth(false); // back to the landing page
                   }}
                   pushEnabled={pushEnabled}
                   pushSupported={pushSupported}

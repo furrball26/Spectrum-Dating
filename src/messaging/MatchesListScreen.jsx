@@ -3,6 +3,7 @@ import { t } from "../tokens.js";
 import VerifiedBadge from "../VerifiedBadge.jsx";
 import Avatar from "../Avatar.jsx";
 import Skeleton from "../Skeleton.jsx";
+import { EmptyMessages } from "../illustrations.jsx";
 
 const CONVERSATION_CAP = 5;
 const AVATAR_SIZE = 44;
@@ -353,10 +354,15 @@ export default function MatchesListScreen({
         />
 
         {conversations.length === 0 && (
-          <p style={{ color: t.textSoft, textAlign: "center", marginTop: 48 }}>
-            No matches yet. Check back soon. Only people you've both matched with
-            can message you.
-          </p>
+          <div style={{ textAlign: "center", marginTop: 48 }}>
+            <div style={{ marginBottom: 16 }}>
+              <EmptyMessages size={104} />
+            </div>
+            <p style={{ color: t.textSoft, margin: 0 }}>
+              No matches yet. Check back soon. Only people you've both matched with
+              can message you.
+            </p>
+          </div>
         )}
       </div>
     </div>

@@ -41,8 +41,8 @@ function inputStyle(hasError) {
   };
 }
 
-export default function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState("login"); // "login" | "register"
+export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
+  const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,6 +52,7 @@ export default function AuthScreen({ onAuth }) {
   const fPassword = useFocusable();
   const fSubmit = useFocusable();
   const fToggle = useFocusable();
+  const fBack = useFocusable();
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -91,6 +92,33 @@ export default function AuthScreen({ onAuth }) {
       }}
     >
       <div style={{ width: "100%", maxWidth: 400 }}>
+
+        {/* Back to landing page */}
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            {...fBack}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              minHeight: 44,
+              marginBottom: 8,
+              padding: "6px 10px",
+              background: "none",
+              border: "none",
+              color: t.accentStrong,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              borderRadius: 8,
+              ...fBack.style,
+            }}
+          >
+            ← Back
+          </button>
+        )}
 
         {/* Wordmark */}
         <div

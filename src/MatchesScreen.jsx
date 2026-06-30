@@ -5,6 +5,7 @@ import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
 import Button from "./Button.jsx";
+import { EmptyMatches } from "./illustrations.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
 // conversations (Messages). Calm, low-pressure: no counters, no urgency.
@@ -227,6 +228,9 @@ export default function MatchesScreen({ onOpenConversation }) {
               color: t.textSoft,
             }}
           >
+            <div style={{ marginBottom: 16 }}>
+              <EmptyMatches size={104} />
+            </div>
             No matches yet. When you and someone both say you're interested in
             Discover, they'll appear here. Only people you've both matched with
             can message you.
