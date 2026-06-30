@@ -52,6 +52,10 @@ router.get('/candidates', requireAuth, (req, res) => {
     // structured comm/sensory fields above — those are matching signals.
     age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
     verified: !!c.identity_verified,
+    // Coarse location for the "Near …" label — the ZIP/postal code is STRIPPED
+    // so strangers browsing Discover see "Phoenix, AZ", never a precise ZIP
+    // (privacy/safety; the full value stays on the owner's own profile).
+    distCity: (c.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
     interests: c.interests,
     sharedInterests: c.sharedInterests,
     whyReasons: c.whyReasons,
