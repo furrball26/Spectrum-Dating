@@ -10,7 +10,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
   // Viewer's own profile fields used for weighted scoring (goal + city) and
   // for evaluating the viewer's active deal-breaker filters.
   const viewerProfile = db.prepare(
-    `SELECT relationship_goal, dist_city, wants_children,
+    `SELECT relationship_goal, dist_city, wants_children, gender, seeking,
             db_wants_children, db_non_smoker, db_must_be_local, search_radius_miles,
             sensory_environment, comm_cadence
      FROM profiles WHERE user_id = ?`
@@ -20,6 +20,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
     relationship_goal: viewerProfile?.relationship_goal ?? '',
     dist_city: viewerProfile?.dist_city ?? '',
     wants_children: viewerProfile?.wants_children ?? '',
+    gender: viewerProfile?.gender ?? '',
+    seeking: viewerProfile?.seeking ?? '',
     db_wants_children: !!viewerProfile?.db_wants_children,
     db_non_smoker: !!viewerProfile?.db_non_smoker,
     db_must_be_local: !!viewerProfile?.db_must_be_local,
@@ -45,6 +47,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const allProfiles = db.prepare(`
     SELECT p.user_id, p.display_name, p.tagline, p.bio, p.comm_note,
            p.relationship_goal, p.dist_city, p.updated_at, p.photo_url,
+           p.gender, p.pronouns, p.seeking,
            p.date_of_birth, p.wants_children, p.smoking, p.drinking,
            p.identity_verified, p.paused,
            p.comm_directness, p.comm_literal, p.comm_cadence,
@@ -90,6 +93,18 @@ export function getCandidates(db, viewerId, viewerInterests) {
         if (miles !== null && miles > viewer.search_radius_miles) {
           return false;
         }
+      }
+      // Gender / seeking compatibility (mutual). Only filters on KNOWN values —
+      // candidates with no gender set, or gender 'other', always pass (inclusive
+      // + avoids emptying Discover). A seeking list of '' means "open to everyone".
+      const SEEKABLE = ['woman', 'man', 'nonbinary'];
+      const mySeeking = (viewer.seeking || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (mySeeking.length > 0 && SEEKABLE.includes(profile.gender) && !mySeeking.includes(profile.gender)) {
+        return false; // their gender isn't one I'm seeking
+      }
+      const theirSeeking = (profile.seeking || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (theirSeeking.length > 0 && SEEKABLE.includes(viewer.gender) && !theirSeeking.includes(viewer.gender)) {
+        return false; // I'm not a gender they're seeking (mutual)
       }
       // Non-smoker: exclude candidates whose smoking is known and not 'no'.
       if (viewer.db_non_smoker) {

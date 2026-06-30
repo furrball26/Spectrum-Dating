@@ -52,6 +52,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     // structured comm/sensory fields above — those are matching signals.
     age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
     verified: !!c.identity_verified,
+    pronouns: c.pronouns || '',
     // Coarse location for the "Near …" label — the ZIP/postal code is STRIPPED
     // so strangers browsing Discover see "Phoenix, AZ", never a precise ZIP
     // (privacy/safety; the full value stays on the owner's own profile).
@@ -194,7 +195,7 @@ router.get('/matches', requireAuth, (req, res) => {
   const matches = rows.map((row) => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const p = db.prepare(
-      `SELECT display_name, tagline, photo_url, identity_verified, dist_city,
+      `SELECT display_name, tagline, photo_url, identity_verified, dist_city, pronouns,
               comm_directness, comm_literal, comm_cadence,
               sensory_environment, sensory_lighting, social_duration, context_card
        FROM profiles WHERE user_id = ?`
@@ -210,6 +211,7 @@ router.get('/matches', requireAuth, (req, res) => {
         tagline: p?.tagline || '',
         photoUrl: p?.photo_url || null,
         verified: !!p?.identity_verified,
+        pronouns: p?.pronouns || '',
         // Coarse city (ZIP stripped) for the "city on matches" display.
         distCity: (p?.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
         commDirectness: p?.comm_directness || '',

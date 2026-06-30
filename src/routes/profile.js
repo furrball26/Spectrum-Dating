@@ -30,6 +30,8 @@ export function listPrompts(db, userId) {
 
 const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
 const VALID_RADII = [0, 25, 50, 100, 250]; // miles; 0 = anywhere (no radius filter)
+const VALID_GENDERS = ['', 'woman', 'man', 'nonbinary', 'other'];
+const SEEKING_TOKENS = ['woman', 'man', 'nonbinary']; // '' = open to everyone
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
 const VALID_WANTS_CHILDREN = ['', 'yes', 'no', 'open'];
 const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
@@ -74,6 +76,9 @@ router.get('/me', requireAuth, (req, res) => {
     relationshipGoal: profile.relationship_goal,
     distCity: profile.dist_city,
     searchRadiusMiles: profile.search_radius_miles ?? 0,
+    gender: profile.gender || '',
+    pronouns: profile.pronouns || '',
+    seeking: profile.seeking || '',
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     photos: listPhotos(db, userId),
@@ -134,6 +139,25 @@ router.put('/me', requireAuth, (req, res) => {
   if (body.searchRadiusMiles !== undefined) {
     if (!VALID_RADII.includes(body.searchRadiusMiles)) {
       errors.push(`searchRadiusMiles must be one of: ${VALID_RADII.join(', ')} (0 = anywhere).`);
+    }
+  }
+  if (body.gender !== undefined) {
+    if (!VALID_GENDERS.includes(body.gender)) {
+      errors.push(`gender must be one of: ${VALID_GENDERS.filter(Boolean).join(', ')} (or empty).`);
+    }
+  }
+  if (body.pronouns !== undefined) {
+    if (typeof body.pronouns !== 'string') errors.push('pronouns must be a string.');
+    else if (body.pronouns.length > 40) errors.push('pronouns must be 40 characters or fewer.');
+  }
+  if (body.seeking !== undefined) {
+    if (typeof body.seeking !== 'string') {
+      errors.push('seeking must be a comma-separated string.');
+    } else {
+      const toks = body.seeking.split(',').map(s => s.trim()).filter(Boolean);
+      if (!toks.every(t => SEEKING_TOKENS.includes(t))) {
+        errors.push(`seeking tokens must be from: ${SEEKING_TOKENS.join(', ')}.`);
+      }
     }
   }
   if (body.notificationTier !== undefined) {
@@ -235,6 +259,9 @@ router.put('/me', requireAuth, (req, res) => {
     relationshipGoal: 'relationship_goal',
     distCity: 'dist_city',
     searchRadiusMiles: 'search_radius_miles',
+    gender: 'gender',
+    pronouns: 'pronouns',
+    seeking: 'seeking',
     notificationTier: 'notification_tier',
     dateOfBirth: 'date_of_birth',
     wantsChildren: 'wants_children',
@@ -308,6 +335,9 @@ router.put('/me', requireAuth, (req, res) => {
     relationshipGoal: profile.relationship_goal,
     distCity: profile.dist_city,
     searchRadiusMiles: profile.search_radius_miles ?? 0,
+    gender: profile.gender || '',
+    pronouns: profile.pronouns || '',
+    seeking: profile.seeking || '',
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     dateOfBirth: profile.date_of_birth || '',
