@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import MatchesListScreen from "./MatchesListScreen.jsx";
 import ConversationScreen from "./ConversationScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
 import { getConversations, archiveConversation, blockUser, reportUser, getUserId, markConversationRead } from "../api.js";
 
-export default function MessagingApp({ onUnreadCount }) {
+export default function MessagingApp({ onUnreadCount, initialConversationId }) {
   // state: 'list' | 'conversation' | 'block-report'
   const [screen, setScreen] = useState("list");
   const [selectedConversationId, setSelectedConversationId] = useState(null);
@@ -35,6 +35,20 @@ export default function MessagingApp({ onUnreadCount }) {
       if (onUnreadCount) onUnreadCount(0);
     }
   }, [screen]);
+
+  // Auto-open a conversation when arriving from the Matches tab. Fires once,
+  // after the conversation appears in the loaded list.
+  const openedInitialRef = useRef(false);
+  useEffect(() => {
+    if (
+      !openedInitialRef.current &&
+      initialConversationId &&
+      conversations.some(c => c.id === initialConversationId)
+    ) {
+      openedInitialRef.current = true;
+      handleSelectConversation(initialConversationId);
+    }
+  }, [initialConversationId, conversations]);
 
   const currentConvo = conversations.find(c => c.id === selectedConversationId) || null;
 

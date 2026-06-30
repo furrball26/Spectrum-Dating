@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import SuggestionScreen from "./SuggestionScreen.jsx";
 import MessagingApp from "./messaging/MessagingApp.jsx";
 import ProfileScreen from "./ProfileScreen.jsx";
+import MatchesScreen from "./MatchesScreen.jsx";
 import AdminScreen from "./AdminScreen.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
@@ -236,9 +237,12 @@ export default function App() {
   const [authed, setAuthed] = useState(() => isLoggedIn());
   const [authMessage, setAuthMessage] = useState("");
   const [onboarding, setOnboarding] = useState(false);
-  // 'suggestions' | 'messages' | 'profile'
+  // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin'
   const [activeTab, setActiveTab] = useState("suggestions");
   const [prevTab, setPrevTab] = useState("suggestions");
+  // When opening a chat from the Matches tab, this tells MessagingApp which
+  // conversation to open on mount.
+  const [pendingConversationId, setPendingConversationId] = useState(null);
 
   // Email verification state
   const [verifyResult, setVerifyResult] = useState(null); // null | 'success' | 'error'
@@ -463,9 +467,14 @@ export default function App() {
                     onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
                   />
                   <NavTab
+                    label="Matches"
+                    active={activeTab === "matches"}
+                    onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
+                  />
+                  <NavTab
                     label="Messages"
                     active={activeTab === "messages"}
-                    onClick={() => { setPrevTab(activeTab); setActiveTab("messages"); setUnreadCount(0); }}
+                    onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
                     badgeCount={activeTab === "messages" ? 0 : unreadCount}
                   />
                   <NavTab
@@ -489,6 +498,7 @@ export default function App() {
               role="tabpanel"
               aria-label={
                 activeTab === "suggestions" ? "Discover" :
+                activeTab === "matches" ? "Matches" :
                 activeTab === "messages" ? "Messages" :
                 activeTab === "admin" ? "Moderation" : "Profile"
               }
@@ -506,7 +516,22 @@ export default function App() {
                   onGoToProfile={() => setActiveTab("profile")}
                 />
               )}
-              {activeTab === "messages" && <MessagingApp onUnreadCount={setUnreadCount} />}
+              {activeTab === "matches" && (
+                <MatchesScreen
+                  onOpenConversation={(conversationId) => {
+                    setPendingConversationId(conversationId);
+                    setPrevTab("matches");
+                    setActiveTab("messages");
+                    setUnreadCount(0);
+                  }}
+                />
+              )}
+              {activeTab === "messages" && (
+                <MessagingApp
+                  onUnreadCount={setUnreadCount}
+                  initialConversationId={pendingConversationId}
+                />
+              )}
               {activeTab === "profile" && (
                 <ProfileScreen
                   onDone={() => setActiveTab(prevTab || "suggestions")}

@@ -124,6 +124,11 @@ export async function swipe(candidateId, decision) {
   });
 }
 
+export async function getMatches() {
+  const data = await apiFetch("/matching/matches");
+  return Array.isArray(data) ? data : (Array.isArray(data?.matches) ? data.matches : []);
+}
+
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
 export async function getConversations() {
