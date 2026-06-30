@@ -786,3 +786,30 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Deploy:** Backend health-gated deploy passed. SHA `218ea36b` confirmed live on Railway. ✅
 
 ~Auto Builder
+
+### 2026-06-30 — Backlog item #11: Self-serve identity verification request flow
+
+**What was built:** End-to-end self-serve verification request flow — users can now request identity verification from their Profile, see the status update in real time (pending / rejected / re-requestable), and the admin's approve/reject action updates the status immediately.
+
+**Backend** (`Spectrum-Dating-Server/`):
+- **Migration `028_verification_requests.sql`** — new `verification_requests` table: `id TEXT PRIMARY KEY`, `user_id TEXT UNIQUE REFERENCES users(id) ON DELETE CASCADE`, `status TEXT DEFAULT 'pending'` (pending / approved / rejected), `requested_at INTEGER`, `reviewed_at INTEGER`. Registered in `src/db.js` MIGRATIONS array.
+- **`GET /profile/me`** — now queries `verification_requests WHERE user_id = ? AND status != 'approved'` and returns `verificationRequested: status | null` alongside the existing `verified` field. `null` = no open request; `'pending'` or `'rejected'` otherwise.
+- **`POST /profile/verification-request`** (new, rate-limited via `abuseReportLimiter`): idempotent upsert. Already-pending → returns `{ ok:true, status:'pending' }` immediately (no duplicate row). Already-verified → 409. Otherwise: `INSERT … ON CONFLICT(user_id) DO UPDATE SET status='pending', requested_at=…` — so rejected users can re-request.
+- **`POST /admin/users/:id/verify`** (updated): after flipping `profiles.identity_verified`, now also syncs `verification_requests` to `status='approved'` or `status='rejected'` so the user's profile status reflects the admin decision.
+
+**Frontend** (`src/`):
+- **`api.js`**: `requestVerification()` → `POST /profile/verification-request`.
+- **`src/ProfileScreen.jsx`**: three new state variables (`verificationRequested`, `verifRequestBusy`, `verifRequestError`) declared with all other hooks before any early return. Load effect populates `verificationRequested` from `data.verificationRequested || null`. Identity verification card replaced "Coming soon" UI with a **four-state UI**:
+  - `verified=true` → "✓ Your identity is verified." (unchanged)
+  - `verificationRequested === 'pending'` → reassurance copy + "Pending review" pill
+  - `verificationRequested === 'rejected'` → "Your previous request wasn't approved." + **"Re-request verification"** button
+  - `verificationRequested === null` → "Get a verified badge…" copy + **"Request verification"** button
+  - Button shows "Submitting…" while in flight; surfaces server error inline via `role="alert"`. On success sets `verificationRequested='pending'` in local state immediately (no reload needed).
+
+**Files touched:** `Spectrum-Dating-Server/src/migrations/028_verification_requests.sql` (new), `Spectrum-Dating-Server/src/db.js`, `Spectrum-Dating-Server/src/routes/profile.js`, `Spectrum-Dating-Server/src/routes/admin.js`, `src/api.js`, `src/ProfileScreen.jsx`
+
+**Deploy:** Build clean (91 modules). Backend health-gated deploy passed after 5 checks (Railway SHA `62e9029`). Frontend deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
+
+**Verification:** Live bundle `index-DKaAXJFx.js` confirmed: "Request verification", "Re-request verification", "Pending review", "verification-request" — all four strings present. ✅
+
+~Auto Builder
