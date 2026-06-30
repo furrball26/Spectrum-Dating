@@ -43,6 +43,14 @@ const DEFAULT_PROFILE = {
   relationshipGoal: "",        // "" | "long-term" | "friendship" | "open"
   distanceCity: "",
   notificationTier: "in_app", // "in_app" | "silent_push" | "name_only"
+  // Lifestyle attributes (optional, shown on profile)
+  wantsChildren: "",          // "" | "yes" | "no" | "open"
+  smoking: "",                // "" | "no" | "sometimes" | "yes"
+  drinking: "",               // "" | "no" | "sometimes" | "yes"
+  // Deal-breaker flags
+  dbWantsChildren: false,
+  dbNonSmoker: false,
+  dbMustBeLocal: false,
 };
 
 const SUGGESTED_INTERESTS = [
@@ -553,6 +561,82 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
   );
 }
 
+// ─── Lifestyle select (calm labelled dropdown) ───────────────────────────────
+function LifestyleSelect({ id, label, helper, value, options, onChange }) {
+  const f = useFocusable();
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <select
+        id={id}
+        value={value}
+        aria-describedby={`${id}-hint`}
+        onChange={(e) => onChange(e.target.value)}
+        {...f}
+        style={{
+          ...inputStyle(false),
+          minHeight: 44,
+          appearance: "auto",
+          cursor: "pointer",
+          ...f.style,
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      <HelperText id={`${id}-hint`}>{helper}</HelperText>
+    </div>
+  );
+}
+
+// ─── Deal-breaker toggle (reuses the notification switch pattern) ─────────────
+function DealBreakerToggle({ id, label, checked, onChange }) {
+  const f = useFocusable();
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+      <p id={`${id}-label`} style={{ margin: 0, fontSize: 15, fontWeight: 500, color: t.text }}>
+        {label}
+      </p>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-labelledby={`${id}-label`}
+        onClick={() => onChange(!checked)}
+        {...f}
+        style={{
+          position: "relative",
+          width: 48,
+          height: 28,
+          borderRadius: 14,
+          background: checked ? t.accentStrong : t.border,
+          border: "none",
+          cursor: "pointer",
+          flexShrink: 0,
+          transition: "background 0.2s",
+          ...f.style,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 3,
+            left: checked ? 23 : 3,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left 0.2s",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
@@ -569,6 +653,15 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [relGoal, setRelGoal]         = useState(DEFAULT_PROFILE.relationshipGoal);
   const [distCity, setDistCity]       = useState(DEFAULT_PROFILE.distanceCity);
   const [notifTier, setNotifTier]     = useState(DEFAULT_PROFILE.notificationTier);
+
+  // Lifestyle attributes (optional)
+  const [wantsChildren, setWantsChildren] = useState(DEFAULT_PROFILE.wantsChildren);
+  const [smoking, setSmoking]             = useState(DEFAULT_PROFILE.smoking);
+  const [drinking, setDrinking]           = useState(DEFAULT_PROFILE.drinking);
+  // Deal-breaker toggles
+  const [dbWantsChildren, setDbWantsChildren] = useState(DEFAULT_PROFILE.dbWantsChildren);
+  const [dbNonSmoker, setDbNonSmoker]         = useState(DEFAULT_PROFILE.dbNonSmoker);
+  const [dbMustBeLocal, setDbMustBeLocal]     = useState(DEFAULT_PROFILE.dbMustBeLocal);
 
   // savedProfile mirrors the last-known server state, used for isDirty comparison
   const [savedProfile, setSavedProfile] = useState(null);
@@ -631,6 +724,12 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           relationshipGoal: data.relationshipGoal || '',
           distanceCity: data.distCity || '',
           notificationTier: data.notificationTier || 'in_app',
+          wantsChildren: data.wantsChildren || '',
+          smoking: data.smoking || '',
+          drinking: data.drinking || '',
+          dbWantsChildren: !!data.dbWantsChildren,
+          dbNonSmoker: !!data.dbNonSmoker,
+          dbMustBeLocal: !!data.dbMustBeLocal,
         };
         setDisplayName(merged.displayName);
         setTagline(merged.tagline);
@@ -640,6 +739,12 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setRelGoal(merged.relationshipGoal);
         setDistCity(merged.distanceCity);
         setNotifTier(merged.notificationTier);
+        setWantsChildren(merged.wantsChildren);
+        setSmoking(merged.smoking);
+        setDrinking(merged.drinking);
+        setDbWantsChildren(merged.dbWantsChildren);
+        setDbNonSmoker(merged.dbNonSmoker);
+        setDbMustBeLocal(merged.dbMustBeLocal);
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         cacheProfile(merged);
@@ -655,7 +760,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       // Never saved before — dirty if any field has content
       const hasContent =
         displayName || tagline || bio || interests.length > 0 ||
-        commNote || relGoal || distCity || notifTier !== "in_app";
+        commNote || relGoal || distCity || notifTier !== "in_app" ||
+        wantsChildren || smoking || drinking ||
+        dbWantsChildren || dbNonSmoker || dbMustBeLocal;
       setIsDirty(hasContent);
     } else {
       const dirty =
@@ -666,11 +773,17 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         relGoal          !== savedProfile.relationshipGoal ||
         distCity         !== savedProfile.distanceCity ||
         notifTier        !== savedProfile.notificationTier ||
+        wantsChildren    !== savedProfile.wantsChildren ||
+        smoking          !== savedProfile.smoking ||
+        drinking         !== savedProfile.drinking ||
+        dbWantsChildren  !== savedProfile.dbWantsChildren ||
+        dbNonSmoker      !== savedProfile.dbNonSmoker ||
+        dbMustBeLocal    !== savedProfile.dbMustBeLocal ||
         JSON.stringify([...interests].sort()) !==
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, savedProfile]);
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -821,6 +934,12 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       relationshipGoal: relGoal,
       distanceCity: distCity,
       notificationTier: notifTier,
+      wantsChildren,
+      smoking,
+      drinking,
+      dbWantsChildren,
+      dbNonSmoker,
+      dbMustBeLocal,
     };
 
     try {
@@ -833,6 +952,12 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         relationshipGoal: currentProfile.relationshipGoal,
         distCity: currentProfile.distanceCity,
         notificationTier: currentProfile.notificationTier,
+        wantsChildren: currentProfile.wantsChildren,
+        smoking: currentProfile.smoking,
+        drinking: currentProfile.drinking,
+        dbWantsChildren: currentProfile.dbWantsChildren,
+        dbNonSmoker: currentProfile.dbNonSmoker,
+        dbMustBeLocal: currentProfile.dbMustBeLocal,
       });
       cacheProfile(currentProfile);  // keep localStorage in sync for SuggestionScreen
       setSavedProfile(currentProfile);
@@ -1397,6 +1522,97 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               >
                 Used to show people near you. Approximate is fine.
               </span>
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — Lifestyle
+          ══════════════════════════════════════════════════════ */}
+          <div style={card}>
+            <h2 style={h2Style}>Lifestyle</h2>
+
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
+              All optional. Anything you share here is shown on your profile.
+            </p>
+
+            <LifestyleSelect
+              id="wants-children"
+              label="Do you want children?"
+              helper="Optional — shown on your profile."
+              value={wantsChildren}
+              onChange={setWantsChildren}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+                { value: "open", label: "Open to it" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="smoking"
+              label="Smoking"
+              helper="Optional — shown on your profile."
+              value={smoking}
+              onChange={setSmoking}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "no", label: "No" },
+                { value: "sometimes", label: "Sometimes" },
+                { value: "yes", label: "Yes" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="drinking"
+              label="Drinking"
+              helper="Optional — shown on your profile."
+              value={drinking}
+              onChange={setDrinking}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "no", label: "No" },
+                { value: "sometimes", label: "Sometimes" },
+                { value: "yes", label: "Yes" },
+              ]}
+            />
+
+            {/* Deal-breakers subsection */}
+            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <h3
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: t.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  margin: "0 0 6px",
+                }}
+              >
+                Deal-breakers
+              </h3>
+              <p style={{ fontSize: 13, color: t.textSoft, margin: "0 0 16px", lineHeight: 1.6 }}>
+                Deal-breakers hide people who clearly don't match. People who haven't said yet still show up.
+              </p>
+
+              <DealBreakerToggle
+                id="db-wants-children"
+                label="Only show me people who feel the same about children"
+                checked={dbWantsChildren}
+                onChange={setDbWantsChildren}
+              />
+              <DealBreakerToggle
+                id="db-non-smoker"
+                label="Only show me non-smokers"
+                checked={dbNonSmoker}
+                onChange={setDbNonSmoker}
+              />
+              <DealBreakerToggle
+                id="db-must-be-local"
+                label="Only show me people in my city"
+                checked={dbMustBeLocal}
+                onChange={setDbMustBeLocal}
+              />
             </div>
           </div>
 

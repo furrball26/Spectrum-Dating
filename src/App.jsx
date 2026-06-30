@@ -4,6 +4,7 @@ import SuggestionScreen from "./SuggestionScreen.jsx";
 import MessagingApp from "./messaging/MessagingApp.jsx";
 import ProfileScreen from "./ProfileScreen.jsx";
 import MatchesScreen from "./MatchesScreen.jsx";
+import SafetyScreen from "./SafetyScreen.jsx";
 import AdminScreen from "./AdminScreen.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
@@ -73,6 +74,37 @@ function NavTab({ label, active, onClick, badgeCount }) {
           {badgeCount}
         </span>
       )}
+    </button>
+  );
+}
+
+function SafetyLink({ active, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Safety Center"
+      aria-current={active ? "page" : undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        minHeight: 44,
+        padding: "6px 12px",
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        fontSize: 14,
+        fontWeight: 600,
+        color: active ? t.accent : t.textSoft,
+        borderRadius: 8,
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      <span aria-hidden="true">🛡</span> Safety
     </button>
   );
 }
@@ -237,7 +269,7 @@ export default function App() {
   const [authed, setAuthed] = useState(() => isLoggedIn());
   const [authMessage, setAuthMessage] = useState("");
   const [onboarding, setOnboarding] = useState(false);
-  // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin'
+  // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety'
   const [activeTab, setActiveTab] = useState("suggestions");
   const [prevTab, setPrevTab] = useState("suggestions");
   // When opening a chat from the Matches tab, this tells MessagingApp which
@@ -440,15 +472,31 @@ export default function App() {
               >
                 <div
                   style={{
-                    fontFamily: t.serif,
-                    fontWeight: 700,
-                    fontSize: 19,
-                    letterSpacing: "-0.01em",
-                    color: t.text,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
                     marginBottom: 12,
                   }}
                 >
-                  Spectrum
+                  <div
+                    style={{
+                      fontFamily: t.serif,
+                      fontWeight: 700,
+                      fontSize: 19,
+                      letterSpacing: "-0.01em",
+                      color: t.text,
+                    }}
+                  >
+                    Spectrum
+                  </div>
+                  <SafetyLink
+                    active={activeTab === "safety"}
+                    onClick={() => {
+                      if (activeTab !== "safety") setPrevTab(activeTab);
+                      setActiveTab("safety");
+                    }}
+                  />
                 </div>
 
                 {/* Tab bar */}
@@ -500,7 +548,8 @@ export default function App() {
                 activeTab === "suggestions" ? "Discover" :
                 activeTab === "matches" ? "Matches" :
                 activeTab === "messages" ? "Messages" :
-                activeTab === "admin" ? "Moderation" : "Profile"
+                activeTab === "admin" ? "Moderation" :
+                activeTab === "safety" ? "Safety Center" : "Profile"
               }
               style={{
                 flex: 1,
@@ -550,6 +599,9 @@ export default function App() {
                 />
               )}
               {activeTab === "admin" && isAdmin && <AdminScreen />}
+              {activeTab === "safety" && (
+                <SafetyScreen onBack={() => setActiveTab(prevTab || "suggestions")} />
+              )}
             </main>
           </div>
         )
