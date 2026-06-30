@@ -898,7 +898,7 @@ function PromptChooser({ available, onAdd, onCancel }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush, isAdmin, onOpenModeration }) {
+export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -2360,37 +2360,6 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         </div>
       </div>
     </>
-  );
-}
-
-// ── Moderation entry (admins only) ────────────────────────────────────────────
-// Replaces the former top-nav "Moderation" tab. Lives in Profile so the primary
-// nav is identical (4 items) for every user; App still renders <AdminScreen/>.
-function ModerationButton({ onOpenModeration }) {
-  const f = useFocusable();
-  return (
-    <button
-      type="button"
-      onClick={onOpenModeration}
-      {...f}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        background: "transparent",
-        border: `1px solid ${t.border}`,
-        borderRadius: 10,
-        color: t.textSoft,
-        fontSize: 15,
-        fontWeight: 500,
-        cursor: "pointer",
-        padding: "10px 24px",
-        minHeight: 44,
-        ...f.style,
-      }}
-    >
-      <span aria-hidden="true">⚙</span> Moderation
-    </button>
   );
 }
 

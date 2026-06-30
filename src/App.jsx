@@ -891,8 +891,6 @@ export default function App() {
                   pushSupported={pushSupported}
                   onEnablePush={enablePush}
                   onDisablePush={disablePush}
-                  isAdmin={isAdmin}
-                  onOpenModeration={() => { setPrevTab("profile"); setActiveTab("admin"); }}
                 />
               )}
               {activeTab === "admin" && isAdmin && <AdminScreen />}
