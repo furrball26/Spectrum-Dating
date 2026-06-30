@@ -22,6 +22,9 @@ export function setAuth(token, userId) {
 export function clearAuth() {
   localStorage.removeItem("spectrum_token");
   localStorage.removeItem("spectrum_user_id");
+  // Clear cached profile so identity-derived UI (e.g. the match-moment "you"
+  // avatar) can never carry a previous account's name into a new session.
+  localStorage.removeItem("spectrum_profile");
 }
 
 export function isLoggedIn() {
