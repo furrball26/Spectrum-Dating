@@ -220,18 +220,18 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               color: t.text,
             }}
           >
-            Dating at your own pace.
+            Meet people at your own pace.
           </h1>
           <p
             style={{
               fontSize: 18,
               color: t.textSoft,
-              maxWidth: 460,
+              maxWidth: 480,
               margin: "0 auto 36px",
             }}
           >
-            A calmer, clearer way to meet people — made with and for autistic
-            adults.
+            No typing dots. No “online now.” No rush. A calmer way to date,
+            made with and for autistic adults.
           </p>
 
           <div
@@ -245,7 +245,75 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
             <PrimaryButton onClick={onGetStarted}>Create your profile</PrimaryButton>
             <TertiaryButton onClick={onSignIn}>Sign in</TertiaryButton>
           </div>
+          <p style={{ margin: "16px 0 0", fontSize: 14, color: t.textMuted }}>
+            Free to join. Leave whenever you like.
+          </p>
         </header>
+
+        {/* ── What you won't find here (the "removed things" manifesto) ─── */}
+        <section style={{ ...section, paddingTop: 40, paddingBottom: 8 }} aria-labelledby="manifesto-heading">
+          <div
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 20,
+              padding: "28px 24px",
+              textAlign: "center",
+            }}
+          >
+            <h2
+              id="manifesto-heading"
+              style={{
+                fontFamily: t.serif,
+                fontWeight: 700,
+                fontSize: 24,
+                letterSpacing: "-0.01em",
+                margin: "0 0 6px",
+                color: t.text,
+              }}
+            >
+              What you won’t find here
+            </h2>
+            <p style={{ margin: "0 0 20px", fontSize: 15, color: t.textSoft }}>
+              We left out the things that make dating apps exhausting.
+            </p>
+            <ul
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                justifyContent: "center",
+              }}
+            >
+              {[
+                "No typing indicators",
+                "No “online now”",
+                "We never show when you’ve read a message",
+                "No streaks",
+                "No red-dot anxiety",
+                "No swiping games",
+              ].map((item) => (
+                <li
+                  key={item}
+                  style={{
+                    background: t.green50,
+                    color: t.accentStrong,
+                    border: `1px solid ${t.green100}`,
+                    borderRadius: 999,
+                    padding: "8px 14px",
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
         {/* ── Why Spectrum is different ─────────────────────────── */}
         <section style={{ ...section, paddingTop: 48, paddingBottom: 24 }} aria-labelledby="why-heading">
@@ -397,8 +465,26 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
           </ol>
         </section>
 
+        {/* ── Match-moment tease ────────────────────────────────── */}
+        <section style={{ ...section, paddingTop: 40, paddingBottom: 8 }}>
+          <p
+            style={{
+              textAlign: "center",
+              fontFamily: t.serif,
+              fontSize: 20,
+              lineHeight: 1.5,
+              color: t.textSoft,
+              maxWidth: 520,
+              margin: "0 auto",
+            }}
+          >
+            When you match, we celebrate quietly — no confetti, no noise. Just a
+            calm moment that says you’re on the same wavelength.
+          </p>
+        </section>
+
         {/* ── Closing CTA ───────────────────────────────────────── */}
-        <section style={{ ...section, paddingTop: 48, paddingBottom: 48 }}>
+        <section style={{ ...section, paddingTop: 40, paddingBottom: 48 }}>
           <div
             style={{
               background: t.green50,
@@ -456,11 +542,11 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               Spectrum
             </span>
           </div>
-          <p style={{ margin: "0 0 6px", fontSize: 14, color: t.textMuted, maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
-            A calmer place to meet people, built with the autistic community.
+          <p style={{ margin: "0 0 6px", fontSize: 14, color: t.textMuted, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
+            Built with autistic adults. Always opt-in. No dark patterns, ever.
           </p>
           <p style={{ margin: 0, fontSize: 14, color: t.textMuted }}>
-            Your safety &amp; privacy matter.
+            Your safety &amp; privacy come first.
           </p>
         </footer>
       </div>
