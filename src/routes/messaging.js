@@ -5,6 +5,7 @@ import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
 import { emitNewMessage, emitMessageDeleted, emitConversationArchived } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
+import { getReactionSummary } from './reactions.js';
 
 const router = Router();
 
@@ -109,6 +110,9 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
     body: m.deleted ? null : m.body,
     deleted: !!m.deleted,
     timeLabel: coarseLabel(m.sent_at),
+    // Attach reaction summary so reactions survive reload/reopen (the client
+    // hydrates msg.reactions). Deleted messages carry no reactions.
+    reactions: m.deleted ? [] : getReactionSummary(db, m.id, userId),
   }));
 
   res.json({

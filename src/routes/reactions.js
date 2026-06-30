@@ -7,7 +7,7 @@ const router = Router();
 
 const ALLOWED_EMOJI = new Set(['♥', '👍', '😊', '😄', '🤔']);
 
-function getReactionSummary(db, messageId, currentUserId) {
+export function getReactionSummary(db, messageId, currentUserId) {
   const rows = db.prepare(
     'SELECT emoji, user_id FROM message_reactions WHERE message_id = ?'
   ).all(messageId);
