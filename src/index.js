@@ -1,5 +1,6 @@
 ﻿import 'dotenv/config';
 import express from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import { mkdirSync } from 'fs';
 import { createServer } from 'http';
@@ -48,8 +49,16 @@ const PORT = process.env.PORT || 3001;
 
 // Trust Railway's reverse proxy so express-rate-limit reads the real client IP
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
+// Security headers — HSTS, X-Content-Type-Options, frameguard, referrer policy,
+// etc. CSP is disabled (this is a JSON API, not an HTML origin); CORP set to
+// cross-origin so the separate frontend can call it.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173' }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // cap request bodies
 app.use(optionalAuth);
 app.use(contextMiddleware(db));
 
@@ -69,6 +78,26 @@ app.use('/feedback', feedbackRouter);
 // /health includes the deployed git SHA so the deploy script can confirm the
 // NEW build is live (not the old replica still serving during rollover).
 app.get('/health', (_req, res) => res.json({ status: 'ok', sha: BUILD_SHA }));
+
+// 404 for unmatched routes (JSON API).
+app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Central error handler — log it, never leak stack traces to clients.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  console.error('[error]', req.method, req.originalUrl, '-', err?.message, '\n', err?.stack);
+  if (res.headersSent) return;
+  res.status(err?.status && err.status < 600 ? err.status : 500).json({ error: 'Something went wrong.' });
+});
+
+// Last-resort process guards so an async slip never silently corrupts state.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  process.exit(1); // undefined state — let the platform restart cleanly
+});
 
 const httpServer = createServer(app);
 const io = setupSocketIO(httpServer, db);
