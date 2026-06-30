@@ -9,6 +9,8 @@ const router = Router();
 
 const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
+const VALID_WANTS_CHILDREN = ['', 'yes', 'no', 'open'];
+const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
 
 // GET /profile/me
 router.get('/me', requireAuth, (req, res) => {
@@ -47,6 +49,12 @@ router.get('/me', requireAuth, (req, res) => {
     photos: listPhotos(db, userId),
     dateOfBirth: profile.date_of_birth || '',
     age: dobAge,
+    wantsChildren: profile.wants_children || '',
+    smoking: profile.smoking || '',
+    drinking: profile.drinking || '',
+    dbWantsChildren: !!profile.db_wants_children,
+    dbNonSmoker: !!profile.db_non_smoker,
+    dbMustBeLocal: !!profile.db_must_be_local,
     interests,
     onboardingComplete,
     emailVerified: !!userRow?.email_verified,
@@ -93,6 +101,21 @@ router.put('/me', requireAuth, (req, res) => {
       errors.push(`relationshipGoal must be one of: ${VALID_RELATIONSHIP_GOALS.map(v => v === '' ? '""' : v).join(', ')}.`);
     }
   }
+  if (body.wantsChildren !== undefined) {
+    if (!VALID_WANTS_CHILDREN.includes(body.wantsChildren)) {
+      errors.push(`wantsChildren must be one of: ${VALID_WANTS_CHILDREN.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.smoking !== undefined) {
+    if (!VALID_FREQUENCY.includes(body.smoking)) {
+      errors.push(`smoking must be one of: ${VALID_FREQUENCY.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.drinking !== undefined) {
+    if (!VALID_FREQUENCY.includes(body.drinking)) {
+      errors.push(`drinking must be one of: ${VALID_FREQUENCY.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
   if (body.interests !== undefined) {
     if (!Array.isArray(body.interests)) {
       errors.push('interests must be an array.');
@@ -134,6 +157,16 @@ router.put('/me', requireAuth, (req, res) => {
     distCity: 'dist_city',
     notificationTier: 'notification_tier',
     dateOfBirth: 'date_of_birth',
+    wantsChildren: 'wants_children',
+    smoking: 'smoking',
+    drinking: 'drinking',
+  };
+
+  // Deal-breaker flags: stored as 0/1, coerced from any truthy/falsy boolean.
+  const boolFieldMap = {
+    dbWantsChildren: 'db_wants_children',
+    dbNonSmoker: 'db_non_smoker',
+    dbMustBeLocal: 'db_must_be_local',
   };
 
   const setClauses = [];
@@ -143,6 +176,13 @@ router.put('/me', requireAuth, (req, res) => {
     if (body[jsKey] !== undefined) {
       setClauses.push(`${dbCol} = ?`);
       values.push(body[jsKey]);
+    }
+  }
+
+  for (const [jsKey, dbCol] of Object.entries(boolFieldMap)) {
+    if (body[jsKey] !== undefined) {
+      setClauses.push(`${dbCol} = ?`);
+      values.push(body[jsKey] ? 1 : 0);
     }
   }
 
@@ -182,6 +222,12 @@ router.put('/me', requireAuth, (req, res) => {
     photoUrl: profile.photo_url || '',
     dateOfBirth: profile.date_of_birth || '',
     age: profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null,
+    wantsChildren: profile.wants_children || '',
+    smoking: profile.smoking || '',
+    drinking: profile.drinking || '',
+    dbWantsChildren: !!profile.db_wants_children,
+    dbNonSmoker: !!profile.db_non_smoker,
+    dbMustBeLocal: !!profile.db_must_be_local,
     interests: interestRows.map(r => r.interest),
   });
 });
