@@ -1,5 +1,6 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { abuseReportLimiter } from '../middleware/rateLimits.js';
 import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos } from './photos.js';
@@ -67,6 +68,14 @@ router.get('/me', requireAuth, (req, res) => {
 
   const userRow = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(userId);
 
+  // Check if the user has an open verification request (pending / rejected).
+  // 'approved' means identity_verified is already set; we surface that via the
+  // `verified` flag rather than duplicating the state.
+  const verifRow = db.prepare(
+    "SELECT status FROM verification_requests WHERE user_id = ? AND status != 'approved'"
+  ).get(userId);
+  const verificationRequested = verifRow?.status || null; // 'pending' | 'rejected' | null
+
   return res.json({
     userId: profile.user_id,
     displayName: profile.display_name,
@@ -104,10 +113,41 @@ router.get('/me', requireAuth, (req, res) => {
     prompts: listPrompts(db, userId),
     onboardingComplete,
     verified: !!profile.identity_verified,
+    verificationRequested,
     emailVerified: !!userRow?.email_verified,
     emailVerificationEnabled: emailConfigured(),
     isAdmin: isAdminEmail(userRow?.email),
   });
+});
+
+// POST /profile/verification-request
+// Idempotent — submits (or re-submits after rejection) an identity-verification
+// request. Rate-limited: max 10 requests per 15 minutes per user (same limiter as
+// abuse reports — prevents spam to the moderation queue).
+router.post('/verification-request', requireAuth, abuseReportLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+
+  // Check current state
+  const profile = db.prepare('SELECT identity_verified FROM profiles WHERE user_id = ?').get(userId);
+  if (!profile) return res.status(404).json({ error: 'Profile not found.' });
+  if (profile.identity_verified) {
+    return res.status(409).json({ error: 'Your identity is already verified.' });
+  }
+
+  const existing = db.prepare('SELECT status FROM verification_requests WHERE user_id = ?').get(userId);
+  if (existing?.status === 'pending') {
+    // Already waiting — idempotent, return success without creating a duplicate.
+    return res.json({ ok: true, status: 'pending' });
+  }
+
+  // Insert or update (upsert) the request
+  db.prepare(`
+    INSERT INTO verification_requests (id, user_id, status, requested_at)
+    VALUES (?, ?, 'pending', ?)
+    ON CONFLICT(user_id) DO UPDATE SET status = 'pending', requested_at = excluded.requested_at
+  `).run(newId(), userId, Date.now());
+
+  res.json({ ok: true, status: 'pending' });
 });
 
 // PUT /profile/me

@@ -156,6 +156,14 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
   }
   logMod(db, req.ctx.userId, verified ? 'verify' : 'unverify', req.params.id);
 
+  // Keep verification_requests in sync: mark the request approved/rejected so
+  // the user sees the correct status in their profile.
+  const newStatus = verified ? 'approved' : 'rejected';
+  db.prepare(`
+    UPDATE verification_requests SET status = ?, reviewed_at = ?
+    WHERE user_id = ?
+  `).run(newStatus, Date.now(), req.params.id);
+
   res.json({ ok: true, verified });
 });
 
