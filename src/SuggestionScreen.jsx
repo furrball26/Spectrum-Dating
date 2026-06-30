@@ -143,6 +143,106 @@ function InterestPills({ interests, viewerInterests }) {
   );
 }
 
+// "How I communicate" — a tidy, low-stimulation row of chips for the moat
+// comms/sensory prefs, plus an optional "In their words" context card.
+// Only set values render; we intentionally skip the noisy "either"/"whenever"
+// values to keep a calm 2–4 chip row.
+function commStyleChips(person) {
+  const chips = [];
+  if (person.commDirectness === "direct") chips.push("Direct");
+  if (person.commDirectness === "softened") chips.push("Softened");
+  if (person.commLiteral === "literal") chips.push("Literal");
+  if (person.commLiteral === "playful") chips.push("Playful");
+  if (person.commCadence === "instant") chips.push("Quick replies");
+  if (person.commCadence === "daily") chips.push("Replies once a day");
+  // commCadence "whenever" intentionally skipped (low signal)
+  if (person.sensoryEnvironment === "quiet") chips.push("Quiet settings");
+  if (person.sensoryEnvironment === "lively") chips.push("Lively settings");
+  // sensoryEnvironment "either" intentionally skipped
+  if (person.sensoryLighting === "dim") chips.push("Dim lighting");
+  if (person.sensoryLighting === "bright") chips.push("Bright lighting");
+  // sensoryLighting "either" intentionally skipped
+  if (person.socialDuration === "short") chips.push("Short meetups");
+  if (person.socialDuration === "long") chips.push("Longer meetups");
+  // socialDuration "medium" intentionally skipped (low signal)
+  return chips;
+}
+
+function CommStyleArea({ person }) {
+  const chips = commStyleChips(person);
+  const hasContext = !!(person.contextCard && person.contextCard.trim());
+  if (chips.length === 0 && !hasContext) return null;
+
+  return (
+    <div style={{ marginTop: 0 }}>
+      {chips.length > 0 && (
+        <>
+          <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
+            How I communicate
+          </h2>
+          <ul
+            role="list"
+            aria-label="Communication and sensory preferences"
+            style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}
+          >
+            {chips.map((label) => (
+              <li
+                key={label}
+                role="listitem"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "5px 13px",
+                  borderRadius: 24,
+                  fontSize: 13,
+                  fontWeight: 400,
+                  background: t.surface,
+                  color: t.textSoft,
+                  border: `1px solid ${t.border}`,
+                }}
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {hasContext && (
+        <div style={{ marginTop: chips.length > 0 ? 16 : 0 }}>
+          <h3
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              margin: "0 0 8px",
+            }}
+          >
+            In their words
+          </h3>
+          <blockquote
+            style={{
+              margin: 0,
+              padding: "10px 14px",
+              borderLeft: `3px solid ${t.accent}`,
+              background: t.surface,
+              borderRadius: 8,
+              color: t.text,
+              fontSize: 15,
+              fontStyle: "italic",
+              lineHeight: 1.6,
+            }}
+          >
+            {person.contextCard}
+          </blockquote>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportModal({ candidate, onClose }) {
   const [reason, setReason] = useState("inappropriate");
   const [details, setDetails] = useState("");
@@ -375,6 +475,13 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
           sharedInterests: c.sharedInterests || [],
           photoUrl: c.photoUrl || c.photo_url || null,
           verified: !!c.verified,
+          commDirectness: c.commDirectness || '',
+          commLiteral: c.commLiteral || '',
+          commCadence: c.commCadence || '',
+          sensoryEnvironment: c.sensoryEnvironment || '',
+          sensoryLighting: c.sensoryLighting || '',
+          socialDuration: c.socialDuration || '',
+          contextCard: c.contextCard || '',
         })));
         setIndex(0);
       });
@@ -691,6 +798,20 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
                 ))}
               </ul>
             </div>
+
+            {/* How I communicate — moat comms/sensory prefs + context card.
+                Renders only when the candidate has set any of them. */}
+            {(commStyleChips(person).length > 0 ||
+              (person.contextCard && person.contextCard.trim())) && (
+              <div style={{
+                ...card,
+                background: t.surfaceAlt,
+                boxShadow: "none",
+                border: `1px solid ${t.borderLight}`,
+              }}>
+                <CommStyleArea person={person} />
+              </div>
+            )}
 
             {/* Three actions: fixed order, fixed labels (3.2.4). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

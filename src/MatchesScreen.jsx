@@ -85,6 +85,21 @@ function MatchCard({ match, busy, onOpen }) {
               {otherUser.tagline}
             </div>
           )}
+          {otherUser.contextCard && otherUser.contextCard.trim() && (
+            <div
+              style={{
+                fontSize: 13,
+                color: t.textSoft,
+                fontStyle: "italic",
+                marginTop: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              “{otherUser.contextCard}”
+            </div>
+          )}
         </div>
         <button
           type="button"

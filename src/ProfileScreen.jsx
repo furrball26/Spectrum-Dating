@@ -53,6 +53,14 @@ const DEFAULT_PROFILE = {
   dbNonSmoker: false,
   dbMustBeLocal: false,
   paused: false,
+  // Communication-style & sensory "moat" dimensions (optional)
+  commDirectness: "",     // "" | "direct" | "softened"
+  commLiteral: "",        // "" | "literal" | "playful"
+  commCadence: "",        // "" | "instant" | "daily" | "whenever"
+  sensoryEnvironment: "", // "" | "quiet" | "lively" | "either"
+  sensoryLighting: "",    // "" | "dim" | "bright" | "either"
+  socialDuration: "",     // "" | "short" | "medium" | "long"
+  contextCard: "",        // free text (≤300)
 };
 
 const SUGGESTED_INTERESTS = [
@@ -719,6 +727,18 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   // Pause / snooze (backlog #8) — declared with the other hooks, before early returns.
   const [paused, setPaused]                   = useState(DEFAULT_PROFILE.paused);
 
+  // Communication-style & sensory "moat" dimensions (optional) — declared here
+  // with the other hooks, BEFORE the loading/error early returns, so the hook
+  // count stays constant across renders (React #310 / a hook-after-return crashed prod).
+  const [commDirectness, setCommDirectness]       = useState(DEFAULT_PROFILE.commDirectness);
+  const [commLiteral, setCommLiteral]             = useState(DEFAULT_PROFILE.commLiteral);
+  const [commCadence, setCommCadence]             = useState(DEFAULT_PROFILE.commCadence);
+  const [sensoryEnvironment, setSensoryEnvironment] = useState(DEFAULT_PROFILE.sensoryEnvironment);
+  const [sensoryLighting, setSensoryLighting]     = useState(DEFAULT_PROFILE.sensoryLighting);
+  const [socialDuration, setSocialDuration]       = useState(DEFAULT_PROFILE.socialDuration);
+  const [contextCard, setContextCard]             = useState(DEFAULT_PROFILE.contextCard);
+  const [contextCardTouched, setContextCardTouched] = useState(false);
+
   // savedProfile mirrors the last-known server state, used for isDirty comparison
   const [savedProfile, setSavedProfile] = useState(null);
   const [hasEverSaved, setHasEverSaved] = useState(false); // P-27: framing copy gate
@@ -787,6 +807,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           dbNonSmoker: !!data.dbNonSmoker,
           dbMustBeLocal: !!data.dbMustBeLocal,
           paused: !!data.paused,
+          commDirectness: data.commDirectness || '',
+          commLiteral: data.commLiteral || '',
+          commCadence: data.commCadence || '',
+          sensoryEnvironment: data.sensoryEnvironment || '',
+          sensoryLighting: data.sensoryLighting || '',
+          socialDuration: data.socialDuration || '',
+          contextCard: data.contextCard || '',
         };
         setDisplayName(merged.displayName);
         setTagline(merged.tagline);
@@ -803,6 +830,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setDbNonSmoker(merged.dbNonSmoker);
         setDbMustBeLocal(merged.dbMustBeLocal);
         setPaused(merged.paused);
+        setCommDirectness(merged.commDirectness);
+        setCommLiteral(merged.commLiteral);
+        setCommCadence(merged.commCadence);
+        setSensoryEnvironment(merged.sensoryEnvironment);
+        setSensoryLighting(merged.sensoryLighting);
+        setSocialDuration(merged.socialDuration);
+        setContextCard(merged.contextCard);
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         setVerified(!!data.verified);
@@ -821,7 +855,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         displayName || tagline || bio || interests.length > 0 ||
         commNote || relGoal || distCity || notifTier !== "in_app" ||
         wantsChildren || smoking || drinking ||
-        dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused;
+        dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused ||
+        commDirectness || commLiteral || commCadence ||
+        sensoryEnvironment || sensoryLighting || socialDuration || contextCard;
       setIsDirty(hasContent);
     } else {
       const dirty =
@@ -839,11 +875,18 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         dbNonSmoker      !== savedProfile.dbNonSmoker ||
         dbMustBeLocal    !== savedProfile.dbMustBeLocal ||
         paused           !== savedProfile.paused ||
+        commDirectness   !== savedProfile.commDirectness ||
+        commLiteral      !== savedProfile.commLiteral ||
+        commCadence      !== savedProfile.commCadence ||
+        sensoryEnvironment !== savedProfile.sensoryEnvironment ||
+        sensoryLighting  !== savedProfile.sensoryLighting ||
+        socialDuration   !== savedProfile.socialDuration ||
+        contextCard      !== savedProfile.contextCard ||
         JSON.stringify([...interests].sort()) !==
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -1001,6 +1044,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       dbNonSmoker,
       dbMustBeLocal,
       paused,
+      commDirectness,
+      commLiteral,
+      commCadence,
+      sensoryEnvironment,
+      sensoryLighting,
+      socialDuration,
+      contextCard,
     };
 
     try {
@@ -1020,6 +1070,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         dbNonSmoker: currentProfile.dbNonSmoker,
         dbMustBeLocal: currentProfile.dbMustBeLocal,
         paused: currentProfile.paused,
+        commDirectness: currentProfile.commDirectness,
+        commLiteral: currentProfile.commLiteral,
+        commCadence: currentProfile.commCadence,
+        sensoryEnvironment: currentProfile.sensoryEnvironment,
+        sensoryLighting: currentProfile.sensoryLighting,
+        socialDuration: currentProfile.socialDuration,
+        contextCard: currentProfile.contextCard,
       });
       cacheProfile(currentProfile);  // keep localStorage in sync for SuggestionScreen
       setSavedProfile(currentProfile);
@@ -1679,6 +1736,146 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                 onChange={setDbMustBeLocal}
               />
             </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — How you communicate (moat: comms-style + context card)
+          ══════════════════════════════════════════════════════ */}
+          <div style={card}>
+            <h2 style={h2Style}>How you communicate</h2>
+
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
+              This helps matches know how to talk with you. Optional.
+            </p>
+
+            <LifestyleSelect
+              id="comm-directness"
+              label="Directness"
+              helper="Optional — shown on your profile."
+              value={commDirectness}
+              onChange={setCommDirectness}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "direct", label: "I prefer direct" },
+                { value: "softened", label: "I prefer softened" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="comm-literal"
+              label="Style"
+              helper="Optional — shown on your profile."
+              value={commLiteral}
+              onChange={setCommLiteral}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "literal", label: "Literal" },
+                { value: "playful", label: "Playful" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="comm-cadence"
+              label="Reply pace"
+              helper="Optional — shown on your profile."
+              value={commCadence}
+              onChange={setCommCadence}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "instant", label: "I like quick replies" },
+                { value: "daily", label: "Once a day is great" },
+                { value: "whenever", label: "Whenever works" },
+              ]}
+            />
+
+            {/* "How to talk to me" context card */}
+            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <FieldLabel htmlFor="context-card">How to talk to me</FieldLabel>
+              <textarea
+                id="context-card"
+                maxLength={300}
+                rows={3}
+                aria-describedby="context-card-hint context-card-counter"
+                value={contextCard}
+                onChange={(e) => {
+                  setContextCard(e.target.value);
+                  setContextCardTouched(true);
+                }}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={{
+                  ...inputStyle(false),
+                  resize: "vertical",
+                  minHeight: 80,
+                  lineHeight: 1.55,
+                }}
+                placeholder="e.g. I info-dump when excited, it means I like you."
+              />
+              <HelperText id="context-card-hint">
+                Optional. Share anything that helps people connect with you — e.g. "I info-dump when excited, it means I like you."
+              </HelperText>
+              <div
+                role="status"
+                aria-live="polite"
+                id="context-card-counter"
+                style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+              >
+                {contextCardTouched ? `${300 - contextCard.length} remaining` : ""}
+              </div>
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — Sensory & environment (moat: sensory prefs)
+          ══════════════════════════════════════════════════════ */}
+          <div style={card}>
+            <h2 style={h2Style}>Sensory &amp; environment</h2>
+
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
+              This helps matches know how to talk with you. Optional.
+            </p>
+
+            <LifestyleSelect
+              id="sensory-environment"
+              label="Preferred setting"
+              helper="Optional — shown on your profile."
+              value={sensoryEnvironment}
+              onChange={setSensoryEnvironment}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "quiet", label: "Quiet" },
+                { value: "lively", label: "Lively" },
+                { value: "either", label: "Either is fine" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="sensory-lighting"
+              label="Lighting"
+              helper="Optional — shown on your profile."
+              value={sensoryLighting}
+              onChange={setSensoryLighting}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "dim", label: "Dim" },
+                { value: "bright", label: "Bright" },
+                { value: "either", label: "Either" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="social-duration"
+              label="Social energy"
+              helper="Optional — shown on your profile."
+              value={socialDuration}
+              onChange={setSocialDuration}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "short", label: "Short meetups" },
+                { value: "medium", label: "Medium" },
+                { value: "long", label: "Longer is fine" },
+              ]}
+            />
           </div>
 
           {/* ══════════════════════════════════════════════════════
