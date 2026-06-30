@@ -194,20 +194,25 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
 }
 
 // Feature 3: SectionList passes showArchive and onArchive down to MatchRow
-function SectionList({ title, matches, onSelectConversation, showArchive, onArchive, selectedConversationId }) {
+function SectionList({ title, subtitle, matches, onSelectConversation, showArchive, onArchive, selectedConversationId }) {
   if (matches.length === 0) return null;
   return (
     <section style={{ marginBottom: 24 }}>
-      <h2 style={{
-        fontSize: 13,
-        fontWeight: 600,
-        color: t.textSoft,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        margin: "0 0 8px 16px",
-      }}>
-        {title}
-      </h2>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 0 8px 16px", paddingRight: 4 }}>
+        <h2 style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: t.textSoft,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          margin: 0,
+        }}>
+          {title}
+        </h2>
+        {subtitle && (
+          <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 500 }}>{subtitle}</span>
+        )}
+      </div>
       <ul
         role="list"
         style={{
@@ -581,6 +586,7 @@ export default function MatchesListScreen({
           <>
             <SectionList
               title="Active conversations"
+              subtitle={active.length > 0 ? `${conversationCount} / ${CONVERSATION_CAP}` : undefined}
               matches={active}
               onSelectConversation={onSelectConversation}
               showArchive={capReached}
