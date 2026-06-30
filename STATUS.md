@@ -6,6 +6,34 @@ Rolling log of notable changes, newest first, grouped by role.
 
 ## Backend Dev
 
+### 2026-06-29 — Hinge-style profile prompts (catalog + answers)
+- **Migration `019_profile_prompts`**: new `profile_prompts` table (`id`,
+  `user_id` FK → `users` ON DELETE CASCADE, `prompt_key`, `answer`, `position`,
+  `created_at`) + index `idx_profile_prompts_user(user_id, position)`. Registered
+  in `src/db.js` (`CREATE TABLE/INDEX IF NOT EXISTS`, safe to re-run).
+- **Catalog** `src/data/prompts.js`: `PROMPTS` = 12 concrete, literal,
+  autism-friendly `{ key, text }` prompts (stable keys); plus `PROMPT_KEYS`
+  (`Set`) and `PROMPT_TEXT_BY_KEY` (`Map`) for validation/lookup.
+- **Endpoints** (`src/routes/profile.js`): `GET /profile/prompt-catalog`
+  (public) returns `{ prompts: PROMPTS }`. `PUT /profile/prompts` (auth) takes
+  `{ prompts: [{ promptKey, answer }] }` — **max 3**, each key ∈ catalog, answer
+  non-empty ≤ **200** chars (→ **400** otherwise). Replaces the user's set in a
+  transaction (DELETE all → INSERT at positions `0..n`). Returns serialized
+  `{ promptKey, promptText, answer }` list.
+- **Helper** `listPrompts(db, userId)` (exported from `routes/profile.js`):
+  serialized list ordered by `position`, joins catalog text by key, skips rows
+  whose key was retired from the catalog.
+- **Read paths**: `GET /profile/me` includes `prompts` for the viewer;
+  `GET /matching/candidates` adds `prompts` per candidate; `GET /matching/matches`
+  adds `prompts` to `otherUser` (one small extra query each via `listPrompts`).
+- Verified locally: migration idempotent on a temp DB; `listPrompts` orders,
+  joins promptText, and skips retired keys; modules load with no circular-import
+  issue (`matching.js` → `profile.js`). Deployed via `npm run deploy`
+  (health-gated). Confirmed in production: `/health` 200 new SHA; catalog returns
+  12 prompts; 2 valid entries persist and `GET /profile/me` echoes them with
+  `promptText`; invalid `promptKey` → 400; a 4th prompt → 400; 201-char answer → 400.
+- Updated `RUNBOOK.md` (new §6h, migrations list).
+
 ### 2026-06-29 — Differentiator dimensions (comm style · sensory · context card)
 - **Migration `018_richer_profile`**: seven new `profiles` columns
   (`TEXT NOT NULL DEFAULT ''`): `comm_directness`, `comm_literal`, `comm_cadence`,

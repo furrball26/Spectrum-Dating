@@ -393,6 +393,39 @@ the scorer (same way it passes goal/city).
 
 ---
 
+## 6h. Profile prompts (Hinge-style scaffolding)
+
+Structured prompts: the user picks from a fixed catalog and answers in their own
+words. A blank bio is hard — a concrete, literal prompt ("A perfect day for me
+looks like…") is far easier, especially for autistic users. Stored in
+`profile_prompts` (migration `019_profile_prompts`), one row per answer.
+
+**Catalog** lives in `src/data/prompts.js` — `PROMPTS` is an array of
+`{ key, text }` (12 prompts). Keys are **stable**; an answer whose key has been
+retired from the catalog is silently skipped when serialized (never crashes).
+`PROMPT_KEYS` (a `Set`) is the validation source of truth.
+
+**Endpoints** (mounted under `/profile`):
+- `GET /profile/prompt-catalog` — **public** (no auth). Returns
+  `{ prompts: PROMPTS }` so the frontend can render the options.
+- `PUT /profile/prompts` (auth) — body `{ prompts: [{ promptKey, answer }] }`.
+  Validation (→ **400** on any failure): **max 3** entries; each `promptKey` ∈
+  catalog; each `answer` a non-empty string **≤ 200 chars**. Replaces the user's
+  whole set in a transaction (DELETE all, INSERT at positions `0..n`). Returns
+  `{ prompts: [...] }`.
+
+**Serialized shape** (helper `listPrompts(db, userId)` in `routes/profile.js`):
+`{ promptKey, promptText, answer }`, ordered by `position`; `promptText` is
+looked up from the catalog by key.
+
+**Exposed on read paths:** `GET /profile/me` includes `prompts` for the current
+user; `GET /matching/candidates` includes `prompts` per candidate; and
+`GET /matching/matches` includes `prompts` on `otherUser`. (The candidate/match
+paths issue one small extra query per person via `listPrompts` — fine at current
+scale.)
+
+---
+
 ## 6a. Moderation (trust & safety)
 
 A dedicated `reports` table (migration `010_moderation`) feeds moderator review,

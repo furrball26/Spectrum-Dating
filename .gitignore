@@ -1,5 +1,12 @@
 ﻿node_modules/
 data/
+# but DO track source data files (e.g. the prompt catalog); only the runtime
+# SQLite DB under src/data/ should be ignored.
+!src/data/
+!src/data/**
+src/data/*.db
+src/data/*.db-wal
+src/data/*.db-shm
 .env
 .env.*
 *.log

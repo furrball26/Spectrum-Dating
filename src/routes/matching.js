@@ -1,6 +1,7 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { getCandidates } from '../matching/candidates.js';
+import { listPrompts } from './profile.js';
 import { ageFromDob } from '../utils/time.js';
 import { newId } from '../utils/ids.js';
 import { emitNewMatch } from '../socket/emitters.js';
@@ -50,6 +51,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     interests: c.interests,
     sharedInterests: c.sharedInterests,
     whyReasons: c.whyReasons,
+    prompts: listPrompts(db, c.user_id),
     photoUrl: c.photo_url || null,
     matchedAt: null,
   }));
@@ -207,6 +209,7 @@ router.get('/matches', requireAuth, (req, res) => {
         sensoryLighting: p?.sensory_lighting || '',
         socialDuration: p?.social_duration || '',
         contextCard: p?.context_card || '',
+        prompts: listPrompts(db, otherId),
       },
     };
   });

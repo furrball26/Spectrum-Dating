@@ -4,8 +4,29 @@ import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
+import { newId } from '../utils/ids.js';
+import { PROMPTS, PROMPT_KEYS, PROMPT_TEXT_BY_KEY } from '../data/prompts.js';
 
 const router = Router();
+
+const MAX_PROMPTS = 3;
+const MAX_PROMPT_ANSWER = 200;
+
+// Serialize a user's chosen prompts, ordered by position. Joins the catalog
+// text by key; rows whose key is no longer in the catalog are skipped so a
+// dropped prompt never crashes or leaks a stale, text-less entry.
+export function listPrompts(db, userId) {
+  const rows = db.prepare(
+    'SELECT prompt_key, answer FROM profile_prompts WHERE user_id = ? ORDER BY position ASC, created_at ASC'
+  ).all(userId);
+  const out = [];
+  for (const r of rows) {
+    const promptText = PROMPT_TEXT_BY_KEY.get(r.prompt_key);
+    if (!promptText) continue; // key retired from catalog — skip silently
+    out.push({ promptKey: r.prompt_key, promptText, answer: r.answer });
+  }
+  return out;
+}
 
 const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
@@ -71,6 +92,7 @@ router.get('/me', requireAuth, (req, res) => {
     socialDuration: profile.social_duration || '',
     contextCard: profile.context_card || '',
     interests,
+    prompts: listPrompts(db, userId),
     onboardingComplete,
     verified: !!profile.identity_verified,
     emailVerified: !!userRow?.email_verified,
@@ -297,6 +319,56 @@ router.put('/me', requireAuth, (req, res) => {
     contextCard: profile.context_card || '',
     interests: interestRows.map(r => r.interest),
   });
+});
+
+// GET /profile/prompt-catalog — the fixed catalog of prompts the frontend offers
+// as options. Auth not required: the catalog is public scaffolding, not user data.
+router.get('/prompt-catalog', (req, res) => {
+  return res.json({ prompts: PROMPTS });
+});
+
+// PUT /profile/prompts — replace the user's chosen prompt answers (max 3).
+// Body: { prompts: [{ promptKey, answer }] }. Each promptKey must be in the
+// catalog; each answer a non-empty string ≤ 200 chars. Replaces the whole set
+// in a transaction (positions 0..n).
+router.put('/prompts', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const body = req.body ?? {};
+
+  if (!Array.isArray(body.prompts)) {
+    return res.status(400).json({ error: 'prompts must be an array.' });
+  }
+  if (body.prompts.length > MAX_PROMPTS) {
+    return res.status(400).json({ error: `You can choose at most ${MAX_PROMPTS} prompts.` });
+  }
+
+  for (const entry of body.prompts) {
+    if (!entry || typeof entry !== 'object') {
+      return res.status(400).json({ error: 'Each prompt must be an object with promptKey and answer.' });
+    }
+    if (typeof entry.promptKey !== 'string' || !PROMPT_KEYS.has(entry.promptKey)) {
+      return res.status(400).json({ error: 'Each promptKey must be a valid prompt from the catalog.' });
+    }
+    if (typeof entry.answer !== 'string' || entry.answer.trim() === '') {
+      return res.status(400).json({ error: 'Each answer must be a non-empty string.' });
+    }
+    if (entry.answer.length > MAX_PROMPT_ANSWER) {
+      return res.status(400).json({ error: `Each answer must be ${MAX_PROMPT_ANSWER} characters or fewer.` });
+    }
+  }
+
+  const now = Date.now();
+  db.transaction(() => {
+    db.prepare('DELETE FROM profile_prompts WHERE user_id = ?').run(userId);
+    const insert = db.prepare(
+      'INSERT INTO profile_prompts (id, user_id, prompt_key, answer, position, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    body.prompts.forEach((entry, i) => {
+      insert.run(newId(), userId, entry.promptKey, entry.answer, i, now);
+    });
+  })();
+
+  return res.json({ prompts: listPrompts(db, userId) });
 });
 
 export default router;
