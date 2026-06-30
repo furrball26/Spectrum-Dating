@@ -443,6 +443,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const removeRefs        = useRef([]); // array of refs to remove buttons
 
   const prefersReduced = usePrefersReduced();
+  // Must be declared with the other hooks — BEFORE the loading/error early
+  // returns below — or the hook count changes between renders (React #310).
+  const fDone = useFocusable();
 
   // P-1: focus heading on mount
   useEffect(() => {
@@ -729,8 +732,6 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   }
 
   // ── Header
-  const fDone = useFocusable();
-
   return (
     <>
       {showDialog && (
