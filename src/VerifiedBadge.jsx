@@ -1,4 +1,5 @@
 import { t } from "./tokens.js";
+import { SealCheckIcon } from "./icons.jsx";
 
 // A small, calm "✓ Verified" trust pill. Subtle by design — no flash, no fill.
 // Reused next to display names and in the profile verification section.
@@ -25,7 +26,7 @@ export default function VerifiedBadge({ style }) {
         ...style,
       }}
     >
-      <span aria-hidden="true">✓</span>
+      <SealCheckIcon size={13} />
       Verified
     </span>
   );

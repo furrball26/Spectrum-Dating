@@ -12,11 +12,12 @@ const t = {
   accent: "#5B8A82",
   accentStrong: "#3E6660",
   positive: "#5E9459",
-  border: "#D8DDD6",
+  border: "#D3DBD5",
   borderLight: "#E8EDE7",
   focus: "#24332D",
   danger: "#B94040",
-  serif: "Georgia, 'Times New Roman', serif",
+  serif: "'Newsreader', Georgia, 'Times New Roman', serif",
+  sans: "'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif",
   formBorder: "#8A9E96",
 };
 
@@ -95,7 +96,7 @@ function inputStyle(hasError) {
     fontSize: 15,
     color: t.text,
     background: t.surface,
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     outline: "none",
   };
 }
@@ -725,7 +726,7 @@ export default function OnboardingScreen({ onComplete }) {
     justifyContent: "center",
     padding: "32px 16px 60px",
     boxSizing: "border-box",
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     color: t.text,
   };
 

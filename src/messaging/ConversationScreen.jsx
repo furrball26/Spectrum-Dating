@@ -1151,7 +1151,7 @@ export default function ConversationScreen({
         height: "100%",
         minHeight: 0,
         background: t.bgGradient,
-        fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+        fontFamily: t.sans,
         color: t.text,
         fontSize: 17,
       }}
@@ -1533,7 +1533,7 @@ export default function ConversationScreen({
               color: t.text,
               background: composingDisabled ? t.surfaceAlt : t.bg,
               resize: "none",
-              fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+              fontFamily: t.sans,
               lineHeight: 1.5,
               boxSizing: "border-box",
               maxHeight: 120,

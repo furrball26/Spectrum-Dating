@@ -141,7 +141,7 @@ function inputStyle(hasError) {
     fontSize: 15,
     color: t.text,
     background: t.surface,
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     outline: "none",
   };
 }
@@ -1377,7 +1377,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
     minHeight: "100%",
     background: t.bgGradient,
     color: t.text,
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     fontSize: 16,
     lineHeight: 1.65,
     padding: "20px 16px 60px",

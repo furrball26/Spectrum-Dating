@@ -97,7 +97,7 @@ function SecondaryButton({ children, onClick, disabled, full }) {
         cursor: disabled ? "not-allowed" : "pointer",
         fontSize: 15,
         fontWeight: 600,
-        background: t.surface,
+        background: t.green100,
         color: t.text,
         opacity: disabled ? 0.6 : 1,
         width: full ? "100%" : "auto",
@@ -124,7 +124,7 @@ function ScriptCard({ script, copied, onCopy }) {
   const isCopied = copied === script.id;
   return (
     <li style={{ listStyle: "none", marginBottom: 12 }}>
-      <div style={cardStyle}>
+      <div style={{ ...cardStyle, borderLeft: `3px solid ${t.clay}`, background: t.sand }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 6 }}>
           {script.label}
         </div>
@@ -423,7 +423,7 @@ export default function SafetyScreen({ onBack }) {
     minHeight: "100%",
     background: t.bgGradient,
     color: t.text,
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     fontSize: 16,
     lineHeight: 1.6,
     padding: "20px 16px 48px",

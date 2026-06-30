@@ -349,7 +349,7 @@ function ReportModal({ candidate, onClose }) {
           zIndex: 1101,
           boxShadow: "0 8px 40px rgba(36,51,45,0.18)",
           boxSizing: "border-box",
-          fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+          fontFamily: t.sans,
         }}
       >
         {submitted ? (
@@ -417,7 +417,7 @@ function ReportModal({ candidate, onClose }) {
                   padding: "8px 12px",
                   fontSize: 15,
                   color: t.text,
-                  fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+                  fontFamily: t.sans,
                   resize: "none",
                   boxSizing: "border-box",
                 }}
@@ -637,7 +637,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
     minHeight: "100%",
     background: t.bgGradient,
     color: t.text,
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     fontSize: 17,
     lineHeight: 1.65,
     padding: "20px 16px 48px",

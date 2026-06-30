@@ -11,6 +11,8 @@ import AuthScreen from "./AuthScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
 import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
+import SpectrumMark from "./SpectrumMark.jsx";
+import { ShieldIcon, GearIcon } from "./icons.jsx";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -105,7 +107,7 @@ function SafetyLink({ active, onClick }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
-      <span aria-hidden="true">🛡</span> Safety
+      <ShieldIcon size={16} /> Safety
     </button>
   );
 }
@@ -136,7 +138,7 @@ function SettingsLink({ active, onClick }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
-      <span aria-hidden="true">⚙</span> Settings
+      <GearIcon size={16} /> Settings
     </button>
   );
 }
@@ -545,7 +547,7 @@ export default function App() {
               display: "flex",
               flexDirection: "column",
               background: t.bg,
-              fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+              fontFamily: t.sans,
               color: t.text,
               ...a11yWrapperStyle(a11y),
             }}
@@ -577,16 +579,19 @@ export default function App() {
                     marginBottom: 12,
                   }}
                 >
-                  <div
-                    style={{
-                      fontFamily: t.serif,
-                      fontWeight: 700,
-                      fontSize: 19,
-                      letterSpacing: "-0.01em",
-                      color: t.text,
-                    }}
-                  >
-                    Spectrum
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <SpectrumMark height={14} />
+                    <div
+                      style={{
+                        fontFamily: t.serif,
+                        fontWeight: 700,
+                        fontSize: 19,
+                        letterSpacing: "-0.01em",
+                        color: t.text,
+                      }}
+                    >
+                      Spectrum
+                    </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <SafetyLink
@@ -639,7 +644,7 @@ export default function App() {
                   />
                   {isAdmin && (
                     <NavTab
-                      label="⚙ Moderation"
+                      label={<><GearIcon size={15} /> Moderation</>}
                       active={activeTab === "admin"}
                       onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
                     />

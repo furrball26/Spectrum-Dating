@@ -210,7 +210,7 @@ export default function MatchesScreen({ onOpenConversation }) {
     minHeight: "100%",
     background: t.bgGradient,
     color: t.text,
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+    fontFamily: t.sans,
     fontSize: 16,
     lineHeight: 1.6,
     padding: "20px 16px 40px",

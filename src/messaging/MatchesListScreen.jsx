@@ -248,7 +248,7 @@ export default function MatchesListScreen({
         minHeight: "100%",
         background: t.bgGradient,
         color: t.text,
-        fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
+        fontFamily: t.sans,
         fontSize: 17,
         lineHeight: 1.65,
         boxSizing: "border-box",

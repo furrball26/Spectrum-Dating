@@ -1,13 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#3E6660"/>
-  <text
-    x="256"
-    y="340"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="280"
-    font-weight="700"
-    fill="#FFFFFF"
-    text-anchor="middle"
-    letter-spacing="-4"
-  >S</text>
+  <!-- Spectrum tile motif: a centered row of rounded tiles on the brand ground -->
+  <g>
+    <rect x="96"  y="216" width="56" height="80" rx="16" fill="#5E9459"/>
+    <rect x="168" y="216" width="56" height="80" rx="16" fill="#4F8A8B"/>
+    <rect x="240" y="216" width="56" height="80" rx="16" fill="#6FA39A"/>
+    <rect x="312" y="216" width="56" height="80" rx="16" fill="#C9A875"/>
+    <rect x="384" y="216" width="56" height="80" rx="16" fill="#E7D9C4"/>
+  </g>
 </svg>
