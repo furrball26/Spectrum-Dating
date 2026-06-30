@@ -8,6 +8,7 @@ import Button from "./Button.jsx";
 import Spectrum from "./Spectrum.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
 import ErrorState from "./ErrorState.jsx";
+import MatchProfileModal from "./MatchProfileModal.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
 // conversations (Messages). Calm, low-pressure: no counters, no urgency.
@@ -42,7 +43,7 @@ function MatchesSkeleton() {
   );
 }
 
-function MatchCard({ match, busy, onOpen, plainLanguage }) {
+function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile }) {
   const { otherUser, hasConversation } = match;
   // Optional first-prompt preview — only if it has an answer and no tagline/context
   // already filling the row, to keep the card calm and uncluttered.
@@ -65,7 +66,14 @@ function MatchCard({ match, busy, onOpen, plainLanguage }) {
           boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
         }}
       >
-        <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} />
+        <button
+          type="button"
+          onClick={() => onViewProfile && onViewProfile(otherUser.userId)}
+          aria-label={`View ${otherUser.displayName || "this person"}'s profile`}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", borderRadius: "50%", flexShrink: 0 }}
+        >
+          <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} />
+        </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span>{otherUser.displayName || "Someone"}</span>
@@ -248,6 +256,7 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [viewingUserId, setViewingUserId] = useState(null);
   // Activity inbox — incoming likes (one-sided).
   const [incomingLikes, setIncomingLikes] = useState([]);
   const headingRef = useRef(null);
@@ -326,6 +335,9 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
 
   return (
     <div style={page}>
+      {viewingUserId && (
+        <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
       <div style={shell}>
         <h1
           ref={headingRef}
@@ -392,6 +404,7 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
                   busy={busyId === m.matchId}
                   onOpen={handleOpen}
                   plainLanguage={plainLanguage}
+                  onViewProfile={setViewingUserId}
                 />
               ))}
             </ul>

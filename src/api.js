@@ -133,6 +133,11 @@ export async function getProfile() {
   return apiFetch("/profile/me");
 }
 
+// A matched person's public profile (read-only). 403 if not matched.
+export async function getUserProfile(userId) {
+  return apiFetch(`/profile/${encodeURIComponent(userId)}`);
+}
+
 export async function updateProfile(fields) {
   return apiFetch("/profile/me", { method: "PUT", body: fields });
 }

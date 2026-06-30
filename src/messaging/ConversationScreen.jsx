@@ -4,6 +4,8 @@ import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getCon
 import { io } from "socket.io-client";
 import { t } from "../tokens.js";
 import ErrorState from "../ErrorState.jsx";
+import Avatar from "../Avatar.jsx";
+import MatchProfileModal from "../MatchProfileModal.jsx";
 
 // Advisory fix 2 — dynamic prefers-reduced-motion hook (replaces static snapshot)
 function usePrefersReduced() {
@@ -789,6 +791,7 @@ export default function ConversationScreen({
   const [sendStatus, setSendStatus] = useState("");
   const [socketConnected, setSocketConnected] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const headerMenuAnchorRef = useRef(null);
 
@@ -1264,6 +1267,9 @@ export default function ConversationScreen({
         fontSize: 17,
       }}
     >
+      {viewingProfile && (
+        <MatchProfileModal userId={otherUser.userId} onClose={() => setViewingProfile(false)} />
+      )}
       {/* Fixed header */}
       <div
         style={{
@@ -1304,25 +1310,30 @@ export default function ConversationScreen({
           </button>
         )}
 
-        {/* Centred heading */}
-        <h2
-          ref={headingRef}
-          tabIndex={-1}
-          style={{
-            flex: 1,
-            textAlign: "center",
-            fontFamily: t.serif,
-            fontSize: 18,
-            fontWeight: 700,
-            margin: 0,
-            color: t.text,
-            outline: "none",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {otherUser.displayName}
+        {/* Centred heading — tap the avatar/name to view their profile. */}
+        <h2 style={{ flex: 1, margin: 0, textAlign: "center", minWidth: 0 }}>
+          <button
+            type="button"
+            onClick={() => setViewingProfile(true)}
+            aria-label={`View ${otherUser.displayName}'s profile`}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8, maxWidth: "100%",
+              background: "none", border: "none", cursor: "pointer", padding: "4px 8px",
+              minHeight: 44, borderRadius: 10,
+            }}
+          >
+            <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} size={32} />
+            <span
+              ref={headingRef}
+              tabIndex={-1}
+              style={{
+                fontFamily: t.serif, fontSize: 18, fontWeight: 700, color: t.text,
+                outline: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}
+            >
+              {otherUser.displayName}
+            </span>
+          </button>
         </h2>
 
         {/* Overflow menu button — touch target fix: minHeight/minWidth 44 */}
