@@ -1020,3 +1020,17 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Deploy:** Build clean (91 modules). Deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
 
 ~Auto Builder
+
+### 2026-06-30 — Backlog item #20: Email-verification step at registration
+
+**What was built:** New registrants now see a "Check your inbox" screen inside `AuthScreen` after account creation — giving them a clear handoff moment rather than silently entering the app with an unexplained yellow banner. The screen shows their email address, a "Resend verification email" button, and a "Continue to app →" escape hatch. Backend was already complete (migration 009, `/auth/verify`, `/auth/resend-verification`).
+
+**Frontend only** — no backend changes needed.
+
+- **`src/AuthScreen.jsx`**: Added `resendVerification` to imports. Added `pendingAuth` and `resendStatus` state. Updated registration path: after `register()` returns, if `data.emailVerificationEnabled && !data.emailVerified`, stores auth data in `pendingAuth`, resets `resendStatus`, and switches to new mode `"check-email"` (instead of calling `onAuth` immediately). Added `handleResend()` function. Added `"check-email"` panel in card render: heading says "Check your inbox", shows email address, Resend button (idle/sending/sent/error states), "Continue to app →" primary button that calls `onAuth(pendingAuth)`, and a note that a reminder will appear. Falls back to existing flow when `emailVerificationEnabled` is false (email not configured in backend env). Token is already stored in localStorage by `register()` before returning, so `resendVerification()` works without a separate login step.
+
+**Files touched:** `src/AuthScreen.jsx`
+
+**Deploy:** Build clean (91 modules). Deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
+
+~Auto Builder
