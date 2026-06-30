@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { t } from "./tokens.js";
 import SpectrumMark from "./SpectrumMark.jsx";
+import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import { ShieldIcon, GearIcon, HeartIcon, SealCheckIcon } from "./icons.jsx";
 
 // LandingScreen — the calm public front door for Spectrum Dating.
@@ -193,7 +194,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               marginBottom: 40,
             }}
           >
-            <SpectrumMark height={32} />
+            <AnimatedSpectrumMark height={36} idle />
             <span
               style={{
                 fontFamily: t.serif,

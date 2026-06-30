@@ -12,7 +12,7 @@ import LandingScreen from "./LandingScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
 import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
-import SpectrumMark from "./SpectrumMark.jsx";
+import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import { ShieldIcon, GearIcon } from "./icons.jsx";
 
 function urlBase64ToUint8Array(base64String) {
@@ -617,7 +617,7 @@ export default function App() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <SpectrumMark height={14} />
+                    <AnimatedSpectrumMark height={14} />
                     <div
                       style={{
                         fontFamily: t.serif,
