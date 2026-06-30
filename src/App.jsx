@@ -173,6 +173,15 @@ function applyA11yStylesheet(prefs) {
   if (el.textContent !== REDUCE_MOTION_CSS) el.textContent = REDUCE_MOTION_CSS;
 }
 
+// Apply the warm-dim theme by toggling <html data-theme>. The CSS variables
+// defined in index.html for [data-theme="dim"] then cascade to every token.
+// '' (empty) falls back to the default light :root values. The high-contrast /
+// larger-text / calm overrides layer on top of whichever theme is active.
+function applyTheme(prefs) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = prefs.theme === "dim" ? "dim" : "";
+}
+
 // Inline style overrides for the top-level app container based on prefs.
 // - high contrast: a root `filter` (global + safe).
 // - larger text: `zoom` enlarges everything proportionally (px inline styles
@@ -377,11 +386,14 @@ export default function App() {
       // localStorage may be unavailable (private mode); state still applies live.
     }
     applyA11yStylesheet(prefs);
+    applyTheme(prefs);
   }, []);
 
-  // Inject/remove the reduce-motion stylesheet whenever the relevant prefs change.
+  // Inject/remove the reduce-motion stylesheet + apply the theme whenever the
+  // relevant prefs change (covers initial mount too).
   useEffect(() => {
     applyA11yStylesheet(a11y);
+    applyTheme(a11y);
   }, [a11y]);
 
   // Handle ?verify=TOKEN URL param on mount — verify regardless of auth state

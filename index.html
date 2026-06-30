@@ -18,9 +18,84 @@
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&display=swap"
     />
     <style>
+      /* ── Theme color variables ───────────────────────────────────────────
+         Light is the default (:root). The warm dim theme activates when
+         <html data-theme="dim">. tokens.js references these via var(--c-*)
+         with the light hex as a fallback, so the LIGHT values here MUST match
+         tokens.js exactly. Every variable defined for light has a dim value. */
+      :root {
+        --c-bg: #F4F5F2;
+        --c-bg-gradient: linear-gradient(150deg, #F4F5F2 0%, #ECF0EB 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #EEF1ED;
+        --c-text: #24332D;
+        --c-textSoft: #4E5F58;
+        --c-textMuted: #7A8C85;
+        --c-accent: #5B8A82;
+        --c-accentStrong: #3E6660;
+        --c-positive: #5E9459;
+        --c-border: #D3DBD5;
+        --c-borderLight: #E8EDE7;
+        --c-focus: #24332D;
+        --c-danger: #B94040;
+        --c-warning: #B8860B;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #EEF3F1;
+        --c-green100: #DCE8E4;
+        --c-green200: #BCD4CC;
+        --c-green300: #9BBFB4;
+        --c-green400: #6FA39A;
+        --c-green500: #5B8A82;
+        --c-green600: #4A7570;
+        --c-green700: #3E6660;
+        --c-green800: #314E49;
+        --c-green900: #24332D;
+        --c-formBorder: #8A9E96;
+        --c-bubbleOwn: #EEF1ED;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #7A8C85;
+      }
+      :root[data-theme="dim"] {
+        --c-bg: #1C2422;
+        --c-bg-gradient: linear-gradient(150deg, #1C2422 0%, #19211F 100%);
+        --c-surface: #232D2A;
+        --c-surfaceAlt: #283330;
+        --c-text: #E4EAE6;
+        --c-textSoft: #B6C2BC;
+        --c-textMuted: #8A988F;
+        --c-accent: #7FB0A7;
+        --c-accentStrong: #8FBCB2;
+        --c-positive: #7FB87A;
+        --c-border: #33403B;
+        --c-borderLight: #2C3733;
+        --c-focus: #E4EAE6;
+        --c-danger: #E08585;
+        --c-warning: #D9B45A;
+        --c-sand: #3A352B;
+        --c-clay: #C9A875;
+        --c-teal: #6FA39A;
+        /* Green ramp: dark surfaces at the low end (50→200 become deep panels),
+           lighter brand greens at the high end for text/accents on dark. */
+        --c-green50: #202825;
+        --c-green100: #25302C;
+        --c-green200: #2E3B36;
+        --c-green300: #3C4F49;
+        --c-green400: #5E867D;
+        --c-green500: #7FB0A7;
+        --c-green600: #8FBCB2;
+        --c-green700: #9FC8BE;
+        --c-green800: #B6D4CB;
+        --c-green900: #E4EAE6;
+        --c-formBorder: #4A5C55;
+        --c-bubbleOwn: #2B3733;
+        --c-bubbleOther: #232D2A;
+        --c-tombstone: #8A988F;
+      }
       html, body, #root { height: 100%; margin: 0; }
       body {
-        background: #F4F5F2;
+        background: var(--c-bg, #F4F5F2);
         font-family: 'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif;
       }
     </style>

@@ -13,6 +13,7 @@ export const DEFAULT_A11Y = {
   highContrast: false,
   largerText: false,
   calmMode: false,
+  theme: "light", // 'light' | 'dim'
 };
 
 // Read + normalise the saved prefs. Always returns a full, well-typed object so
@@ -28,6 +29,7 @@ export function readA11y() {
       highContrast: !!parsed.highContrast,
       largerText: !!parsed.largerText,
       calmMode: !!parsed.calmMode,
+      theme: parsed.theme === "dim" ? "dim" : "light",
     };
   } catch {
     return { ...DEFAULT_A11Y };
@@ -74,6 +76,71 @@ function SecondaryButton({ children, onClick }) {
       }}
     >
       {children}
+    </button>
+  );
+}
+
+// Segmented control for the theme choice (Light / Warm dim). Mirrors the calm,
+// rounded styling of the rest of the screen and applies the change immediately.
+function ThemeSegmented({ value, onChange }) {
+  const options = [
+    { key: "light", label: "Light" },
+    { key: "dim", label: "Warm dim" },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      style={{
+        display: "flex",
+        gap: 4,
+        padding: 4,
+        background: t.surfaceAlt,
+        border: `1px solid ${t.border}`,
+        borderRadius: 12,
+      }}
+    >
+      {options.map((opt) => {
+        const active = value === opt.key;
+        return (
+          <ThemeOption
+            key={opt.key}
+            label={opt.label}
+            active={active}
+            onClick={() => onChange(opt.key)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ThemeOption({ label, active, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      {...f}
+      style={{
+        flex: 1,
+        minHeight: 44,
+        padding: "10px 12px",
+        borderRadius: 9,
+        border: "none",
+        cursor: "pointer",
+        fontSize: 15,
+        fontWeight: 600,
+        background: active ? t.surface : "transparent",
+        color: active ? t.text : t.textSoft,
+        boxShadow: active ? "0 1px 3px rgba(36,51,45,0.12)" : "none",
+        transition: "background 0.15s, color 0.15s",
+        ...f.style,
+      }}
+    >
+      {label}
     </button>
   );
 }
@@ -189,12 +256,24 @@ export default function SettingsScreen({ onBack, onChange }) {
           tabIndex={-1}
           style={{ fontFamily: t.serif, fontSize: 28, fontWeight: 700, margin: "18px 0 6px", color: t.text, outline: "none" }}
         >
-          Accessibility
+          Settings
         </h1>
         <p style={{ margin: "0 0 26px", fontSize: 15, color: t.textSoft }}>
           Adjust how Spectrum looks and feels. Changes save instantly and stay on
           this device.
         </p>
+
+        <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "0 2px 4px", color: t.text }}>
+          Theme
+        </h2>
+        <p style={{ margin: "0 2px 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+          Warm dim is easier on the eyes in low light.
+        </p>
+        <ThemeSegmented value={prefs.theme} onChange={(v) => update("theme", v)} />
+
+        <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "28px 2px 12px", color: t.text }}>
+          Accessibility
+        </h2>
 
         <div style={cardStyle}>
           <ToggleRow
