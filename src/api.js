@@ -241,6 +241,21 @@ export async function confirmProfilePhoto(key) {
   return apiFetch("/photos/profile-confirm", { method: "POST", body: { key } });
 }
 
+export async function addProfilePhoto(key) {
+  const d = await apiFetch('/photos/profile-add', { method: 'POST', body: { key } });
+  return Array.isArray(d?.photos) ? d.photos : [];
+}
+
+export async function setPrimaryPhoto(id) {
+  const d = await apiFetch(`/photos/profile-photos/${id}/primary`, { method: 'PUT' });
+  return Array.isArray(d?.photos) ? d.photos : [];
+}
+
+export async function deleteProfilePhoto(id) {
+  const d = await apiFetch(`/photos/profile-photos/${id}`, { method: 'DELETE' });
+  return Array.isArray(d?.photos) ? d.photos : [];
+}
+
 // Message attachment upload flow (backlog #9)
 export async function uploadIntent(mimeType, fileSizeBytes) {
   return apiFetch('/photos/upload-intent', { method: 'POST', body: { mimeType, fileSizeBytes } });

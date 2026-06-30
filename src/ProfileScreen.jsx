@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, confirmProfilePhoto, deleteAccount } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount } from "./api.js";
 import { t } from "./tokens.js";
 
 // ProfileScreen — Spectrum Dating
@@ -250,66 +250,195 @@ function UnsavedDialog({ onSave, onDiscard, onCancel }) {
   );
 }
 
-// ─── Photo upload component ───────────────────────────────────────────────────
-function PhotoUpload({ photoUrl, onUpload, uploading, error }) {
-  const fileRef = useRef(null);
-  const f = useFocusable();
+// ─── Photo gallery ────────────────────────────────────────────────────────────
+const MAX_PHOTOS = 6;
 
-  const avatarSize = 96;
+// Single existing-photo cell
+function PhotoCell({ photo, onSetPrimary, onRemove }) {
+  const fPrimary = useFocusable();
+  const fRemove = useFocusable();
+  const [confirming, setConfirming] = useState(false);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, marginBottom: 8 }}>
-      {/* Avatar */}
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
       <div
         style={{
-          width: avatarSize, height: avatarSize, borderRadius: "50%",
-          overflow: "hidden", border: `2px solid ${t.border}`,
+          position: "relative",
+          width: "100%",
+          aspectRatio: "1 / 1",
+          borderRadius: 12,
+          overflow: "hidden",
+          border: `1px solid ${t.border}`,
           background: "#EEF1ED",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
         }}
-        aria-hidden="true"
       >
-        {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt="Your profile photo"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        ) : (
-          <svg viewBox="0 0 96 96" width={48} height={48} aria-hidden="true">
-            <circle cx="48" cy="38" r="18" fill={t.border} />
-            <ellipse cx="48" cy="80" rx="28" ry="18" fill={t.border} />
-          </svg>
+        <img
+          src={photo.url}
+          alt={photo.isPrimary ? "Your main profile photo" : "Profile photo"}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+        {photo.isPrimary && (
+          <span
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              background: t.accentStrong,
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: 999,
+              letterSpacing: "0.02em",
+            }}
+          >
+            Main
+          </span>
         )}
       </div>
 
-      {/* Upload button */}
+      {/* Controls */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {!photo.isPrimary && (
+          <button
+            type="button"
+            onClick={() => onSetPrimary(photo.id)}
+            aria-label="Set as main photo"
+            {...fPrimary}
+            style={{
+              minHeight: 44,
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: `1px solid ${t.formBorder}`,
+              background: t.surface,
+              color: t.accentStrong,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              ...fPrimary.style,
+            }}
+          >
+            Set as main
+          </button>
+        )}
+
+        {confirming ? (
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => { onRemove(photo.id); setConfirming(false); }}
+              aria-label="Confirm remove photo"
+              {...fRemove}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                padding: "8px 6px",
+                borderRadius: 8,
+                border: `1px solid ${t.danger}`,
+                background: t.danger,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                ...fRemove.style,
+              }}
+            >
+              Remove
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              aria-label="Cancel removing photo"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                padding: "8px 6px",
+                borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                background: t.surface,
+                color: t.text,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            aria-label="Remove photo"
+            style={{
+              minHeight: 44,
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: `1px solid ${t.danger}`,
+              background: "transparent",
+              color: t.danger,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Add-photo tile (button that opens hidden file input)
+function AddPhotoTile({ onAdd, uploading, disabled }) {
+  const fileRef = useRef(null);
+  const f = useFocusable();
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        disabled={uploading}
-        aria-label={photoUrl ? "Change profile photo" : "Add profile photo"}
+        disabled={uploading || disabled}
+        aria-label="Add photo"
         aria-busy={uploading}
         {...f}
         style={{
-          background: "transparent",
-          border: `1px solid ${t.formBorder}`,
-          borderRadius: 8,
+          width: "100%",
+          aspectRatio: "1 / 1",
+          borderRadius: 12,
+          border: `2px dashed ${t.formBorder}`,
+          background: t.surfaceAlt,
           color: t.accentStrong,
           fontSize: 14,
-          fontWeight: 500,
-          cursor: uploading ? "wait" : "pointer",
-          padding: "7px 18px",
-          minHeight: 36,
-          opacity: uploading ? 0.7 : 1,
+          fontWeight: 600,
+          cursor: uploading || disabled ? "wait" : "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          opacity: uploading || disabled ? 0.7 : 1,
           ...f.style,
         }}
       >
-        {uploading ? "Uploading…" : photoUrl ? "Change photo" : "Add photo"}
+        {uploading ? (
+          "Uploading…"
+        ) : (
+          <>
+            <span aria-hidden="true" style={{ fontSize: 28, lineHeight: 1 }}>+</span>
+            <span>Add photo</span>
+          </>
+        )}
       </button>
-
-      {/* Hidden file input */}
       <input
         ref={fileRef}
         type="file"
@@ -319,13 +448,50 @@ function PhotoUpload({ photoUrl, onUpload, uploading, error }) {
         style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }}
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) onUpload(file);
+          if (file) onAdd(file);
           e.target.value = ""; // reset so same file can be re-selected
         }}
       />
+    </div>
+  );
+}
+
+function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove }) {
+  const atMax = photos.length >= MAX_PHOTOS;
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div
+        role="list"
+        aria-label="Your profile photos"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 12,
+        }}
+      >
+        {photos.map((photo) => (
+          <div role="listitem" key={photo.id}>
+            <PhotoCell
+              photo={photo}
+              onSetPrimary={onSetPrimary}
+              onRemove={onRemove}
+            />
+          </div>
+        ))}
+        {!atMax && (
+          <div role="listitem">
+            <AddPhotoTile onAdd={onAdd} uploading={uploading} disabled={atMax} />
+          </div>
+        )}
+      </div>
+
+      <p style={{ fontSize: 13, color: t.textSoft, margin: "10px 0 0" }}>
+        Add up to {MAX_PHOTOS} photos. Your main photo is what people see first.
+      </p>
 
       {error && (
-        <span role="alert" style={{ fontSize: 13, color: t.danger, textAlign: "center" }}>
+        <span role="alert" style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 8 }}>
           {error}
         </span>
       )}
@@ -389,8 +555,8 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
-  // Photo upload
-  const [photoUrl, setPhotoUrl] = useState("");
+  // Photo gallery (up to 6, one primary)
+  const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState("");
 
@@ -477,9 +643,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         cacheProfile(merged);
-        if (data.photoUrl || data.photo_url) {
-          setPhotoUrl(data.photoUrl || data.photo_url);
-        }
+        if (Array.isArray(data.photos)) setPhotos(data.photos);
       })
       .catch(() => setLoadError('Could not load your profile. Check your connection.'))
       .finally(() => setLoading(false));
@@ -514,9 +678,21 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
     setTimeout(() => setTagAnnouncement(""), 300);
   }
 
-  // ── Photo upload
-  const handlePhotoUpload = useCallback(async (file) => {
+  // ── Friendly message for storage-unavailable (503) / generic errors
+  function photoErrorMessage(e) {
+    if (e && e.status === 503) {
+      return "Photo uploads aren't available right now. Please try again later.";
+    }
+    return (e && e.message) || "Photo upload failed. Please try again.";
+  }
+
+  // ── Add a photo to the gallery
+  const handleAddPhoto = useCallback(async (file) => {
     if (!file) return;
+    if (photos.length >= MAX_PHOTOS) {
+      setPhotoError(`You can add up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
     const MAX = 10 * 1024 * 1024;
     const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!ALLOWED.includes(file.type)) {
@@ -539,14 +715,30 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         body: file,
       });
       if (!upload.ok) throw new Error("Upload failed");
-      // 3. Confirm with backend
-      const { photoUrl: newUrl } = await confirmProfilePhoto(key);
-      setPhotoUrl(newUrl);
+      // 3. Register the photo with the backend; returns the full ordered list
+      const result = await addProfilePhoto(key);
+      setPhotos(result);
     } catch (e) {
-      setPhotoError(e.message || "Photo upload failed. Please try again.");
+      setPhotoError(photoErrorMessage(e));
     } finally {
       setPhotoUploading(false);
     }
+  }, [photos.length]);
+
+  // ── Choose a new main photo
+  const handleSetPrimary = useCallback((id) => {
+    setPhotoError("");
+    setPrimaryPhoto(id)
+      .then(setPhotos)
+      .catch((e) => setPhotoError(photoErrorMessage(e)));
+  }, []);
+
+  // ── Remove a photo
+  const handleRemovePhoto = useCallback((id) => {
+    setPhotoError("");
+    deleteProfilePhoto(id)
+      .then(setPhotos)
+      .catch((e) => setPhotoError(photoErrorMessage(e)));
   }, []);
 
   // ── Interest toggle (suggestion chip)
@@ -845,11 +1037,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           <div style={card}>
             <h2 style={h2Style}>About you</h2>
 
-            <PhotoUpload
-              photoUrl={photoUrl}
-              onUpload={handlePhotoUpload}
+            <PhotoGallery
+              photos={photos}
               uploading={photoUploading}
               error={photoError}
+              onAdd={handleAddPhoto}
+              onSetPrimary={handleSetPrimary}
+              onRemove={handleRemovePhoto}
             />
 
             {/* Display name */}
