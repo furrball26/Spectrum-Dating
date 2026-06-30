@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
@@ -2351,6 +2351,34 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               <SignOutButton onSignOut={onSignOut} />
             </div>
           )}
+
+          {/* ── Download my data ── */}
+          <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
+            <a
+              href={getExportUrl()}
+              download="spectrum-my-data.json"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                color: t.textSoft,
+                fontSize: 15,
+                fontWeight: 500,
+                textDecoration: "none",
+                padding: "10px 24px",
+                minHeight: 44,
+                boxSizing: "border-box",
+              }}
+            >
+              Download my data
+            </a>
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: t.textMuted }}>
+              A copy of your conversations and messages (JSON).
+            </p>
+          </div>
 
           {/* ── Danger zone ── */}
           {onAccountDeleted && (

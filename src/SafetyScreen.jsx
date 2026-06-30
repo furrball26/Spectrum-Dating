@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMyReports } from "./api.js";
+import { getMyReports, getBlockedUsers, unblockUser } from "./api.js";
 import Button from "./Button.jsx";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
@@ -272,6 +272,12 @@ export default function SafetyScreen({ onBack }) {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [reportsError, setReportsError] = useState(false);
 
+  // Blocked people — fetched on mount; supports unblock.
+  const [blocked, setBlocked] = useState([]);
+  const [blockedLoading, setBlockedLoading] = useState(true);
+  const [blockedError, setBlockedError] = useState(false);
+  const [unblocking, setUnblocking] = useState(null);
+
   // --- ALL hooks declared before any early return ---
 
   useEffect(() => {
@@ -281,6 +287,28 @@ export default function SafetyScreen({ onBack }) {
       .catch(() => { if (active) setReportsError(true); })
       .finally(() => { if (active) setReportsLoading(false); });
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getBlockedUsers()
+      .then((list) => { if (active) setBlocked(Array.isArray(list) ? list : []); })
+      .catch(() => { if (active) setBlockedError(true); })
+      .finally(() => { if (active) setBlockedLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const handleUnblock = useCallback(async (userId, name) => {
+    setUnblocking(userId);
+    try {
+      await unblockUser(userId);
+      setBlocked((prev) => prev.filter((b) => b.userId !== userId));
+      setLiveMessage(`Unblocked ${name}.`);
+    } catch {
+      setLiveMessage(`Couldn't unblock ${name}. Please try again.`);
+    } finally {
+      setUnblocking(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -677,6 +705,54 @@ export default function SafetyScreen({ onBack }) {
                       )}
                     </div>
                     <StatusPill status={r.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Section>
+
+        {/* Blocked people — review + undo */}
+        <Section
+          title="Blocked people"
+          note="People you've blocked can't see your profile or message you. You can unblock anyone here."
+        >
+          <div style={cardStyle}>
+            {blockedLoading ? (
+              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>Loading…</p>
+            ) : blockedError ? (
+              <p role="alert" style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+                Couldn't load your blocked list right now. Please try again later.
+              </p>
+            ) : blocked.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+                You haven't blocked anyone.
+              </p>
+            ) : (
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {blocked.map((b, i) => (
+                  <li
+                    key={b.userId ?? i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "12px 0",
+                      borderTop: i === 0 ? "none" : `1px solid ${t.borderLight}`,
+                    }}
+                  >
+                    <div style={{ fontSize: 15, fontWeight: 600, color: t.text, minWidth: 0 }}>
+                      {b.displayName || "Someone"}
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleUnblock(b.userId, b.displayName || "this person")}
+                      disabled={unblocking === b.userId}
+                      style={{ flexShrink: 0 }}
+                    >
+                      {unblocking === b.userId ? "Unblocking…" : "Unblock"}
+                    </Button>
                   </li>
                 ))}
               </ul>

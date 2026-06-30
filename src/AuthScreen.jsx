@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { register, login } from "./api.js";
+import { register, login, forgotPassword } from "./api.js";
 import { t } from "./tokens.js";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
@@ -27,11 +27,12 @@ function inputStyle(hasError) {
 }
 
 export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
-  const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register"
+  const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const headingRef = useRef(null);
   const errorRef = useRef(null);
   // Move focus to the error when one appears so it's announced and reachable (M2).
@@ -52,6 +53,17 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     e.preventDefault();
     setError("");
     if (!email.trim()) { setError("Email is required."); return; }
+
+    // Forgot-password: request a reset link. Always show the same confirmation
+    // (success or not) so we never reveal whether an email is registered.
+    if (mode === "forgot") {
+      setLoading(true);
+      try { await forgotPassword(email.trim().toLowerCase()); } catch { /* ignore */ }
+      setForgotSent(true);
+      setLoading(false);
+      return;
+    }
+
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true);
     try {
@@ -67,6 +79,12 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function switchMode(next) {
+    setMode(next);
+    setError("");
+    setForgotSent(false);
   }
 
   return (
@@ -156,10 +174,30 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               outline: "none",
             }}
           >
-            {mode === "login" ? "Welcome back" : "Create your account"}
+            {mode === "login" ? "Welcome back" : mode === "forgot" ? "Reset your password" : "Create your account"}
           </h1>
 
+          {mode === "forgot" && forgotSent ? (
+            <div>
+              <p role="status" style={{ margin: "0 0 20px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+                If an account exists for that email, we've sent a link to reset your
+                password. Check your inbox — the link expires in 1 hour.
+              </p>
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                style={{ background: "none", border: "none", color: t.accentStrong, fontSize: 15, fontWeight: 600, cursor: "pointer", padding: "4px 2px", minHeight: 44, textDecoration: "underline" }}
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} noValidate>
+            {mode === "forgot" && (
+              <p style={{ margin: "0 0 16px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
+                Enter your email and we'll send you a link to set a new password.
+              </p>
+            )}
             {/* Error */}
             {error && (
               <div
@@ -203,6 +241,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
             </div>
 
             {/* Password */}
+            {mode !== "forgot" && (
             <div style={{ marginBottom: 24 }}>
               <label
                 htmlFor="auth-password"
@@ -232,6 +271,20 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 </span>
               )}
             </div>
+            )}
+
+            {/* Forgot password link (login only) */}
+            {mode === "login" && (
+              <div style={{ marginTop: -8, marginBottom: 20 }}>
+                <button
+                  type="button"
+                  onClick={() => switchMode("forgot")}
+                  style={{ background: "none", border: "none", color: t.accentStrong, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "4px 2px", minHeight: 44, textDecoration: "underline" }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
 
             {/* Submit */}
             <button
@@ -253,17 +306,19 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 ...fSubmit.style,
               }}
             >
-              {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+              {loading ? "Please wait…" : mode === "login" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Create account"}
             </button>
           </form>
+          )}
         </div>
 
-        {/* Toggle mode */}
+        {/* Toggle mode — hidden in forgot mode (its own back link is in the card) */}
+        {mode !== "forgot" && (
         <p style={{ textAlign: "center", marginTop: 20, fontSize: 15, color: t.textSoft }}>
           {mode === "login" ? "New to Spectrum? " : "Already have an account? "}
           <button
             type="button"
-            onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+            onClick={() => switchMode(mode === "login" ? "register" : "login")}
             {...fToggle}
             style={{
               background: "none",
@@ -281,6 +336,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
             {mode === "login" ? "Create an account" : "Sign in"}
           </button>
         </p>
+        )}
 
       </div>
     </div>

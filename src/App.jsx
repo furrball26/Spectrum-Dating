@@ -10,6 +10,7 @@ import AdminScreen from "./AdminScreen.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import LandingScreen from "./LandingScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
+import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
 import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
@@ -519,6 +520,12 @@ export default function App() {
     applyTheme(a11y);
   }, [a11y]);
 
+  // Handle ?reset=TOKEN URL param — show the reset-password screen.
+  const [resetToken, setResetToken] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("reset"); }
+    catch { return null; }
+  });
+
   // Handle ?verify=TOKEN URL param on mount — verify regardless of auth state
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -673,6 +680,18 @@ export default function App() {
       <div role="status" aria-live="assertive" aria-atomic="true" style={srOnly}>
         {authMessage}
       </div>
+      {resetToken ? (
+        <ResetPasswordScreen
+          token={resetToken}
+          onDone={() => {
+            setResetToken(null);
+            window.history.replaceState({}, "", window.location.pathname);
+            setAuthMode("login");
+            setShowAuth(true);
+          }}
+        />
+      ) : (
+      <>
       {verifyResult && (
         <VerifyResultBanner result={verifyResult} onDismiss={() => setVerifyResult(null)} />
       )}
@@ -961,6 +980,8 @@ export default function App() {
           </div>
         )
       }
+      </>
+      )}
     </>
   );
 }

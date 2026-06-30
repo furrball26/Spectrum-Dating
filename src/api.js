@@ -105,6 +105,16 @@ export async function signOut() {
   }
 }
 
+// Password reset (no auth). forgotPassword always resolves the same way whether
+// or not the email exists (the server doesn't reveal account existence).
+export async function forgotPassword(email) {
+  return apiFetch('/auth/forgot-password', { method: 'POST', body: { email } });
+}
+
+export async function resetPassword(token, password) {
+  return apiFetch('/auth/reset-password', { method: 'POST', body: { token, password } });
+}
+
 // ─── Profile ───────────────────────────────────────────────────────────────────
 
 export async function getProfile() {
@@ -214,6 +224,15 @@ export async function blockUser(blockedUserId, reason, details) {
     method: "POST",
     body: { blockedUserId, reason, details },
   });
+}
+
+export async function getBlockedUsers() {
+  const data = await apiFetch("/messaging/blocked");
+  return Array.isArray(data?.blocked) ? data.blocked : [];
+}
+
+export async function unblockUser(userId) {
+  return apiFetch(`/messaging/blocked/${userId}`, { method: "DELETE" });
 }
 
 // ─── Moderation / admin ─────────────────────────────────────────────────────────
