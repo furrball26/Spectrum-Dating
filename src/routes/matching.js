@@ -194,7 +194,7 @@ router.get('/matches', requireAuth, (req, res) => {
   const matches = rows.map((row) => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const p = db.prepare(
-      `SELECT display_name, tagline, photo_url, identity_verified,
+      `SELECT display_name, tagline, photo_url, identity_verified, dist_city,
               comm_directness, comm_literal, comm_cadence,
               sensory_environment, sensory_lighting, social_duration, context_card
        FROM profiles WHERE user_id = ?`
@@ -210,6 +210,8 @@ router.get('/matches', requireAuth, (req, res) => {
         tagline: p?.tagline || '',
         photoUrl: p?.photo_url || null,
         verified: !!p?.identity_verified,
+        // Coarse city (ZIP stripped) for the "city on matches" display.
+        distCity: (p?.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
         commDirectness: p?.comm_directness || '',
         commLiteral: p?.comm_literal || '',
         commCadence: p?.comm_cadence || '',

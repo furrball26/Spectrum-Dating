@@ -29,6 +29,7 @@ export function listPrompts(db, userId) {
 }
 
 const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
+const VALID_RADII = [0, 25, 50, 100, 250]; // miles; 0 = anywhere (no radius filter)
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
 const VALID_WANTS_CHILDREN = ['', 'yes', 'no', 'open'];
 const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
@@ -72,6 +73,7 @@ router.get('/me', requireAuth, (req, res) => {
     commNote: profile.comm_note,
     relationshipGoal: profile.relationship_goal,
     distCity: profile.dist_city,
+    searchRadiusMiles: profile.search_radius_miles ?? 0,
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     photos: listPhotos(db, userId),
@@ -128,6 +130,11 @@ router.put('/me', requireAuth, (req, res) => {
   if (body.distCity !== undefined) {
     if (typeof body.distCity !== 'string') errors.push('distCity must be a string.');
     else if (body.distCity.length > 100) errors.push('distCity must be 100 characters or fewer.');
+  }
+  if (body.searchRadiusMiles !== undefined) {
+    if (!VALID_RADII.includes(body.searchRadiusMiles)) {
+      errors.push(`searchRadiusMiles must be one of: ${VALID_RADII.join(', ')} (0 = anywhere).`);
+    }
   }
   if (body.notificationTier !== undefined) {
     if (!VALID_NOTIFICATION_TIERS.includes(body.notificationTier)) {
@@ -227,6 +234,7 @@ router.put('/me', requireAuth, (req, res) => {
     commNote: 'comm_note',
     relationshipGoal: 'relationship_goal',
     distCity: 'dist_city',
+    searchRadiusMiles: 'search_radius_miles',
     notificationTier: 'notification_tier',
     dateOfBirth: 'date_of_birth',
     wantsChildren: 'wants_children',
@@ -299,6 +307,7 @@ router.put('/me', requireAuth, (req, res) => {
     commNote: profile.comm_note,
     relationshipGoal: profile.relationship_goal,
     distCity: profile.dist_city,
+    searchRadiusMiles: profile.search_radius_miles ?? 0,
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     dateOfBirth: profile.date_of_birth || '',

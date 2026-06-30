@@ -1,6 +1,6 @@
 ﻿import { scoreCandidate } from './score.js';
 import { ageFromDob } from '../utils/time.js';
-import { metroKey } from '../utils/metros.js';
+import { metroKey, distanceMiles } from '../utils/metros.js';
 
 // Returns an array of candidate profiles the viewer hasn't swiped on yet,
 // ordered by score (shared interests) descending.
@@ -11,7 +11,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
   // for evaluating the viewer's active deal-breaker filters.
   const viewerProfile = db.prepare(
     `SELECT relationship_goal, dist_city, wants_children,
-            db_wants_children, db_non_smoker, db_must_be_local,
+            db_wants_children, db_non_smoker, db_must_be_local, search_radius_miles,
             sensory_environment, comm_cadence
      FROM profiles WHERE user_id = ?`
   ).get(viewerId);
@@ -23,6 +23,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
     db_wants_children: !!viewerProfile?.db_wants_children,
     db_non_smoker: !!viewerProfile?.db_non_smoker,
     db_must_be_local: !!viewerProfile?.db_must_be_local,
+    search_radius_miles: viewerProfile?.search_radius_miles ?? 0,
     sensory_environment: viewerProfile?.sensory_environment ?? '',
     comm_cadence: viewerProfile?.comm_cadence ?? '',
   };
@@ -78,6 +79,15 @@ export function getCandidates(db, viewerId, viewerInterests) {
       // Must be local: exclude candidates in a known, different city.
       if (viewer.db_must_be_local && metroKey(viewer.dist_city) !== '') {
         if (metroKey(profile.dist_city) !== '' && metroKey(profile.dist_city) !== metroKey(viewer.dist_city)) {
+          return false;
+        }
+      }
+      // Search radius (miles): exclude candidates farther than the viewer's
+      // chosen radius. Only when the radius is set AND both locations are known
+      // (unknown distance always passes — never exclude on missing data).
+      if (viewer.search_radius_miles > 0) {
+        const miles = distanceMiles(viewer.dist_city, profile.dist_city);
+        if (miles !== null && miles > viewer.search_radius_miles) {
           return false;
         }
       }
