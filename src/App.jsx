@@ -5,6 +5,7 @@ import MessagingApp from "./messaging/MessagingApp.jsx";
 import ProfileScreen from "./ProfileScreen.jsx";
 import MatchesScreen from "./MatchesScreen.jsx";
 import SafetyScreen from "./SafetyScreen.jsx";
+import SettingsScreen, { readA11y } from "./SettingsScreen.jsx";
 import AdminScreen from "./AdminScreen.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
@@ -107,6 +108,81 @@ function SafetyLink({ active, onClick }) {
       <span aria-hidden="true">🛡</span> Safety
     </button>
   );
+}
+
+function SettingsLink({ active, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Accessibility settings"
+      aria-current={active ? "page" : undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        minHeight: 44,
+        padding: "6px 12px",
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        fontSize: 14,
+        fontWeight: 600,
+        color: active ? t.accent : t.textSoft,
+        borderRadius: 8,
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      <span aria-hidden="true">⚙</span> Settings
+    </button>
+  );
+}
+
+// ─── Global accessibility prefs application (low-risk, no token refactor) ──────
+// Reduce-motion / calm inject a single <style id="a11y-overrides"> stylesheet.
+// High-contrast / larger-text / calm-background are applied as inline style
+// overrides on the top-level app container (returned by a11yWrapperStyle).
+
+const A11Y_STYLE_ID = "a11y-overrides";
+
+const REDUCE_MOTION_CSS = `*, *::before, *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}`;
+
+function applyA11yStylesheet(prefs) {
+  if (typeof document === "undefined") return;
+  const wantReduceMotion = !!(prefs.reduceMotion || prefs.calmMode);
+  let el = document.getElementById(A11Y_STYLE_ID);
+  if (!wantReduceMotion) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("style");
+    el.id = A11Y_STYLE_ID;
+    document.head.appendChild(el);
+  }
+  if (el.textContent !== REDUCE_MOTION_CSS) el.textContent = REDUCE_MOTION_CSS;
+}
+
+// Inline style overrides for the top-level app container based on prefs.
+// - high contrast: a root `filter` (global + safe).
+// - larger text: `zoom` enlarges everything proportionally (px inline styles
+//   won't scale via root font-size). Fixed-position sheets/dialogs render
+//   relative to the zoomed container, so this stays visually consistent.
+// - calm mode: flatten the page background to t.bg (drop decorative gradient).
+function a11yWrapperStyle(prefs) {
+  const style = {};
+  if (prefs.highContrast) style.filter = "contrast(1.15)";
+  if (prefs.largerText) style.zoom = 1.15;
+  if (prefs.calmMode) style.background = t.bg;
+  return style;
 }
 
 const srOnly = {
@@ -269,7 +345,7 @@ export default function App() {
   const [authed, setAuthed] = useState(() => isLoggedIn());
   const [authMessage, setAuthMessage] = useState("");
   const [onboarding, setOnboarding] = useState(false);
-  // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety'
+  // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety' | 'settings'
   const [activeTab, setActiveTab] = useState("suggestions");
   const [prevTab, setPrevTab] = useState("suggestions");
   // When opening a chat from the Matches tab, this tells MessagingApp which
@@ -284,6 +360,27 @@ export default function App() {
 
   // Admin / moderation access
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Accessibility prefs (frontend-only, persisted in localStorage). Read once on
+  // mount; applied globally via the effect below + inline wrapper styles.
+  const [a11y, setA11y] = useState(() => readA11y());
+
+  // applyA11y — updates state + localStorage + re-applies the global stylesheet.
+  // Passed to SettingsScreen as onChange so toggles apply live.
+  const applyA11y = useCallback((prefs) => {
+    setA11y(prefs);
+    try {
+      localStorage.setItem("spectrum_a11y", JSON.stringify(prefs));
+    } catch {
+      // localStorage may be unavailable (private mode); state still applies live.
+    }
+    applyA11yStylesheet(prefs);
+  }, []);
+
+  // Inject/remove the reduce-motion stylesheet whenever the relevant prefs change.
+  useEffect(() => {
+    applyA11yStylesheet(a11y);
+  }, [a11y]);
 
   // Handle ?verify=TOKEN URL param on mount — verify regardless of auth state
   useEffect(() => {
@@ -450,6 +547,7 @@ export default function App() {
               background: t.bg,
               fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif",
               color: t.text,
+              ...a11yWrapperStyle(a11y),
             }}
           >
             {emailVerifyEnabled && !emailVerified && !verifyBannerDismissed && (
@@ -490,13 +588,22 @@ export default function App() {
                   >
                     Spectrum
                   </div>
-                  <SafetyLink
-                    active={activeTab === "safety"}
-                    onClick={() => {
-                      if (activeTab !== "safety") setPrevTab(activeTab);
-                      setActiveTab("safety");
-                    }}
-                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <SafetyLink
+                      active={activeTab === "safety"}
+                      onClick={() => {
+                        if (activeTab !== "safety") setPrevTab(activeTab);
+                        setActiveTab("safety");
+                      }}
+                    />
+                    <SettingsLink
+                      active={activeTab === "settings"}
+                      onClick={() => {
+                        if (activeTab !== "settings") setPrevTab(activeTab);
+                        setActiveTab("settings");
+                      }}
+                    />
+                  </div>
                 </div>
 
                 {/* Tab bar */}
@@ -549,7 +656,8 @@ export default function App() {
                 activeTab === "matches" ? "Matches" :
                 activeTab === "messages" ? "Messages" :
                 activeTab === "admin" ? "Moderation" :
-                activeTab === "safety" ? "Safety Center" : "Profile"
+                activeTab === "safety" ? "Safety Center" :
+                activeTab === "settings" ? "Accessibility settings" : "Profile"
               }
               style={{
                 flex: 1,
@@ -601,6 +709,12 @@ export default function App() {
               {activeTab === "admin" && isAdmin && <AdminScreen />}
               {activeTab === "safety" && (
                 <SafetyScreen onBack={() => setActiveTab(prevTab || "suggestions")} />
+              )}
+              {activeTab === "settings" && (
+                <SettingsScreen
+                  onBack={() => setActiveTab(prevTab || "suggestions")}
+                  onChange={applyA11y}
+                />
               )}
             </main>
           </div>
