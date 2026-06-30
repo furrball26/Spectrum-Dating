@@ -45,7 +45,11 @@ router.get('/candidates', requireAuth, (req, res) => {
     sensoryEnvironment: c.sensory_environment || '',
     sensoryLighting: c.sensory_lighting || '',
     socialDuration: c.social_duration || '',
-    contextCard: c.context_card || '',
+    // contextCard ("how to talk to me", free-text personal disclosure) is
+    // GATED to post-match only — see GET /matching/matches otherUser. It must
+    // NOT be returned here, where any stranger browsing Discover would see it
+    // before any mutual match (weaponized-disclosure abuse surface). Keep the
+    // structured comm/sensory fields above — those are matching signals.
     age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
     verified: !!c.identity_verified,
     interests: c.interests,

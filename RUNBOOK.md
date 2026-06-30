@@ -375,9 +375,23 @@ above (→ **400** on an invalid value); `contextCard` must be a string ≤ 300 
 (→ **400** if longer). All added to the string `fieldMap`.
 **`GET /profile/me`** (and the `PUT` echo) returns all seven as camelCase.
 
-**Exposed on read paths:** `GET /matching/candidates` (each candidate) and
-`GET /matching/matches` (`otherUser`) include all seven. `candidates.js` SELECTs
-the columns; `matching.js` maps them.
+**Exposed on read paths:** the six *structured* comm/sensory enums
+(`commDirectness`/`commLiteral`/`commCadence`/`sensoryEnvironment`/
+`sensoryLighting`/`socialDuration`) are returned on **both**
+`GET /matching/candidates` (each candidate) and `GET /matching/matches`
+(`otherUser`) — they are matching signals.
+
+> **`context_card` is POST-MATCH ONLY (weaponized-disclosure gate).** The
+> free-text `contextCard` ("how to talk to me") is a personal disclosure. It is
+> returned on `GET /matching/matches` (`otherUser`) and the owner's own
+> `GET /profile/me`, but **deliberately NOT on `GET /matching/candidates`** —
+> a stranger browsing Discover must not see someone's most personal disclosure
+> before a mutual match. `candidates.js` may still SELECT the column (it's
+> harmless / used elsewhere), but `matching.js` does **not** map it onto the
+> candidate response. The structured comms/sensory fields above remain
+> pre-match; only the free-text card is gated.
+
+`candidates.js` SELECTs the structured columns; `matching.js` maps them.
 
 **Light matching signal** (`src/matching/score.js`) — modest nudges, like the
 city/goal bonus; **never excludes**, only re-ranks:
