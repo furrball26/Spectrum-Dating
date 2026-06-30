@@ -1,23 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-
-const t = {
-  bg: "#F4F5F2",
-  bgGradient: "linear-gradient(150deg, #F4F5F2 0%, #ECF0EB 100%)",
-  surface: "#FFFFFF",
-  surfaceAlt: "#EEF1ED",
-  text: "#24332D",
-  textSoft: "#4E5F58",
-  textMuted: "#7A8C85",
-  accent: "#5B8A82",
-  accentStrong: "#3E6660",
-  border: "#D3DBD5",
-  borderLight: "#E8EDE7",
-  focus: "#24332D",
-  serif: "'Newsreader', Georgia, 'Times New Roman', serif",
-  sans: "'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif",
-  formBorder: "#8A9E96",
-  danger: "#B94040",
-};
+import { t } from "../tokens.js";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 

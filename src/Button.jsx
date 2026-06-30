@@ -46,7 +46,7 @@ export default function Button({ variant = "primary", children, style, disabled,
         fontFamily: t.sans,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
-        transition: "background 150ms ease, color 150ms ease, border-color 150ms ease",
+        transition: `background ${t.motion.base} ${t.motion.standard}, color ${t.motion.base} ${t.motion.standard}, border-color ${t.motion.base} ${t.motion.standard}`,
         ...variantStyle,
         ...(focused
           ? { outline: `2px solid ${t.focus}`, outlineOffset: "2px" }

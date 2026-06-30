@@ -43,4 +43,18 @@ export const t = {
   bubbleOwn: "var(--c-bubbleOwn, #EEF1ED)",
   bubbleOther: "var(--c-bubbleOther, #FFFFFF)",
   tombstone: "var(--c-tombstone, #7A8C85)",
+  // ── Motion language ──
+  // Durations + easings for the calm, fade-forward motion system. Adopt as
+  // `${t.motion.base} ${t.motion.standard}`. Rule: fade + ≤8px travel, never
+  // scale-bounce. All of these are killed by the global reduce-motion sheet
+  // (App.jsx) via `transition-duration: 0.001ms !important`, so no per-use gate
+  // is required for transitions to be neutralised.
+  motion: {
+    fast: "120ms",
+    base: "220ms",
+    slow: "420ms",
+    standard: "cubic-bezier(0.2,0,0,1)",
+    exit: "cubic-bezier(0.4,0,1,1)",
+    gentle: "cubic-bezier(0.33,1,0.68,1)",
+  },
 };

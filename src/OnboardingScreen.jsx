@@ -1,25 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { updateProfile } from "./api.js";
-
-// ─── Design tokens ─────────────────────────────────────────────────────────────
-const t = {
-  bg: "#F4F5F2",
-  surface: "#FFFFFF",
-  surfaceAlt: "#EEF1ED",
-  text: "#24332D",
-  textSoft: "#4E5F58",
-  textMuted: "#7A8C85",
-  accent: "#5B8A82",
-  accentStrong: "#3E6660",
-  positive: "#5E9459",
-  border: "#D3DBD5",
-  borderLight: "#E8EDE7",
-  focus: "#24332D",
-  danger: "#B94040",
-  serif: "'Newsreader', Georgia, 'Times New Roman', serif",
-  sans: "'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif",
-  formBorder: "#8A9E96",
-};
+import { t } from "./tokens.js";
+import Spectrum from "./Spectrum.jsx";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
@@ -763,18 +745,22 @@ export default function OnboardingScreen({ onComplete }) {
       </div>
 
       <div style={card}>
-        {/* Step indicator — subtle, not test-like */}
-        <p
+        {/* Step indicator — calm spectrum tiles, not test-like. 3 tiles, the
+            first `step` filled. The SR live region above announces the step. */}
+        <div
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
             margin: "0 0 20px",
-            fontSize: 13,
-            color: t.textMuted,
-            letterSpacing: "0.02em",
           }}
           aria-hidden="true"
         >
-          Step {step} of 3
-        </p>
+          <Spectrum variant="progress" value={step} count={3} size={9} gap={5} />
+          <span style={{ fontSize: 13, color: t.textMuted, letterSpacing: "0.02em" }}>
+            Step {step} of 3
+          </span>
+        </div>
 
         {/* Step heading */}
         <h1

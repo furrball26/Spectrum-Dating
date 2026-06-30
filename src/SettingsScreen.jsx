@@ -136,7 +136,7 @@ function ThemeOption({ label, active, onClick }) {
         background: active ? t.surface : "transparent",
         color: active ? t.text : t.textSoft,
         boxShadow: active ? "0 1px 3px rgba(36,51,45,0.12)" : "none",
-        transition: "background 0.15s, color 0.15s",
+        transition: `background ${t.motion.base} ${t.motion.standard}, color ${t.motion.base} ${t.motion.standard}`,
         ...f.style,
       }}
     >
@@ -184,7 +184,7 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
           border: "none",
           cursor: "pointer",
           flexShrink: 0,
-          transition: "background 0.2s",
+          transition: `background ${t.motion.base} ${t.motion.standard}`,
           ...f.style,
         }}
       >
@@ -198,7 +198,7 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
             height: 22,
             borderRadius: "50%",
             background: "#fff",
-            transition: "left 0.2s",
+            transition: `left ${t.motion.base} ${t.motion.gentle}`,
             boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
           }}
         />

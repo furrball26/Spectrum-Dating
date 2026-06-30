@@ -59,7 +59,7 @@ function PrimaryButton({ children, onClick, style }) {
         color: "#fff",
         border: `1px solid ${t.accentStrong}`,
         cursor: "pointer",
-        transition: "background 150ms ease",
+        transition: `background ${t.motion.base} ${t.motion.standard}`,
         ...f.style,
         ...style,
       }}
@@ -87,7 +87,7 @@ function TertiaryButton({ children, onClick, style }) {
         color: t.accentStrong,
         border: `1px solid ${t.border}`,
         cursor: "pointer",
-        transition: "background 150ms ease, border-color 150ms ease",
+        transition: `background ${t.motion.base} ${t.motion.standard}, border-color ${t.motion.base} ${t.motion.standard}`,
         ...f.style,
         ...style,
       }}

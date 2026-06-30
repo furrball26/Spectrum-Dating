@@ -560,7 +560,7 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
           border: "none",
           cursor: "pointer",
           flexShrink: 0,
-          transition: "background 0.2s",
+          transition: `background ${t.motion.base} ${t.motion.standard}`,
           ...f.style,
         }}
         aria-label={enabled ? "Disable push notifications" : "Enable push notifications"}
@@ -575,7 +575,7 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
             height: 22,
             borderRadius: "50%",
             background: "#fff",
-            transition: "left 0.2s",
+            transition: `left ${t.motion.base} ${t.motion.gentle}`,
             boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
           }}
         />
@@ -637,7 +637,7 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
           border: "none",
           cursor: "pointer",
           flexShrink: 0,
-          transition: "background 0.2s",
+          transition: `background ${t.motion.base} ${t.motion.standard}`,
           ...f.style,
         }}
       >
@@ -651,7 +651,7 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
             height: 22,
             borderRadius: "50%",
             background: "#fff",
-            transition: "left 0.2s",
+            transition: `left ${t.motion.base} ${t.motion.gentle}`,
             boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
           }}
         />
@@ -684,7 +684,7 @@ function PauseToggle({ checked, onChange }) {
           border: "none",
           cursor: "pointer",
           flexShrink: 0,
-          transition: "background 0.2s",
+          transition: `background ${t.motion.base} ${t.motion.standard}`,
           ...f.style,
         }}
       >
@@ -698,7 +698,7 @@ function PauseToggle({ checked, onChange }) {
             height: 22,
             borderRadius: "50%",
             background: "#fff",
-            transition: "left 0.2s",
+            transition: `left ${t.motion.base} ${t.motion.gentle}`,
             boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
           }}
         />

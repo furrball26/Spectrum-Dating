@@ -5,6 +5,7 @@ import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
 import Button from "./Button.jsx";
+import Spectrum from "./Spectrum.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
@@ -135,7 +136,12 @@ function MatchCard({ match, busy, onOpen }) {
           disabled={busy}
           style={{ flexShrink: 0, cursor: busy ? "wait" : undefined }}
         >
-          {busy ? "Starting…" : hasConversation ? "Open chat" : "Say hello"}
+          {busy ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <Spectrum variant="loader" size={6} gap={3} />
+              Starting…
+            </span>
+          ) : hasConversation ? "Open chat" : "Say hello"}
         </Button>
       </div>
     </li>

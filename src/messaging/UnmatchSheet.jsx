@@ -1,17 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-
-const t = {
-  surface: "#FFFFFF",
-  surfaceAlt: "#EEF1ED",
-  text: "#24332D",
-  textSoft: "#4E5F58",
-  textMuted: "#7A8C85",
-  accent: "#5B8A82",
-  border: "#D8DDD6",
-  focus: "#24332D",
-  serif: "Georgia, 'Times New Roman', serif",
-  danger: "#B94040",
-};
+import { t } from "../tokens.js";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
