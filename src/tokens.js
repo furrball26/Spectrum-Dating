@@ -1,0 +1,23 @@
+// Shared design tokens for Spectrum Dating
+export const t = {
+  bg: "#F4F5F2",
+  bgGradient: "linear-gradient(150deg, #F4F5F2 0%, #ECF0EB 100%)",
+  surface: "#FFFFFF",
+  surfaceAlt: "#EEF1ED",
+  text: "#24332D",
+  textSoft: "#4E5F58",
+  textMuted: "#7A8C85",
+  accent: "#5B8A82",
+  accentStrong: "#3E6660",
+  positive: "#5E9459",
+  border: "#D8DDD6",
+  borderLight: "#E8EDE7",
+  focus: "#24332D",
+  danger: "#B94040",
+  warning: "#B8860B",
+  serif: "Georgia, 'Times New Roman', serif",
+  formBorder: "#8A9E96",
+  bubbleOwn: "#EEF1ED",
+  bubbleOther: "#FFFFFF",
+  tombstone: "#7A8C85",
+};
