@@ -678,6 +678,18 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 
 ~Auto Builder
 
+### 2026-06-30 — Backlog items #5 / #6 / #7: Plain language toggle, Low stimulation controls, Session-timeout warning
+
+**#5 — Plain-language toggle** (`src/SettingsScreen.jsx`, `src/App.jsx`, `src/SuggestionScreen.jsx`, `src/MatchesScreen.jsx`): New "Plain language" toggle in Settings → Accessibility. When on: "I'm interested" → "Yes"; "Not right now" → "Not now"; "Done for now" → "Done"; confirmation messages drop metaphors; "You're all caught up." → "You've seen everyone."; Matches: "Say hello" → "Send first message". Pref stored in `spectrum_a11y.plainLanguage`; threaded from App → SuggestionScreen + MatchesScreen. Verified strings in live bundle. ✅
+
+**#6 — Low-stimulation controls** (`src/SettingsScreen.jsx`, `src/App.jsx`, `src/SuggestionScreen.jsx`, `src/MatchesScreen.jsx`): New "Low stimulation" toggle. When on: decorative illustrations hidden (`AllCaughtUp`, `EmptyMatches`); background gradient flattened; animated header mark replaced by static `SpectrumMark`. Pref in `spectrum_a11y.reducedSensory`. Verified "Low stimulation" + "reducedSensory" in live bundle. ✅
+
+**#7 — Session-timeout inactivity warning** (`src/App.jsx`): `InactivityWarningBanner` component + 20-min inactivity timer in App. After 20 min of no activity → fixed top `role="alertdialog"` banner with 2-min countdown + "I'm still here" button (auto-focused, Escape also works). At 0 → dispatches `auth:expired` (same graceful logout path). Satisfies WCAG 2.2.1. Verified "Still here" + "alertdialog" in live bundle `index-DqzDs_Po.js`. ✅
+
+**Deploy (all three):** Build clean (90 modules). Alias `spectrum-dating-eta.vercel.app` confirmed after each deploy.
+
+~Auto Builder
+
 ### 2026-06-30 — Backlog item #4: Profile-completeness guidance
 
 **What was built:** A calm, non-gamified profile-completeness nudge in `ProfileScreen` — a tile-based progress bar and a chip list showing which autism-specific differentiator fields are still empty.
@@ -694,5 +706,26 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Deploy:** `npm run build` clean (90 modules). Deployed to Vercel (`spectrum-dating-9nelwmk04-spectrum-dating.vercel.app`); alias manually re-pointed to `spectrum-dating-eta.vercel.app`. Live bundle `index-CCxh99S2.js`. ✅
 
 **Verification:** `curl` confirmed "Profile completeness", "Add a photo", "Answer a prompt", and "commStyle" strings present in live bundle. ✅
+
+~Auto Builder
+
+### 2026-06-30 — Backlog item #5: Plain-language / simplified-text accessibility toggle
+
+**What was built:** The `plainLanguage` pref was already stored in localStorage and the Settings toggle already existed, but the pref was only consumed in `SuggestionScreen` (7 strings) and `MatchesScreen` (1 string). This run wires it through every remaining major surface so the toggle has real, broad effect.
+
+**Frontend only** — no backend changes. Files touched: `src/MatchMoment.jsx`, `src/SuggestionScreen.jsx`, `src/MatchesScreen.jsx`, `src/App.jsx`, `src/messaging/MessagingApp.jsx`, `src/messaging/MatchesListScreen.jsx`, `src/messaging/ConversationScreen.jsx`, `src/messaging/EmptyConversationState.jsx`.
+
+**Strings changed per surface (plain-language ON):**
+- **MatchMoment overlay** — "You're on the same wavelength." → "You're a match!"; "Keep looking" → "Continue" (the most metaphorical strings in the app, now literal)
+- **SuggestionScreen** — passes `plainLanguage` prop through to `MatchMoment`
+- **MatchesScreen** — intro "Reach out whenever you're ready — there's no rush." → "Message them whenever you want."; `LikedYouSection` "decide at your own pace — no rush" → "Go to Discover to see them."; empty state reworded to drop idioms
+- **MessagingApp** desktop placeholder — "Select a conversation to start reading." → "Click a conversation to open it."; prop threaded to `MatchesListScreen` and `ConversationScreen`
+- **MatchesListScreen** — empty state drops "Check back soon" (which can mislead on a thin pool)
+- **ConversationScreen** — accepts prop, passes to `EmptyConversationState`
+- **EmptyConversationState** — "whenever you're ready. There's no rush." → "when you're ready."; "Need ideas?" → "Starter ideas"
+
+**Deploy:** `npm run build` clean (90 modules). Deployed to Vercel (`spectrum-dating-bc4mdesfy-spectrum-dating.vercel.app`); alias manually re-pointed to `spectrum-dating-eta.vercel.app`. ✅
+
+**Verification:** `curl` confirmed all four key strings present in live bundle `index-BQMHF8p8.js`: "You're a match", "Send a message when you're ready", "Starter ideas", "Click a conversation to open". ✅
 
 ~Auto Builder
