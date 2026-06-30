@@ -138,6 +138,40 @@ router.post('/swipe', requireAuth, async (req, res) => {
   return res.json({ matched: true, matchId });
 });
 
+// GET /matching/matches — list the viewer's mutual matches, with the other
+// person's profile and whether a conversation has been started yet.
+router.get('/matches', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const rows = db.prepare(`
+    SELECT m.id, m.user_a_id, m.user_b_id, m.matched_at, c.id AS conversation_id
+    FROM matches m
+    LEFT JOIN conversations c ON c.match_id = m.id
+    WHERE m.user_a_id = ? OR m.user_b_id = ?
+    ORDER BY m.matched_at DESC
+  `).all(userId, userId);
+
+  const matches = rows.map((row) => {
+    const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
+    const p = db.prepare(
+      'SELECT display_name, tagline, photo_url FROM profiles WHERE user_id = ?'
+    ).get(otherId);
+    return {
+      matchId: row.id,
+      matchedAt: row.matched_at,
+      conversationId: row.conversation_id || null,
+      hasConversation: !!row.conversation_id,
+      otherUser: {
+        userId: otherId,
+        displayName: p?.display_name || '',
+        tagline: p?.tagline || '',
+        photoUrl: p?.photo_url || null,
+      },
+    };
+  });
+
+  res.json({ matches });
+});
+
 // DELETE /matching/matches/:id — unmatch: remove the match + its conversation
 router.delete('/matches/:id', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
