@@ -243,6 +243,48 @@ function CommStyleArea({ person }) {
   );
 }
 
+// Hinge-style prompt cards: a small muted label (the prompt) with the answer
+// shown prominently below in serif. Only rendered when there are prompts.
+function PromptCards({ prompts }) {
+  const valid = (prompts || []).filter(
+    (p) => p && p.answer && p.answer.trim() && (p.promptText || p.promptKey)
+  );
+  if (valid.length === 0) return null;
+  return (
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 16 }}>
+      {valid.map((p, i) => (
+        <li key={p.promptKey || i}>
+          <p
+            style={{
+              margin: "0 0 6px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              lineHeight: 1.4,
+            }}
+          >
+            {p.promptText || p.promptKey}
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontFamily: t.serif,
+              fontSize: 20,
+              fontWeight: 700,
+              color: t.text,
+              lineHeight: 1.4,
+            }}
+          >
+            {p.answer}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ReportModal({ candidate, onClose }) {
   const [reason, setReason] = useState("inappropriate");
   const [details, setDetails] = useState("");
@@ -482,6 +524,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
           sensoryLighting: c.sensoryLighting || '',
           socialDuration: c.socialDuration || '',
           contextCard: c.contextCard || '',
+          prompts: Array.isArray(c.prompts) ? c.prompts : [],
         })));
         setIndex(0);
       });
@@ -812,6 +855,14 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
                 <CommStyleArea person={person} />
               </div>
             )}
+
+            {/* Hinge-style prompts — only when the candidate has answered any. */}
+            {Array.isArray(person.prompts) &&
+              person.prompts.some((p) => p && p.answer && p.answer.trim()) && (
+                <div style={card}>
+                  <PromptCards prompts={person.prompts} />
+                </div>
+              )}
 
             {/* Three actions: fixed order, fixed labels (3.2.4). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

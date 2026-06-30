@@ -51,6 +51,13 @@ function Avatar({ name, photoUrl }) {
 function MatchCard({ match, busy, onOpen }) {
   const f = useFocusable();
   const { otherUser, hasConversation } = match;
+  // Optional first-prompt preview — only if it has an answer and no tagline/context
+  // already filling the row, to keep the card calm and uncluttered.
+  const firstPrompt = Array.isArray(otherUser.prompts)
+    ? otherUser.prompts.find((p) => p && p.answer && p.answer.trim() && (p.promptText || p.promptKey))
+    : null;
+  const showPrompt =
+    firstPrompt && !otherUser.tagline && !(otherUser.contextCard && otherUser.contextCard.trim());
   return (
     <li style={{ listStyle: "none", marginBottom: 12 }}>
       <div
@@ -98,6 +105,36 @@ function MatchCard({ match, busy, onOpen }) {
               }}
             >
               “{otherUser.contextCard}”
+            </div>
+          )}
+          {showPrompt && (
+            <div style={{ marginTop: 4, overflow: "hidden" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: t.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {firstPrompt.promptText || firstPrompt.promptKey}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: t.text,
+                  fontFamily: t.serif,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {firstPrompt.answer}
+              </div>
             </div>
           )}
         </div>

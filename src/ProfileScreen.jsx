@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 
@@ -694,6 +694,196 @@ function PauseToggle({ checked, onChange }) {
   );
 }
 
+// ─── Prompts (Hinge-style) ────────────────────────────────────────────────────
+const MAX_PROMPTS = 3;
+const PROMPT_ANSWER_MAX = 200;
+
+// Editor for a single filled prompt slot: shows the prompt text, an editable
+// answer textarea (≤200, live counter), and a Remove control.
+function PromptSlot({ index, promptText, answer, onChangeAnswer, onRemove }) {
+  const taId = `prompt-answer-${index}`;
+  const counterId = `prompt-answer-${index}-counter`;
+  const [touched, setTouched] = useState(false);
+  return (
+    <div
+      style={{
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 12,
+        padding: "14px 14px 12px",
+        marginBottom: 12,
+        background: t.surfaceAlt,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+        <p style={{ margin: 0, fontFamily: t.serif, fontSize: 16, fontWeight: 700, color: t.text, lineHeight: 1.4 }}>
+          {promptText}
+        </p>
+        <RemovePromptButton onRemove={onRemove} promptText={promptText} />
+      </div>
+      <label htmlFor={taId} style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}>
+        Your answer to: {promptText}
+      </label>
+      <textarea
+        id={taId}
+        maxLength={PROMPT_ANSWER_MAX}
+        rows={3}
+        aria-describedby={counterId}
+        value={answer}
+        onChange={(e) => { onChangeAnswer(e.target.value); setTouched(true); }}
+        onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+        onBlur={(e) => { e.target.style.outline = "none"; }}
+        style={{ ...inputStyle(false), resize: "vertical", minHeight: 72, lineHeight: 1.55 }}
+        placeholder="Your answer"
+      />
+      <div
+        role="status"
+        aria-live="polite"
+        id={counterId}
+        style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+      >
+        {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
+      </div>
+    </div>
+  );
+}
+
+function RemovePromptButton({ onRemove, promptText }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      aria-label={`Remove prompt: ${promptText}`}
+      {...f}
+      style={{
+        flexShrink: 0,
+        minHeight: 44,
+        minWidth: 44,
+        padding: "8px 12px",
+        borderRadius: 8,
+        border: `1px solid ${t.formBorder}`,
+        background: t.surface,
+        color: t.textSoft,
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        ...f.style,
+      }}
+    >
+      Remove
+    </button>
+  );
+}
+
+// Chooser shown when adding a prompt: a select of catalog prompts not already
+// chosen, then a textarea for the answer.
+function PromptChooser({ available, onAdd, onCancel }) {
+  const [key, setKey] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [touched, setTouched] = useState(false);
+  const fSelect = useFocusable();
+  const fAdd = useFocusable();
+  const fCancel = useFocusable();
+  const selected = available.find((p) => p.key === key);
+  const canAdd = !!key && answer.trim() !== "";
+
+  return (
+    <div
+      style={{
+        border: `1px dashed ${t.formBorder}`,
+        borderRadius: 12,
+        padding: "16px 14px",
+        marginBottom: 12,
+        background: t.surface,
+      }}
+    >
+      <div style={{ marginBottom: 14 }}>
+        <FieldLabel htmlFor="prompt-chooser-select">Choose a prompt</FieldLabel>
+        <select
+          id="prompt-chooser-select"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          {...fSelect}
+          style={{ ...inputStyle(false), minHeight: 44, appearance: "auto", cursor: "pointer", ...fSelect.style }}
+        >
+          <option value="">Select a prompt…</option>
+          {available.map((p) => (
+            <option key={p.key} value={p.key}>{p.text}</option>
+          ))}
+        </select>
+      </div>
+
+      {selected && (
+        <div style={{ marginBottom: 14 }}>
+          <FieldLabel htmlFor="prompt-chooser-answer">Your answer</FieldLabel>
+          <textarea
+            id="prompt-chooser-answer"
+            maxLength={PROMPT_ANSWER_MAX}
+            rows={3}
+            aria-describedby="prompt-chooser-answer-counter"
+            value={answer}
+            onChange={(e) => { setAnswer(e.target.value); setTouched(true); }}
+            onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+            onBlur={(e) => { e.target.style.outline = "none"; }}
+            style={{ ...inputStyle(false), resize: "vertical", minHeight: 72, lineHeight: 1.55 }}
+            placeholder="Your answer"
+          />
+          <div
+            role="status"
+            aria-live="polite"
+            id="prompt-chooser-answer-counter"
+            style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+          >
+            {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => { if (canAdd) onAdd(key, answer.trim()); }}
+          disabled={!canAdd}
+          {...fAdd}
+          style={{
+            minHeight: 44,
+            padding: "10px 18px",
+            borderRadius: 10,
+            border: `1px solid ${canAdd ? t.accentStrong : t.border}`,
+            background: canAdd ? t.accentStrong : t.surfaceAlt,
+            color: canAdd ? "#fff" : t.textMuted,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: canAdd ? "pointer" : "not-allowed",
+            ...fAdd.style,
+          }}
+        >
+          Add prompt
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          {...fCancel}
+          style={{
+            minHeight: 44,
+            padding: "10px 18px",
+            borderRadius: 10,
+            border: `1px solid ${t.border}`,
+            background: t.surface,
+            color: t.text,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+            ...fCancel.style,
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
@@ -738,6 +928,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [socialDuration, setSocialDuration]       = useState(DEFAULT_PROFILE.socialDuration);
   const [contextCard, setContextCard]             = useState(DEFAULT_PROFILE.contextCard);
   const [contextCardTouched, setContextCardTouched] = useState(false);
+
+  // Hinge-style prompts (max 3). `prompts` is [{ promptKey, answer }];
+  // `promptCatalog` is [{ key, text }]. Both declared with the other hooks,
+  // BEFORE the loading/error early returns (no hook-after-return).
+  const [prompts, setPrompts]               = useState([]);
+  const [promptCatalog, setPromptCatalog]   = useState([]);
+  const [showPromptChooser, setShowPromptChooser] = useState(false);
 
   // savedProfile mirrors the last-known server state, used for isDirty comparison
   const [savedProfile, setSavedProfile] = useState(null);
@@ -785,6 +982,13 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   // P-1: focus heading on mount
   useEffect(() => {
     headingRef.current?.focus();
+  }, []);
+
+  // Fetch the prompt catalog on mount (own effect, declared before returns).
+  useEffect(() => {
+    getPromptCatalog()
+      .then((cat) => setPromptCatalog(Array.isArray(cat) ? cat : []))
+      .catch(() => { /* best-effort — chooser simply shows no options */ });
   }, []);
 
   // Load profile from API on mount
@@ -840,6 +1044,16 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         setVerified(!!data.verified);
+        // Prompts — map server shape ({ promptKey, promptText, answer }) to the
+        // editable shape ({ promptKey, answer }); cap at MAX_PROMPTS defensively.
+        if (Array.isArray(data.prompts)) {
+          setPrompts(
+            data.prompts
+              .filter((p) => p && p.promptKey)
+              .slice(0, MAX_PROMPTS)
+              .map((p) => ({ promptKey: p.promptKey, answer: p.answer || "" }))
+          );
+        }
         cacheProfile(merged);
         if (Array.isArray(data.photos)) setPhotos(data.photos);
       })
@@ -1078,6 +1292,17 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         socialDuration: currentProfile.socialDuration,
         contextCard: currentProfile.contextCard,
       });
+      // Save prompts alongside the main profile (best-effort). Only send valid,
+      // non-empty entries. Errors surface but don't block the profile save.
+      try {
+        await savePrompts(
+          prompts
+            .filter((p) => p.promptKey && p.answer.trim())
+            .map((p) => ({ promptKey: p.promptKey, answer: p.answer.trim() }))
+        );
+      } catch {
+        setSaveErrorSummary("Your profile saved, but your prompts couldn't be saved. Please try again.");
+      }
       cacheProfile(currentProfile);  // keep localStorage in sync for SuggestionScreen
       setSavedProfile(currentProfile);
       setHasEverSaved(true);
@@ -1088,6 +1313,31 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
     } catch {
       setSaveErrorSummary('Could not save. Please check your connection and try again.');
     }
+  }
+
+  // ── Prompt editing
+  function handleAddPrompt(promptKey, answer) {
+    setPrompts((prev) => {
+      if (prev.length >= MAX_PROMPTS || prev.some((p) => p.promptKey === promptKey)) return prev;
+      return [...prev, { promptKey, answer }];
+    });
+    setShowPromptChooser(false);
+  }
+
+  function handleChangePromptAnswer(index, answer) {
+    setPrompts((prev) => prev.map((p, i) => (i === index ? { ...p, answer } : p)));
+  }
+
+  function handleRemovePrompt(index) {
+    setPrompts((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Catalog prompts not already chosen — used by the chooser select.
+  const availablePrompts = promptCatalog.filter(
+    (c) => !prompts.some((p) => p.promptKey === c.key)
+  );
+  function promptTextFor(promptKey) {
+    return promptCatalog.find((c) => c.key === promptKey)?.text || promptKey;
   }
 
   // ── Unsaved-changes guard
@@ -1409,6 +1659,42 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                 120 characters maximum. Optional — shown on match cards as "About talking: [your text]".
               </HelperText>
             </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — Prompts (Hinge-style)
+          ══════════════════════════════════════════════════════ */}
+          <div style={card}>
+            <h2 style={h2Style}>Prompts</h2>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
+              Answer up to 3 prompts — an easy way to share who you are without a blank page.
+            </p>
+
+            {prompts.map((p, idx) => (
+              <PromptSlot
+                key={p.promptKey}
+                index={idx}
+                promptText={promptTextFor(p.promptKey)}
+                answer={p.answer}
+                onChangeAnswer={(val) => handleChangePromptAnswer(idx, val)}
+                onRemove={() => handleRemovePrompt(idx)}
+              />
+            ))}
+
+            {prompts.length < MAX_PROMPTS && (
+              showPromptChooser ? (
+                <PromptChooser
+                  available={availablePrompts}
+                  onAdd={handleAddPrompt}
+                  onCancel={() => setShowPromptChooser(false)}
+                />
+              ) : (
+                <AddPromptButton
+                  onClick={() => setShowPromptChooser(true)}
+                  disabled={availablePrompts.length === 0}
+                />
+              )
+            )}
           </div>
 
           {/* ══════════════════════════════════════════════════════
@@ -2412,6 +2698,35 @@ function AddButton({ onAdd }) {
       onBlur={f.onBlur}
     >
       Add
+    </button>
+  );
+}
+
+// ── Add-a-prompt button ───────────────────────────────────────────────────────
+function AddPromptButton({ onClick, disabled }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      {...f}
+      style={{
+        width: "100%",
+        minHeight: 48,
+        padding: "12px 18px",
+        borderRadius: 12,
+        border: `1.5px dashed ${disabled ? t.border : t.accentStrong}`,
+        background: t.surface,
+        color: disabled ? t.textMuted : t.accentStrong,
+        fontSize: 15,
+        fontWeight: 600,
+        cursor: disabled ? "not-allowed" : "pointer",
+        ...f.style,
+      }}
+    >
+      <span aria-hidden="true" style={{ marginRight: 6 }}>+</span>
+      Add a prompt
     </button>
   );
 }

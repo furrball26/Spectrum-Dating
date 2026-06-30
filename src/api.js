@@ -111,6 +111,17 @@ export async function updateProfile(fields) {
   return apiFetch("/profile/me", { method: "PUT", body: fields });
 }
 
+// Hinge-style profile prompts
+export async function getPromptCatalog() {
+  const d = await apiFetch('/profile/prompt-catalog');
+  return Array.isArray(d?.prompts) ? d.prompts : [];
+}
+
+export async function savePrompts(prompts) {
+  const d = await apiFetch('/profile/prompts', { method: 'PUT', body: { prompts } });
+  return Array.isArray(d?.prompts) ? d.prompts : [];
+}
+
 // ─── Matching ─────────────────────────────────────────────────────────────────
 
 export async function getCandidates() {
