@@ -903,6 +903,173 @@ function PromptChooser({ available, onAdd, onCancel }) {
   );
 }
 
+// ─── Dual-handle age-range slider ────────────────────────────────────────────
+// Replaces the two number inputs that suffered the HTML min/max clamp bug.
+// Keyboard: Tab to focus each handle, arrow keys to move ±1 year.
+const AGE_SLIDER_MIN = 18;
+const AGE_SLIDER_MAX = 99;
+
+function AgeRangeSlider({ low, high, onChange }) {
+  const trackRef = useRef(null);
+  const [dragging, setDragging] = useState(null); // "low" | "high" | null
+
+  function pct(v) {
+    return ((v - AGE_SLIDER_MIN) / (AGE_SLIDER_MAX - AGE_SLIDER_MIN)) * 100;
+  }
+
+  function valueFromClientX(clientX) {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return AGE_SLIDER_MIN;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(AGE_SLIDER_MIN + ratio * (AGE_SLIDER_MAX - AGE_SLIDER_MIN));
+  }
+
+  function handlePointerDown(e, which) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(which);
+  }
+
+  function handlePointerMove(e) {
+    if (!dragging) return;
+    const v = valueFromClientX(e.clientX);
+    if (dragging === "low") {
+      onChange(Math.max(AGE_SLIDER_MIN, Math.min(v, high - 1)), high);
+    } else {
+      onChange(low, Math.min(AGE_SLIDER_MAX, Math.max(v, low + 1)));
+    }
+  }
+
+  function handlePointerUp() { setDragging(null); }
+
+  function handleKeyDown(e, which) {
+    let delta = 0;
+    if (e.key === "ArrowLeft"  || e.key === "ArrowDown") delta = -1;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp")   delta =  1;
+    if (!delta) return;
+    e.preventDefault();
+    if (which === "low") {
+      onChange(Math.max(AGE_SLIDER_MIN, Math.min(low + delta, high - 1)), high);
+    } else {
+      onChange(low, Math.min(AGE_SLIDER_MAX, Math.max(high + delta, low + 1)));
+    }
+  }
+
+  const THUMB = 26;
+  function thumbStyle(which) {
+    return {
+      position: "absolute",
+      top: "50%",
+      left: `${pct(which === "low" ? low : high)}%`,
+      transform: "translate(-50%, -50%)",
+      width: THUMB,
+      height: THUMB,
+      borderRadius: "50%",
+      background: t.accentFill,
+      border: "3px solid #fff",
+      boxShadow: "0 1px 5px rgba(36,51,45,0.28)",
+      cursor: dragging === which ? "grabbing" : "grab",
+      touchAction: "none",
+      zIndex: which === dragging ? 3 : 2,
+      // focus ring via outline (set on focus/blur events)
+    };
+  }
+
+  const [focusedThumb, setFocusedThumb] = useState(null);
+  const focusRingStyle = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
+
+  return (
+    <div style={{ padding: "4px 0 2px" }}>
+      {/* Current range label */}
+      <div style={{
+        textAlign: "center",
+        fontFamily: t.serif,
+        fontSize: 22,
+        fontWeight: 700,
+        color: t.text,
+        marginBottom: 14,
+        letterSpacing: "-0.3px",
+      }}>
+        {low}
+        <span style={{ color: t.textSoft, fontWeight: 400, margin: "0 6px" }}>–</span>
+        {high === AGE_SLIDER_MAX ? `${AGE_SLIDER_MAX}+` : high}
+      </div>
+
+      {/* Track + thumbs */}
+      <div
+        ref={trackRef}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ position: "relative", height: THUMB + 16, userSelect: "none", padding: "0 2px" }}
+      >
+        {/* Background track */}
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: 0,
+          right: 0,
+          height: 6,
+          borderRadius: 3,
+          background: t.surfaceAlt,
+          border: `1px solid ${t.border}`,
+          transform: "translateY(-50%)",
+        }} />
+
+        {/* Filled segment between thumbs */}
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: `${pct(low)}%`,
+          width: `${pct(high) - pct(low)}%`,
+          height: 6,
+          borderRadius: 3,
+          background: t.accentFill,
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }} />
+
+        {/* Low thumb */}
+        <div
+          role="slider"
+          aria-label="Minimum age"
+          aria-valuemin={AGE_SLIDER_MIN}
+          aria-valuemax={high - 1}
+          aria-valuenow={low}
+          aria-valuetext={`${low} years`}
+          tabIndex={0}
+          onPointerDown={(e) => handlePointerDown(e, "low")}
+          onKeyDown={(e) => handleKeyDown(e, "low")}
+          onFocus={() => setFocusedThumb("low")}
+          onBlur={() => setFocusedThumb(null)}
+          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRingStyle : {}) }}
+        />
+
+        {/* High thumb */}
+        <div
+          role="slider"
+          aria-label="Maximum age"
+          aria-valuemin={low + 1}
+          aria-valuemax={AGE_SLIDER_MAX}
+          aria-valuenow={high}
+          aria-valuetext={high === AGE_SLIDER_MAX ? `${AGE_SLIDER_MAX} and over` : `${high} years`}
+          tabIndex={0}
+          onPointerDown={(e) => handlePointerDown(e, "high")}
+          onKeyDown={(e) => handleKeyDown(e, "high")}
+          onFocus={() => setFocusedThumb("high")}
+          onBlur={() => setFocusedThumb(null)}
+          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRingStyle : {}) }}
+        />
+      </div>
+
+      {/* Tick labels */}
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+        <span>{AGE_SLIDER_MIN}</span>
+        <span>{AGE_SLIDER_MAX}+</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Profile-completeness nudge (backlog #4) ─────────────────────────────────
 // Tracks the 8 autism-specific "differentiator" fields that enrich a Spectrum
 // profile beyond the required name + interests. Renders a calm tile-based
@@ -2150,33 +2317,21 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               })}
             </fieldset>
 
-            {/* Age range preference */}
+            {/* Age range preference — dual-handle slider (replaces the two
+                number inputs that suffered the HTML min/max clamp bug) */}
             <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
-              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 8, float: "left", width: "100%" }}>
+              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 2 }}>
                 Age range
               </legend>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, clear: "both" }}>
-                <input
-                  type="number" min={18} max={99} inputMode="numeric"
-                  aria-label="Minimum age"
-                  value={prefAgeMin}
-                  onChange={(e) => setPrefAgeMin(Math.max(18, Math.min(99, Number(e.target.value) || 18)))}
-                  onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                  onBlur={(e) => { e.target.style.outline = "none"; }}
-                  style={{ ...inputStyle(false), width: 90 }}
-                />
-                <span style={{ color: t.textSoft, fontSize: 15 }}>to</span>
-                <input
-                  type="number" min={18} max={99} inputMode="numeric"
-                  aria-label="Maximum age"
-                  value={prefAgeMax}
-                  onChange={(e) => setPrefAgeMax(Math.max(18, Math.min(99, Number(e.target.value) || 99)))}
-                  onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                  onBlur={(e) => { e.target.style.outline = "none"; }}
-                  style={{ ...inputStyle(false), width: 90 }}
-                />
-              </div>
-              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 6 }}>
+              <AgeRangeSlider
+                low={prefAgeMin}
+                high={prefAgeMax}
+                onChange={(newLow, newHigh) => {
+                  setPrefAgeMin(newLow);
+                  setPrefAgeMax(newHigh);
+                }}
+              />
+              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}>
                 Only show people in this age range.
               </span>
             </fieldset>
