@@ -367,6 +367,10 @@ export async function deleteProfilePhoto(id) {
   return Array.isArray(d?.photos) ? d.photos : [];
 }
 
+export async function updatePhotoDescription(id, description) {
+  return apiFetch(`/photos/profile-photos/${id}/description`, { method: 'PUT', body: { description } });
+}
+
 // Message attachment upload flow (backlog #9)
 export async function uploadIntent(mimeType, fileSizeBytes) {
   return apiFetch('/photos/upload-intent', { method: 'POST', body: { mimeType, fileSizeBytes } });

@@ -474,6 +474,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainL
           sensoryLighting: c.sensoryLighting || '',
           socialDuration: c.socialDuration || '',
           contextCard: c.contextCard || '',
+          photoDescription: c.photoDescription || '',
           prompts: Array.isArray(c.prompts) ? c.prompts : [],
         })));
         setIndex(0);
@@ -722,7 +723,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainL
               {person.photoUrl && (
                 <img
                   src={person.photoUrl}
-                  alt={`Photo of ${person.displayName}`}
+                  alt={person.photoDescription || `Photo of ${person.displayName}`}
                   style={{
                     width: "100%",
                     height: 380,

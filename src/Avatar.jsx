@@ -26,12 +26,16 @@ function hashSeed(seed) {
   return Math.abs(h);
 }
 
-export default function Avatar({ name, userId, photoUrl, size = 56, style }) {
+// `alt` — optional override for the img alt text. When a user has supplied a
+// photo description ("Me hiking with my dog"), pass it here so SR users get
+// that richer context instead of the generic "Photo of Name" fallback.
+export default function Avatar({ name, userId, photoUrl, alt, size = 56, style }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
 
   if (photoUrl) {
     // A real photo is informative (not decorative) — give it a meaningful alt so
     // screen-reader users know there's a photo and whose it is.
+    const imgAlt = alt || (name ? `Photo of ${name}` : "Profile photo");
     return (
       <div
         style={{
@@ -46,7 +50,7 @@ export default function Avatar({ name, userId, photoUrl, size = 56, style }) {
       >
         <img
           src={photoUrl}
-          alt={name ? `Photo of ${name}` : "Profile photo"}
+          alt={imgAlt}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>

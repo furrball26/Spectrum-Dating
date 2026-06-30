@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl, changePassword, changeEmail, requestVerification } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl, changePassword, changeEmail, requestVerification, updatePhotoDescription } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
@@ -279,10 +279,30 @@ function UnsavedDialog({ onSave, onDiscard, onCancel }) {
 const MAX_PHOTOS = 6;
 
 // Single existing-photo cell
-function PhotoCell({ photo, onSetPrimary, onRemove }) {
+const DESC_MAX = 200;
+
+function PhotoCell({ photo, onSetPrimary, onRemove, onDescriptionSaved }) {
   const fPrimary = useFocusable();
   const fRemove = useFocusable();
   const [confirming, setConfirming] = useState(false);
+  const [desc, setDesc] = useState(photo.description || "");
+  const [descSaving, setDescSaving] = useState(false);
+  const [descError, setDescError] = useState("");
+
+  async function saveDescription(value) {
+    const trimmed = value.trim();
+    if (trimmed === (photo.description || "")) return; // unchanged
+    setDescSaving(true);
+    setDescError("");
+    try {
+      await updatePhotoDescription(photo.id, trimmed);
+      onDescriptionSaved(photo.id, trimmed);
+    } catch {
+      setDescError("Couldn't save description. Please try again.");
+    } finally {
+      setDescSaving(false);
+    }
+  }
 
   return (
     <div
@@ -326,6 +346,51 @@ function PhotoCell({ photo, onSetPrimary, onRemove }) {
           >
             Main
           </span>
+        )}
+      </div>
+
+      {/* Alt-text description */}
+      <div style={{ marginTop: 6 }}>
+        <label
+          htmlFor={`photo-desc-${photo.id}`}
+          style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.02em", display: "block", marginBottom: 3 }}
+        >
+          Describe this photo
+        </label>
+        <textarea
+          id={`photo-desc-${photo.id}`}
+          value={desc}
+          maxLength={DESC_MAX}
+          rows={2}
+          placeholder="e.g. Me hiking with my dog"
+          aria-describedby={`photo-desc-hint-${photo.id}`}
+          onChange={(e) => setDesc(e.target.value)}
+          onBlur={(e) => saveDescription(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            resize: "none",
+            border: `1px solid ${t.formBorder}`,
+            borderRadius: 8,
+            padding: "6px 8px",
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: t.text,
+            background: t.surface,
+            fontFamily: t.sans,
+            opacity: descSaving ? 0.6 : 1,
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
+          <span id={`photo-desc-hint-${photo.id}`} style={{ fontSize: 11, color: t.textMuted }}>
+            Helps screen-reader users.
+          </span>
+          <span aria-live="polite" style={{ fontSize: 11, color: desc.length >= DESC_MAX ? t.danger : t.textMuted }}>
+            {desc.length}/{DESC_MAX}
+          </span>
+        </div>
+        {descError && (
+          <p role="alert" style={{ margin: "3px 0 0", fontSize: 11, color: t.danger }}>{descError}</p>
         )}
       </div>
 
@@ -481,7 +546,7 @@ function AddPhotoTile({ onAdd, uploading, disabled }) {
   );
 }
 
-function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove, name }) {
+function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove, onDescriptionSaved, name }) {
   const atMax = photos.length >= MAX_PHOTOS;
   const isEmpty = photos.length === 0;
 
@@ -513,6 +578,7 @@ function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove,
               photo={photo}
               onSetPrimary={onSetPrimary}
               onRemove={onRemove}
+              onDescriptionSaved={onDescriptionSaved}
             />
           </div>
         ))}
@@ -1884,6 +1950,11 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       .catch((e) => setPhotoError(photoErrorMessage(e)));
   }, []);
 
+  // ── Update photo description optimistically (saved to DB by PhotoCell on blur)
+  const handleDescriptionSaved = useCallback((id, description) => {
+    setPhotos((prev) => prev.map((p) => p.id === id ? { ...p, description } : p));
+  }, []);
+
   // ── Interest toggle (suggestion chip)
   function toggleInterest(tag) {
     setInterests((prev) => {
@@ -2323,6 +2394,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               onAdd={handleAddPhoto}
               onSetPrimary={handleSetPrimary}
               onRemove={handleRemovePhoto}
+              onDescriptionSaved={handleDescriptionSaved}
               name={displayName}
             />
 
