@@ -604,22 +604,27 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
     boxShadow: "0 2px 8px rgba(36,51,45,0.07), 0 8px 24px rgba(36,51,45,0.04)",
   };
 
-  // Consistent header: same nav in same place every screen (3.2.3 / 3.2.6).
+  // The app shell now owns the wordmark + primary nav, so this screen no longer
+  // renders its own "Spectrum" header (was a duplicate landmark) or the dead
+  // "#help" link. Just the real "Done for now" action, as a proper button.
   const Header = () => (
-    <div style={{ ...shell, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-      <span style={{ fontFamily: t.serif, fontWeight: 700, fontSize: 19, letterSpacing: "-0.01em" }}>
-        Spectrum
-      </span>
-      <span style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        <a href="#help" style={{ color: t.textSoft, fontSize: 15, fontWeight: 500, textDecoration: "none" }}>Help</a>
-        <a
-          href="#done"
-          onClick={(e) => { e.preventDefault(); setStage("done"); }}
-          style={{ color: t.accentStrong, fontSize: 15, fontWeight: 600, textDecoration: "none" }}
-        >
-          Done for now
-        </a>
-      </span>
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12 }}>
+      <button
+        type="button"
+        onClick={() => setStage("done")}
+        style={{
+          background: "none",
+          border: "none",
+          color: t.accentStrong,
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: "pointer",
+          padding: "8px 4px",
+          minHeight: 44,
+        }}
+      >
+        Done for now
+      </button>
     </div>
   );
 

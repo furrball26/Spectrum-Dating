@@ -56,17 +56,25 @@ function ensureStyle() {
   document.head.appendChild(el);
 }
 
-// Dynamic prefers-reduced-motion (mirrors UnmatchSheet.jsx / MatchMoment.jsx).
+// Reads the in-app "Reduce motion" / "Calm mode" preference (localStorage).
+function readInAppReduceMotion() {
+  try {
+    const p = JSON.parse(localStorage.getItem("spectrum_a11y") || "{}");
+    return !!(p.reduceMotion || p.calmMode);
+  } catch { return false; }
+}
+
+// Dynamic prefers-reduced-motion — honours BOTH the OS setting and the in-app toggle.
 function usePrefersReduced() {
   const [prefersReduced, setPrefersReduced] = useState(() =>
     typeof window !== "undefined" && window.matchMedia
-      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches || readInAppReduceMotion()
       : false
   );
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handler = (e) => setPrefersReduced(e.matches);
+    const handler = () => setPrefersReduced(mq.matches || readInAppReduceMotion());
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);

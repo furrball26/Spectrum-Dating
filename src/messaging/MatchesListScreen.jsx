@@ -287,37 +287,8 @@ export default function MatchesListScreen({
         boxSizing: "border-box",
       }}
     >
-      {/* Skip-to-content */}
-      <a
-        href="#matches-list"
-        style={{
-          position: "absolute",
-          left: "-9999px",
-          top: "auto",
-          width: 1,
-          height: 1,
-          overflow: "hidden",
-        }}
-        onFocus={(e) => {
-          e.target.style.left = "16px";
-          e.target.style.top = "16px";
-          e.target.style.width = "auto";
-          e.target.style.height = "auto";
-          e.target.style.zIndex = 9999;
-          e.target.style.background = t.surface;
-          e.target.style.padding = "8px 16px";
-          e.target.style.border = `2px solid ${t.focus}`;
-          e.target.style.borderRadius = 8;
-        }}
-        onBlur={(e) => {
-          e.target.style.left = "-9999px";
-          e.target.style.top = "auto";
-          e.target.style.width = 1;
-          e.target.style.height = 1;
-        }}
-      >
-        Skip to matches
-      </a>
+      {/* Skip link removed — the app-level "Skip to content" (App.jsx) handles
+          bypassing the header + nav; this one pointed at its own container. */}
 
       {/* Status region for match-disappeared announcements */}
       <div

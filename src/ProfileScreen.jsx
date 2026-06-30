@@ -1485,11 +1485,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
 
       <div style={page}>
 
-        {/* ── Header ── */}
-        <div style={{ ...shell, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <span style={{ fontFamily: t.serif, fontWeight: 700, fontSize: 19, letterSpacing: "-0.01em" }}>
-            Spectrum
-          </span>
+        {/* ── Header ── The app shell owns the wordmark now; this screen keeps
+            just its real "Done" action (no duplicate "Spectrum" landmark). */}
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12 }}>
           <button
             type="button"
             onClick={handleDone}

@@ -12,9 +12,13 @@ export const t = {
   surfaceAlt: "var(--c-surfaceAlt, #EEF1ED)",
   text: "var(--c-text, #24332D)",
   textSoft: "var(--c-textSoft, #4E5F58)",
-  textMuted: "var(--c-textMuted, #7A8C85)",
+  textMuted: "var(--c-textMuted, #5F6F67)",
   accent: "var(--c-accent, #5B8A82)",
   accentStrong: "var(--c-accentStrong, #3E6660)",
+  // Dark green fill for controls carrying WHITE text/icons (send button, unread
+  // badge, active reaction pill). Passes ≥4.5:1 in BOTH themes — unlike `accent`,
+  // which is a light tint in dim where white-on-fill fails.
+  accentFill: "var(--c-accentFill, #3E6660)",
   positive: "var(--c-positive, #5E9459)",
   border: "var(--c-border, #D3DBD5)",
   borderLight: "var(--c-borderLight, #E8EDE7)",

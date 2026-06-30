@@ -32,14 +32,23 @@ const RAMP = [
 const TILE_STAGGER = 60; // ms between each tile drawing in
 const TILE_BASE_DELAY = 220; // ms before the first tile starts (avatars mostly met)
 
-// Dynamic prefers-reduced-motion (mirrors UnmatchSheet.jsx hook).
+// Reads the in-app "Reduce motion" / "Calm mode" preference (localStorage),
+// so motion is suppressed even when the OS setting is off but the user opted in.
+function readInAppReduceMotion() {
+  try {
+    const p = JSON.parse(localStorage.getItem("spectrum_a11y") || "{}");
+    return !!(p.reduceMotion || p.calmMode);
+  } catch { return false; }
+}
+
+// Dynamic prefers-reduced-motion — honours BOTH the OS setting and the in-app toggle.
 function usePrefersReduced() {
   const [prefersReduced, setPrefersReduced] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches || readInAppReduceMotion()
   );
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handler = (e) => setPrefersReduced(e.matches);
+    const handler = () => setPrefersReduced(mq.matches || readInAppReduceMotion());
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);

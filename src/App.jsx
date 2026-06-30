@@ -34,21 +34,65 @@ function useFocusable() {
   };
 }
 
+// Human-readable screen names — drive document.title + the SR announcement so
+// SPA tab changes are titled and announced (S4).
+const SCREEN_NAMES = {
+  suggestions: "Discover",
+  matches: "Matches",
+  messages: "Messages",
+  profile: "Profile",
+  admin: "Moderation",
+  safety: "Safety Center",
+  settings: "Settings",
+};
+
+// Skip-to-content link — the first focusable element. Off-screen until focused,
+// then visible. Jumps focus to <main id="main-content"> past the header + nav.
+function SkipLink() {
+  const [focused, setFocused] = useState(false);
+  return (
+    <a
+      href="#main-content"
+      onClick={(e) => {
+        const main = document.getElementById("main-content");
+        if (main) { e.preventDefault(); main.focus(); main.scrollIntoView(); }
+      }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        position: "absolute",
+        left: focused ? 12 : -9999,
+        top: focused ? 12 : "auto",
+        zIndex: 200,
+        background: t.surface,
+        color: t.accentStrong,
+        border: `2px solid ${t.accentStrong}`,
+        borderRadius: 8,
+        padding: "10px 16px",
+        fontWeight: 600,
+        textDecoration: "none",
+      }}
+    >
+      Skip to content
+    </a>
+  );
+}
+
 function NavTab({ label, active, onClick, badgeCount }) {
   const f = useFocusable();
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-current={active ? "page" : undefined}
       onClick={onClick}
       style={{
         flex: 1,
+        minHeight: 44,
         padding: "12px 8px",
         background: "transparent",
         border: "none",
         borderBottom: active ? `2px solid ${t.accent}` : "2px solid transparent",
-        color: active ? t.accent : t.textMuted,
+        color: active ? t.accentStrong : t.textMuted,
         fontSize: 15,
         fontWeight: active ? 600 : 400,
         cursor: "pointer",
@@ -67,7 +111,7 @@ function NavTab({ label, active, onClick, badgeCount }) {
         <span
           aria-label={`${badgeCount} unread`}
           style={{
-            background: t.accent,
+            background: t.accentFill,
             color: "#fff",
             fontSize: 11,
             fontWeight: 700,
@@ -108,8 +152,7 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-current={active ? "page" : undefined}
       onClick={onClick}
       style={{
         flex: 1,
@@ -124,7 +167,7 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
         border: "none",
         borderRadius: 8,
         cursor: "pointer",
-        color: active ? t.accent : t.textMuted,
+        color: active ? t.accentStrong : t.textMuted,
         fontSize: 11,
         fontWeight: active ? 600 : 500,
         position: "relative",
@@ -142,7 +185,7 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
               position: "absolute",
               top: -4,
               right: -8,
-              background: t.accent,
+              background: t.accentFill,
               color: "#fff",
               fontSize: 10,
               fontWeight: 700,
@@ -290,9 +333,10 @@ const srOnly = {
 function VerifyResultBanner({ result, onDismiss }) {
   const f = useFocusable();
   const isSuccess = result === "success";
-  const bg = isSuccess ? "#EEF5ED" : "#FDF2F2";
+  // Themed so the banners adapt to the dim theme and keep AA contrast.
+  const bg = isSuccess ? t.green50 : t.surfaceAlt;
   const borderColor = isSuccess ? t.positive : t.danger;
-  const textColor = isSuccess ? "#2F5D2B" : t.danger;
+  const textColor = t.text;
   const message = isSuccess
     ? "✓ Your email is verified. Thank you!"
     : "This verification link is invalid or expired. You can request a new one from your profile.";
@@ -361,7 +405,7 @@ function VerifyEmailBanner({ onDismiss }) {
     <div
       role="status"
       style={{
-        background: "#FBF6E9",
+        background: t.sand,
         borderBottom: `1px solid ${t.warning}`,
         padding: "12px 20px",
         flexShrink: 0,
@@ -375,7 +419,7 @@ function VerifyEmailBanner({ onDismiss }) {
           alignItems: "center",
           gap: 12,
           fontSize: 14,
-          color: "#6E5206",
+          color: t.text,
         }}
       >
         <span style={{ flex: 1 }}>
@@ -394,7 +438,7 @@ function VerifyEmailBanner({ onDismiss }) {
             style={{
               background: "none",
               border: `1px solid ${t.warning}`,
-              color: "#6E5206",
+              color: t.text,
               fontSize: 13,
               fontWeight: 600,
               cursor: status === "sending" ? "not-allowed" : "pointer",
@@ -415,7 +459,7 @@ function VerifyEmailBanner({ onDismiss }) {
           style={{
             background: "none",
             border: "none",
-            color: "#6E5206",
+            color: t.text,
             fontSize: 20,
             lineHeight: 1,
             cursor: "pointer",
@@ -446,6 +490,12 @@ export default function App() {
   // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety' | 'settings'
   const [activeTab, setActiveTab] = useState("suggestions");
   const [prevTab, setPrevTab] = useState("suggestions");
+
+  // Title the SPA on every screen change so the page is properly titled (S4).
+  useEffect(() => {
+    const name = SCREEN_NAMES[activeTab] || "Spectrum";
+    document.title = `${name} · Spectrum`;
+  }, [activeTab]);
   // When opening a chat from the Matches tab, this tells MessagingApp which
   // conversation to open on mount.
   const [pendingConversationId, setPendingConversationId] = useState(null);
@@ -669,6 +719,9 @@ export default function App() {
               ...a11yWrapperStyle(a11y),
             }}
           >
+            <SkipLink />
+            {/* Announces the current screen to screen readers on tab change (S4). */}
+            <div aria-live="polite" style={srOnly}>{SCREEN_NAMES[activeTab]}</div>
             {emailVerifyEnabled && !emailVerified && !verifyBannerDismissed && (
               <VerifyEmailBanner onDismiss={() => setVerifyBannerDismissed(true)} />
             )}
@@ -733,9 +786,8 @@ export default function App() {
                     destinations are identical for every user; Moderation lives
                     inside Profile now (not a peer tab). */}
                 {!isMobile && (
-                  <div
-                    role="tablist"
-                    aria-label="Main navigation"
+                  <nav
+                    aria-label="Primary"
                     style={{
                       display: "flex",
                       borderBottom: `1px solid ${t.border}`,
@@ -770,14 +822,16 @@ export default function App() {
                         onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
                       />
                     )}
-                  </div>
+                  </nav>
                 )}
               </div>
             </header>
 
-            {/* Main content — grows to fill viewport */}
+            {/* Main content — grows to fill viewport. id + tabIndex make it the
+                target of the skip link and a focus destination on tab change. */}
             <main
-              role="tabpanel"
+              id="main-content"
+              tabIndex={-1}
               aria-label={
                 activeTab === "suggestions" ? "Discover" :
                 activeTab === "matches" ? "Matches" :
@@ -872,8 +926,7 @@ export default function App() {
                 as the top-right header links above; Moderation lives in Profile. */}
             {isMobile && (
               <nav
-                role="tablist"
-                aria-label="Main navigation"
+                aria-label="Primary"
                 style={{
                   position: "fixed",
                   bottom: 0,

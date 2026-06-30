@@ -33,6 +33,11 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const headingRef = useRef(null);
+  const errorRef = useRef(null);
+  // Move focus to the error when one appears so it's announced and reachable (M2).
+  useEffect(() => {
+    if (error && errorRef.current) errorRef.current.focus();
+  }, [error]);
   const fEmail = useFocusable();
   const fPassword = useFocusable();
   const fSubmit = useFocusable();
@@ -159,13 +164,15 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
             {error && (
               <div
                 role="alert"
+                ref={errorRef}
+                tabIndex={-1}
                 style={{
-                  background: "#FDF2F2",
+                  background: t.surfaceAlt,
                   border: `1px solid ${t.danger}`,
                   borderRadius: 8,
                   padding: "10px 14px",
                   fontSize: 14,
-                  color: t.danger,
+                  color: t.text,
                   marginBottom: 16,
                 }}
               >
@@ -191,6 +198,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 onFocus={fEmail.onFocus}
                 onBlur={fEmail.onBlur}
                 aria-required="true"
+                aria-invalid={error ? "true" : undefined}
               />
             </div>
 
@@ -212,6 +220,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 onFocus={fPassword.onFocus}
                 onBlur={fPassword.onBlur}
                 aria-required="true"
+                aria-invalid={error ? "true" : undefined}
                 aria-describedby={mode === "register" ? "pw-hint" : undefined}
               />
               {mode === "register" && (

@@ -660,6 +660,12 @@ export default function OnboardingScreen({ onComplete }) {
     const errs = step === 1 ? validateStep1() : step === 2 ? validateStep2() : {};
     if (Object.keys(errs).length > 0) {
       setAttempted(true);
+      // Move focus to the first invalid field so keyboard/SR users are taken to
+      // the problem instead of being left on the Continue button (M1).
+      setTimeout(() => {
+        const el = document.querySelector('[aria-invalid="true"]');
+        if (el && typeof el.focus === "function") el.focus();
+      }, 0);
       return;
     }
     setAttempted(false);
