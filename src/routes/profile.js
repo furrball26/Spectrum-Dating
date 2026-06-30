@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos } from './photos.js';
+import { ageFromDob } from '../utils/time.js';
 
 const router = Router();
 
@@ -21,10 +22,14 @@ router.get('/me', requireAuth, (req, res) => {
   const interestRows = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?').all(userId);
   const interests = interestRows.map(r => r.interest);
 
+  const dobAge = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null;
+
   const onboardingComplete = !!(
     profile.display_name?.trim() &&
     profile.bio?.trim() &&
-    interests.length > 0
+    interests.length > 0 &&
+    profile.date_of_birth &&
+    dobAge !== null && dobAge >= 18
   );
 
   const userRow = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(userId);
@@ -40,6 +45,8 @@ router.get('/me', requireAuth, (req, res) => {
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     photos: listPhotos(db, userId),
+    dateOfBirth: profile.date_of_birth || '',
+    age: dobAge,
     interests,
     onboardingComplete,
     emailVerified: !!userRow?.email_verified,
@@ -102,6 +109,21 @@ router.put('/me', requireAuth, (req, res) => {
     return res.status(400).json({ error: errors.join(' ') });
   }
 
+  // Date of birth: must be a real YYYY-MM-DD date and 18+.
+  if (body.dateOfBirth !== undefined) {
+    if (typeof body.dateOfBirth !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateOfBirth)) {
+      return res.status(400).json({ error: 'Please enter a valid date of birth.' });
+    }
+    const age = ageFromDob(body.dateOfBirth);
+    if (age === null) {
+      // Malformed / impossible calendar date (e.g. 2020-02-30).
+      return res.status(400).json({ error: 'Please enter a valid date of birth.' });
+    }
+    if (age < 18) {
+      return res.status(400).json({ error: 'You must be 18 or older to use Spectrum Dating.' });
+    }
+  }
+
   // Build SET clause dynamically — only update provided fields
   const fieldMap = {
     displayName: 'display_name',
@@ -111,6 +133,7 @@ router.put('/me', requireAuth, (req, res) => {
     relationshipGoal: 'relationship_goal',
     distCity: 'dist_city',
     notificationTier: 'notification_tier',
+    dateOfBirth: 'date_of_birth',
   };
 
   const setClauses = [];
@@ -157,6 +180,8 @@ router.put('/me', requireAuth, (req, res) => {
     distCity: profile.dist_city,
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
+    dateOfBirth: profile.date_of_birth || '',
+    age: profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null,
     interests: interestRows.map(r => r.interest),
   });
 });

@@ -1,4 +1,5 @@
 ﻿import { scoreCandidate } from './score.js';
+import { ageFromDob } from '../utils/time.js';
 
 // Returns an array of candidate profiles the viewer hasn't swiped on yet,
 // ordered by score (shared interests) descending.
@@ -31,7 +32,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const placeholders = Array(excludeIds.size).fill('?').join(',');
   const allProfiles = db.prepare(`
     SELECT p.user_id, p.display_name, p.tagline, p.bio, p.comm_note,
-           p.relationship_goal, p.dist_city, p.updated_at, p.photo_url
+           p.relationship_goal, p.dist_city, p.updated_at, p.photo_url,
+           p.date_of_birth
     FROM profiles p
     WHERE p.user_id NOT IN (${placeholders})
       AND p.display_name != ''
@@ -45,6 +47,11 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const getInterests = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?');
 
   return allProfiles
+    // 18+ gate: only surface candidates with a valid DOB yielding age >= 18.
+    .filter(profile => {
+      const age = ageFromDob(profile.date_of_birth);
+      return age !== null && age >= 18;
+    })
     .map(profile => {
       const interests = getInterests.all(profile.user_id).map(r => r.interest);
       const candidate = { ...profile, interests };

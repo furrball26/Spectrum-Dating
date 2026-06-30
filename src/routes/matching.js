@@ -1,6 +1,7 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { getCandidates } from '../matching/candidates.js';
+import { ageFromDob } from '../utils/time.js';
 import { newId } from '../utils/ids.js';
 import { emitNewMatch } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
@@ -37,6 +38,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     bio: c.bio,
     commNote: c.comm_note,
     relationshipGoal: c.relationship_goal,
+    age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
     interests: c.interests,
     sharedInterests: c.sharedInterests,
     whyReasons: c.whyReasons,

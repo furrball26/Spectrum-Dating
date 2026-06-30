@@ -172,7 +172,7 @@ columns, a bare `ALTER TABLE ADD COLUMN` is fine — the runner tolerates re-run
 Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `004_reactions_photos` · `005_profile_photos` · `006_push_subscriptions` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
-`010_moderation` · `011_profile_photos_gallery`.
+`010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth`.
 
 ---
 
@@ -213,6 +213,26 @@ Photo serialization (ordered by `position`): `{ id, url, isPrimary, position }`.
 All endpoints still **503 gracefully** when R2 isn't configured (presign only);
 add/primary/delete work regardless — when R2 is unset, `url` falls back to the
 raw key.
+
+---
+
+## 6c. Age gate (18+)
+
+Spectrum Dating is **18+ only**. Enforced via a `date_of_birth` column on
+`profiles` (migration `012_date_of_birth`: `TEXT NOT NULL DEFAULT ''`).
+
+- **`PUT /profile/me`** accepts `dateOfBirth` (`YYYY-MM-DD`). It must be a real
+  calendar date and yield age ≥ 18, else **400**:
+  - malformed / impossible date → `{ error: 'Please enter a valid date of birth.' }`
+  - under 18 → `{ error: 'You must be 18 or older to use Spectrum Dating.' }`
+- **`GET /profile/me`** returns `dateOfBirth` and a computed `age` (or `null`).
+- **`onboardingComplete` now requires a valid 18+ `date_of_birth`** (in addition
+  to display_name + bio + ≥1 interest). **Existing users with no DOB are sent
+  back through onboarding to confirm 18+ — this is intended age-gate behaviour.**
+- **Matching** (`GET /matching/candidates`): candidates without a valid 18+ DOB
+  are filtered out and never surfaced; each candidate includes an `age` field.
+- Age is computed by the shared `ageFromDob(dob)` helper in `src/utils/time.js`
+  (handles month/day correctly; returns `null` for missing/invalid dates).
 
 ---
 
