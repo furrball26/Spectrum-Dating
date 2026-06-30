@@ -11,6 +11,13 @@ const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
 const VALID_WANTS_CHILDREN = ['', 'yes', 'no', 'open'];
 const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
+// Differentiator dimensions (autistic-friendly): communication style + sensory
+const VALID_COMM_DIRECTNESS = ['', 'direct', 'softened'];
+const VALID_COMM_LITERAL = ['', 'literal', 'playful'];
+const VALID_COMM_CADENCE = ['', 'instant', 'daily', 'whenever'];
+const VALID_SENSORY_ENVIRONMENT = ['', 'quiet', 'lively', 'either'];
+const VALID_SENSORY_LIGHTING = ['', 'dim', 'bright', 'either'];
+const VALID_SOCIAL_DURATION = ['', 'short', 'medium', 'long'];
 
 // GET /profile/me
 router.get('/me', requireAuth, (req, res) => {
@@ -56,6 +63,13 @@ router.get('/me', requireAuth, (req, res) => {
     dbNonSmoker: !!profile.db_non_smoker,
     dbMustBeLocal: !!profile.db_must_be_local,
     paused: !!profile.paused,
+    commDirectness: profile.comm_directness || '',
+    commLiteral: profile.comm_literal || '',
+    commCadence: profile.comm_cadence || '',
+    sensoryEnvironment: profile.sensory_environment || '',
+    sensoryLighting: profile.sensory_lighting || '',
+    socialDuration: profile.social_duration || '',
+    contextCard: profile.context_card || '',
     interests,
     onboardingComplete,
     verified: !!profile.identity_verified,
@@ -118,6 +132,40 @@ router.put('/me', requireAuth, (req, res) => {
       errors.push(`drinking must be one of: ${VALID_FREQUENCY.map(v => v === '' ? '""' : v).join(', ')}.`);
     }
   }
+  if (body.commDirectness !== undefined) {
+    if (!VALID_COMM_DIRECTNESS.includes(body.commDirectness)) {
+      errors.push(`commDirectness must be one of: ${VALID_COMM_DIRECTNESS.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.commLiteral !== undefined) {
+    if (!VALID_COMM_LITERAL.includes(body.commLiteral)) {
+      errors.push(`commLiteral must be one of: ${VALID_COMM_LITERAL.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.commCadence !== undefined) {
+    if (!VALID_COMM_CADENCE.includes(body.commCadence)) {
+      errors.push(`commCadence must be one of: ${VALID_COMM_CADENCE.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.sensoryEnvironment !== undefined) {
+    if (!VALID_SENSORY_ENVIRONMENT.includes(body.sensoryEnvironment)) {
+      errors.push(`sensoryEnvironment must be one of: ${VALID_SENSORY_ENVIRONMENT.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.sensoryLighting !== undefined) {
+    if (!VALID_SENSORY_LIGHTING.includes(body.sensoryLighting)) {
+      errors.push(`sensoryLighting must be one of: ${VALID_SENSORY_LIGHTING.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.socialDuration !== undefined) {
+    if (!VALID_SOCIAL_DURATION.includes(body.socialDuration)) {
+      errors.push(`socialDuration must be one of: ${VALID_SOCIAL_DURATION.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
+  if (body.contextCard !== undefined) {
+    if (typeof body.contextCard !== 'string') errors.push('contextCard must be a string.');
+    else if (body.contextCard.length > 300) errors.push('contextCard must be 300 characters or fewer.');
+  }
   if (body.interests !== undefined) {
     if (!Array.isArray(body.interests)) {
       errors.push('interests must be an array.');
@@ -162,6 +210,13 @@ router.put('/me', requireAuth, (req, res) => {
     wantsChildren: 'wants_children',
     smoking: 'smoking',
     drinking: 'drinking',
+    commDirectness: 'comm_directness',
+    commLiteral: 'comm_literal',
+    commCadence: 'comm_cadence',
+    sensoryEnvironment: 'sensory_environment',
+    sensoryLighting: 'sensory_lighting',
+    socialDuration: 'social_duration',
+    contextCard: 'context_card',
   };
 
   // Boolean flags stored as 0/1, coerced from any truthy/falsy value.
@@ -233,6 +288,13 @@ router.put('/me', requireAuth, (req, res) => {
     dbNonSmoker: !!profile.db_non_smoker,
     dbMustBeLocal: !!profile.db_must_be_local,
     paused: !!profile.paused,
+    commDirectness: profile.comm_directness || '',
+    commLiteral: profile.comm_literal || '',
+    commCadence: profile.comm_cadence || '',
+    sensoryEnvironment: profile.sensory_environment || '',
+    sensoryLighting: profile.sensory_lighting || '',
+    socialDuration: profile.social_duration || '',
+    contextCard: profile.context_card || '',
     interests: interestRows.map(r => r.interest),
   });
 });

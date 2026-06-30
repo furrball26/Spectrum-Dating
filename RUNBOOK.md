@@ -174,7 +174,7 @@ Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
 `010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth` ·
 `013_backfill_demo_dob` · `014_dealbreakers` · `015_verification` ·
-`016_backfill_demo_verified` · `017_pause`.
+`016_backfill_demo_verified` · `017_pause` · `018_richer_profile`.
 
 > **Data backfills go in their own file.** The runner skips an entire `.sql` file
 > wholesale once its `ALTER` has been applied (the `duplicate column name` catch
@@ -348,6 +348,48 @@ see their report was reviewed/actioned:
 `{ reports: [{ id, reportedName, reason, status, createdAt, resolvedAt }] }`.
 `reportedName` is the reported user's `display_name` (LEFT JOIN `profiles`, `''`
 if missing). **`moderator_note` is deliberately NOT exposed.**
+
+---
+
+## 6g. Differentiator dimensions (autistic-friendly profile)
+
+The dimensions that make Spectrum Dating distinct for autistic users: structured
+**communication style**, **sensory/environment** preferences, and a user-authored
+**context card** ("how to talk to me"). All on `profiles` (migration
+`018_richer_profile`, all `TEXT NOT NULL DEFAULT ''`). The existing free-text
+`comm_note` stays — these are the structured, *matchable* complement.
+
+| Column (camelCase API) | Allowed values |
+|------------------------|----------------|
+| `comm_directness` (`commDirectness`) | `''` · `direct` · `softened` |
+| `comm_literal` (`commLiteral`) | `''` · `literal` · `playful` |
+| `comm_cadence` (`commCadence`) | `''` · `instant` · `daily` · `whenever` |
+| `sensory_environment` (`sensoryEnvironment`) | `''` · `quiet` · `lively` · `either` |
+| `sensory_lighting` (`sensoryLighting`) | `''` · `dim` · `bright` · `either` |
+| `social_duration` (`socialDuration`) | `''` · `short` · `medium` · `long` |
+| `context_card` (`contextCard`) | free text, **≤ 300 chars** |
+
+**`PUT /profile/me`** accepts all seven. The six enums validate against the lists
+above (→ **400** on an invalid value); `contextCard` must be a string ≤ 300 chars
+(→ **400** if longer). All added to the string `fieldMap`.
+**`GET /profile/me`** (and the `PUT` echo) returns all seven as camelCase.
+
+**Exposed on read paths:** `GET /matching/candidates` (each candidate) and
+`GET /matching/matches` (`otherUser`) include all seven. `candidates.js` SELECTs
+the columns; `matching.js` maps them.
+
+**Light matching signal** (`src/matching/score.js`) — modest nudges, like the
+city/goal bonus; **never excludes**, only re-ranks:
+- **+2** if both have the same non-empty `sensory_environment`.
+- **+2** if both have the same non-empty `comm_cadence`.
+- **`'either'`/empty count as no-bonus** — only exact, non-`'either'` matches
+  score. (`comm_cadence` has no `'either'` value; `'whenever'` is a real shared
+  preference and does count.)
+- Adds a `whyReasons` line on a contributing match (e.g. *"You both prefer quiet
+  settings"*, *"You both like to check in about once a day"*).
+
+`candidates.js` passes the viewer's `sensory_environment` + `comm_cadence` into
+the scorer (same way it passes goal/city).
 
 ---
 

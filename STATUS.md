@@ -6,6 +6,32 @@ Rolling log of notable changes, newest first, grouped by role.
 
 ## Backend Dev
 
+### 2026-06-29 — Differentiator dimensions (comm style · sensory · context card)
+- **Migration `018_richer_profile`**: seven new `profiles` columns
+  (`TEXT NOT NULL DEFAULT ''`): `comm_directness`, `comm_literal`, `comm_cadence`,
+  `sensory_environment`, `sensory_lighting`, `social_duration`, `context_card`.
+  Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner tolerates
+  re-runs). The structured, matchable complement to free-text `comm_note`.
+- **`PUT /profile/me`** (`src/routes/profile.js`): accepts all seven. Six enums
+  validated against their allowed lists (→ **400**); `contextCard` string ≤ 300
+  chars (→ **400** if longer). Added to the string `fieldMap`.
+  **`GET /profile/me`** (and `PUT` echo) returns all seven as camelCase.
+- **Read paths**: `src/matching/candidates.js` SELECTs the seven columns;
+  `GET /matching/candidates` maps them onto each candidate; `GET /matching/matches`
+  adds them to `otherUser` (extended the per-match profile SELECT + mapping).
+- **Light matching signal** (`src/matching/score.js`): **+2** for matching
+  non-empty `sensory_environment`, **+2** for matching non-empty `comm_cadence`
+  (`'either'`/empty = no-bonus; only exact non-`'either'` counts). Adds a
+  `whyReasons` line on a contributing match ("You both prefer quiet settings",
+  cadence lines). Never excludes — only nudges ranking. `candidates.js` passes the
+  viewer's `sensory_environment` + `comm_cadence` into the scorer (like goal/city).
+- Verified scorer locally (both-quiet+daily → +4 with reasons; `either`/empty →
+  no-bonus) and migration apply + restart idempotency on an in-memory DB. Deployed
+  via `npm run deploy` (health-gated). Confirmed in production: `/health` 200 with
+  new SHA; a valid set of all seven persists + `GET /profile/me` echoes them;
+  invalid enum → 400; 301-char `contextCard` → 400.
+- Updated `RUNBOOK.md` (new §6g, migrations list).
+
 ### 2026-06-29 — Pause/snooze · undo-skip · report feedback loop
 - **Migration `017_pause`**: `profiles.paused INTEGER NOT NULL DEFAULT 0`.
   Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner tolerates

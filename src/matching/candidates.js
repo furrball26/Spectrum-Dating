@@ -10,7 +10,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
   // for evaluating the viewer's active deal-breaker filters.
   const viewerProfile = db.prepare(
     `SELECT relationship_goal, dist_city, wants_children,
-            db_wants_children, db_non_smoker, db_must_be_local
+            db_wants_children, db_non_smoker, db_must_be_local,
+            sensory_environment, comm_cadence
      FROM profiles WHERE user_id = ?`
   ).get(viewerId);
   const viewer = {
@@ -21,6 +22,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
     db_wants_children: !!viewerProfile?.db_wants_children,
     db_non_smoker: !!viewerProfile?.db_non_smoker,
     db_must_be_local: !!viewerProfile?.db_must_be_local,
+    sensory_environment: viewerProfile?.sensory_environment ?? '',
+    comm_cadence: viewerProfile?.comm_cadence ?? '',
   };
 
   // Get IDs already swiped on
@@ -41,7 +44,10 @@ export function getCandidates(db, viewerId, viewerInterests) {
     SELECT p.user_id, p.display_name, p.tagline, p.bio, p.comm_note,
            p.relationship_goal, p.dist_city, p.updated_at, p.photo_url,
            p.date_of_birth, p.wants_children, p.smoking, p.drinking,
-           p.identity_verified, p.paused
+           p.identity_verified, p.paused,
+           p.comm_directness, p.comm_literal, p.comm_cadence,
+           p.sensory_environment, p.sensory_lighting, p.social_duration,
+           p.context_card
     FROM profiles p
     WHERE p.user_id NOT IN (${placeholders})
       AND p.display_name != ''

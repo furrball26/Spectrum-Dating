@@ -11,6 +11,8 @@ export function scoreCandidate(viewer, candidate) {
   const viewerInterests = Array.isArray(viewer) ? viewer : (viewer?.interests ?? []);
   const viewerGoal = Array.isArray(viewer) ? '' : (viewer?.relationship_goal ?? '');
   const viewerCity = Array.isArray(viewer) ? '' : (viewer?.dist_city ?? '');
+  const viewerSensory = Array.isArray(viewer) ? '' : (viewer?.sensory_environment ?? '');
+  const viewerCadence = Array.isArray(viewer) ? '' : (viewer?.comm_cadence ?? '');
 
   const viewerSet = new Set(viewerInterests);
   const sharedInterests = candidate.interests.filter(i => viewerSet.has(i));
@@ -19,12 +21,22 @@ export function scoreCandidate(viewer, candidate) {
   const normCity = (s) => (s || '').trim().toLowerCase();
   const sameCity = normCity(viewerCity) !== '' && normCity(viewerCity) === normCity(candidate.dist_city);
 
+  // Differentiator nudges: only EXACT, non-empty, non-'either' matches count.
+  const sameSensory =
+    viewerSensory !== '' && viewerSensory !== 'either' &&
+    viewerSensory === candidate.sensory_environment;
+  const sameCadence =
+    viewerCadence !== '' && viewerCadence !== 'either' &&
+    viewerCadence === candidate.comm_cadence;
+
   const score =
     sharedInterests.length * 2 +
     (sameRelationshipGoal ? 3 : 0) +
-    (sameCity ? 2 : 0);
+    (sameCity ? 2 : 0) +
+    (sameSensory ? 2 : 0) +
+    (sameCadence ? 2 : 0);
 
-  const whyReasons = buildWhyReasons(sharedInterests, candidate, { sameRelationshipGoal, sameCity });
+  const whyReasons = buildWhyReasons(sharedInterests, candidate, { sameRelationshipGoal, sameCity, sameSensory, sameCadence });
 
   return { score, sharedInterests, whyReasons };
 }
@@ -36,6 +48,20 @@ function buildWhyReasons(sharedInterests, candidate, opts = {}) {
   }
   if (opts.sameCity && candidate.dist_city) {
     reasons.push(`You're both in ${candidate.dist_city}`);
+  }
+  if (opts.sameSensory) {
+    const envMap = { quiet: 'quiet settings', lively: 'lively settings' };
+    const env = envMap[candidate.sensory_environment];
+    if (env) reasons.push(`You both prefer ${env}`);
+  }
+  if (opts.sameCadence) {
+    const cadenceMap = {
+      instant: 'You both like to message back and forth quickly',
+      daily: 'You both like to check in about once a day',
+      whenever: 'You both like to message whenever it suits',
+    };
+    const c = cadenceMap[candidate.comm_cadence];
+    if (c) reasons.push(c);
   }
   if (candidate.comm_note) {
     reasons.push(`About talking: "${candidate.comm_note}"`);

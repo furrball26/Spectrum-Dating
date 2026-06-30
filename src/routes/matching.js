@@ -38,6 +38,13 @@ router.get('/candidates', requireAuth, (req, res) => {
     bio: c.bio,
     commNote: c.comm_note,
     relationshipGoal: c.relationship_goal,
+    commDirectness: c.comm_directness || '',
+    commLiteral: c.comm_literal || '',
+    commCadence: c.comm_cadence || '',
+    sensoryEnvironment: c.sensory_environment || '',
+    sensoryLighting: c.sensory_lighting || '',
+    socialDuration: c.social_duration || '',
+    contextCard: c.context_card || '',
     age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
     verified: !!c.identity_verified,
     interests: c.interests,
@@ -177,7 +184,10 @@ router.get('/matches', requireAuth, (req, res) => {
   const matches = rows.map((row) => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const p = db.prepare(
-      'SELECT display_name, tagline, photo_url, identity_verified FROM profiles WHERE user_id = ?'
+      `SELECT display_name, tagline, photo_url, identity_verified,
+              comm_directness, comm_literal, comm_cadence,
+              sensory_environment, sensory_lighting, social_duration, context_card
+       FROM profiles WHERE user_id = ?`
     ).get(otherId);
     return {
       matchId: row.id,
@@ -190,6 +200,13 @@ router.get('/matches', requireAuth, (req, res) => {
         tagline: p?.tagline || '',
         photoUrl: p?.photo_url || null,
         verified: !!p?.identity_verified,
+        commDirectness: p?.comm_directness || '',
+        commLiteral: p?.comm_literal || '',
+        commCadence: p?.comm_cadence || '',
+        sensoryEnvironment: p?.sensory_environment || '',
+        sensoryLighting: p?.sensory_lighting || '',
+        socialDuration: p?.social_duration || '',
+        contextCard: p?.context_card || '',
       },
     };
   });
