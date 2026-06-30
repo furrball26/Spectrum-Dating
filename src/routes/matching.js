@@ -39,6 +39,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     commNote: c.comm_note,
     relationshipGoal: c.relationship_goal,
     age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
+    verified: !!c.identity_verified,
     interests: c.interests,
     sharedInterests: c.sharedInterests,
     whyReasons: c.whyReasons,
@@ -155,7 +156,7 @@ router.get('/matches', requireAuth, (req, res) => {
   const matches = rows.map((row) => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const p = db.prepare(
-      'SELECT display_name, tagline, photo_url FROM profiles WHERE user_id = ?'
+      'SELECT display_name, tagline, photo_url, identity_verified FROM profiles WHERE user_id = ?'
     ).get(otherId);
     return {
       matchId: row.id,
@@ -167,6 +168,7 @@ router.get('/matches', requireAuth, (req, res) => {
         displayName: p?.display_name || '',
         tagline: p?.tagline || '',
         photoUrl: p?.photo_url || null,
+        verified: !!p?.identity_verified,
       },
     };
   });

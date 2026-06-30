@@ -1,0 +1,1 @@
+ALTER TABLE profiles ADD COLUMN identity_verified INTEGER NOT NULL DEFAULT 0;

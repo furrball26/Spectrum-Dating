@@ -6,6 +6,29 @@ Rolling log of notable changes, newest first, grouped by role.
 
 ## Backend Dev
 
+### 2026-06-29 — Identity verification trust signal (badge)
+- **Migration `015_verification`**: `profiles.identity_verified INTEGER NOT NULL
+  DEFAULT 0`. **Migration `016_backfill_demo_verified`** (separate file — data
+  backfill, since the runner skips an `ALTER` file wholesale on re-run): marks
+  ~half the `*@sample.spectrum-dating.app` accounts verified for demos
+  (idempotent — only flips rows at 0, scoped to sample domain). Both registered
+  in `src/db.js` (015 then 016).
+- **Exposed `verified` (`!!identity_verified`) on every profile read path**:
+  `GET /profile/me`; `GET /matching/candidates` (selected in
+  `src/matching/candidates.js`); `GET /matching/matches` `otherUser` (added
+  `identity_verified` to the per-match profile SELECT); `GET /messaging/
+  conversations` `otherUser` (added it to the per-conversation profile SELECT).
+- **Admin manual verification**: `POST /admin/users/:id/verify` (`requireAuth` +
+  `requireAdmin`), body `{ verified: boolean }` → `UPDATE profiles SET
+  identity_verified = ? WHERE user_id = ?`. **400** non-boolean, **404** no
+  profile (via `result.changes === 0`), returns `{ ok: true, verified }`. Same
+  column a real ID/photo **vendor webhook** can write later.
+- Deployed via `npm run deploy` (health-gated). Verified `/health` 200; a sample
+  user's `GET /profile/me` includes `verified` (true for some, false for others
+  after backfill); `POST /admin/users/:id/verify {verified:true}` flips it, and
+  the route returns 401 unauthenticated.
+- Updated `RUNBOOK.md` (new §6e, migrations list + data-backfill note).
+
 ### 2026-06-29 — Lifestyle attributes + hard deal-breaker filters
 - **Migration `014_dealbreakers`**: six new `profiles` columns — `wants_children`,
   `smoking`, `drinking` (`TEXT NOT NULL DEFAULT ''`) and `db_wants_children`,

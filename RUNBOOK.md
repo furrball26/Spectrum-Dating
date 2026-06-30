@@ -173,7 +173,15 @@ Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `004_reactions_photos` · `005_profile_photos` · `006_push_subscriptions` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
 `010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth` ·
-`013_backfill_demo_dob` · `014_dealbreakers`.
+`013_backfill_demo_dob` · `014_dealbreakers` · `015_verification` ·
+`016_backfill_demo_verified`.
+
+> **Data backfills go in their own file.** The runner skips an entire `.sql` file
+> wholesale once its `ALTER` has been applied (the `duplicate column name` catch
+> aborts the rest of the file), so a backfill bundled after an `ALTER` would never
+> run on subsequent boots. Put `UPDATE`/`INSERT` backfills in a separate numbered
+> migration (e.g. `016_backfill_demo_verified` after `015_verification`) and make
+> them idempotent (scope + a guard so re-runs are no-ops).
 
 ---
 
@@ -273,6 +281,44 @@ on top of (not replacing) the existing 18+ / onboarding filters.
   (i.e. `'yes'`/`'sometimes'`). Unknown smoking passes.
 - `db_wants_children` (+ viewer `wants_children` set): exclude candidates whose
   `wants_children` is set **and** differs from the viewer's. Unknown passes.
+
+---
+
+## 6e. Identity verification (trust badge)
+
+A profile-level **verification trust signal** so members can see who has been
+identity-verified. Backed by `profiles.identity_verified` (migration
+`015_verification`: `INTEGER NOT NULL DEFAULT 0`).
+
+**Badge semantics:** `identity_verified = 1` means a human moderator (or, later,
+a vendor) has confirmed this person's identity. `0` = not verified (the default
+for every account). Verification is **not** the same as email verification
+(`users.email_verified`) — that only confirms a working inbox; this confirms a
+real person/ID.
+
+**Exposed as `verified` (boolean) everywhere a profile is shown:**
+- `GET /profile/me` → `verified: !!profile.identity_verified`.
+- `GET /matching/candidates` → each candidate has `verified` (selected in
+  `src/matching/candidates.js`).
+- `GET /matching/matches` → `otherUser.verified`.
+- `GET /messaging/conversations` → `otherUser.verified`.
+
+**Admin manual verification** (`ADMIN_EMAILS`-gated):
+- `POST /admin/users/:id/verify` — body `{ verified: boolean }` →
+  `UPDATE profiles SET identity_verified = ? WHERE user_id = ?`. **400** if
+  `verified` isn't a boolean, **404** if no profile for that user. Returns
+  `{ ok: true, verified }`. Lets moderators verify people now.
+
+**Demo backfill** (`016_backfill_demo_verified`): marks ~half the
+`*@sample.spectrum-dating.app` accounts verified so the badge is visible in
+demos. Idempotent (only flips rows still at 0) and scoped to the sample domain —
+never touches real users.
+
+> **Vendor webhook plugs in here later.** A real ID/photo verification vendor
+> (e.g. Stripe Identity, Persona, Onfido) integrates by writing this same
+> `identity_verified` column from a webhook handler on a successful check — no
+> schema or read-path changes needed. The admin endpoint stays as a manual
+> override/fallback.
 
 ---
 

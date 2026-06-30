@@ -124,6 +124,31 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /admin/users/:id/verify — body { verified: boolean }
+// Manual/admin identity verification. Flips the profiles.identity_verified
+// trust signal. A real ID/photo vendor can write this same column later via a
+// webhook — this endpoint lets moderators verify people in the meantime.
+// ---------------------------------------------------------------------------
+router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const { verified } = req.body ?? {};
+
+  if (typeof verified !== 'boolean') {
+    return res.status(400).json({ error: 'verified must be a boolean.' });
+  }
+
+  const result = db.prepare(
+    'UPDATE profiles SET identity_verified = ? WHERE user_id = ?'
+  ).run(verified ? 1 : 0, req.params.id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Profile not found.' });
+  }
+
+  res.json({ ok: true, verified });
+});
+
+// ---------------------------------------------------------------------------
 // GET /admin/stats — platform + moderation counts
 // ---------------------------------------------------------------------------
 router.get('/stats', requireAuth, requireAdmin, (req, res) => {

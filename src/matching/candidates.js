@@ -40,7 +40,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const allProfiles = db.prepare(`
     SELECT p.user_id, p.display_name, p.tagline, p.bio, p.comm_note,
            p.relationship_goal, p.dist_city, p.updated_at, p.photo_url,
-           p.date_of_birth, p.wants_children, p.smoking, p.drinking
+           p.date_of_birth, p.wants_children, p.smoking, p.drinking,
+           p.identity_verified
     FROM profiles p
     WHERE p.user_id NOT IN (${placeholders})
       AND p.display_name != ''

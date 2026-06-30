@@ -57,6 +57,7 @@ router.get('/me', requireAuth, (req, res) => {
     dbMustBeLocal: !!profile.db_must_be_local,
     interests,
     onboardingComplete,
+    verified: !!profile.identity_verified,
     emailVerified: !!userRow?.email_verified,
     emailVerificationEnabled: emailConfigured(),
     isAdmin: isAdminEmail(userRow?.email),

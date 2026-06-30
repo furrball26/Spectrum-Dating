@@ -32,6 +32,8 @@ const MIGRATIONS = [
   '012_date_of_birth.sql',
   '013_backfill_demo_dob.sql',
   '014_dealbreakers.sql',
+  '015_verification.sql',
+  '016_backfill_demo_verified.sql',
 ];
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a

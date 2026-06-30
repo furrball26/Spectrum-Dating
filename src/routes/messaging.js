@@ -67,14 +67,14 @@ router.get('/conversations', requireAuth, (req, res) => {
 
   const conversations = rows.map(row => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
-    const otherProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get(otherId);
+    const otherProfile = db.prepare('SELECT display_name, identity_verified FROM profiles WHERE user_id = ?').get(otherId);
     const isUserA = row.user_a_id === userId;
     const lastReadAt = isUserA ? (row.last_read_at_a || 0) : (row.last_read_at_b || 0);
     const hasUnread = !!(row.last_sent_at && row.last_sender_id !== userId && row.last_sent_at > lastReadAt);
     return {
       id: row.id,
       matchId: row.match_id,
-      otherUser: { userId: otherId, displayName: otherProfile?.display_name || '' },
+      otherUser: { userId: otherId, displayName: otherProfile?.display_name || '', verified: !!otherProfile?.identity_verified },
       lastMessageGroup: row.last_sent_at ? coarseLabel(row.last_sent_at) : null,
       hasUnread,
     };
