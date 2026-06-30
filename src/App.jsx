@@ -478,11 +478,30 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("suggestions");
   const [prevTab, setPrevTab] = useState("suggestions");
 
-  // Title the SPA on every screen change so the page is properly titled (S4).
+  // ?reset=TOKEN → show the reset-password screen (declared here so the title
+  // effect below can account for it).
+  const [resetToken, setResetToken] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("reset"); }
+    catch { return null; }
+  });
+
+  // Title the SPA on every screen change so the page is properly titled across
+  // ALL views, not just the authed tabs (S4 — fixes "Discover" on the landing page).
   useEffect(() => {
-    const name = SCREEN_NAMES[activeTab] || "Spectrum";
-    document.title = `${name} · Spectrum`;
-  }, [activeTab]);
+    let title;
+    if (resetToken) {
+      title = "Reset password · Spectrum";
+    } else if (!authed) {
+      title = showAuth
+        ? `${authMode === "register" ? "Create account" : "Sign in"} · Spectrum`
+        : "Spectrum — Dating at your own pace";
+    } else if (onboarding) {
+      title = "Set up your profile · Spectrum";
+    } else {
+      title = `${SCREEN_NAMES[activeTab] || "Spectrum"} · Spectrum`;
+    }
+    document.title = title;
+  }, [resetToken, authed, showAuth, authMode, onboarding, activeTab]);
   // When opening a chat from the Matches tab, this tells MessagingApp which
   // conversation to open on mount.
   const [pendingConversationId, setPendingConversationId] = useState(null);
@@ -519,12 +538,6 @@ export default function App() {
     applyA11yStylesheet(a11y);
     applyTheme(a11y);
   }, [a11y]);
-
-  // Handle ?reset=TOKEN URL param — show the reset-password screen.
-  const [resetToken, setResetToken] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("reset"); }
-    catch { return null; }
-  });
 
   // Handle ?verify=TOKEN URL param on mount — verify regardless of auth state
   useEffect(() => {
@@ -705,10 +718,13 @@ export default function App() {
             />
           )
           : (
-            <LandingScreen
-              onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
-              onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
-            />
+            <>
+              <SkipLink />
+              <LandingScreen
+                onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
+                onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
+              />
+            </>
           )
         : onboarding
         ? <OnboardingScreen onComplete={() => setOnboarding(false)} />

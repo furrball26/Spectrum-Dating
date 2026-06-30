@@ -177,6 +177,8 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
         }
       `}</style>
       <div data-landing>
+        {/* Main landmark + skip-link target — the front door needs both. */}
+        <main id="main-content" tabIndex={-1}>
         {/* ── Hero ──────────────────────────────────────────────── */}
         <header
           style={{
@@ -512,6 +514,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
             <PrimaryButton onClick={onGetStarted}>Create your profile</PrimaryButton>
           </div>
         </section>
+        </main>
 
         {/* ── Footer ────────────────────────────────────────────── */}
         <footer
