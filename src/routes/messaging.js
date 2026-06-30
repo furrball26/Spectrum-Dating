@@ -339,6 +339,39 @@ router.post('/block', requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /messaging/blocked — list the people the current user has blocked,
+// so blocking isn't a one-way trapdoor with no review or undo.
+// ---------------------------------------------------------------------------
+router.get('/blocked', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const rows = db.prepare(`
+    SELECT b.blocked_id AS userId, b.reason, b.created_at,
+           p.display_name AS displayName
+    FROM blocks b
+    LEFT JOIN profiles p ON p.user_id = b.blocked_id
+    WHERE b.blocker_id = ?
+    ORDER BY b.created_at DESC
+  `).all(userId);
+  res.json({
+    blocked: rows.map(r => ({
+      userId: r.userId,
+      displayName: r.displayName || 'Someone',
+      reason: r.reason,
+    })),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /messaging/blocked/:userId — unblock a previously-blocked user.
+// ---------------------------------------------------------------------------
+router.delete('/blocked/:userId', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?')
+    .run(userId, req.params.userId);
+  res.json({ unblocked: true });
+});
+
+// ---------------------------------------------------------------------------
 // POST /messaging/report — file a report for moderator review.
 // SEPARATE from /block: a user can report without blocking and vice versa.
 // ---------------------------------------------------------------------------

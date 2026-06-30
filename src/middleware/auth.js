@@ -26,6 +26,23 @@ export function verifyToken(token) {
   }
 }
 
+// Purpose-scoped short-lived tokens (e.g. password reset). Carrying the user's
+// current token_version makes them single-use: a successful reset bumps the
+// version, so the same token can't be replayed.
+export function signPurposeToken(sub, purpose, tv, expiresIn) {
+  return jwt.sign({ sub, purpose, tv }, JWT_SECRET, { expiresIn });
+}
+
+export function verifyPurposeToken(token, purpose) {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.purpose !== purpose) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 export function checkTokenVersion(decoded) {
   const db = getDb();
   const user = db.prepare('SELECT token_version, suspended FROM users WHERE id = ?').get(decoded.sub);

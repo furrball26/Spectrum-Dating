@@ -3,9 +3,9 @@ import bcrypt from 'bcrypt';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { randomBytes } from 'crypto';
 import { newId } from '../utils/ids.js';
-import { signToken, requireAuth } from '../middleware/auth.js';
+import { signToken, requireAuth, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
 import { isAdminEmail } from '../middleware/admin.js';
-import { emailConfigured, sendVerificationEmail } from '../email/resend.js';
+import { emailConfigured, sendVerificationEmail, sendPasswordResetEmail } from '../email/resend.js';
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
@@ -137,6 +137,51 @@ router.post('/sign-out-all', requireAuth, (req, res) => {
   const userId = req.user.id;
   db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
   res.json({ ok: true });
+});
+
+// POST /auth/forgot-password — start a password reset.
+// Always returns 200 (never reveals whether an email is registered). If the
+// account exists, emails a 1-hour, single-use reset link.
+router.post('/forgot-password', authLimiter, (req, res) => {
+  const { db } = req.ctx;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email address.' });
+  }
+  const user = db.prepare('SELECT id, email, token_version FROM users WHERE email = ?').get(email);
+  if (user) {
+    const token = signPurposeToken(user.id, 'reset', user.token_version ?? 0, '1h');
+    sendPasswordResetEmail(user.email, token).catch(() => {});
+  }
+  // Same response whether or not the account exists.
+  return res.json({ ok: true });
+});
+
+// POST /auth/reset-password — complete a password reset with the emailed token.
+router.post('/reset-password', authLimiter, async (req, res) => {
+  const { db } = req.ctx;
+  const { token, password } = req.body ?? {};
+  if (typeof token !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Token and new password are required.' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  }
+  const payload = verifyPurposeToken(token, 'reset');
+  if (!payload) {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+  }
+  const user = db.prepare('SELECT id, token_version FROM users WHERE id = ?').get(payload.sub);
+  // Single-use: the token carries the token_version at issue time; once a reset
+  // (or any sign-out) bumps the version, the link no longer works.
+  if (!user || (payload.tv ?? -1) !== (user.token_version ?? 0)) {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+  }
+  const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  // Bump token_version too: sets the new password AND logs out all old sessions.
+  db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?')
+    .run(password_hash, user.id);
+  return res.json({ ok: true });
 });
 
 // GET /auth/verify?token=xxx — mark email verified
