@@ -82,7 +82,50 @@ router.get('/conversations', requireAuth, (req, res) => {
   });
 
   const activeCount = activeConvoCount(db, userId);
-  res.json({ conversations, activeCap: 5, activeCount, capReached: activeCount >= 5 });
+  const archivedCount = db.prepare(`
+    SELECT COUNT(*) as cnt FROM conversations
+    WHERE (user_a_id = ? AND archived_by_a = 1) OR (user_b_id = ? AND archived_by_b = 1)
+  `).get(userId, userId).cnt;
+  res.json({ conversations, activeCap: 5, activeCount, capReached: activeCount >= 5, archivedCount });
+});
+
+// ---------------------------------------------------------------------------
+// GET /messaging/conversations/archived  (must precede the /:id wildcard)
+// ---------------------------------------------------------------------------
+
+router.get('/conversations/archived', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const rows = db.prepare(`
+    SELECT c.id, c.match_id, c.user_a_id, c.user_b_id,
+           m.sent_at as last_sent_at
+    FROM conversations c
+    LEFT JOIN messages m ON m.id = (
+      SELECT id FROM messages WHERE conversation_id = c.id ORDER BY sent_at DESC LIMIT 1
+    )
+    WHERE (c.user_a_id = ? AND c.archived_by_a = 1)
+       OR (c.user_b_id = ? AND c.archived_by_b = 1)
+    ORDER BY COALESCE(m.sent_at, c.created_at) DESC
+  `).all(userId, userId);
+
+  const conversations = rows.map(row => {
+    const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
+    const otherProfile = db.prepare(
+      'SELECT display_name, identity_verified FROM profiles WHERE user_id = ?'
+    ).get(otherId);
+    return {
+      id: row.id,
+      matchId: row.match_id,
+      otherUser: {
+        userId: otherId,
+        displayName: otherProfile?.display_name || '',
+        verified: !!otherProfile?.identity_verified,
+      },
+      lastMessageGroup: row.last_sent_at ? coarseLabel(row.last_sent_at) : null,
+      hasUnread: false,
+    };
+  });
+
+  res.json({ conversations });
 });
 
 // ---------------------------------------------------------------------------
@@ -328,6 +371,24 @@ router.post('/conversations/:id/archive', requireAuth, (req, res) => {
   }
 
   res.json({ archived: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /messaging/conversations/:id/unarchive
+// ---------------------------------------------------------------------------
+
+router.post('/conversations/:id/unarchive', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const conv = isConversationMember(db, req.params.id, userId);
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  if (conv.user_a_id === userId) {
+    db.prepare('UPDATE conversations SET archived_by_a = 0 WHERE id = ?').run(req.params.id);
+  } else {
+    db.prepare('UPDATE conversations SET archived_by_b = 0 WHERE id = ?').run(req.params.id);
+  }
+
+  res.json({ unarchived: true });
 });
 
 // ---------------------------------------------------------------------------
