@@ -709,7 +709,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
               {person.photoUrl && (
                 <img
                   src={person.photoUrl}
-                  alt=""
+                  alt={`Photo of ${person.displayName}`}
                   style={{
                     width: "100%",
                     height: 380,

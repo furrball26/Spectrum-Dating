@@ -30,9 +30,10 @@ export default function Avatar({ name, userId, photoUrl, size = 56, style }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
 
   if (photoUrl) {
+    // A real photo is informative (not decorative) — give it a meaningful alt so
+    // screen-reader users know there's a photo and whose it is.
     return (
       <div
-        aria-hidden="true"
         style={{
           width: size,
           height: size,
@@ -45,7 +46,7 @@ export default function Avatar({ name, userId, photoUrl, size = 56, style }) {
       >
         <img
           src={photoUrl}
-          alt=""
+          alt={name ? `Photo of ${name}` : "Profile photo"}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>
