@@ -750,27 +750,39 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 
 ### 2026-06-30 — Backlog item #9: Archived-conversations view + unarchive
 
-**What was built:** A full archived-conversations section in Messages so users can view conversations they've previously archived and restore them to their active list.
+**What was built:** Full archived-conversations view in Messages — users can see conversations they've previously archived and restore them to their active list with one tap.
 
-**Frontend only** — no backend changes needed (archive/unarchive API already existed).
+**Backend** (`Spectrum-Dating-Server/src/routes/messaging.js`):
+- `GET /messaging/conversations`: added `archivedCount` to response so the "Archived (N)" entry-point badge shows without a separate API call.
+- `GET /messaging/conversations/archived` (new, declared BEFORE the `/:id` wildcard to avoid routing collision): returns archived conversations for the current user, newest first. Shape matches the active list (`id`, `matchId`, `otherUser`, `lastMessageGroup`, `hasUnread:false`).
+- `POST /messaging/conversations/:id/unarchive` (new): clears `archived_by_a` or `archived_by_b` flag for the requesting user. Always allowed — no cap enforcement on restoring (cap only gates NEW conversations). Backend deployed; health-gated pass confirmed SHA `218ea36`.
 
-**`src/messaging/MatchesListScreen.jsx`:**
-- Accepts `showingArchived`, `archivedConversations`, `archivedLoading`, `archivedCount`, `onToggleArchived`, `onUnarchive` props (all declared/handled before early returns — no hook-after-return).
-- When `showingArchived` is true, renders a calm "Archived" screen: "← Messages" back link, `h1` heading (auto-focused), skeleton while loading, empty state ("No archived conversations. When you archive a conversation it will appear here."), and a list of archived rows with "Restore" buttons.
-- `MatchRow` has `showUnarchive`/`onUnarchive` support — pressing "Restore" calls `onUnarchive(conversationId)`.
-- In the active view, a quiet "Archived conversations (N)" / "Archived conversations" button (centered, `t.textMuted`, shown when `onToggleArchived` is provided) gives users the entry point to the archived list.
+**Frontend** (`src/api.js`, `src/messaging/MessagingApp.jsx`, `src/messaging/MatchesListScreen.jsx`):
+- `api.js`: `getConversations()` now returns `{ conversations, archivedCount }` (updated callers in MessagingApp); added `getArchivedConversations()` and `unarchiveConversation()` helpers, both using the shared `normaliseConversationList` helper.
+- `MessagingApp`: added `showingArchived`, `archivedConversations`, `archivedLoading`, `archivedCount` state — all declared with other hooks, before any conditional. `handleToggleArchived` lazy-loads archived list on first open. `handleUnarchive` calls the API, removes from archived list optimistically, decrements count, and refreshes active list via `refreshKey`. `currentConvo` now looks in both active and archived lists so archived threads can be opened and read.
+- `MatchesListScreen`: new `showingArchived` early-return (before the `loadFailed`/`loading` paths, all hooks unconditionally above it) renders: "← Messages" back link, "Archived" `h1` (auto-focused), skeleton while loading, calm empty state, and archived rows with "Restore" button (`showUnarchive`/`onUnarchive`/`fRestore` added to `MatchRow` — `fRestore = useFocusable()` called unconditionally). In the active view, a quiet "Archived conversations (N)" link at the bottom gives the entry point; zero-count shows "Archived conversations" without the number.
 
-**`src/messaging/MessagingApp.jsx`:**
-- Added `showingArchived`, `archivedConversations`, `archivedLoading`, `archivedCount` state — all declared with other hooks before any early return.
-- `handleToggleArchived()`: on first open, calls `getArchivedConversations()` into `archivedConversations` (non-fatal on failure). Toggles `showingArchived`.
-- `handleUnarchive(conversationId)`: calls `unarchiveConversation(conversationId)` (best-effort), removes from `archivedConversations` optimistically, decrements `archivedCount`, and refreshes the active list via `refreshKey`.
-- `getConversations()` already returned `archivedCount` (set into state, shown in the entry-point button).
-- All props wired through to `MatchesListScreen`.
+**Files touched:** `Spectrum-Dating-Server/src/routes/messaging.js`, `src/api.js`, `src/messaging/MessagingApp.jsx`, `src/messaging/MatchesListScreen.jsx`
 
-**Files touched:** `src/messaging/MatchesListScreen.jsx`, `src/messaging/MessagingApp.jsx`
+**Deploy:** Build clean (91 modules). Backend health-gated deploy passed (SHA `218ea36`). Frontend deployed to Vercel (`spectrum-dating-oppksmxv5-spectrum-dating.vercel.app`); alias re-pointed to `spectrum-dating-eta.vercel.app`. ✅
 
-**Deploy:** `npm run build` clean (91 modules). Deployed to Vercel (`spectrum-dating-ex5ydmh5z-spectrum-dating.vercel.app`); alias re-pointed to `spectrum-dating-eta.vercel.app`. ✅
+**Verification:** Live backend: `GET /conversations` returns `archivedCount:0` ✅; `GET /conversations/archived` returns `{conversations:[]}` ✅. Live bundle `index-BewrA3pr.js` confirmed: "Archived conversations", "archivedConversations", "Restore", "Back to active conversations", "unarchive", "archivedCount" — all present. ✅
 
-**Verification:** `curl` confirmed all key strings in live bundle `index-BewrA3pr.js`: "Archived conversations", "Tap Restore to move a conversation", "Back to active conversations", "Restore". ✅
+~Auto Builder
+
+### 2026-06-30 — Backlog item #10: Rate-limit mutation/abuse endpoints (per-user limiter)
+
+**What was built:** Per-user rate limiters on all mutation and abuse-vector endpoints that were previously unthrottled, closing the report-flooding, swipe-flooding, and unbounded presign-call gaps flagged by the Backend/Security Reviewer.
+
+**Backend only** (`Spectrum-Dating-Server/`) — no frontend changes.
+
+**New `src/middleware/rateLimits.js`:**
+- `mutationLimiter` — 100 requests/user/minute. Covers: `/matching/swipe`, `/photos/profile-upload-url`, `/push/subscribe`.
+- `abuseReportLimiter` — 10 requests/user/15 minutes. Covers: `/messaging/block`, `/messaging/report`, `/feedback`.
+- Both key on `req.ctx.userId` (per-authenticated-user, not per-IP). Falls back to `ipKeyGenerator(req.ip)` (IPv6-normalised) if context is absent. Imports `ipKeyGenerator` to satisfy the express-rate-limit IPv6 validator.
+
+**Routes updated:** `matching.js` (swipe), `messaging.js` (block + report), `feedback.js`, `photos.js` (profile-upload-url), `push.js` (subscribe).
+
+**Deploy:** Backend health-gated deploy passed. SHA `218ea36b` confirmed live on Railway. ✅
 
 ~Auto Builder
