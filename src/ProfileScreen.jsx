@@ -1177,6 +1177,393 @@ function ProfileCompletenessNudge({ score, total, missing }) {
   );
 }
 
+// ─── Profile preview modal (backlog #8) ──────────────────────────────────────
+// Read-only card view of how the user's profile appears to candidates on
+// Discover. Mirrors the SuggestionScreen card layout without importing it.
+function ProfilePreviewModal({
+  displayName, tagline, bio, pronouns, commNote, interests,
+  commDirectness, commLiteral, commCadence,
+  sensoryEnvironment, sensoryLighting, socialDuration,
+  contextCard, photos, prompts, promptTextFor, verified, onClose,
+}) {
+  const headingRef = useRef(null);
+
+  // Focus the dialog heading on open so screen-reader users hear the context.
+  useEffect(() => { headingRef.current?.focus(); }, []);
+
+  // Escape key closes (consistent with other modals in this file).
+  useEffect(() => {
+    function handleKey(e) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  // Primary photo URL — first photo with isPrimary, else first photo, else null.
+  const primaryPhoto = photos.find((p) => p.isPrimary) || photos[0] || null;
+  const photoUrl = primaryPhoto?.url || null;
+
+  // Comms/sensory chips — mirrors SuggestionScreen's commStyleChips helper.
+  // Defined inline so we don't import from another screen.
+  const chips = [];
+  if (commDirectness === "direct")   chips.push("Direct");
+  if (commDirectness === "softened") chips.push("Softened");
+  if (commLiteral === "literal")     chips.push("Literal");
+  if (commLiteral === "playful")     chips.push("Playful");
+  if (commCadence === "instant")     chips.push("Quick replies");
+  if (commCadence === "daily")       chips.push("Replies once a day");
+  if (sensoryEnvironment === "quiet")  chips.push("Quiet settings");
+  if (sensoryEnvironment === "lively") chips.push("Lively settings");
+  if (sensoryLighting === "dim")     chips.push("Dim lighting");
+  if (sensoryLighting === "bright")  chips.push("Bright lighting");
+  if (socialDuration === "short")    chips.push("Short meetups");
+  if (socialDuration === "long")     chips.push("Longer meetups");
+
+  const validPrompts = (prompts || []).filter((p) => p && p.answer && p.answer.trim());
+
+  const card = {
+    background: t.surface,
+    border: `1px solid ${t.border}`,
+    borderRadius: 20,
+    padding: "28px 24px",
+    marginBottom: 16,
+    boxShadow: "0 2px 8px rgba(36,51,45,0.07), 0 8px 24px rgba(36,51,45,0.04)",
+  };
+  const divider = <div aria-hidden="true" style={{ height: 1, background: t.borderLight, margin: "20px 0" }} />;
+
+  return (
+    <>
+      {/* Dim backdrop — clicking it closes */}
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(36,51,45,0.52)",
+          zIndex: 1200,
+        }}
+      />
+
+      {/* Scrollable modal sheet */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-modal-heading"
+        style={{
+          position: "fixed",
+          inset: 0,
+          overflowY: "auto",
+          zIndex: 1201,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "0 16px 48px",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {/* Sticky header bar */}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            width: "100%",
+            maxWidth: t.layout.maxContent,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "12px 4px",
+            background: "rgba(28,36,34,0.88)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            borderRadius: "0 0 12px 12px",
+            zIndex: 2,
+            marginBottom: 16,
+            boxSizing: "border-box",
+          }}
+        >
+          <h2
+            id="preview-modal-heading"
+            ref={headingRef}
+            tabIndex={-1}
+            style={{
+              fontFamily: t.serif,
+              fontSize: 17,
+              fontWeight: 700,
+              color: "#fff",
+              margin: 0,
+              outline: "none",
+              padding: "2px 8px",
+            }}
+          >
+            How others see you
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close preview"
+            style={{
+              background: "rgba(255,255,255,0.15)",
+              border: "none",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: "8px 18px",
+              borderRadius: 8,
+              minHeight: 44,
+              minWidth: 44,
+              fontFamily: t.sans,
+            }}
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Card content — mirrors the SuggestionScreen candidate card */}
+        <div style={{ width: "100%", maxWidth: t.layout.maxContent }}>
+
+          {/* Main profile card */}
+          <div style={card}>
+
+            {/* Hero photo when available */}
+            {photoUrl && (
+              <img
+                src={photoUrl}
+                alt={`Your photo`}
+                style={{
+                  width: "100%",
+                  height: 380,
+                  objectFit: "cover",
+                  borderRadius: 16,
+                  display: "block",
+                  marginBottom: 18,
+                  background: t.surfaceAlt,
+                }}
+              />
+            )}
+
+            {/* Name lockup — gradient avatar when no photo */}
+            <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20 }}>
+              {!photoUrl && (
+                <Avatar name={displayName} userId={null} size={88} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{
+                  fontFamily: t.serif,
+                  fontSize: 30,
+                  margin: "0 0 3px",
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1.1,
+                }}>
+                  {displayName || "Your name"}
+                  {verified && <VerifiedBadge style={{ marginLeft: 10, position: "relative", top: -4 }} />}
+                </h3>
+                {pronouns && (
+                  <div style={{ fontSize: 14, color: t.textMuted, margin: "2px 0" }}>
+                    {pronouns}
+                  </div>
+                )}
+                {tagline && (
+                  <p style={{
+                    fontFamily: t.serif,
+                    fontSize: 15,
+                    color: t.textSoft,
+                    fontStyle: "italic",
+                    margin: "4px 0 6px",
+                    lineHeight: 1.4,
+                  }}>
+                    {tagline}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {divider}
+
+            {/* Bio */}
+            {bio ? (
+              <p style={{ margin: 0, color: t.text, lineHeight: 1.75 }}>{bio}</p>
+            ) : (
+              <p style={{ margin: 0, color: t.textMuted, lineHeight: 1.75, fontStyle: "italic", fontSize: 15 }}>
+                No bio yet — add one to help people get to know you.
+              </p>
+            )}
+
+            {divider}
+
+            {/* Communication note */}
+            {commNote ? (
+              <p style={{ margin: 0, color: t.textSoft, fontSize: 15, lineHeight: 1.6 }}>
+                <strong style={{ color: t.text, fontWeight: 600 }}>About talking: </strong>
+                {commNote}
+              </p>
+            ) : (
+              <p style={{ margin: 0, color: t.textMuted, fontSize: 15, lineHeight: 1.6, fontStyle: "italic" }}>
+                No communication note yet.
+              </p>
+            )}
+          </div>
+
+          {/* Interests card */}
+          <div style={{
+            ...card,
+            background: t.surfaceAlt,
+            boxShadow: "none",
+            border: `1px solid ${t.borderLight}`,
+          }}>
+            <h4 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
+              Interests
+            </h4>
+            {interests.length > 0 ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {interests.map((interest) => (
+                  <span
+                    key={interest}
+                    style={{
+                      padding: "5px 13px",
+                      borderRadius: 24,
+                      fontSize: 13,
+                      fontWeight: 400,
+                      background: t.surface,
+                      color: t.textSoft,
+                      border: `1px solid ${t.border}`,
+                    }}
+                  >
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p style={{ margin: 0, color: t.textMuted, fontStyle: "italic", fontSize: 14 }}>
+                No interests added yet.
+              </p>
+            )}
+          </div>
+
+          {/* How I communicate — comms/sensory chips */}
+          {chips.length > 0 && (
+            <div style={{
+              ...card,
+              background: t.surfaceAlt,
+              boxShadow: "none",
+              border: `1px solid ${t.borderLight}`,
+            }}>
+              <h4 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
+                How I communicate
+              </h4>
+              <ul style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}>
+                {chips.map((label) => (
+                  <li
+                    key={label}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "5px 13px",
+                      borderRadius: 24,
+                      fontSize: 13,
+                      fontWeight: 400,
+                      background: t.surface,
+                      color: t.textSoft,
+                      border: `1px solid ${t.border}`,
+                    }}
+                  >
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Context card — only shown post-match; labelled to set expectations */}
+          {contextCard && contextCard.trim() && (
+            <div style={card}>
+              <p style={{
+                margin: "0 0 10px",
+                fontSize: 12,
+                fontWeight: 600,
+                color: t.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                lineHeight: 1.4,
+              }}>
+                In their words{" "}
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 400,
+                  color: t.textMuted,
+                  letterSpacing: 0,
+                  textTransform: "none",
+                }}>
+                  (visible to your matches only)
+                </span>
+              </p>
+              <blockquote style={{
+                margin: 0,
+                fontFamily: t.serif,
+                fontSize: 18,
+                fontStyle: "italic",
+                color: t.text,
+                lineHeight: 1.55,
+                borderLeft: `3px solid ${t.accentFill}`,
+                paddingLeft: 16,
+              }}>
+                {contextCard}
+              </blockquote>
+            </div>
+          )}
+
+          {/* Hinge-style prompt answers */}
+          {validPrompts.length > 0 && (
+            <div style={card}>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 20 }}>
+                {validPrompts.map((p, i) => (
+                  <li key={p.promptKey || i}>
+                    <p style={{
+                      margin: "0 0 6px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: t.textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      lineHeight: 1.4,
+                    }}>
+                      {promptTextFor(p.promptKey)}
+                    </p>
+                    <p style={{
+                      margin: 0,
+                      fontFamily: t.serif,
+                      fontSize: 20,
+                      fontWeight: 700,
+                      color: t.text,
+                      lineHeight: 1.4,
+                    }}>
+                      {p.answer}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Footer note */}
+          <p style={{
+            margin: "8px 0 0",
+            fontSize: 13,
+            color: t.textMuted,
+            textAlign: "center",
+            lineHeight: 1.6,
+          }}>
+            This is the card other members see on Discover.
+            Your search preferences and private settings are never shared.
+          </p>
+
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
@@ -1258,6 +1645,10 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [isDirty, setIsDirty] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const preFocusRef = useRef(null); // P-25: store pre-dialog focus
+
+  // Profile preview (backlog #8) — declared here with the other hooks, BEFORE
+  // the loading/error early returns, so the hook count stays constant.
+  const [showPreview, setShowPreview] = useState(false);
 
   // Custom interest input
   const [customTagInput, setCustomTagInput] = useState("");
@@ -1757,6 +2148,30 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         />
       )}
 
+      {/* Profile preview modal (backlog #8) */}
+      {showPreview && (
+        <ProfilePreviewModal
+          displayName={displayName}
+          tagline={tagline}
+          bio={bio}
+          pronouns={pronouns}
+          commNote={commNote}
+          interests={interests}
+          commDirectness={commDirectness}
+          commLiteral={commLiteral}
+          commCadence={commCadence}
+          sensoryEnvironment={sensoryEnvironment}
+          sensoryLighting={sensoryLighting}
+          socialDuration={socialDuration}
+          contextCard={contextCard}
+          photos={photos}
+          prompts={prompts}
+          promptTextFor={promptTextFor}
+          verified={verified}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+
       {/* Off-screen SR announcement region (P-13, P-14) */}
       <div
         role="status"
@@ -1829,22 +2244,46 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         <div style={shell}>
 
           {/* P-1: heading receives focus on mount */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 6px" }}>
-            <h1
-              ref={headingRef}
-              tabIndex={-1}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, margin: "0 0 6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <h1
+                ref={headingRef}
+                tabIndex={-1}
+                style={{
+                  fontFamily: t.serif,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  margin: 0,
+                  color: t.text,
+                  outline: "none",
+                }}
+              >
+                Your profile
+              </h1>
+              {verified && <VerifiedBadge />}
+            </div>
+
+            {/* Preview my card — backlog #8 */}
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              aria-haspopup="dialog"
               style={{
-                fontFamily: t.serif,
-                fontSize: 28,
-                fontWeight: 700,
-                margin: 0,
-                color: t.text,
-                outline: "none",
+                background: "transparent",
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.accentStrong,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "6px 14px",
+                minHeight: 36,
+                fontFamily: t.sans,
+                flexShrink: 0,
               }}
             >
-              Your profile
-            </h1>
-            {verified && <VerifiedBadge />}
+              Preview my card
+            </button>
           </div>
 
           {/* P-27: framing copy — first-time only */}
