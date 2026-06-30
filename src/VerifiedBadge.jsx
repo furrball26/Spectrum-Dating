@@ -17,7 +17,7 @@ export default function VerifiedBadge({ style }) {
         fontSize: 12,
         fontWeight: 600,
         lineHeight: 1.2,
-        color: t.positive,
+        color: t.positiveText,
         border: `1px solid ${t.positive}`,
         background: "transparent",
         letterSpacing: "0.01em",

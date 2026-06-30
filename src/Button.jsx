@@ -10,9 +10,11 @@ import { t } from "./tokens.js";
 
 const VARIANTS = {
   primary: {
-    background: t.accentStrong,
+    // accentFill (not accentStrong) so white text passes AA in BOTH themes —
+    // in dim, accentStrong is a light tint and white-on-it fails (2.10:1).
+    background: t.accentFill,
     color: "#fff",
-    border: `1px solid ${t.accentStrong}`,
+    border: `1px solid ${t.accentFill}`,
   },
   secondary: {
     background: t.green100,

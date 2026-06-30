@@ -20,6 +20,9 @@ export const t = {
   // which is a light tint in dim where white-on-fill fails.
   accentFill: "var(--c-accentFill, #3E6660)",
   positive: "var(--c-positive, #5E9459)",
+  // Green for TEXT that must pass AA (darker in light than `positive`, which is
+  // tuned as a fill/border color). Verified badge, success text.
+  positiveText: "var(--c-positiveText, #4C7A47)",
   border: "var(--c-border, #D3DBD5)",
   borderLight: "var(--c-borderLight, #E8EDE7)",
   focus: "var(--c-focus, #24332D)",

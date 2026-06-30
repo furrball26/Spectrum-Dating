@@ -145,3 +145,56 @@
 - `npm run build` clean; og.png + icon-maskable-512.png present in `dist/`; manifest valid JSON.
 
 ~Visual Dev
+
+## Accessibility Director
+
+### 2026-06-30 — A11y audit (keyboard/focus, ARIA, contrast in both themes, motion, forms, landmarks, autism calm-by-design)
+
+Standard: WCAG 2.2 AA + autism calm-by-design. Method: full source audit of `index.html`, `src/tokens.js`, and all core-flow + messaging components; contrast ratios computed numerically for every flagged pair (both themes). NOTE: live-site + dev-server tooling (Chrome MCP, Preview) were both permission-denied this run, so findings are from code + computed ratios, not runtime captures — visual focus-order spot-checks on the deployed site still owed and listed at the end.
+
+**Headline: the warm-dim theme regresses contrast on every filled "primary" control.** The dim palette deliberately makes `accentStrong` (#8FBCB2) and `positive` (#7FB87A) *light* tints — they're meant as TEXT on dark surfaces (they pass 6–7:1 there). But many controls use them as a FILL behind WHITE text. White-on-#8FBCB2 = **2.10:1**, white-on-#7FB87A = **2.32:1** — both fail AA badly. The `accentFill`/`dangerFill` tokens were created to fix exactly this and the messaging layer adopted them, but the rest of the app did not. Light theme is unaffected (accentStrong #3E6660 = 6.41:1). Since default theme is light, this bites only users who opt into Warm dim — but that's the low-vision/photophobia/sensory cohort most likely to need it, so it's serious.
+
+🔴 Blocker
+- **Primary buttons unreadable in dim theme** · 1.4.3 Contrast · `src/Button.jsx:13` (`primary` variant, white on `t.accentStrong`), `src/LandingScreen.jsx:59` (`PrimaryButton`), `src/SafetyScreen.jsx:73` (`PrimaryButton`), `src/OnboardingScreen.jsx:850` (Continue/Save). White-on-#8FBCB2 = 2.10:1 in dim. Fix: introduce a `t.onAccentFill`-style usage — switch these fills from `accentStrong` to `accentFill` (dim #356962 → white = passes), or define a dedicated "button fill" token that is dark in BOTH themes. One Button.jsx change fixes the largest surface (MatchesScreen "Say hello", MatchMoment "Say hello").
+- **"I'm interested" action button unreadable in dim** · 1.4.3 · `src/SuggestionScreen.jsx:73` (`interested` kind: white on `t.positive`). 2.32:1 in dim. This is the single most important button in the core Discover→match flow. Fix: use a dark-in-both-themes positive fill (add a `positiveFill` token mirroring `accentFill`, or render dark text on the light tint).
+- **"Yes, unmatch" destructive button low-contrast in dim** · 1.4.3 · `src/messaging/UnmatchSheet.jsx:177` (`background: t.danger`, white text). Dim `danger` #E08585 + white = 2.67:1. `dangerFill` (#9E3B3B → white = 6.68:1) already exists for this; DeleteConfirmDialog uses it correctly — UnmatchSheet was missed. Fix: `t.danger` → `t.dangerFill` on the confirm button (line 177–178 background+border).
+
+🟠 Serious
+- **Selected interest chips white-on-tint in dim** · 1.4.3 · `src/OnboardingScreen.jsx:154` & `:393`, `src/SuggestionScreen.jsx:114` (shared-interest pill). White on `t.accentStrong` = 2.10:1 in dim; these carry real text. Fix: same accentFill swap, or dark text on the tint.
+- **Loading/error text hardcoded `#4E5F58` — invisible in dim** · 1.4.3 + theming regression · `src/SuggestionScreen.jsx:637` and `:645` ("Finding people for you…" / load-error). #4E5F58 on dim bg #1C2422 = 2.34:1. These literals survived the drift-island cleanup. Fix: `t.textSoft`.
+- **Consent-gate + attachment-error panels hardcoded `#FFF5F5`/`#FDF2F2`** · 1.4.3 · `src/messaging/ConversationScreen.jsx:1402` (consent alert bg) and `:1433` (attachment error bg). In dim these stay near-white and `t.danger` (#E08585) text on them = 2.50:1; also visually jarring (a white box in a dark UI). Fix: theme the panel bg (e.g. `t.surfaceAlt`) and use `t.danger` per theme, or a tokenized danger-surface.
+- **Disabled "Sign in" button hardcoded `#4E5F58`** · 1.4.3 / theming · `src/AuthScreen.jsx:246` (`loading ? "#4E5F58"`). White text on it = 6.77:1 so it *reads*, but it won't theme (stays the same grey-green in dim) and is an un-tokenized literal. Fix: a tokenized disabled fill.
+- **ReportModal "Submit report" hardcoded `#B94040`** · theming · `src/SuggestionScreen.jsx:402`. White on it = 5.43:1 (passes), but the literal won't shift to `dangerFill` in dim — inconsistent with the rest. Fix: `t.dangerFill`.
+
+🟡 Moderate
+- **`aria-current="true"` is an invalid token** · 4.1.2 Name/Role/Value · `src/messaging/MatchesListScreen.jsx:76` (selected conversation row). `aria-current` takes an enumerated token; `"true"` is technically allowed by the spec but the semantically correct value here is `"page"` (matches the nav pattern used everywhere else in App.jsx). Low impact but should be `"page"` for consistency and correct SR phrasing.
+- **VerifiedBadge text fails AA in LIGHT theme** · 1.4.3 · `src/VerifiedBadge.jsx:20` (`t.positive` text, #5E9459 on white = 3.59:1; on surfaceAlt = 3.15:1). It's a real word ("Verified"), not pure decoration. Dim is fine (6.11:1). Fix: use `accentStrong`/a darker green for the label text in light, or treat the green as icon-only + darker text.
+- **Desktop 2-pane: empty thread placeholder isn't programmatically tied to the list** · 3.2.3/predictability · `src/messaging/MessagingApp.jsx:182–197`. The right pane shows "Select a conversation to start reading." as plain muted text with no role; when a keyboard user activates a list row, focus moves into the thread via ConversationScreen's heading focus — good — but the empty placeholder itself isn't announced. Minor; consider `role="status"` or an `aria-live` note. Calm-by-design otherwise solid (stable two-pane, no surprise swap).
+- **Reaction picker is `role="toolbar"` but has no roving-tabindex/arrow-key nav** · 4.1.2 · `src/messaging/ConversationScreen.jsx:71` (ReactionPicker). Each emoji is a normal button (44px, labelled — good) and Escape works, but `role="toolbar"` implies arrow-key navigation that isn't implemented; SR users will hear "toolbar" and expect it. Either implement arrow nav or drop to a plain labelled group.
+
+⚪ Minor
+- **Composer textarea has no visible label** · only `aria-label` · `src/messaging/ConversationScreen.jsx:1548`. Functional for SR; a persistent visible label/placeholder is present ("Write a message…") so acceptable. No action required — noted for completeness.
+- **`zoom: 1.15` for "Larger text"** · `src/App.jsx:302`. `zoom` is non-standard (works in Chromium/WebKit, ignored in Firefox). The footer note points users to browser zoom as backup, which mitigates. Consider `transform: scale` or root `font-size` if Firefox parity matters; low priority.
+- Hardcoded backdrop rgba (`rgba(36,51,45,…)`) in modals is intentional and fine (overlays, not text surfaces).
+
+**PASSED / held up well:**
+- Skip link (`index.html:123` + `App.jsx:52`) — pure-CSS `:focus` reveal, jumps to `<main id="main-content" tabIndex=-1>`. Solid.
+- Landmarks + nav: single `<header>`, `<main aria-label>`, `<nav aria-label="Primary">` on BOTH top (desktop/tablet) and fixed bottom (mobile) bars; `aria-current="page"` on active tabs; identical 4-destination IA for all users. Stable, predictable — good autism design.
+- `document.title` + polite SR announce on every tab change (`App.jsx:481`, `:710`). S4 holds.
+- Touch targets: ≥44px on nav tabs, message ⋯/＋/send (send 48px), reaction pills, chips, switches — consistently met.
+- Focus management in flows: Onboarding focuses first invalid field on failed Continue (`:665`); AuthScreen focuses the error (`:38`); every modal/dialog/sheet (Delete, Unmatch, MatchMoment, ReportModal) focuses its heading on open, traps Tab, and restores focus on close; ConversationScreen restores focus to composer after delete. Strong.
+- Forms: labels tied via `htmlFor`/`id`, `aria-required`, `aria-invalid`, `aria-describedby` for hints + live counters, `role="alert"` on inline errors. Onboarding/Auth/Report all correct.
+- Reduced motion: dual-gated (OS `prefers-reduced-motion` + in-app toggle), global `transition-duration:0.001ms` sheet, plus per-component static fallbacks (MatchMoment/UnmatchSheet/AnimatedSpectrumMark render end-state). No autoplay/looping motion except the opt-in landing idle breath. Calm-by-design intent met.
+- Decorative SVGs (icons, SpectrumMark, illustrations, avatars, glyphs) consistently `aria-hidden`/`focusable=false` with meaning carried by adjacent labels. Images have alt (`Shared photo`, `Attached photo preview`).
+- Messaging log is `role="log" aria-live="polite"`, labelled, with a keyboard scroll hint. Reaction pills carry full meaning in `aria-label` (colour never sole signal). Deleted messages announce as tombstones.
+- Dim-theme TEXT contrast (where tokens are used as intended) is excellent: textSoft 8.63:1, textMuted 5.35:1, accentStrong-as-text 6.76:1. The regression is strictly fill+white-text controls, not body text.
+
+**Regressions vs the "last deploy fixed" list:** the messaging layer's accentFill/dangerFill adoption is correct, but the SAME pattern was NOT propagated to Button.jsx, LandingScreen, SafetyScreen, Onboarding, SuggestionScreen, or UnmatchSheet — so the dim-theme contrast fix is only half-landed. Hardcoded `#4E5F58`/`#FFF5F5`/`#FDF2F2`/`#B94040` literals flagged in the prior drift-island pass still remain in SuggestionScreen + ConversationScreen.
+
+**Top items for the PM to prioritize:**
+1. Fix dim-theme button contrast app-wide (🔴) — start with `Button.jsx` primary variant + `SuggestionScreen` "I'm interested" + `UnmatchSheet` confirm. Use `accentFill`/`dangerFill` (and add a `positiveFill`). This is the biggest real-user impact and a half-finished prior fix.
+2. Replace remaining hardcoded `#4E5F58`/`#FFF5F5`/`#FDF2F2` literals with tokens (🟠) — Suggestion loading/error + Conversation alert panels.
+3. `aria-current="page"` on the selected conversation row + VerifiedBadge light-theme text contrast (🟡).
+4. Owed follow-up: re-run a live keyboard-tab + dim-theme visual pass on the deployed site once Chrome/Preview access is granted (this run was code-only). Focus-order and `:focus` ring visibility should be confirmed on real focus, not computed styles.
+
+~A11y Director

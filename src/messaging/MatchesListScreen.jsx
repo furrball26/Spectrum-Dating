@@ -73,7 +73,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, selecte
         <button
           type="button"
           aria-label={ariaLabel}
-          aria-current={selected ? "true" : undefined}
+          aria-current={selected ? "page" : undefined}
           onClick={() => onSelectConversation(match.conversationId)}
           style={{
             display: "flex",

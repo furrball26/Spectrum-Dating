@@ -70,7 +70,7 @@ function ActionButton({ label, kind, onClick, icon }) {
     letterSpacing: "0.01em",
   };
   const kinds = {
-    interested: { background: t.positive, color: "#fff", border: `1px solid ${t.positive}` },
+    interested: { background: t.accentFill, color: "#fff", border: `1px solid ${t.accentFill}` },
     notnow:     { background: t.surface,   color: t.text, border: `1px solid ${t.border}` },
     skip:       { background: "transparent", color: t.textSoft, border: "none", textDecoration: "underline" },
   };
@@ -111,9 +111,9 @@ function InterestPills({ interests, viewerInterests }) {
               borderRadius: 24,
               fontSize: 13,
               fontWeight: shared ? 600 : 400,
-              background: shared ? t.accentStrong : t.surfaceAlt,
+              background: shared ? t.accentFill : t.surfaceAlt,
               color: shared ? "#fff" : t.textSoft,
-              border: `1px solid ${shared ? t.accentStrong : t.border}`,
+              border: `1px solid ${shared ? t.accentFill : t.border}`,
               letterSpacing: shared ? "0.01em" : 0,
             }}
           >
@@ -634,7 +634,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <p style={{ color: '#4E5F58', fontSize: 16 }}>Finding people for you…</p>
+        <p style={{ color: t.textSoft, fontSize: 16 }}>Finding people for you…</p>
       </div>
     );
   }
@@ -642,7 +642,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
   if (loadError) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <p style={{ color: '#4E5F58', fontSize: 16 }}>{loadError}</p>
+        <p style={{ color: t.textSoft, fontSize: 16 }}>{loadError}</p>
       </div>
     );
   }

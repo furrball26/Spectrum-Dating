@@ -1397,7 +1397,7 @@ export default function ConversationScreen({
           role="alert"
           style={{
             padding: "10px 16px",
-            background: "#FFF5F5",
+            background: t.surfaceAlt,
             borderTop: `1px solid ${t.danger}`,
             color: t.danger,
             fontSize: 15,
@@ -1430,7 +1430,7 @@ export default function ConversationScreen({
           aria-hidden="true"
           style={{
             padding: "8px 16px",
-            background: attachment.status === "rejected" ? "#FFF5F5" : t.surfaceAlt,
+            background: attachment.status === "rejected" ? t.surfaceAlt : t.surfaceAlt,
             borderTop: `1px solid ${attachment.status === "rejected" ? t.danger : t.border}`,
             color: attachment.status === "rejected" ? t.danger : t.textSoft,
             fontSize: 14,

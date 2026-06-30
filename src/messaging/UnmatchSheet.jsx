@@ -173,9 +173,9 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
               fontSize: 17,
               fontWeight: 600,
               cursor: "pointer",
-              background: t.danger,
+              background: t.dangerFill,
               color: "#fff",
-              border: `1px solid ${t.danger}`,
+              border: `1px solid ${t.dangerFill}`,
               ...fConfirm.style,
             }}
             onFocus={fConfirm.onFocus}
