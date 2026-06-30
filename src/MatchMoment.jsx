@@ -55,7 +55,7 @@ function usePrefersReduced() {
   return prefersReduced;
 }
 
-export default function MatchMoment({ you, them, onContinue, onOpenChat }) {
+export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLanguage = false }) {
   const prefersReduced = usePrefersReduced();
   // `entered` flips on after mount to trigger the opacity-led transitions.
   // Under reduced-motion we start already-entered so the end state renders
@@ -235,7 +235,7 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat }) {
               letterSpacing: "-0.01em",
             }}
           >
-            You're on the same wavelength.
+            {plainLanguage ? "You're a match!" : "You're on the same wavelength."}
           </h1>
           <p
             id="match-moment-subline"
@@ -277,7 +277,7 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat }) {
             onClick={onContinue}
             style={{ width: "100%", color: "#FFFFFF" }}
           >
-            Keep looking
+            {plainLanguage ? "Continue" : "Keep looking"}
           </Button>
         </div>
       </div>

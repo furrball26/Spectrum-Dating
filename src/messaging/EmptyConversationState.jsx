@@ -21,7 +21,7 @@ const FALLBACK_STARTERS = [
   "How do you usually like to spend a quiet weekend?",
 ];
 
-export default function EmptyConversationState({ displayName, conversationId, onSelectStarter }) {
+export default function EmptyConversationState({ displayName, conversationId, onSelectStarter, plainLanguage = false }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [starters, setStarters] = useState(FALLBACK_STARTERS);
   const needsIdeasRef = useRef(null);
@@ -104,7 +104,7 @@ export default function EmptyConversationState({ displayName, conversationId, on
             margin: "0 0 24px",
           }}
         >
-          Send a message whenever you're ready. There's no rush.
+          {plainLanguage ? "Send a message when you're ready." : "Send a message whenever you're ready. There's no rush."}
         </p>
 
         <button
@@ -127,7 +127,7 @@ export default function EmptyConversationState({ displayName, conversationId, on
           onFocus={fButton.onFocus}
           onBlur={fButton.onBlur}
         >
-          Need ideas?
+          {plainLanguage ? "Starter ideas" : "Need ideas?"}
         </button>
 
         {panelOpen && (

@@ -7,7 +7,7 @@ import { getConversations, archiveConversation, blockUser, reportUser, getUserId
 import { t } from "../tokens.js";
 import { useViewport } from "../useViewport.js";
 
-export default function MessagingApp({ onUnreadCount, initialConversationId }) {
+export default function MessagingApp({ onUnreadCount, initialConversationId, plainLanguage = false }) {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
   const isDesktop = viewport === "desktop";
   // state: 'list' | 'conversation' | 'block-report'
@@ -135,6 +135,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
       onArchive={handleArchive}
       conversationCount={conversations.filter(c => c.started).length}
       selectedConversationId={isDesktop ? selectedConversationId : null}
+      plainLanguage={plainLanguage}
     />
   );
 
@@ -150,6 +151,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
         currentUserId={getUserId() || "me"}
         onArchive={handleArchive}
         hideBack={isDesktop}
+        plainLanguage={plainLanguage}
       />
       {showUnmatchSheet && (
         <UnmatchSheet
@@ -192,7 +194,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
               fontSize: 15,
             }}
           >
-            Select a conversation to start reading.
+            {plainLanguage ? "Click a conversation to open it." : "Select a conversation to start reading."}
           </div>
         );
     return (

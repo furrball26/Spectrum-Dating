@@ -217,6 +217,7 @@ export default function MatchesListScreen({
   statusMessage,
   onArchive,
   selectedConversationId = null,
+  plainLanguage = false,
 }) {
   const headingRef = useRef(null);
   // Search filter — ALL hooks before any early return
@@ -486,8 +487,9 @@ export default function MatchesListScreen({
                   <EmptyMessages size={104} />
                 </div>
                 <p style={{ color: t.textSoft, margin: 0 }}>
-                  No matches yet. Check back soon. Only people you've both matched with
-                  can message you.
+                  {plainLanguage
+                    ? "No matches yet. Only people you've both matched with can message you."
+                    : "No matches yet. Check back soon. Only people you've both matched with can message you."}
                 </p>
               </div>
             )}

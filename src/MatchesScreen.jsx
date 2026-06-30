@@ -162,7 +162,7 @@ function MatchCard({ match, busy, onOpen, plainLanguage }) {
 // Small horizontal scroll of people who liked you (one-sided likes, no mutual match yet).
 // Tapping the avatar or "Go to Discover" button takes you back to the Discover deck
 // where they'll show up naturally in the candidate queue.
-function LikedYouSection({ people, onGoDiscover }) {
+function LikedYouSection({ people, onGoDiscover, plainLanguage = false }) {
   if (!people || people.length === 0) return null;
   return (
     <section aria-labelledby="liked-you-heading" style={{ marginBottom: 28 }}>
@@ -190,7 +190,9 @@ function LikedYouSection({ people, onGoDiscover }) {
       </div>
       <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}>
         {people.length === 1 ? "1 person has" : `${people.length} people have`} expressed interest.
-        Head to Discover to see them and decide at your own pace — no rush.
+        {plainLanguage
+          ? " Go to Discover to see them."
+          : " Head to Discover to see them and decide at your own pace — no rush."}
       </p>
       {/* Horizontal scroll row of liked-you avatars */}
       <ul
@@ -333,11 +335,13 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
           Matches
         </h1>
         <p style={{ margin: "0 0 22px", fontSize: 15, color: t.textSoft }}>
-          People you've both said yes to. Reach out whenever you're ready — there's no rush.
+          {plainLanguage
+            ? "People you've both said yes to. Message them whenever you want."
+            : "People you've both said yes to. Reach out whenever you're ready — there's no rush."}
         </p>
 
         {/* Activity inbox: people who liked you (one-sided) */}
-        <LikedYouSection people={incomingLikes} onGoDiscover={onGoDiscover} />
+        <LikedYouSection people={incomingLikes} onGoDiscover={onGoDiscover} plainLanguage={plainLanguage} />
 
         {error && (
           <p role="alert" style={{ color: t.danger, fontSize: 14, marginBottom: 16 }}>
@@ -369,9 +373,9 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
                 <EmptyMatches size={104} />
               </div>
             )}
-            No matches yet. When you and someone both say you're interested in
-            Discover, they'll appear here. Only people you've both matched with
-            can message you.
+            {plainLanguage
+              ? "No matches yet. Both you and the other person need to say yes in Discover. Only matches can message you."
+              : "No matches yet. When you and someone both say you're interested in Discover, they'll appear here. Only people you've both matched with can message you."}
           </div>
         ) : (
           <>

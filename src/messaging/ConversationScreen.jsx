@@ -772,6 +772,7 @@ export default function ConversationScreen({
   // Desktop 2-pane: list stays visible beside the thread, so the redundant
   // "Back to Matches" control is hidden.
   hideBack = false,
+  plainLanguage = false,
 }) {
   const headingRef = useRef(null);
   const composeRef = useRef(null);
@@ -1375,6 +1376,7 @@ export default function ConversationScreen({
             displayName={otherUser.displayName}
             conversationId={conversationId}
             onSelectStarter={(text) => setComposeValue(text)}
+            plainLanguage={plainLanguage}
           />
         </div>
       ) : (

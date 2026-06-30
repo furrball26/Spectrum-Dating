@@ -938,6 +938,7 @@ export default function App() {
                 <MessagingApp
                   onUnreadCount={setUnreadCount}
                   initialConversationId={pendingConversationId}
+                  plainLanguage={!!a11y.plainLanguage}
                 />
               )}
               {activeTab === "profile" && (
