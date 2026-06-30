@@ -246,4 +246,82 @@ router.delete('/matches/:id', requireAuth, (req, res) => {
   res.json({ ok: true, unmatched: true });
 });
 
+// GET /matching/activity — activity inbox:
+//   incomingLikes: people who swiped 'like' on you that you haven't acted on yet.
+//   recentMatches: your mutual matches from the last 7 days.
+//
+// incomingLikes are the raw one-sided likes — the viewer can head to Discover to see
+// them in their natural queue (they'll appear as normal candidates).  Capped at 20.
+router.get('/activity', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+  // People who liked you and you haven't swiped on (and no match exists yet).
+  const likesRows = db.prepare(`
+    SELECT s.swiper_id AS user_id, s.created_at AS liked_at,
+           p.display_name, p.photo_url, p.date_of_birth, p.pronouns,
+           p.dist_city, p.identity_verified
+    FROM swipes s
+    JOIN profiles p ON p.user_id = s.swiper_id
+    WHERE s.swiped_id = ?
+      AND s.decision = 'like'
+      AND NOT EXISTS (
+        SELECT 1 FROM swipes s2
+        WHERE s2.swiper_id = ? AND s2.swiped_id = s.swiper_id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM matches m
+        WHERE (m.user_a_id = ? AND m.user_b_id = s.swiper_id)
+           OR (m.user_b_id = ? AND m.user_a_id = s.swiper_id)
+      )
+    ORDER BY s.created_at DESC
+    LIMIT 20
+  `).all(userId, userId, userId, userId);
+
+  const incomingLikes = likesRows.map(r => ({
+    userId: r.user_id,
+    displayName: r.display_name || '',
+    age: r.date_of_birth ? ageFromDob(r.date_of_birth) : null,
+    photoUrl: r.photo_url || null,
+    pronouns: r.pronouns || '',
+    distCity: (r.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
+    verified: !!r.identity_verified,
+    likedAt: r.liked_at,
+  }));
+
+  // Recent mutual matches (last 7 days) — for the "new matches" section.
+  const recentRows = db.prepare(`
+    SELECT m.id AS match_id, m.matched_at,
+           CASE WHEN m.user_a_id = ? THEN m.user_b_id ELSE m.user_a_id END AS other_id,
+           c.id AS conversation_id
+    FROM matches m
+    LEFT JOIN conversations c ON c.match_id = m.id
+    WHERE (m.user_a_id = ? OR m.user_b_id = ?)
+      AND m.matched_at >= ?
+    ORDER BY m.matched_at DESC
+    LIMIT 10
+  `).all(userId, userId, userId, sevenDaysAgo);
+
+  const recentMatches = recentRows.map(r => {
+    const p = db.prepare(
+      'SELECT display_name, photo_url, date_of_birth, pronouns, dist_city, identity_verified FROM profiles WHERE user_id = ?'
+    ).get(r.other_id);
+    return {
+      matchId: r.match_id,
+      matchedAt: r.matched_at,
+      conversationId: r.conversation_id || null,
+      userId: r.other_id,
+      displayName: p?.display_name || '',
+      age: p?.date_of_birth ? ageFromDob(p.date_of_birth) : null,
+      photoUrl: p?.photo_url || null,
+      pronouns: p?.pronouns || '',
+      distCity: (p?.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
+      verified: !!p?.identity_verified,
+    };
+  });
+
+  return res.json({ incomingLikes, recentMatches });
+});
+
 export default router;
