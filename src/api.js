@@ -163,6 +163,9 @@ export async function getConversations() {
   // { lastMessageLabel, unread, started }.
   return arr.map(c => ({
     ...c,
+    // The list UI keys/selects/archives on `conversationId`, but the server
+    // returns the conversation under `id` — alias it so row clicks resolve.
+    conversationId: c.conversationId ?? c.id,
     lastMessageLabel: c.lastMessageLabel ?? c.lastMessageGroup ?? null,
     unread: c.unread ?? c.hasUnread ?? false,
     started: c.started ?? (c.lastMessageGroup != null),
