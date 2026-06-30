@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
+import VerifiedBadge from "../VerifiedBadge.jsx";
 
 const AVATAR_PALETTE = ["#7A9E9A", "#8A9E7A", "#9A8A7A", "#7A8A9E", "#9A7A8A"];
 function avatarBg(name) {
@@ -106,14 +107,22 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive }) {
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontWeight: unread ? 600 : 400,
-              fontSize: 16,
-              color: t.text,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              minWidth: 0,
             }}>
-              {otherUser.displayName}
+              <span style={{
+                fontWeight: unread ? 600 : 400,
+                fontSize: 16,
+                color: t.text,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {otherUser.displayName}
+              </span>
+              {otherUser.verified && <VerifiedBadge style={{ flexShrink: 0 }} />}
             </div>
             {lastMessageLabel && (
               <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>

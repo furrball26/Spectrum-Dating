@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { t } from "./tokens.js";
 import { getMatches, createConversation } from "./api.js";
+import VerifiedBadge from "./VerifiedBadge.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
 // conversations (Messages). Calm, low-pressure: no counters, no urgency.
@@ -66,8 +67,9 @@ function MatchCard({ match, busy, onOpen }) {
       >
         <Avatar name={otherUser.displayName} photoUrl={otherUser.photoUrl} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 600, color: t.text }}>
-            {otherUser.displayName || "Someone"}
+          <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span>{otherUser.displayName || "Someone"}</span>
+            {otherUser.verified && <VerifiedBadge />}
           </div>
           {otherUser.tagline && (
             <div

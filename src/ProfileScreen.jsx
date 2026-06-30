@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount } from "./api.js";
 import { t } from "./tokens.js";
+import VerifiedBadge from "./VerifiedBadge.jsx";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -644,6 +645,11 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState("");
 
+  // Identity verification status (read-only from /profile/me). Declared here with
+  // the other hooks — before the loading/error early returns — so the hook count
+  // stays constant across renders (React #310 / a hook-after-return crashed prod).
+  const [verified, setVerified] = useState(false);
+
   // All form fields (initialised to defaults; overwritten by API load in useEffect)
   const [displayName, setDisplayName] = useState(DEFAULT_PROFILE.displayName);
   const [tagline, setTagline]         = useState(DEFAULT_PROFILE.tagline);
@@ -747,6 +753,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setDbMustBeLocal(merged.dbMustBeLocal);
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
+        setVerified(!!data.verified);
         cacheProfile(merged);
         if (Array.isArray(data.photos)) setPhotos(data.photos);
       })
@@ -1133,20 +1140,23 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         <div style={shell}>
 
           {/* P-1: heading receives focus on mount */}
-          <h1
-            ref={headingRef}
-            tabIndex={-1}
-            style={{
-              fontFamily: t.serif,
-              fontSize: 28,
-              fontWeight: 700,
-              margin: "0 0 6px",
-              color: t.text,
-              outline: "none",
-            }}
-          >
-            Your profile
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 6px" }}>
+            <h1
+              ref={headingRef}
+              tabIndex={-1}
+              style={{
+                fontFamily: t.serif,
+                fontSize: 28,
+                fontWeight: 700,
+                margin: 0,
+                color: t.text,
+                outline: "none",
+              }}
+            >
+              Your profile
+            </h1>
+            {verified && <VerifiedBadge />}
+          </div>
 
           {/* P-27: framing copy — first-time only */}
           {!hasEverSaved && (
@@ -1696,6 +1706,41 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                 ))}
               </div>
             </fieldset>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — Identity verification
+          ══════════════════════════════════════════════════════ */}
+          <div style={card}>
+            <h2 style={{ ...h2Style, marginBottom: 12 }}>Identity verification</h2>
+            {verified ? (
+              <p style={{ margin: 0, fontSize: 15, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
+                <span aria-hidden="true">✓</span> Your identity is verified.
+              </p>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 12px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+                  Identity verification is coming soon. It helps everyone trust they're
+                  talking to a real person. We'll let you know when it's ready.
+                </p>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "4px 12px",
+                    borderRadius: 999,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: t.textMuted,
+                    background: t.surfaceAlt,
+                    border: `1px solid ${t.border}`,
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  Coming soon
+                </span>
+              </>
+            )}
           </div>
 
           {/* ══════════════════════════════════════════════════════

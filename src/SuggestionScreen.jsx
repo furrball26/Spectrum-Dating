@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { getCandidates, swipe, blockUser, reportUser, getProfile } from "./api.js";
 import { t } from "./tokens.js";
+import VerifiedBadge from "./VerifiedBadge.jsx";
 
 // Suggestion screen — autism-friendly dating platform.
 // Built to docs/specs/matching.md + docs/architecture/matching-a11y.md
@@ -371,6 +372,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
           relationshipGoal: c.relationshipGoal || '',
           sharedInterests: c.sharedInterests || [],
           photoUrl: c.photoUrl || c.photo_url || null,
+          verified: !!c.verified,
         })));
       })
       .catch(() => setLoadError('Could not load suggestions. Please check your connection.'))
@@ -592,6 +594,9 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
                     lineHeight: 1.1,
                   }}>
                     {person.displayName}{typeof person.age === "number" ? `, ${person.age}` : ''}
+                    {person.verified && (
+                      <VerifiedBadge style={{ marginLeft: 10, position: "relative", top: -4 }} />
+                    )}
                   </h1>
                   <p style={{
                     fontFamily: t.serif,
