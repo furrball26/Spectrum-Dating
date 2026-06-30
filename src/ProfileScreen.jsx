@@ -48,6 +48,8 @@ const DEFAULT_PROFILE = {
   gender: "",
   pronouns: "",
   seeking: "",
+  prefAgeMin: 18,
+  prefAgeMax: 99,
   notificationTier: "in_app", // "in_app" | "silent_push" | "name_only"
   // Lifestyle attributes (optional, shown on profile)
   wantsChildren: "",          // "" | "yes" | "no" | "open"
@@ -925,6 +927,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [gender, setGender]           = useState(DEFAULT_PROFILE.gender);
   const [pronouns, setPronouns]       = useState(DEFAULT_PROFILE.pronouns);
   const [seeking, setSeeking]         = useState(DEFAULT_PROFILE.seeking);
+  const [prefAgeMin, setPrefAgeMin]   = useState(DEFAULT_PROFILE.prefAgeMin);
+  const [prefAgeMax, setPrefAgeMax]   = useState(DEFAULT_PROFILE.prefAgeMax);
   const [notifTier, setNotifTier]     = useState(DEFAULT_PROFILE.notificationTier);
 
   // Lifestyle attributes (optional)
@@ -1028,6 +1032,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           gender: data.gender || '',
           pronouns: data.pronouns || '',
           seeking: data.seeking || '',
+          prefAgeMin: data.prefAgeMin ?? 18,
+          prefAgeMax: data.prefAgeMax ?? 99,
           notificationTier: data.notificationTier || 'in_app',
           wantsChildren: data.wantsChildren || '',
           smoking: data.smoking || '',
@@ -1055,6 +1061,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setGender(merged.gender || '');
         setPronouns(merged.pronouns || '');
         setSeeking(merged.seeking || '');
+        setPrefAgeMin(merged.prefAgeMin ?? 18);
+        setPrefAgeMax(merged.prefAgeMax ?? 99);
         setNotifTier(merged.notificationTier);
         setWantsChildren(merged.wantsChildren);
         setSmoking(merged.smoking);
@@ -1114,6 +1122,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         gender           !== savedProfile.gender ||
         pronouns         !== savedProfile.pronouns ||
         seeking          !== savedProfile.seeking ||
+        prefAgeMin       !== savedProfile.prefAgeMin ||
+        prefAgeMax       !== savedProfile.prefAgeMax ||
         notifTier        !== savedProfile.notificationTier ||
         wantsChildren    !== savedProfile.wantsChildren ||
         smoking          !== savedProfile.smoking ||
@@ -1133,7 +1143,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -1287,6 +1297,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       gender,
       pronouns,
       seeking,
+      prefAgeMin,
+      prefAgeMax,
       notificationTier: notifTier,
       wantsChildren,
       smoking,
@@ -1317,6 +1329,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         gender: currentProfile.gender,
         pronouns: currentProfile.pronouns,
         seeking: currentProfile.seeking,
+        prefAgeMin: currentProfile.prefAgeMin,
+        prefAgeMax: currentProfile.prefAgeMax,
         notificationTier: currentProfile.notificationTier,
         wantsChildren: currentProfile.wantsChildren,
         smoking: currentProfile.smoking,
@@ -2016,6 +2030,37 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                   </label>
                 );
               })}
+            </fieldset>
+
+            {/* Age range preference */}
+            <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 8, float: "left", width: "100%" }}>
+                Age range
+              </legend>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, clear: "both" }}>
+                <input
+                  type="number" min={18} max={99} inputMode="numeric"
+                  aria-label="Minimum age"
+                  value={prefAgeMin}
+                  onChange={(e) => setPrefAgeMin(Math.max(18, Math.min(99, Number(e.target.value) || 18)))}
+                  onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                  onBlur={(e) => { e.target.style.outline = "none"; }}
+                  style={{ ...inputStyle(false), width: 90 }}
+                />
+                <span style={{ color: t.textSoft, fontSize: 15 }}>to</span>
+                <input
+                  type="number" min={18} max={99} inputMode="numeric"
+                  aria-label="Maximum age"
+                  value={prefAgeMax}
+                  onChange={(e) => setPrefAgeMax(Math.max(18, Math.min(99, Number(e.target.value) || 99)))}
+                  onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                  onBlur={(e) => { e.target.style.outline = "none"; }}
+                  style={{ ...inputStyle(false), width: 90 }}
+                />
+              </div>
+              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 6 }}>
+                Only show people in this age range.
+              </span>
             </fieldset>
 
             {/* Distance city */}
