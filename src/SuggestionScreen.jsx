@@ -702,14 +702,33 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
             {/* Profile card — one person at a time. No grid, no auto-advance, no timer. */}
             <div style={card}>
 
-              {/* Avatar + name lockup */}
-              <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20 }}>
-                <Avatar
-                  name={person.displayName}
-                  userId={person.memberId}
-                  photoUrl={person.photoUrl}
-                  size={88}
+              {/* Hero photo when the person has one — real faces get prominence
+                  instead of a tiny circle. Decorative (name is in the adjacent
+                  heading). Falls back to the gradient-monogram lockup below. */}
+              {person.photoUrl && (
+                <img
+                  src={person.photoUrl}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    height: 380,
+                    objectFit: "cover",
+                    borderRadius: 16,
+                    display: "block",
+                    marginBottom: 18,
+                    background: t.surfaceAlt,
+                  }}
                 />
+              )}
+              {/* Name lockup — the monogram avatar shows only when there's no photo. */}
+              <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20 }}>
+                {!person.photoUrl && (
+                  <Avatar
+                    name={person.displayName}
+                    userId={person.memberId}
+                    size={88}
+                  />
+                )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h1 style={{
                     fontFamily: t.serif,
