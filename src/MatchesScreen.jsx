@@ -207,7 +207,7 @@ export default function MatchesScreen({ onOpenConversation }) {
     padding: "20px 16px 40px",
     boxSizing: "border-box",
   };
-  const shell = { maxWidth: 560, margin: "0 auto" };
+  const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
 
   return (
     <div style={page}>

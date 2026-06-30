@@ -4,8 +4,12 @@ import ConversationScreen from "./ConversationScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
 import { getConversations, archiveConversation, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation } from "../api.js";
+import { t } from "../tokens.js";
+import { useViewport } from "../useViewport.js";
 
 export default function MessagingApp({ onUnreadCount, initialConversationId }) {
+  const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
+  const isDesktop = viewport === "desktop";
   // state: 'list' | 'conversation' | 'block-report'
   const [screen, setScreen] = useState("list");
   const [selectedConversationId, setSelectedConversationId] = useState(null);
@@ -120,6 +124,105 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
     setScreen("conversation");
   }
 
+  const listPane = (
+    <MatchesListScreen
+      conversations={conversations}
+      loading={loadingConvs}
+      loadFailed={convsLoadFailed}
+      onRetry={retryLoadConversations}
+      onSelectConversation={handleSelectConversation}
+      statusMessage={matchesStatusMessage}
+      onArchive={handleArchive}
+      conversationCount={conversations.filter(c => c.started).length}
+      selectedConversationId={isDesktop ? selectedConversationId : null}
+    />
+  );
+
+  const conversationPane = currentConvo && (
+    <>
+      <ConversationScreen
+        conversationId={currentConvo.id}
+        otherUser={currentConvo.otherUser}
+        started={currentConvo.started}
+        onBack={handleBackToList}
+        onUnmatch={handleUnmatch}
+        onBlockReport={handleBlockReport}
+        currentUserId={getUserId() || "me"}
+        onArchive={handleArchive}
+        hideBack={isDesktop}
+      />
+      {showUnmatchSheet && (
+        <UnmatchSheet
+          displayName={currentConvo.otherUser.displayName}
+          onConfirm={handleUnmatchConfirm}
+          onCancel={handleUnmatchCancel}
+        />
+      )}
+    </>
+  );
+
+  const blockReportPane = currentConvo && (
+    <BlockReportScreen
+      displayName={currentConvo.otherUser.displayName}
+      onSubmit={handleBlockReportSubmit}
+      onBack={handleBlockReportBack}
+    />
+  );
+
+  // ── Desktop: two-pane (list + open thread side-by-side) ──
+  // List stays visible while a thread is open. Capped + centered so it reads as
+  // a calm app panel, not an edge-to-edge inbox. Mobile/tablet keep the existing
+  // stack-swap below (list → conversation), unchanged.
+  if (isDesktop) {
+    const rightPane =
+      screen === "block-report"
+        ? blockReportPane
+        : screen === "conversation" && currentConvo
+        ? conversationPane
+        : (
+          <div
+            style={{
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "32px",
+              textAlign: "center",
+              color: t.textMuted,
+              fontSize: 15,
+            }}
+          >
+            Select a conversation to start reading.
+          </div>
+        );
+    return (
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "row",
+          minHeight: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 340,
+            flexShrink: 0,
+            height: "100%",
+            overflowY: "auto",
+            borderRight: `1px solid ${t.border}`,
+          }}
+        >
+          {listPane}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, height: "100%", position: "relative" }}>
+          {rightPane}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Mobile / tablet: single-column stack-swap (unchanged) ──
   return (
     <div
       style={{
@@ -129,48 +232,11 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
         position: "relative",
       }}
     >
-      {screen === "list" && (
-        <MatchesListScreen
-          conversations={conversations}
-          loading={loadingConvs}
-          loadFailed={convsLoadFailed}
-          onRetry={retryLoadConversations}
-          onSelectConversation={handleSelectConversation}
-          statusMessage={matchesStatusMessage}
-          onArchive={handleArchive}
-          conversationCount={conversations.filter(c => c.started).length}
-        />
-      )}
+      {screen === "list" && listPane}
 
-      {screen === "conversation" && currentConvo && (
-        <>
-          <ConversationScreen
-            conversationId={currentConvo.id}
-            otherUser={currentConvo.otherUser}
-            started={currentConvo.started}
-            onBack={handleBackToList}
-            onUnmatch={handleUnmatch}
-            onBlockReport={handleBlockReport}
-            currentUserId={getUserId() || "me"}
-            onArchive={handleArchive}
-          />
-          {showUnmatchSheet && (
-            <UnmatchSheet
-              displayName={currentConvo.otherUser.displayName}
-              onConfirm={handleUnmatchConfirm}
-              onCancel={handleUnmatchCancel}
-            />
-          )}
-        </>
-      )}
+      {screen === "conversation" && currentConvo && conversationPane}
 
-      {screen === "block-report" && currentConvo && (
-        <BlockReportScreen
-          displayName={currentConvo.otherUser.displayName}
-          onSubmit={handleBlockReportSubmit}
-          onBack={handleBlockReportBack}
-        />
-      )}
+      {screen === "block-report" && currentConvo && blockReportPane}
     </div>
   );
 }

@@ -430,7 +430,7 @@ export default function SafetyScreen({ onBack }) {
     padding: "20px 16px 48px",
     boxSizing: "border-box",
   };
-  const shell = { maxWidth: 600, margin: "0 auto" };
+  const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
 
   const labelStyle = { display: "block", fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 6 };
   const inputStyle = {

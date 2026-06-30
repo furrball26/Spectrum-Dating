@@ -594,7 +594,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
     padding: "20px 16px 48px",
     boxSizing: "border-box",
   };
-  const shell = { maxWidth: 540, margin: "0 auto" };
+  const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
   const card = {
     background: t.surface,
     border: `1px solid ${t.border}`,

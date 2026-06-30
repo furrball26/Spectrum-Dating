@@ -46,7 +46,7 @@ function MatchesListSkeleton() {
 }
 
 // Feature 3: MatchRow accepts showArchive and onArchive props
-function MatchRow({ match, onSelectConversation, showArchive, onArchive }) {
+function MatchRow({ match, onSelectConversation, showArchive, onArchive, selected }) {
   const f = useFocusable();
   const fArchive = useFocusable();
   const { otherUser, lastMessageLabel, unread, started } = match;
@@ -62,8 +62,10 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive }) {
         style={{
           display: "flex",
           alignItems: "center",
-          background: t.surface,
-          borderLeft: unread ? `3px solid ${t.accent}` : "3px solid transparent",
+          background: selected ? t.surfaceAlt : t.surface,
+          borderLeft: selected
+            ? `3px solid ${t.accent}`
+            : unread ? `3px solid ${t.accent}` : "3px solid transparent",
           borderBottom: `1px solid ${t.borderLight}`,
           boxSizing: "border-box",
         }}
@@ -71,6 +73,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive }) {
         <button
           type="button"
           aria-label={ariaLabel}
+          aria-current={selected ? "true" : undefined}
           onClick={() => onSelectConversation(match.conversationId)}
           style={{
             display: "flex",
@@ -164,7 +167,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive }) {
 }
 
 // Feature 3: SectionList passes showArchive and onArchive down to MatchRow
-function SectionList({ title, matches, onSelectConversation, showArchive, onArchive }) {
+function SectionList({ title, matches, onSelectConversation, showArchive, onArchive, selectedConversationId }) {
   if (matches.length === 0) return null;
   return (
     <section style={{ marginBottom: 24 }}>
@@ -196,6 +199,7 @@ function SectionList({ title, matches, onSelectConversation, showArchive, onArch
             onSelectConversation={onSelectConversation}
             showArchive={showArchive}
             onArchive={onArchive}
+            selected={selectedConversationId != null && m.conversationId === selectedConversationId}
           />
         ))}
       </ul>
@@ -212,6 +216,7 @@ export default function MatchesListScreen({
   onSelectConversation,
   statusMessage,
   onArchive,
+  selectedConversationId = null,
 }) {
   const headingRef = useRef(null);
 
@@ -221,7 +226,7 @@ export default function MatchesListScreen({
 
   if (loadFailed) {
     return (
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: "24px 16px 48px" }}>
+      <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "24px 16px 48px" }}>
         <h1
           style={{
             fontFamily: t.serif,
@@ -245,7 +250,7 @@ export default function MatchesListScreen({
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: "24px 16px 48px" }}>
+      <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "24px 16px 48px" }}>
         <h1
           style={{
             fontFamily: t.serif,
@@ -329,7 +334,7 @@ export default function MatchesListScreen({
         {statusMessage || ""}
       </div>
 
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: "24px 16px 48px" }}>
+      <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "24px 16px 48px" }}>
         <h1
           ref={headingRef}
           tabIndex={-1}
@@ -352,6 +357,7 @@ export default function MatchesListScreen({
           onSelectConversation={onSelectConversation}
           showArchive={capReached}
           onArchive={onArchive}
+          selectedConversationId={selectedConversationId}
         />
 
         {/* Feature 3 — Conversation cap notice above New matches */}
@@ -378,6 +384,7 @@ export default function MatchesListScreen({
           title="New matches"
           matches={newMatches}
           onSelectConversation={onSelectConversation}
+          selectedConversationId={selectedConversationId}
         />
 
         {conversations.length === 0 && (

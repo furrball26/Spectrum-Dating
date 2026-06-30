@@ -752,6 +752,9 @@ export default function ConversationScreen({
   currentUserId = "me",
   // Feature 3 — archive callback
   onArchive,
+  // Desktop 2-pane: list stays visible beside the thread, so the redundant
+  // "Back to Matches" control is hidden.
+  hideBack = false,
 }) {
   const headingRef = useRef(null);
   const composeRef = useRef(null);
@@ -817,7 +820,7 @@ export default function ConversationScreen({
         (data.messages || []).forEach(msg => {
           if (msg.reactions && msg.reactions.length > 0) {
             const emojiMap = {};
-            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.youReacted }; });
+            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
             rxMap[msg.id] = emojiMap;
           }
         });
@@ -842,7 +845,10 @@ export default function ConversationScreen({
       socket.emit("join_conversation", { conversationId });
     });
 
-    socket.on("new_message", (msg) => {
+    socket.on("new_message", (payload) => {
+      // Server emits { conversationId, message: {...} }; tolerate a flat shape too.
+      const msg = payload?.message || payload;
+      if (!msg || !msg.id) return;
       // Don't add if it's from us (already optimistically added)
       if (msg.senderId === currentUserId) return;
       setMessages(prev => {
@@ -857,7 +863,7 @@ export default function ConversationScreen({
 
     socket.on("reaction_update", ({ messageId, reactions }) => {
       const emojiMap = {};
-      (reactions || []).forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.youReacted }; });
+      (reactions || []).forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
       setReactions(prev => ({ ...prev, [messageId]: emojiMap }));
     });
 
@@ -917,7 +923,7 @@ export default function ConversationScreen({
       // Update with authoritative server state
       const reactionMap = {};
       (result.reactions || []).forEach(r => {
-        reactionMap[r.emoji] = { count: r.count, youReacted: r.youReacted };
+        reactionMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted };
       });
       setReactions(prev => ({ ...prev, [messageId]: reactionMap }));
     } catch {
@@ -1181,29 +1187,32 @@ export default function ConversationScreen({
           zIndex: 10,
         }}
       >
-        {/* Back button — touch target fix: minHeight/minWidth 44 */}
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: t.accent,
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: "pointer",
-            padding: "8px 10px 8px 0",
-            flexShrink: 0,
-            minHeight: 44,
-            minWidth: 44,
-            ...fBack.style,
-          }}
-          onFocus={fBack.onFocus}
-          onBlur={fBack.onBlur}
-          aria-label="Back to Matches"
-        >
-          ← Matches
-        </button>
+        {/* Back button — touch target fix: minHeight/minWidth 44. Hidden in the
+            desktop 2-pane where the list stays visible alongside the thread. */}
+        {!hideBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: t.accent,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: "8px 10px 8px 0",
+              flexShrink: 0,
+              minHeight: 44,
+              minWidth: 44,
+              ...fBack.style,
+            }}
+            onFocus={fBack.onFocus}
+            onBlur={fBack.onBlur}
+            aria-label="Back to Matches"
+          >
+            ← Matches
+          </button>
+        )}
 
         {/* Centred heading */}
         <h2

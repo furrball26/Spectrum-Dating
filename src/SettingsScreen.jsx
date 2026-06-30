@@ -244,7 +244,7 @@ export default function SettingsScreen({ onBack, onChange }) {
     padding: "20px 16px 48px",
     boxSizing: "border-box",
   };
-  const shell = { maxWidth: 600, margin: "0 auto" };
+  const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
 
   return (
     <div style={page}>

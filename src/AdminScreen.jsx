@@ -442,7 +442,7 @@ export default function AdminScreen() {
     padding: "20px 16px 48px",
     boxSizing: "border-box",
   };
-  const shell = { maxWidth: 640, margin: "0 auto" };
+  const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
 
   return (
     <div style={page}>

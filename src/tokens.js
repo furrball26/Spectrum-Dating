@@ -23,6 +23,12 @@ export const t = {
   warning: "var(--c-warning, #B8860B)",
   serif: "'Newsreader', Georgia, 'Times New Roman', serif",
   sans: "'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif",
+  // ── Layout ──
+  // One width system for the whole app. `maxContent` is the single content
+  // column width used by every primary screen (no per-screen jitter). `maxForm`
+  // is the intentionally tighter width for narrow forms (auth). `gutter` is the
+  // standard horizontal padding.
+  layout: { gutter: 20, maxContent: 640, maxForm: 400 },
   // ── Warm accents (spectrum sand/clay end) ──
   sand: "var(--c-sand, #E7D9C4)",
   clay: "var(--c-clay, #C9A875)",

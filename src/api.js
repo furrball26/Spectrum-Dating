@@ -156,8 +156,17 @@ export async function unmatchConversation(matchId) {
 export async function getConversations() {
   const data = await apiFetch("/messaging/conversations");
   // Server returns { conversations: [...], activeCap, activeCount, capReached }
-  // Normalise to always return the array so callers don't need to know the shape
-  return Array.isArray(data) ? data : (Array.isArray(data?.conversations) ? data.conversations : []);
+  // Normalise to always return the array so callers don't need to know the shape.
+  const arr = Array.isArray(data) ? data : (Array.isArray(data?.conversations) ? data.conversations : []);
+  // Map server field names → the names the list UI reads. Server sends
+  // { lastMessageGroup, hasUnread } and omits `started`; the UI reads
+  // { lastMessageLabel, unread, started }.
+  return arr.map(c => ({
+    ...c,
+    lastMessageLabel: c.lastMessageLabel ?? c.lastMessageGroup ?? null,
+    unread: c.unread ?? c.hasUnread ?? false,
+    started: c.started ?? (c.lastMessageGroup != null),
+  }));
 }
 
 export async function getConversation(id) {
@@ -172,10 +181,12 @@ export async function createConversation(matchId) {
 }
 
 export async function sendMessage(conversationId, body) {
-  return apiFetch(`/messaging/conversations/${conversationId}/messages`, {
+  const res = await apiFetch(`/messaging/conversations/${conversationId}/messages`, {
     method: "POST",
     body: { body },
   });
+  // Server returns { messageId, timeLabel }; expose `id` so callers can adopt it.
+  return { ...res, id: res.id ?? res.messageId };
 }
 
 export async function deleteMessage(conversationId, messageId) {

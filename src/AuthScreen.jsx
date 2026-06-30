@@ -76,7 +76,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
         padding: "24px 20px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 400 }}>
+      <div style={{ width: "100%", maxWidth: t.layout.maxForm }}>
 
         {/* Back to landing page */}
         {onBack && (

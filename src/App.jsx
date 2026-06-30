@@ -12,8 +12,9 @@ import LandingScreen from "./LandingScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
 import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
+import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
-import { ShieldIcon, GearIcon } from "./icons.jsx";
+import { ShieldIcon, GearIcon, HeartIcon } from "./icons.jsx";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -78,6 +79,83 @@ function NavTab({ label, active, onClick, badgeCount }) {
           {badgeCount}
         </span>
       )}
+    </button>
+  );
+}
+
+// ─── Mobile bottom-nav icons ──────────────────────────────────────────────────
+// Tiny inline glyphs (1.6px stroke, currentColor) for the 4 primary mobile tabs.
+// HeartIcon (from icons.jsx) is reused for Matches; the rest are local so the
+// bottom bar reads as a consistent icon+label set.
+function NavGlyph({ children }) {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      focusable="false" style={{ display: "block" }}>
+      {children}
+    </svg>
+  );
+}
+const DiscoverGlyph = () => <NavGlyph><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></NavGlyph>;
+const MessagesGlyph = () => <NavGlyph><path d="M4 5h16v11H9l-4 3v-3H4z" /></NavGlyph>;
+const ProfileGlyph = () => <NavGlyph><circle cx="12" cy="8" r="3.5" /><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" /></NavGlyph>;
+const ModerationGlyph = () => <NavGlyph><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></NavGlyph>;
+
+// Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label,
+// active = t.accent. Keeps tablist/tab/aria-selected semantics + focus rings.
+function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      style={{
+        flex: 1,
+        minHeight: 44,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2,
+        padding: "6px 4px",
+        background: "transparent",
+        border: "none",
+        borderRadius: 8,
+        cursor: "pointer",
+        color: active ? t.accent : t.textMuted,
+        fontSize: 11,
+        fontWeight: active ? 600 : 500,
+        position: "relative",
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      <span style={{ position: "relative", display: "inline-flex" }}>
+        {icon}
+        {badgeCount > 0 && (
+          <span
+            aria-label={`${badgeCount} unread`}
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -8,
+              background: t.accent,
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 700,
+              borderRadius: 10,
+              padding: "1px 5px",
+              lineHeight: 1.3,
+            }}
+          >
+            {badgeCount}
+          </span>
+        )}
+      </span>
+      {label}
     </button>
   );
 }
@@ -230,7 +308,7 @@ function VerifyResultBanner({ result, onDismiss }) {
     >
       <div
         style={{
-          maxWidth: 540,
+          maxWidth: t.layout.maxContent,
           margin: "0 auto",
           display: "flex",
           alignItems: "center",
@@ -291,7 +369,7 @@ function VerifyEmailBanner({ onDismiss }) {
     >
       <div
         style={{
-          maxWidth: 540,
+          maxWidth: t.layout.maxContent,
           margin: "0 auto",
           display: "flex",
           alignItems: "center",
@@ -354,6 +432,8 @@ function VerifyEmailBanner({ onDismiss }) {
 }
 
 export default function App() {
+  const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
+  const isMobile = viewport === "mobile";
   const [authed, setAuthed] = useState(() => isLoggedIn());
   const [authMessage, setAuthMessage] = useState("");
   // Unauthenticated flow: a new visitor sees the marketing LandingScreen first.
@@ -603,7 +683,7 @@ export default function App() {
             >
               <div
                 style={{
-                  maxWidth: 540,
+                  maxWidth: t.layout.maxContent,
                   margin: "0 auto",
                 }}
               >
@@ -648,45 +728,50 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Tab bar */}
-                <div
-                  role="tablist"
-                  aria-label="Main navigation"
-                  style={{
-                    display: "flex",
-                    borderBottom: `1px solid ${t.border}`,
-                    marginBottom: -1,
-                  }}
-                >
-                  <NavTab
-                    label="Discover"
-                    active={activeTab === "suggestions"}
-                    onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
-                  />
-                  <NavTab
-                    label="Matches"
-                    active={activeTab === "matches"}
-                    onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
-                  />
-                  <NavTab
-                    label="Messages"
-                    active={activeTab === "messages"}
-                    onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
-                    badgeCount={activeTab === "messages" ? 0 : unreadCount}
-                  />
-                  <NavTab
-                    label="Profile"
-                    active={activeTab === "profile"}
-                    onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
-                  />
-                  {isAdmin && (
+                {/* Top tab bar — tablet/desktop only. On mobile the primary
+                    nav moves to a fixed bottom bar (rendered below). The 4
+                    destinations are identical for every user; Moderation lives
+                    inside Profile now (not a peer tab). */}
+                {!isMobile && (
+                  <div
+                    role="tablist"
+                    aria-label="Main navigation"
+                    style={{
+                      display: "flex",
+                      borderBottom: `1px solid ${t.border}`,
+                      marginBottom: -1,
+                    }}
+                  >
                     <NavTab
-                      label={<><GearIcon size={15} /> Moderation</>}
-                      active={activeTab === "admin"}
-                      onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
+                      label="Discover"
+                      active={activeTab === "suggestions"}
+                      onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
                     />
-                  )}
-                </div>
+                    <NavTab
+                      label="Matches"
+                      active={activeTab === "matches"}
+                      onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
+                    />
+                    <NavTab
+                      label="Messages"
+                      active={activeTab === "messages"}
+                      onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
+                      badgeCount={activeTab === "messages" ? 0 : unreadCount}
+                    />
+                    <NavTab
+                      label="Profile"
+                      active={activeTab === "profile"}
+                      onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
+                    />
+                    {isAdmin && (
+                      <NavTab
+                        label="Moderation"
+                        active={activeTab === "admin"}
+                        onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </header>
 
@@ -707,6 +792,25 @@ export default function App() {
                 flexDirection: "column",
                 minHeight: 0,
                 overflow: activeTab === "messages" ? "hidden" : "auto",
+                // Mobile: full-bleed; clear the fixed bottom nav bar.
+                // Tablet/desktop: sit the content column inside a surface
+                // "panel" on the gradient — reads as an app, not a strip.
+                ...(isMobile
+                  ? { paddingBottom: 64 }
+                  : {
+                      background: t.surface,
+                      border: `1px solid ${t.border}`,
+                      borderRadius: 16,
+                      margin: "24px auto",
+                      width: "calc(100% - 48px)",
+                      // Messages on desktop hosts a 2-pane layout (list + thread)
+                      // so its panel is wider; every other screen caps at the
+                      // single content column.
+                      maxWidth:
+                        viewport === "desktop" && activeTab === "messages"
+                          ? 1080
+                          : t.layout.maxContent + 48,
+                    }),
               }}
             >
               {activeTab === "suggestions" && (
@@ -747,6 +851,8 @@ export default function App() {
                   pushSupported={pushSupported}
                   onEnablePush={enablePush}
                   onDisablePush={disablePush}
+                  isAdmin={isAdmin}
+                  onOpenModeration={() => { setPrevTab("profile"); setActiveTab("admin"); }}
                 />
               )}
               {activeTab === "admin" && isAdmin && <AdminScreen />}
@@ -760,6 +866,61 @@ export default function App() {
                 />
               )}
             </main>
+
+            {/* Mobile: fixed bottom tab bar — the primary nav. Same 4
+                destinations, same order, for every user. Safety/Settings stay
+                as the top-right header links above; Moderation lives in Profile. */}
+            {isMobile && (
+              <nav
+                role="tablist"
+                aria-label="Main navigation"
+                style={{
+                  position: "fixed",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  display: "flex",
+                  background: t.surface,
+                  borderTop: `1px solid ${t.border}`,
+                  paddingBottom: "env(safe-area-inset-bottom)",
+                  zIndex: 50,
+                }}
+              >
+                <BottomNavTab
+                  label="Discover"
+                  icon={<DiscoverGlyph />}
+                  active={activeTab === "suggestions"}
+                  onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
+                />
+                <BottomNavTab
+                  label="Matches"
+                  icon={<HeartIcon size={22} />}
+                  active={activeTab === "matches"}
+                  onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
+                />
+                <BottomNavTab
+                  label="Messages"
+                  icon={<MessagesGlyph />}
+                  active={activeTab === "messages"}
+                  onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
+                  badgeCount={activeTab === "messages" ? 0 : unreadCount}
+                />
+                <BottomNavTab
+                  label="Profile"
+                  icon={<ProfileGlyph />}
+                  active={activeTab === "profile"}
+                  onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
+                />
+                {isAdmin && (
+                  <BottomNavTab
+                    label="Moderation"
+                    icon={<ModerationGlyph />}
+                    active={activeTab === "admin"}
+                    onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
+                  />
+                )}
+              </nav>
+            )}
           </div>
         )
       }

@@ -79,7 +79,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
         boxSizing: "border-box",
       }}
     >
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: "20px 16px 48px" }}>
+      <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "20px 16px 48px" }}>
         {/* Back button — touch target fix + aria-label for accessible name */}
         <button
           type="button"
