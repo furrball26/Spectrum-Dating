@@ -14,7 +14,8 @@ export const DEFAULT_A11Y = {
   largerText: false,
   calmMode: false,
   theme: "light", // 'light' | 'dim'
-  plainLanguage: false, // shorter, more literal copy throughout the app
+  plainLanguage: false,   // shorter, more literal copy throughout the app
+  reducedSensory: false,  // hide decorative illustrations + flatten header mark
 };
 
 // Read + normalise the saved prefs. Always returns a full, well-typed object so
@@ -32,6 +33,7 @@ export function readA11y() {
       calmMode: !!parsed.calmMode,
       theme: parsed.theme === "dim" ? "dim" : "light",
       plainLanguage: !!parsed.plainLanguage,
+      reducedSensory: !!parsed.reducedSensory,
     };
   } catch {
     return { ...DEFAULT_A11Y };
@@ -279,8 +281,15 @@ export default function SettingsScreen({ onBack, onChange }) {
 
         <div style={cardStyle}>
           <ToggleRow
-            id="a11y-plain-language"
+            id="a11y-reduced-sensory"
             first
+            label="Low stimulation"
+            description="Hide decorative illustrations and use a quieter, flatter visual style."
+            checked={prefs.reducedSensory}
+            onChange={(v) => update("reducedSensory", v)}
+          />
+          <ToggleRow
+            id="a11y-plain-language"
             label="Plain language"
             description="Use shorter, more direct wording on buttons and messages."
             checked={prefs.plainLanguage}

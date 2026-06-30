@@ -240,7 +240,7 @@ function LikedYouSection({ people, onGoDiscover }) {
   );
 }
 
-export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActivityCount, plainLanguage = false }) {
+export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActivityCount, plainLanguage = false, reducedSensory = false }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -364,9 +364,11 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
               color: t.textSoft,
             }}
           >
-            <div style={{ marginBottom: 16 }}>
-              <EmptyMatches size={104} />
-            </div>
+            {!reducedSensory && (
+              <div style={{ marginBottom: 16 }}>
+                <EmptyMatches size={104} />
+              </div>
+            )}
             No matches yet. When you and someone both say you're interested in
             Discover, they'll appear here. Only people you've both matched with
             can message you.

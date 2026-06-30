@@ -15,6 +15,7 @@ import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, 
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
+import SpectrumMark from "./SpectrumMark.jsx";
 import { ShieldIcon, GearIcon, HeartIcon } from "./icons.jsx";
 
 function urlBase64ToUint8Array(base64String) {
@@ -301,7 +302,7 @@ function a11yWrapperStyle(prefs) {
   const style = {};
   if (prefs.highContrast) style.filter = "contrast(1.15)";
   if (prefs.largerText) style.zoom = 1.15;
-  if (prefs.calmMode) style.background = t.bg;
+  if (prefs.calmMode || prefs.reducedSensory) style.background = t.bg;
   return style;
 }
 
@@ -832,7 +833,9 @@ export default function App() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <AnimatedSpectrumMark height={14} />
+                    {a11y.reducedSensory
+                      ? <SpectrumMark height={14} />
+                      : <AnimatedSpectrumMark height={14} />}
                     <div
                       style={{
                         fontFamily: t.serif,
@@ -914,6 +917,7 @@ export default function App() {
                   onOpenMessages={() => setActiveTab("messages")}
                   onGoToProfile={() => setActiveTab("profile")}
                   plainLanguage={!!a11y.plainLanguage}
+                  reducedSensory={!!a11y.reducedSensory}
                 />
               )}
               {activeTab === "matches" && (
@@ -927,6 +931,7 @@ export default function App() {
                     setUnreadCount(0);
                   }}
                   plainLanguage={!!a11y.plainLanguage}
+                  reducedSensory={!!a11y.reducedSensory}
                 />
               )}
               {activeTab === "messages" && (

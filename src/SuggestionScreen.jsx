@@ -414,7 +414,7 @@ function ReportModal({ candidate, onClose }) {
   );
 }
 
-export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainLanguage = false }) {
+export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainLanguage = false, reducedSensory = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -672,9 +672,11 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainL
         <Header />
         <div style={shell}>
           <div style={card}>
-            <div style={{ marginBottom: 12 }}>
-              <AllCaughtUp size={110} />
-            </div>
+            {!reducedSensory && (
+              <div style={{ marginBottom: 12 }}>
+                <AllCaughtUp size={110} />
+              </div>
+            )}
             <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
               {plainLanguage ? "You've seen everyone." : "You're all caught up."}
             </h1>
@@ -937,6 +939,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainL
             (onOpenMessages || (() => {}))();
           }}
           onContinue={next}
+          plainLanguage={plainLanguage}
         />
       )}
 
