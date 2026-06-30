@@ -87,6 +87,7 @@ router.post('/register', authLimiter, async (req, res) => {
     userId,
     emailVerified: false,
     emailVerificationEnabled: emailConfigured(),
+    isAdmin: isAdminEmail(normalizedEmail),
   });
 });
 
