@@ -786,6 +786,7 @@ export default function ConversationScreen({
   const [reloadKey, setReloadKey] = useState(0);
   const [composeValue, setComposeValue] = useState("");
   const [sendStatus, setSendStatus] = useState("");
+  const [socketConnected, setSocketConnected] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const headerMenuAnchorRef = useRef(null);
@@ -859,8 +860,11 @@ export default function ConversationScreen({
     });
 
     socket.on("connect", () => {
+      setSocketConnected(true);
       socket.emit("join_conversation", { conversationId });
     });
+    socket.on("disconnect", () => setSocketConnected(false));
+    socket.on("connect_error", () => setSocketConnected(false));
 
     socket.on("new_message", (payload) => {
       // Server emits { conversationId, message: {...} }; tolerate a flat shape too.
@@ -1336,6 +1340,12 @@ export default function ConversationScreen({
           >
             Use Page Up and Page Down to scroll through messages.
           </p>
+
+          {!socketConnected && (
+            <div role="status" style={{ textAlign: "center", padding: "6px 12px", fontSize: 13, color: t.textMuted, background: t.surfaceAlt, borderBottom: `1px solid ${t.borderLight}` }}>
+              Reconnecting… new messages will appear once you're back online.
+            </div>
+          )}
 
           {/* A11y Blocker 1 — useFocusable() spread on log div (replaces outline: "none") */}
           <div

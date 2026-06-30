@@ -531,6 +531,19 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, [activeTab]);
 
+  // Offline awareness — a calm banner when the connection drops.
+  const [isOffline, setIsOffline] = useState(typeof navigator !== "undefined" && navigator.onLine === false);
+  useEffect(() => {
+    const goOnline = () => setIsOffline(false);
+    const goOffline = () => setIsOffline(true);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
   // When opening a chat from the Matches tab, this tells MessagingApp which
   // conversation to open on mount.
   const [pendingConversationId, setPendingConversationId] = useState(null);
@@ -722,6 +735,19 @@ export default function App() {
       <div role="status" aria-live="assertive" aria-atomic="true" style={srOnly}>
         {authMessage}
       </div>
+      {isOffline && (
+        <div
+          role="status"
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 300,
+            background: t.surfaceAlt, borderBottom: `2px solid ${t.warning}`,
+            color: t.text, textAlign: "center", padding: "8px 16px",
+            fontSize: 14, fontWeight: 600,
+          }}
+        >
+          You're offline — we'll reconnect automatically.
+        </div>
+      )}
       {resetToken ? (
         <ResetPasswordScreen
           token={resetToken}
