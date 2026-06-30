@@ -1,10 +1,18 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail } from '../middleware/admin.js';
+import { newId } from '../utils/ids.js';
 
 const router = Router();
 
 const RESOLVE_STATUSES = ['reviewed', 'actioned', 'dismissed'];
+
+// Append-only moderation audit log.
+function logMod(db, actorId, action, targetId, detail = '') {
+  db.prepare(
+    'INSERT INTO moderation_log (id, actor_id, action, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(newId(), actorId, action, targetId ?? null, detail, Date.now());
+}
 
 // ---------------------------------------------------------------------------
 // GET /admin/me — requireAuth only (NOT requireAdmin)
@@ -93,6 +101,7 @@ router.post('/reports/:id/resolve', requireAuth, requireAdmin, (req, res) => {
   db.prepare(
     'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ? WHERE id = ?'
   ).run(status, note ?? null, Date.now(), req.params.id);
+  logMod(db, req.ctx.userId, 'resolve_report', req.params.id, note ? `${status}: ${note}` : status);
 
   res.json({ ok: true, status });
 });
@@ -119,6 +128,7 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
   } else {
     db.prepare('UPDATE users SET suspended = 0 WHERE id = ?').run(req.params.id);
   }
+  logMod(db, req.ctx.userId, suspended ? 'suspend' : 'unsuspend', req.params.id);
 
   res.json({ ok: true, suspended });
 });
@@ -144,8 +154,28 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
   if (result.changes === 0) {
     return res.status(404).json({ error: 'Profile not found.' });
   }
+  logMod(db, req.ctx.userId, verified ? 'verify' : 'unverify', req.params.id);
 
   res.json({ ok: true, verified });
+});
+
+// ---------------------------------------------------------------------------
+// GET /admin/audit-log — recent moderation actions (newest first)
+// ---------------------------------------------------------------------------
+router.get('/audit-log', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const rows = db.prepare(`
+    SELECT m.id, m.action, m.target_id, m.detail, m.created_at,
+           u.email AS actor_email
+    FROM moderation_log m
+    LEFT JOIN users u ON u.id = m.actor_id
+    ORDER BY m.created_at DESC
+    LIMIT 200
+  `).all();
+  res.json({ log: rows.map(r => ({
+    id: r.id, action: r.action, targetId: r.target_id,
+    detail: r.detail, createdAt: r.created_at, actor: r.actor_email || 'unknown',
+  })) });
 });
 
 // ---------------------------------------------------------------------------
