@@ -204,8 +204,12 @@ export async function getConversations() {
   }));
 }
 
-export async function getConversation(id) {
-  return apiFetch(`/messaging/conversations/${id}`);
+export async function getConversation(id, { limit, before } = {}) {
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (before) params.set('before', before);
+  const qs = params.toString();
+  return apiFetch(`/messaging/conversations/${id}${qs ? `?${qs}` : ''}`);
 }
 
 export async function createConversation(matchId) {

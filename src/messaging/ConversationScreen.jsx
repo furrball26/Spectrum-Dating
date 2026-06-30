@@ -803,6 +803,13 @@ export default function ConversationScreen({
   // reactions: { [messageId]: { [emoji]: Set of userIds } }
   const [reactions, setReactions] = useState({});
 
+  // --- Message pagination state ---
+  const [hasMore, setHasMore] = useState(false);
+  const [oldestCursor, setOldestCursor] = useState(null);
+  const [isLoadingEarlier, setIsLoadingEarlier] = useState(false);
+  // When set, the scroll useEffect restores position instead of snapping to bottom.
+  const scrollRestorationRef = useRef(null);
+
   // --- Feature 2: Photo attachment state ---
   const fileInputRef = useRef(null);
   const attachButtonRef = useRef(null);
@@ -826,16 +833,20 @@ export default function ConversationScreen({
     headingRef.current?.focus();
   }, []);
 
-  // Load messages from API on mount (and on retry via reloadKey)
+  // Load messages from API on mount (and on retry via reloadKey).
+  // Fetches the most recent PAGE_SIZE messages; older messages are loaded on demand.
   useEffect(() => {
     setApiLoading(true);
     setApiError(null);
-    getConversation(conversationId)
+    getConversation(conversationId, { limit: 50 })
       .then(data => {
-        setMessages(data.messages || []);
+        const msgs = data.messages || [];
+        setMessages(msgs);
+        setHasMore(data.hasMore ?? false);
+        setOldestCursor(msgs.length > 0 ? msgs[0].id : null);
         // Hydrate reactions from server
         const rxMap = {};
-        (data.messages || []).forEach(msg => {
+        msgs.forEach(msg => {
           if (msg.reactions && msg.reactions.length > 0) {
             const emojiMap = {};
             msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
@@ -893,9 +904,15 @@ export default function ConversationScreen({
     };
   }, [conversationId, currentUserId]);
 
-  // Scroll log to bottom when messages change
+  // Scroll log to bottom when messages change, UNLESS we're prepending older
+  // messages — in that case restore the relative scroll position instead.
   useEffect(() => {
-    if (logRef.current) {
+    if (!logRef.current) return;
+    if (scrollRestorationRef.current !== null) {
+      const { prevScrollHeight } = scrollRestorationRef.current;
+      scrollRestorationRef.current = null;
+      logRef.current.scrollTop = logRef.current.scrollHeight - prevScrollHeight;
+    } else {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [messages]);
@@ -1170,6 +1187,41 @@ export default function ConversationScreen({
     if (onBack) onBack();
   }
 
+  async function handleLoadEarlier() {
+    if (!hasMore || isLoadingEarlier || !oldestCursor) return;
+    setIsLoadingEarlier(true);
+    try {
+      const data = await getConversation(conversationId, { limit: 50, before: oldestCursor });
+      const olderMsgs = data.messages || [];
+      if (olderMsgs.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      // Capture the current scroll height BEFORE prepending so we can restore
+      // relative position after React re-renders the longer list.
+      scrollRestorationRef.current = { prevScrollHeight: logRef.current?.scrollHeight ?? 0 };
+      setMessages(prev => [...olderMsgs, ...prev]);
+      setHasMore(data.hasMore ?? false);
+      setOldestCursor(olderMsgs.length > 0 ? olderMsgs[0].id : null);
+      // Hydrate reactions for the newly-loaded older messages
+      setReactions(prev => {
+        const rxMap = { ...prev };
+        olderMsgs.forEach(msg => {
+          if (msg.reactions && msg.reactions.length > 0) {
+            const emojiMap = {};
+            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
+            rxMap[msg.id] = emojiMap;
+          }
+        });
+        return rxMap;
+      });
+    } catch {
+      // Silently ignore — the button stays and the user can retry.
+    } finally {
+      setIsLoadingEarlier(false);
+    }
+  }
+
   if (apiLoading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: t.textSoft }}>Loading…</p></div>;
   if (apiError) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -1365,6 +1417,33 @@ export default function ConversationScreen({
               ...logFocus.style,
             }}
           >
+            {/* Load-earlier button — only shown when the server reports more pages */}
+            {hasMore && (
+              <div style={{ textAlign: "center", padding: "4px 0 8px" }}>
+                <button
+                  type="button"
+                  onClick={handleLoadEarlier}
+                  disabled={isLoadingEarlier}
+                  aria-busy={isLoadingEarlier}
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${t.border}`,
+                    borderRadius: 20,
+                    color: t.accent,
+                    padding: "6px 18px",
+                    fontSize: 14,
+                    cursor: isLoadingEarlier ? "default" : "pointer",
+                    opacity: isLoadingEarlier ? 0.6 : 1,
+                    fontFamily: t.sans,
+                    minHeight: 36,
+                    transition: "opacity 150ms ease",
+                  }}
+                >
+                  {isLoadingEarlier ? "Loading…" : "Load earlier messages"}
+                </button>
+              </div>
+            )}
+
             {grouped.map((item, i) => {
               if (item.type === "header") {
                 return (
