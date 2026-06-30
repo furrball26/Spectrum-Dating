@@ -1123,8 +1123,8 @@ export default function ConversationScreen({
     if (onBack) onBack();
   }
 
-  if (apiLoading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#4E5F58' }}>Loading…</p></div>;
-  if (apiError) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}><p role="alert" style={{ color: '#B94040', textAlign: 'center' }}>{apiError}</p></div>;
+  if (apiLoading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: t.textSoft }}>Loading…</p></div>;
+  if (apiError) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}><p role="alert" style={{ color: t.danger, textAlign: 'center' }}>{apiError}</p></div>;
 
   // Group messages by timeLabel for group headers
   const grouped = [];
