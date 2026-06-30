@@ -250,6 +250,42 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
           <p style={{ margin: "16px 0 0", fontSize: 14, color: t.textMuted }}>
             Free to join. Leave whenever you like.
           </p>
+
+          {/* Product glimpse — a calm discovery card (no faces) so visitors see
+              what they're joining. Decorative; the copy above conveys the brand. */}
+          <div aria-hidden="true" style={{ marginTop: 48, display: "flex", justifyContent: "center" }}>
+            <svg width="300" height="290" viewBox="0 0 300 290" xmlns="http://www.w3.org/2000/svg" role="img">
+              <defs>
+                <linearGradient id="heroAv" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor={t.green400} />
+                  <stop offset="100%" stopColor={t.teal} />
+                </linearGradient>
+              </defs>
+              {/* card peeking behind — suggests a calm, one-at-a-time deck */}
+              <rect x="48" y="40" width="216" height="222" rx="20" fill={t.surface} stroke={t.border} opacity="0.55" />
+              {/* front card */}
+              <rect x="28" y="30" width="240" height="232" rx="22" fill={t.surface} stroke={t.border} />
+              {/* avatar (gradient, no face) + name/tagline */}
+              <circle cx="74" cy="80" r="26" fill="url(#heroAv)" />
+              <rect x="112" y="66" width="116" height="13" rx="6.5" fill={t.green300} />
+              <rect x="112" y="88" width="84" height="9" rx="4.5" fill={t.borderLight} />
+              {/* verified pill */}
+              <rect x="204" y="64" width="44" height="16" rx="8" fill="none" stroke={t.positive} />
+              <path d="M212 72l3 3 6-6" fill="none" stroke={t.positive} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              {/* interest chips */}
+              <rect x="48" y="124" width="58" height="22" rx="11" fill={t.green50} stroke={t.green100} />
+              <rect x="114" y="124" width="48" height="22" rx="11" fill={t.green50} stroke={t.green100} />
+              <rect x="170" y="124" width="70" height="22" rx="11" fill={t.green50} stroke={t.green100} />
+              {/* two calm "why you're seeing them" rows */}
+              <circle cx="54" cy="170" r="3" fill={t.accent} />
+              <rect x="64" y="166" width="150" height="8" rx="4" fill={t.borderLight} />
+              <circle cx="54" cy="188" r="3" fill={t.accent} />
+              <rect x="64" y="184" width="120" height="8" rx="4" fill={t.borderLight} />
+              {/* calm primary action */}
+              <rect x="48" y="214" width="200" height="30" rx="12" fill={t.accentFill} />
+              <rect x="118" y="225" width="60" height="8" rx="4" fill={t.surface} opacity="0.9" />
+            </svg>
+          </div>
         </header>
 
         {/* ── What you won't find here (the "removed things" manifesto) ─── */}
