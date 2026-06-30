@@ -12,6 +12,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const viewerProfile = db.prepare(
     `SELECT relationship_goal, dist_city, wants_children, gender, seeking,
             db_wants_children, db_non_smoker, db_must_be_local, search_radius_miles,
+            pref_age_min, pref_age_max,
             sensory_environment, comm_cadence
      FROM profiles WHERE user_id = ?`
   ).get(viewerId);
@@ -26,6 +27,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
     db_non_smoker: !!viewerProfile?.db_non_smoker,
     db_must_be_local: !!viewerProfile?.db_must_be_local,
     search_radius_miles: viewerProfile?.search_radius_miles ?? 0,
+    pref_age_min: viewerProfile?.pref_age_min ?? 18,
+    pref_age_max: viewerProfile?.pref_age_max ?? 99,
     sensory_environment: viewerProfile?.sensory_environment ?? '',
     comm_cadence: viewerProfile?.comm_cadence ?? '',
   };
@@ -105,6 +108,13 @@ export function getCandidates(db, viewerId, viewerInterests) {
       const theirSeeking = (profile.seeking || '').split(',').map(s => s.trim()).filter(Boolean);
       if (theirSeeking.length > 0 && SEEKABLE.includes(viewer.gender) && !theirSeeking.includes(viewer.gender)) {
         return false; // I'm not a gender they're seeking (mutual)
+      }
+      // Age-range preference: hide candidates outside the viewer's chosen range.
+      // (Default 18–99 = no effect.) Unknown age can't happen — the 18+ gate
+      // above already requires a valid DOB.
+      const candAge = ageFromDob(profile.date_of_birth);
+      if (candAge !== null && (candAge < viewer.pref_age_min || candAge > viewer.pref_age_max)) {
+        return false;
       }
       // Non-smoker: exclude candidates whose smoking is known and not 'no'.
       if (viewer.db_non_smoker) {

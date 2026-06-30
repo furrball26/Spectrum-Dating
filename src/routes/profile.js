@@ -79,6 +79,8 @@ router.get('/me', requireAuth, (req, res) => {
     gender: profile.gender || '',
     pronouns: profile.pronouns || '',
     seeking: profile.seeking || '',
+    prefAgeMin: profile.pref_age_min ?? 18,
+    prefAgeMax: profile.pref_age_max ?? 99,
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     photos: listPhotos(db, userId),
@@ -145,6 +147,16 @@ router.put('/me', requireAuth, (req, res) => {
     if (!VALID_GENDERS.includes(body.gender)) {
       errors.push(`gender must be one of: ${VALID_GENDERS.filter(Boolean).join(', ')} (or empty).`);
     }
+  }
+  const validAge = (v) => Number.isInteger(v) && v >= 18 && v <= 99;
+  if (body.prefAgeMin !== undefined && !validAge(body.prefAgeMin)) {
+    errors.push('prefAgeMin must be an integer between 18 and 99.');
+  }
+  if (body.prefAgeMax !== undefined && !validAge(body.prefAgeMax)) {
+    errors.push('prefAgeMax must be an integer between 18 and 99.');
+  }
+  if (body.prefAgeMin !== undefined && body.prefAgeMax !== undefined && body.prefAgeMin > body.prefAgeMax) {
+    errors.push('prefAgeMin cannot be greater than prefAgeMax.');
   }
   if (body.pronouns !== undefined) {
     if (typeof body.pronouns !== 'string') errors.push('pronouns must be a string.');
@@ -262,6 +274,8 @@ router.put('/me', requireAuth, (req, res) => {
     gender: 'gender',
     pronouns: 'pronouns',
     seeking: 'seeking',
+    prefAgeMin: 'pref_age_min',
+    prefAgeMax: 'pref_age_max',
     notificationTier: 'notification_tier',
     dateOfBirth: 'date_of_birth',
     wantsChildren: 'wants_children',
@@ -338,6 +352,8 @@ router.put('/me', requireAuth, (req, res) => {
     gender: profile.gender || '',
     pronouns: profile.pronouns || '',
     seeking: profile.seeking || '',
+    prefAgeMin: profile.pref_age_min ?? 18,
+    prefAgeMax: profile.pref_age_max ?? 99,
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
     dateOfBirth: profile.date_of_birth || '',

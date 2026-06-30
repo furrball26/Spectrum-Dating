@@ -43,6 +43,7 @@ const MIGRATIONS = [
   '023_search_radius.sql',
   '024_gender_seeking.sql',
   '025_backfill_demo_gender.sql',
+  '026_age_pref.sql',
 ];
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a
