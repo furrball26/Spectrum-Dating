@@ -172,7 +172,8 @@ columns, a bare `ALTER TABLE ADD COLUMN` is fine — the runner tolerates re-run
 Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `004_reactions_photos` · `005_profile_photos` · `006_push_subscriptions` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
-`010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth`.
+`010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth` ·
+`013_backfill_demo_dob` · `014_dealbreakers`.
 
 ---
 
@@ -233,6 +234,45 @@ Spectrum Dating is **18+ only**. Enforced via a `date_of_birth` column on
   are filtered out and never surfaced; each candidate includes an `age` field.
 - Age is computed by the shared `ageFromDob(dob)` helper in `src/utils/time.js`
   (handles month/day correctly; returns `null` for missing/invalid dates).
+
+---
+
+## 6d. Lifestyle attributes + deal-breaker filters
+
+Structured lifestyle fields on `profiles` (migration `014_dealbreakers`, all
+`NOT NULL DEFAULT ''` / `DEFAULT 0`):
+
+| Column | Type | Allowed values |
+|--------|------|----------------|
+| `wants_children` | TEXT | `''` · `yes` · `no` · `open` |
+| `smoking` | TEXT | `''` · `no` · `sometimes` · `yes` |
+| `drinking` | TEXT | `''` · `no` · `sometimes` · `yes` |
+| `db_wants_children` | INTEGER (0/1) | viewer deal-breaker flag |
+| `db_non_smoker` | INTEGER (0/1) | viewer deal-breaker flag |
+| `db_must_be_local` | INTEGER (0/1) | viewer deal-breaker flag |
+
+**`PUT /profile/me`** accepts `wantsChildren`, `smoking`, `drinking` (validated
+against the enums above → **400** on invalid) and `dbWantsChildren`,
+`dbNonSmoker`, `dbMustBeLocal` (booleans in the request, coerced to 0/1).
+**`GET /profile/me`** returns the three strings plus the three flags as
+booleans (`!!profile.db_*`).
+
+**Deal-breaker matching** (`src/matching/candidates.js`): a viewer's *active*
+deal-breaker flags act as **exclusion filters** on the candidate list, applied
+on top of (not replacing) the existing 18+ / onboarding filters.
+
+> **"Unknown passes" — the key semantic.** A deal-breaker only excludes a
+> candidate on a **known conflict**. If the candidate hasn't set the relevant
+> attribute (empty/unknown), they **pass** the filter. Most profiles haven't
+> filled these in yet, so excluding unknowns would empty out Discover.
+
+- `db_must_be_local` (+ viewer `dist_city` set): exclude candidates whose
+  `dist_city` is set **and** not equal (case-insensitive, trimmed) to the
+  viewer's. Unknown city passes.
+- `db_non_smoker`: exclude candidates whose `smoking` is set **and** not `'no'`
+  (i.e. `'yes'`/`'sometimes'`). Unknown smoking passes.
+- `db_wants_children` (+ viewer `wants_children` set): exclude candidates whose
+  `wants_children` is set **and** differs from the viewer's. Unknown passes.
 
 ---
 

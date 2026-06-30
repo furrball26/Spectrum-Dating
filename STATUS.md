@@ -6,6 +6,33 @@ Rolling log of notable changes, newest first, grouped by role.
 
 ## Backend Dev
 
+### 2026-06-29 — Lifestyle attributes + hard deal-breaker filters
+- **Migration `014_dealbreakers`**: six new `profiles` columns — `wants_children`,
+  `smoking`, `drinking` (`TEXT NOT NULL DEFAULT ''`) and `db_wants_children`,
+  `db_non_smoker`, `db_must_be_local` (`INTEGER NOT NULL DEFAULT 0` deal-breaker
+  flags). Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner
+  tolerates re-runs).
+- **`PUT /profile/me`** (`src/routes/profile.js`): accepts the three strings
+  (validated — `wantsChildren` ∈ `''|yes|no|open`, `smoking`/`drinking` ∈
+  `''|no|sometimes|yes`, else **400**) and the three `db*` booleans (coerced to
+  0/1). Strings added to `fieldMap`; flags handled via a separate `boolFieldMap`.
+- **`GET /profile/me`** (and the `PUT` echo): returns `wantsChildren`, `smoking`,
+  `drinking` (strings) + `dbWantsChildren`, `dbNonSmoker`, `dbMustBeLocal`
+  (booleans via `!!profile.db_*`).
+- **Matching** (`src/matching/candidates.js`): selects the new columns for viewer
+  + candidates and applies the viewer's active deal-breakers as **exclusion**
+  filters. **"Unknown passes"** — only excludes on a KNOWN conflict (set, mismatched);
+  empty/unknown candidate values pass so Discover doesn't empty out. Local
+  (city, case/trim-insensitive), non-smoker (smoking set & ≠ `no`), wants-children
+  (set & ≠ viewer's). 18+ / onboarding filters left intact.
+- Verified filter logic locally (known-match + unknown pass; smoker/diff-city/
+  diff-kids/sometimes excluded; case+trim city match) on an in-memory DB, then
+  deployed via `npm run deploy` (health-gated, SHA 0de6f30). Confirmed `/health`
+  200 with new SHA; valid `{wantsChildren:'yes', smoking:'no', dbNonSmoker:true}`
+  persists + `GET` echoes; invalid enum (`smoking:'occasionally'`,
+  `wantsChildren:'maybe'`) → 400.
+- Updated `RUNBOOK.md` (new §6d, migrations list).
+
 ### 2026-06-29 — 18+ age gate (date of birth)
 - **Migration `012_date_of_birth`**: `profiles.date_of_birth TEXT NOT NULL
   DEFAULT ''`. Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner
