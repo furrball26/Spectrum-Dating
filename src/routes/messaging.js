@@ -218,7 +218,7 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
   if (tier === 'in_app') {
     pushPayload = {
       title: 'New message',
-      body: 'Someone sent you a message on Spectrum Dating.',
+      body: 'You have a new message.',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       tag: `conv-${req.params.id}`,

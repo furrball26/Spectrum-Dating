@@ -137,8 +137,8 @@ router.post('/swipe', requireAuth, async (req, res) => {
 
   // Async push — don't await, don't block response
   const matchPayload = {
-    title: 'New match! 💚',
-    body: "You've matched on Spectrum Dating.",
+    title: 'New match',
+    body: "You and someone both said yes. There's no rush to say hello.",
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: `match-${matchId}`,

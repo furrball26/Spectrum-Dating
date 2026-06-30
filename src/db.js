@@ -37,6 +37,7 @@ const MIGRATIONS = [
   '017_pause.sql',
   '018_richer_profile.sql',
   '019_profile_prompts.sql',
+  '020_feedback.sql',
 ];
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a

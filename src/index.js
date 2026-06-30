@@ -18,6 +18,7 @@ import startersRouter from './routes/starters.js';
 import pushRouter from './routes/push.js';
 import accountRouter from './routes/account.js';
 import adminRouter from './routes/admin.js';
+import feedbackRouter from './routes/feedback.js';
 import { configurePush } from './push/webpush.js';
 import { scheduleBackups } from './backup/scheduler.js';
 import { maybeResetPassword } from './maintenance/reset-password.js';
@@ -63,6 +64,7 @@ app.use('/starters', startersRouter);
 app.use('/push', pushRouter);
 app.use('/account', accountRouter);
 app.use('/admin', adminRouter);
+app.use('/feedback', feedbackRouter);
 
 // /health includes the deployed git SHA so the deploy script can confirm the
 // NEW build is live (not the old replica still serving during rollover).

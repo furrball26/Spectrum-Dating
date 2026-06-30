@@ -6,6 +6,38 @@ Rolling log of notable changes, newest first, grouped by role.
 
 ## Backend Dev
 
+### 2026-06-29 — Calm notification copy + always-on feedback endpoint
+- **Calm-notification policy (product #4).** Removed urgency/FOMO/emoji from push
+  copy. `src/routes/matching.js` new-match push: title `'New match! 💚'` →
+  `'New match'`, body → *"You and someone both said yes. There's no rush to say
+  hello."* `src/routes/messaging.js` message push: kept the tier logic
+  (`in_app`/`name_only`/`silent_push`/`none`) intact; `in_app` body is now the
+  plain `'You have a new message.'` (`name_only` "Sent you a message." and
+  `silent_push` empty body were already calm). Audited all notification/email copy
+  for emoji + urgency words ("waiting", countdowns, "reply now", etc.) — none
+  remained; email-verification "expires in 24 hours" is factual security copy and
+  stays; reaction emoji are user content, not notifications.
+- **Feedback endpoint (product #6).** **Migration `020_feedback`**: new `feedback`
+  table (`id`, `user_id` FK → `users` **ON DELETE SET NULL**, `message`,
+  `created_at`) + index `idx_feedback_created(created_at)`. Registered in
+  `src/db.js` (`CREATE TABLE/INDEX IF NOT EXISTS`, safe to re-run). New route
+  `src/routes/feedback.js` mounted at `/feedback` in `src/index.js`:
+  `POST /feedback` (`requireAuth`) — body `{ message }`, validated non-empty
+  string ≤ 2000 chars (→ **400**), inserts with `req.ctx.userId` + `newId()` +
+  `Date.now()`, returns `{ ok: true }`. Added `GET /admin/feedback`
+  (`requireAuth` + `requireAdmin`) to `src/routes/admin.js` → `{ feedback:
+  [{ id, userEmail, message, createdAt }] }` newest first (LEFT JOIN `users`,
+  `userEmail` null when the submitter was deleted).
+- Verified locally: all modified modules pass `node --check`; migration applies +
+  re-applies idempotently on a temp DB, and ON DELETE SET NULL nulls `user_id`
+  (LEFT JOIN email → null) after the user is deleted. Deployed via `npm run deploy`
+  (health-gated). Confirmed in production: `/health` 200 with new SHA;
+  `POST /feedback` with a valid message → `{ok:true}`; empty message and a
+  2001-char message → 400; `GET /admin/feedback` returns the documented shape,
+  401 without auth and 403 for a non-admin.
+- Updated `RUNBOOK.md` (new §6i feedback + §6j calm-notification policy, migrations
+  list incl. `019`/`020`).
+
 ### 2026-06-29 — Hinge-style profile prompts (catalog + answers)
 - **Migration `019_profile_prompts`**: new `profile_prompts` table (`id`,
   `user_id` FK → `users` ON DELETE CASCADE, `prompt_key`, `answer`, `position`,

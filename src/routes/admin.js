@@ -177,6 +177,31 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /admin/feedback — user-submitted feedback, newest first. LEFT JOIN users
+// for the submitter's email (null if the user was deleted — feedback.user_id is
+// ON DELETE SET NULL).
+// ---------------------------------------------------------------------------
+router.get('/feedback', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+
+  const rows = db.prepare(`
+    SELECT f.id, f.message, f.created_at, u.email AS user_email
+    FROM feedback f
+    LEFT JOIN users u ON u.id = f.user_id
+    ORDER BY f.created_at DESC
+  `).all();
+
+  const feedback = rows.map(r => ({
+    id: r.id,
+    userEmail: r.user_email || null,
+    message: r.message,
+    createdAt: r.created_at,
+  }));
+
+  res.json({ feedback });
+});
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

@@ -174,7 +174,8 @@ Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
 `010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth` ·
 `013_backfill_demo_dob` · `014_dealbreakers` · `015_verification` ·
-`016_backfill_demo_verified` · `017_pause` · `018_richer_profile`.
+`016_backfill_demo_verified` · `017_pause` · `018_richer_profile` ·
+`019_profile_prompts` · `020_feedback`.
 
 > **Data backfills go in their own file.** The runner skips an entire `.sql` file
 > wholesale once its `ALTER` has been applied (the `duplicate column name` catch
@@ -423,6 +424,47 @@ user; `GET /matching/candidates` includes `prompts` per candidate; and
 `GET /matching/matches` includes `prompts` on `otherUser`. (The candidate/match
 paths issue one small extra query per person via `listPrompts` — fine at current
 scale.)
+
+---
+
+## 6i. User feedback ("tell us what felt wrong")
+
+An always-on feedback channel so members can tell us what felt wrong, with no
+pressure. Stored in `feedback` (migration `020_feedback`):
+`id, user_id (FK → users, ON DELETE SET NULL), message, created_at`, indexed on
+`created_at`. **`user_id` is `SET NULL` on delete** — feedback survives account
+deletion (the message is still useful) but is de-identified.
+
+- `POST /feedback` (`requireAuth`) — body `{ message }`. `message` must be a
+  non-empty string **≤ 2000 chars** (→ **400** otherwise). Inserts with the
+  caller's `userId`, a fresh `newId()`, and `Date.now()`. Returns `{ ok: true }`.
+- `GET /admin/feedback` (`requireAuth` + `requireAdmin`) — returns
+  `{ feedback: [{ id, userEmail, message, createdAt }] }`, **newest first**.
+  `userEmail` comes from a LEFT JOIN on `users` and is **null** when the
+  submitter's account has since been deleted.
+
+---
+
+## 6j. Calm-notification policy
+
+Spectrum Dating's brand is **no pressure**. All push/notification copy must be
+**calm, emoji-free, and free of urgency/FOMO** — no "X is waiting", countdowns,
+"reply now", exclamation-driven hype, or emoji. Plain and reassuring only.
+
+Current notification copy (source of truth):
+- **New match** (`src/routes/matching.js`): title `'New match'`, body
+  *"You and someone both said yes. There's no rush to say hello."*
+- **New message** (`src/routes/messaging.js`) — **tier-aware** off
+  `profiles.notification_tier`, copy kept plain at every tier:
+  - `in_app` → title `'New message'`, body `'You have a new message.'`
+  - `name_only` → title = sender display name (or `'Someone'`), body
+    `'Sent you a message.'`
+  - `silent_push` → title `'Spectrum Dating'`, empty body.
+  - `none` (or anything else) → no push sent.
+
+> **Email verification copy is exempt** — "This link expires in 24 hours" is a
+> factual security detail, not urgency marketing, and stays. Reaction emoji
+> (`src/routes/reactions.js`) are user-chosen content, not notification copy.
 
 ---
 
