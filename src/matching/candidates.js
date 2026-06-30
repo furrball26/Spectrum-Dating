@@ -62,6 +62,10 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const getInterests = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?');
 
   const norm = (s) => (s || '').trim().toLowerCase();
+  // Location normaliser: drop a trailing ZIP/postal code so "Phoenix, AZ 85004"
+  // and "Phoenix, AZ 85013" compare as the SAME city. (Real geo/radius matching
+  // would be a larger feature; this at least makes city-level "local" work.)
+  const normLoc = (s) => norm(s).replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim();
 
   return allProfiles
     // 18+ gate: only surface candidates with a valid DOB yielding age >= 18.
@@ -75,8 +79,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
     // Discover).
     .filter(profile => {
       // Must be local: exclude candidates in a known, different city.
-      if (viewer.db_must_be_local && norm(viewer.dist_city) !== '') {
-        if (norm(profile.dist_city) !== '' && norm(profile.dist_city) !== norm(viewer.dist_city)) {
+      if (viewer.db_must_be_local && normLoc(viewer.dist_city) !== '') {
+        if (normLoc(profile.dist_city) !== '' && normLoc(profile.dist_city) !== normLoc(viewer.dist_city)) {
           return false;
         }
       }
