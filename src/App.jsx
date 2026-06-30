@@ -46,31 +46,17 @@ const SCREEN_NAMES = {
   settings: "Settings",
 };
 
-// Skip-to-content link — the first focusable element. Off-screen until focused,
-// then visible. Jumps focus to <main id="main-content"> past the header + nav.
+// Skip-to-content link — the first focusable element. Visibility is handled by
+// the `.skip-link` CSS class (off-screen until :focus), so it's robust to React
+// state timing. Jumps focus to <main id="main-content"> past the header + nav.
 function SkipLink() {
-  const [focused, setFocused] = useState(false);
   return (
     <a
       href="#main-content"
+      className="skip-link"
       onClick={(e) => {
         const main = document.getElementById("main-content");
         if (main) { e.preventDefault(); main.focus(); main.scrollIntoView(); }
-      }}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={{
-        position: "absolute",
-        left: focused ? 12 : -9999,
-        top: focused ? 12 : "auto",
-        zIndex: 200,
-        background: t.surface,
-        color: t.accentStrong,
-        border: `2px solid ${t.accentStrong}`,
-        borderRadius: 8,
-        padding: "10px 16px",
-        fontWeight: 600,
-        textDecoration: "none",
       }}
     >
       Skip to content

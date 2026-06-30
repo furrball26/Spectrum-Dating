@@ -116,6 +116,15 @@
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }
       html, body, #root { height: 100%; margin: 0; }
+      /* Skip-to-content link: off-screen until focused (bulletproof CSS :focus,
+         no JS state). Revealed top-left when a keyboard user tabs to it. */
+      .skip-link {
+        position: absolute; left: -9999px; top: auto; z-index: 200;
+        background: var(--c-surface, #fff); color: var(--c-accentStrong, #3E6660);
+        border: 2px solid var(--c-accentStrong, #3E6660); border-radius: 8px;
+        padding: 10px 16px; font-weight: 600; text-decoration: none;
+      }
+      .skip-link:focus { left: 12px; top: 12px; }
       body {
         background: var(--c-bg, #F4F5F2);
         font-family: 'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif;
