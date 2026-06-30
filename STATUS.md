@@ -1034,3 +1034,79 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Deploy:** Build clean (91 modules). Deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
 
 ~Auto Builder
+
+---
+
+## User Journey Tester (→ QA Analyst)
+
+### 2026-06-30 — Full-site sweep
+
+🔴 **CRITICAL — ESCALATE TO PM:** Deep-link / refresh on any `?tab=` URL is broken on cold load — every direct URL (e.g. `?tab=matches`, `?tab=messages`, `?tab=profile`) lands on Discover and silently rewrites the URL to `?tab=suggestions`. This breaks bookmarks, shared links, and **refresh-mid-flow** (refreshing while on Matches/Messages/Profile dumps the user back to Discover). Core navigation resilience is compromised. (See Dead Ends #1.)
+
+Tested live as the sample user `mira.k.1` and (read-only) as admin `ttitleman`. All core flows reachable and functional; one critical routing gap, no fully-stranded dead ends, two minor errors.
+
+---
+
+#### Dead Ends
+
+1. **Cold-load deep-link / refresh always lands on Discover** · `https://spectrum-dating-eta.vercel.app/?tab=<any>` (desktop; viewport-independent) · Repro: open a fresh tab and navigate directly to `?tab=matches` (or messages/profile/safety/settings), OR refresh the page while on any non-Discover tab. · Expected: app opens the requested tab. · Actual: app opens Discover and rewrites URL to `?tab=suggestions`; the requested tab is lost. · Suspected cause: `src/App.jsx:548` — `const [activeTab, setActiveTab] = useState("suggestions");` hardcodes the initial tab and never reads `?tab=` from the URL on mount. The sync effect (`App.jsx:580-590`) only pushes activeTab→URL; the popstate effect (`App.jsx:591-602`) only reads `?tab=` on Back/Forward, not on initial load. Fix: initialize `activeTab` from `new URLSearchParams(window.location.search).get("tab")` the same way `resetToken` is initialized at `App.jsx:553`. NOTE: in-app Back/Forward navigation works correctly — the gap is strictly the initial read.
+
+(No other dead ends found. Empty states all have escape routes: Discover "Done for now" → "See suggestions again" + bottom nav; Messages search no-match → clear (×) button; Archived conversations empty → "← Messages"; Moderation Open queue empty → "No open reports" with filter tabs + nav.)
+
+#### Bugs
+
+1. **Stale "Your session has expired" banner persists across all auth sub-views** · Sign-in / Reset-password / Create-account screens (desktop) · Repro: from a state where the token was cleared/expired, the banner "Your session has expired. Please sign in again." shows on the sign-in screen and remains visible after navigating to Forgot-password and Create-account sub-views, and after a successful forgot-password submit. · Expected: banner clears when switching auth sub-views or after an action. · Actual: banner is sticky across the whole auth flow. · Severity: minor/cosmetic. Suspected cause: auth-screen-level error/notice state not reset on sub-view change (AuthScreen.jsx).
+
+2. **Page `<title>` not updated on Forgot-password / Reset sub-views** · Sign-in flow (desktop) · Repro: click "Forgot password?" → document.title stays "Sign in · Spectrum" on the "Reset your password" view. · Expected: a reset-specific title. · Actual: title stuck on "Sign in · Spectrum". · Severity: trivial. (The title effect at `App.jsx:560-574` only distinguishes login vs register via `authMode`, not the forgot/reset sub-state.)
+
+3. **Landing-page footer has no Privacy/Terms links** · Landing page (logged-out, desktop) · The footer text references "Your safety & privacy come first" but there are zero clickable links in the footer (only "Skip to content" exists on the whole page). · Expected: privacy policy / terms links typical for a dating app handling PII. · Actual: none. · Severity: minor (possible compliance gap — flag to PM/legal).
+
+4. **`Larger text` a11y toggle relies on CSS `zoom`** · Settings (desktop) · The "Larger text" toggle applies `style.zoom = 1.15` on the app wrapper (`App.jsx:304`). `zoom` is non-standard and unsupported in Firefox — the feature silently no-ops there. · Severity: minor cross-browser. Functional in Chromium/Safari (verified working in Chrome: wrapper DIV gets zoom:1.15).
+
+#### Errors (console / network)
+
+1. **Uncaught `NotAllowedError` from Safety-Center "Copy" buttons when clipboard write rejects** · Safety Center → "What to say" Copy buttons (desktop) · Repro: click a "Copy" button when the document isn't focused / clipboard permission is denied. · Console logs: `NotAllowedError: Failed to execute 'writeText' on 'Clipboard': Document is not focused.` as an **uncaught exception** (4 instances captured). · Expected: the code's own graceful fallback ("Couldn't copy. You can select the text and copy it manually.") should run. · Actual: the rejection is never caught, so the fallback path is skipped and the error surfaces uncaught. · Suspected cause: `src/SafetyScreen.jsx:169-173` — `copyText()` does `await navigator.clipboard.writeText(text)` inside an `if` with no try/catch, so a rejected promise propagates instead of returning `false` to the `else` branch in `handleCopyScript` (`SafetyScreen.jsx:359-368`). Wrap the async clipboard write in try/catch and return false on rejection. · Severity: minor (edge case; main path works for focused real users).
+
+(No other console errors. No 4xx/5xx on any happy path — all observed API calls returned 2xx: auth/login 200 / 401-as-expected, auth/forgot-password 200, matching/swipe 200, matching/undo-skip 200, messaging GET/POST/DELETE/read 200/201, reactions POST 200, profile save 200, admin/stats + admin/reports 200. Invalid-login correctly returns 401 → "Invalid email or password.")
+
+#### Coverage
+
+- **Walked (desktop, logged-in as mira.k.1):** Landing (hero, both CTAs, skip link, footer); Auth (sign-in valid/invalid/empty-submit, forgot-password entry+submit, create-account reachability — NOT completed); Discover (skip via "Not right now", undo-skip restored, "Done for now" empty state + "See suggestions again" escape); Matches (list, avatar→profile modal closed via **Escape + click-outside + X button**, all three work); Messages (conversation list, open conversation, **send a test message + delete it**, **add 👍 reaction + remove it**, search/filter incl. no-match empty state, archived-conversations empty view, header avatar→profile modal + Escape close, conversation-options menu surfaced [Unmatch / Block & report / Archive — NOT triggered]); Profile editor (full field inventory; **edited tagline → saved → confirmed persisted on reload → restored to original**; age-range slider, search-radius select, location, lifestyle dropdowns, notifications, pause toggle [not flipped], identity-verified state; change-password client validation tested with too-short new pw → correctly blocked with NO network call, mira's password untouched); Settings (Warm-dim theme applied+reverted, Plain-language + Larger-text toggles applied+reverted, all device-local); Safety Center (meeting tips, Copy buttons, Share-plan form, Check-in timer); Resilience (browser Back/Forward across tabs — works; offline banner via offline/online events — works; cold-load deep-link — BROKEN, see Dead Ends #1).
+- **Walked (admin, ttitleman, read-only):** Moderation dashboard (stats 59 members / 0 suspended / 9 matches / 39 messages / 0 open reports; filter tabs Open/Reviewed/Actioned/Dismissed/All; report cards with reporter→reported, reason, timestamp, resolve-outcome dropdown, note field, Suspend button). Did NOT click Apply / Suspend / Unsuspend on any real user.
+- **Could NOT reach / verify:**
+  - **True mobile viewport (<600px):** the available browser tooling could not change the CSS viewport — `resize_window` resized the OS window but `window.innerWidth` stayed 1920, and no DevTools device-emulation was available. Mobile single-pane Messages vs desktop 2-pane could not be exercised live. Breakpoint logic verified by source (`src/useViewport.js`: mobile = <600px, listens to matchMedia change) and looks sound, but **a real mobile pass is still owed.**
+  - **Match-moment animation / mutual-like flow:** would require liking a profile that likes back (mutating match data); not triggered to avoid creating real matches.
+  - **Failed-send retry / "load earlier messages" pagination:** the one sample conversation was short (no pagination control appeared) and sends all succeeded, so the retry / pagination paths weren't observable.
+  - **Admin "audit log" / "feedback" views:** not present in the frontend — `src/AdminScreen.jsx` implements only Reports + suspend/unsuspend + stats. Either unimplemented or out of scope; flagged for PM confirmation.
+
+#### Sample data touched / restored
+
+- **Messages (mira ↔ Eli Brenner):** sent a message "QA test message - please ignore" → **deleted it** (leaves an inherent "Message deleted" tombstone, same as the feature's soft-delete; content gone). Added a 👍 reaction to a message → **removed it** (toggled back off). Net state restored aside from the soft-delete tombstone.
+- **Profile (mira):** changed tagline to "...night [QA]", saved, confirmed persisted, then **restored to original** "Botanist by day, stargazer by night" and re-verified on reload.
+- **Settings (mira):** toggled Warm-dim theme + Plain-language + Larger-text → **all reverted to defaults** (device-local only).
+- **Change password (mira):** submitted a too-short new password → blocked client-side with NO network call; fields cleared. **Password unchanged.**
+- **Auth:** triggered one forgot-password email to `mira.k.1@...` (neutral "if an account exists" response) and one to `nobody@example.com`. No account created.
+- **Admin:** logged in to walk Moderation read-only; **no moderation action applied** to any user.
+
+~User Journey Tester
+
+### 2026-06-30 — Backlog item #21: Profile photos in conversation list
+
+**What was built:** The Matches/Messages tab now shows the other user's profile photo in every conversation row instead of always falling back to the monogram. The frontend (`MatchesListScreen.jsx`) was already rendering `<Avatar photoUrl={otherUser.photoUrl} />` — the backend was the only missing piece.
+
+**Backend only** — no frontend changes needed.
+
+- **`Spectrum-Dating-Server/src/routes/messaging.js`**: Updated all three conversation-reading routes to SELECT `photo_url` (and `identity_verified` where missing) from `profiles`:
+  - `GET /conversations` (active list): `otherUser` now includes `photoUrl`, `verified`
+  - `GET /conversations/archived`: `otherUser` now includes `photoUrl`, `verified`
+  - `GET /conversations/:id` (single detail): `otherUser` now includes `photoUrl`, `verified`
+
+**Deploy:** Backend health-gated deploy ✅. Frontend already correct — no redeploy needed.
+
+### 2026-06-30 — Backlog items #22, #23, #24: Already done
+
+- **#22 Shared design token file** — `src/tokens.js` has been the single source of truth since an early session; all screens import from it.
+- **#23 City-name equality bonus** — `score.js` already implements `sameCity` (normalised lowercase equality, +2 to score) with `whyReasons` annotation "You're both in [city]".
+- **#24 Pagination on candidates endpoint** — `GET /matching/candidates` already accepts `?offset=N&limit=N` (max 20) and returns `X-Has-More` header. The comment in the route was outdated; implementation was complete.
+
+~Auto Builder
