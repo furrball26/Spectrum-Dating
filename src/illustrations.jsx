@@ -106,3 +106,47 @@ export function AllCaughtUp({ size = 112, color = "var(--c-accent, #5B8A82)", ac
     </Frame>
   );
 }
+
+// GenericError — a gently tilted rounded square with a calm "!" resting inside:
+// a quiet "something's off" glyph. No alarm, no faces; just slightly out-of-true.
+export function GenericError({ size = 112, color = "var(--c-accent, #5B8A82)", accent = "var(--c-clay, #C9A875)" }) {
+  return (
+    <Frame size={size}>
+      {/* Tilted rounded square */}
+      <rect
+        x="36"
+        y="36"
+        width="48"
+        height="48"
+        rx="12"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        transform="rotate(-8 60 60)"
+      />
+      {/* A quiet "!" laid out gently inside — never shouting */}
+      <path d="M60 50 v14" stroke={accent} strokeWidth={1.5} strokeLinecap="round" />
+      <circle cx="60" cy="72" r="2" fill={accent} />
+    </Frame>
+  );
+}
+
+// Offline — a soft cloud with a gentle gap below it: a calm "disconnected" motif.
+export function Offline({ size = 112, color = "var(--c-accent, #5B8A82)", accent = "var(--c-clay, #C9A875)" }) {
+  return (
+    <Frame size={size}>
+      {/* Cloud */}
+      <path
+        d="M42 70 a14 14 0 0 1 2 -27 a16 16 0 0 1 30 4 a11 11 0 0 1 2 23 z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Disconnected dashes drifting below — the "no signal" rest */}
+      <path d="M44 82 h10" stroke={accent} strokeWidth={1.5} strokeLinecap="round" opacity={0.7} />
+      <path d="M62 82 h6"  stroke={accent} strokeWidth={1.5} strokeLinecap="round" opacity={0.5} />
+      <path d="M74 82 h4"  stroke={accent} strokeWidth={1.5} strokeLinecap="round" opacity={0.35} />
+    </Frame>
+  );
+}

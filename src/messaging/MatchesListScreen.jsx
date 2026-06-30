@@ -4,6 +4,7 @@ import VerifiedBadge from "../VerifiedBadge.jsx";
 import Avatar from "../Avatar.jsx";
 import Skeleton from "../Skeleton.jsx";
 import { EmptyMessages } from "../illustrations.jsx";
+import ErrorState from "../ErrorState.jsx";
 
 const CONVERSATION_CAP = 5;
 const AVATAR_SIZE = 44;
@@ -206,6 +207,8 @@ function SectionList({ title, matches, onSelectConversation, showArchive, onArch
 export default function MatchesListScreen({
   conversations = [],
   loading = false,
+  loadFailed = false,
+  onRetry,
   onSelectConversation,
   statusMessage,
   onArchive,
@@ -215,6 +218,30 @@ export default function MatchesListScreen({
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
+
+  if (loadFailed) {
+    return (
+      <div style={{ maxWidth: 540, margin: "0 auto", padding: "24px 16px 48px" }}>
+        <h1
+          style={{
+            fontFamily: t.serif,
+            fontSize: 28,
+            fontWeight: 700,
+            margin: "0 0 24px",
+            color: t.text,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Your matches
+        </h1>
+        <ErrorState
+          title="Couldn't load your matches"
+          message="Something went wrong on our end. Please try again."
+          onRetry={onRetry}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

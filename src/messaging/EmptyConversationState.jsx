@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { getStarters } from "../api.js";
 import { t } from "../tokens.js";
+import { EmptyMessages } from "../illustrations.jsx";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
@@ -80,6 +81,9 @@ export default function EmptyConversationState({ displayName, conversationId, on
           boxShadow: "0 2px 8px rgba(36,51,45,0.07)",
         }}
       >
+        <div style={{ marginBottom: 16 }}>
+          <EmptyMessages size={96} />
+        </div>
         <h2
           style={{
             fontFamily: t.serif,

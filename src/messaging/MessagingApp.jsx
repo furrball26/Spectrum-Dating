@@ -13,9 +13,12 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
   const [matchesStatusMessage, setMatchesStatusMessage] = useState("");
   const [conversations, setConversations] = useState([]);
   const [loadingConvs, setLoadingConvs] = useState(true);
+  const [convsLoadFailed, setConvsLoadFailed] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    setLoadingConvs(true);
+    setConvsLoadFailed(false);
     getConversations()
       .then(data => {
         // Server returns { conversations: [...], activeCap, activeCount, capReached }
@@ -25,9 +28,11 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
           onUnreadCount(arr.filter(c => c.hasUnread).length);
         }
       })
-      .catch(() => {}) // silent — MatchesListScreen handles empty state
+      .catch(() => setConvsLoadFailed(true))
       .finally(() => setLoadingConvs(false));
   }, [refreshKey]);
+
+  const retryLoadConversations = () => setRefreshKey(k => k + 1);
 
   useEffect(() => {
     if (screen === "list") {
@@ -128,6 +133,8 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
         <MatchesListScreen
           conversations={conversations}
           loading={loadingConvs}
+          loadFailed={convsLoadFailed}
+          onRetry={retryLoadConversations}
           onSelectConversation={handleSelectConversation}
           statusMessage={matchesStatusMessage}
           onArchive={handleArchive}

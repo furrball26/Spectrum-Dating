@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getAdminStats, getAdminReports, resolveReport, suspendUser } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
+import ErrorState from "./ErrorState.jsx";
 
 // Calm placeholder cards shown while reports load.
 function ReportsSkeleton() {
@@ -486,7 +487,11 @@ export default function AdminScreen() {
         {loadingReports ? (
           <ReportsSkeleton />
         ) : error ? (
-          <p role="alert" style={{ color: t.danger }}>{error}</p>
+          <ErrorState
+            title="Couldn't load reports"
+            message="Something went wrong on our end. Please try again."
+            onRetry={refresh}
+          />
         ) : reports.length === 0 ? (
           <div
             style={{

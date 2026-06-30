@@ -4,6 +4,7 @@ import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import MatchMoment from "./MatchMoment.jsx";
+import { AllCaughtUp } from "./illustrations.jsx";
 
 // The current viewer's identity for the match moment — name/photo from the
 // cached profile, id from auth. Best-effort: the monogram avatar degrades
@@ -126,9 +127,11 @@ function InterestPills({ interests, viewerInterests }) {
 }
 
 // "How I communicate" — a tidy, low-stimulation row of chips for the moat
-// comms/sensory prefs, plus an optional "In their words" context card.
-// Only set values render; we intentionally skip the noisy "either"/"whenever"
-// values to keep a calm 2–4 chip row.
+// comms/sensory prefs. Only set values render; we intentionally skip the noisy
+// "either"/"whenever" values to keep a calm 2–4 chip row.
+// Note: the free-text "In their words" context card is intentionally NOT shown
+// here — it's withheld from non-matched strangers (the backend stops sending it
+// pre-match) and only appears post-match in Matches / profile.
 function commStyleChips(person) {
   const chips = [];
   if (person.commDirectness === "direct") chips.push("Direct");
@@ -152,75 +155,38 @@ function commStyleChips(person) {
 
 function CommStyleArea({ person }) {
   const chips = commStyleChips(person);
-  const hasContext = !!(person.contextCard && person.contextCard.trim());
-  if (chips.length === 0 && !hasContext) return null;
+  if (chips.length === 0) return null;
 
   return (
     <div style={{ marginTop: 0 }}>
-      {chips.length > 0 && (
-        <>
-          <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
-            How I communicate
-          </h2>
-          <ul
-            role="list"
-            aria-label="Communication and sensory preferences"
-            style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}
-          >
-            {chips.map((label) => (
-              <li
-                key={label}
-                role="listitem"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "5px 13px",
-                  borderRadius: 24,
-                  fontSize: 13,
-                  fontWeight: 400,
-                  background: t.surface,
-                  color: t.textSoft,
-                  border: `1px solid ${t.border}`,
-                }}
-              >
-                {label}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {hasContext && (
-        <div style={{ marginTop: chips.length > 0 ? 16 : 0 }}>
-          <h3
+      <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
+        How I communicate
+      </h2>
+      <ul
+        role="list"
+        aria-label="Communication and sensory preferences"
+        style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}
+      >
+        {chips.map((label) => (
+          <li
+            key={label}
+            role="listitem"
             style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: t.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              margin: "0 0 8px",
-            }}
-          >
-            In their words
-          </h3>
-          <blockquote
-            style={{
-              margin: 0,
-              padding: "10px 14px",
-              borderLeft: `3px solid ${t.accent}`,
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "5px 13px",
+              borderRadius: 24,
+              fontSize: 13,
+              fontWeight: 400,
               background: t.surface,
-              borderRadius: 8,
-              color: t.text,
-              fontSize: 15,
-              fontStyle: "italic",
-              lineHeight: 1.6,
+              color: t.textSoft,
+              border: `1px solid ${t.border}`,
             }}
           >
-            {person.contextCard}
-          </blockquote>
-        </div>
-      )}
+            {label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -697,6 +663,9 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
         <Header />
         <div style={shell}>
           <div style={card}>
+            <div style={{ marginBottom: 12 }}>
+              <AllCaughtUp size={110} />
+            </div>
             <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>No new suggestions right now.</h1>
             <p style={{ color: t.textSoft, marginBottom: 24 }}>
               We'll let you know when there are more people to see. There's nothing you need to do.
@@ -815,10 +784,10 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
               </ul>
             </div>
 
-            {/* How I communicate — moat comms/sensory prefs + context card.
-                Renders only when the candidate has set any of them. */}
-            {(commStyleChips(person).length > 0 ||
-              (person.contextCard && person.contextCard.trim())) && (
+            {/* How I communicate — moat comms/sensory prefs. The free-text
+                context card is withheld pre-match, so this renders only when the
+                candidate has set any comms/sensory prefs. */}
+            {commStyleChips(person).length > 0 && (
               <div style={{
                 ...card,
                 background: t.surfaceAlt,

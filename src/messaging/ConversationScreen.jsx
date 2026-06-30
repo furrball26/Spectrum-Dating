@@ -3,6 +3,7 @@ import EmptyConversationState from "./EmptyConversationState.jsx";
 import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, uploadIntent, confirmAttachment } from "../api.js";
 import { io } from "socket.io-client";
 import { t } from "../tokens.js";
+import ErrorState from "../ErrorState.jsx";
 
 // Advisory fix 2 — dynamic prefers-reduced-motion hook (replaces static snapshot)
 function usePrefersReduced() {
@@ -762,6 +763,7 @@ export default function ConversationScreen({
   const [messages, setMessages] = useState([]);
   const [apiLoading, setApiLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [composeValue, setComposeValue] = useState("");
   const [sendStatus, setSendStatus] = useState("");
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
@@ -803,8 +805,10 @@ export default function ConversationScreen({
     headingRef.current?.focus();
   }, []);
 
-  // Load messages from API on mount
+  // Load messages from API on mount (and on retry via reloadKey)
   useEffect(() => {
+    setApiLoading(true);
+    setApiError(null);
     getConversation(conversationId)
       .then(data => {
         setMessages(data.messages || []);
@@ -821,7 +825,7 @@ export default function ConversationScreen({
       })
       .catch(() => setApiError('Could not load messages. Please try again.'))
       .finally(() => setApiLoading(false));
-  }, [conversationId]);
+  }, [conversationId, reloadKey]);
 
   // socket.io real-time updates
   useEffect(() => {
@@ -1124,7 +1128,15 @@ export default function ConversationScreen({
   }
 
   if (apiLoading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: t.textSoft }}>Loading…</p></div>;
-  if (apiError) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}><p role="alert" style={{ color: t.danger, textAlign: 'center' }}>{apiError}</p></div>;
+  if (apiError) return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <ErrorState
+        title="Couldn't load messages"
+        message="Something went wrong on our end. Please try again."
+        onRetry={() => setReloadKey((k) => k + 1)}
+      />
+    </div>
+  );
 
   // Group messages by timeLabel for group headers
   const grouped = [];

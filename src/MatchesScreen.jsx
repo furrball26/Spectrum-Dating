@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
 import { getMatches, createConversation } from "./api.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
@@ -7,6 +7,7 @@ import Skeleton from "./Skeleton.jsx";
 import Button from "./Button.jsx";
 import Spectrum from "./Spectrum.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
+import ErrorState from "./ErrorState.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
 // conversations (Messages). Calm, low-pressure: no counters, no urgency.
@@ -151,6 +152,7 @@ function MatchCard({ match, busy, onOpen }) {
 export default function MatchesScreen({ onOpenConversation }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
   const headingRef = useRef(null);
@@ -159,12 +161,18 @@ export default function MatchesScreen({ onOpenConversation }) {
     headingRef.current?.focus();
   }, []);
 
-  useEffect(() => {
+  const loadMatches = useCallback(() => {
+    setLoading(true);
+    setLoadFailed(false);
     getMatches()
       .then(setMatches)
-      .catch(() => setError("Couldn't load your matches. Please try again."))
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadMatches();
+  }, [loadMatches]);
 
   async function handleOpen(match) {
     if (match.hasConversation && match.conversationId) {
@@ -223,6 +231,12 @@ export default function MatchesScreen({ onOpenConversation }) {
 
         {loading ? (
           <MatchesSkeleton />
+        ) : loadFailed ? (
+          <ErrorState
+            title="Couldn't load your matches"
+            message="Something went wrong on our end. Please try again."
+            onRetry={loadMatches}
+          />
         ) : matches.length === 0 ? (
           <div
             style={{
