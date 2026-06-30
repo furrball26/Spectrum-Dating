@@ -463,6 +463,75 @@ function VerifyEmailBanner({ onDismiss }) {
   );
 }
 
+// ── Inactivity warning banner (WCAG 2.2.1) ───────────────────────────────────
+// Fixed top banner shown when the user has been idle. Appears before the abrupt
+// 401 logout so the user can extend their session.
+function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const timeStr = mins > 0
+    ? `${mins}:${String(secs).padStart(2, "0")}`
+    : `${secs} sec${secs !== 1 ? "s" : ""}`;
+
+  function handleKey(e) {
+    if (e.key === "Escape") onStillHere();
+  }
+
+  return (
+    <div
+      role="alertdialog"
+      aria-modal="false"
+      aria-labelledby="inactivity-heading"
+      aria-describedby="inactivity-desc"
+      onKeyDown={handleKey}
+      style={{
+        position: "fixed",
+        top: 0, left: 0, right: 0,
+        zIndex: 200,
+        background: t.surface,
+        borderBottom: `3px solid ${t.accentFill}`,
+        boxShadow: "0 4px 20px rgba(36,51,45,0.18)",
+        padding: "14px 20px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <div>
+        <p id="inactivity-heading" style={{ margin: 0, fontWeight: 700, color: t.text, fontSize: 15 }}>
+          Still here?
+        </p>
+        <p id="inactivity-desc" style={{ margin: "3px 0 0", color: t.textSoft, fontSize: 14 }}>
+          You'll be signed out in{" "}
+          <strong style={{ color: t.text, fontVariantNumeric: "tabular-nums" }}>{timeStr}</strong>
+          {" "}due to inactivity.
+        </p>
+      </div>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={onStillHere}
+        style={{
+          minHeight: 44,
+          padding: "10px 20px",
+          borderRadius: 11,
+          border: "none",
+          background: t.accentFill,
+          color: "#fff",
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        I'm still here
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
   const isMobile = viewport === "mobile";
@@ -610,6 +679,80 @@ export default function App() {
     setAuthed(true);
   }, []);
 
+  // ── Inactivity warning (WCAG 2.2.1) ─────────────────────────────────────────
+  // After INACTIVITY_WARN_MS of no user input, show the banner + start a
+  // INACTIVITY_GRACE_S countdown. If the user doesn't respond, dispatch
+  // auth:expired ourselves (graceful logout). Any activity resets the timer
+  // (only while the warning is NOT showing — we don't want mouse moves to
+  // dismiss a mid-countdown banner silently).
+  const INACTIVITY_WARN_MS = 20 * 60 * 1000; // 20 min
+  const INACTIVITY_GRACE_S = 120;             // 2-min countdown
+
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const [inactivitySecondsLeft, setInactivitySecondsLeft] = useState(INACTIVITY_GRACE_S);
+  const inactivityTimerRef   = useRef(null);
+  const countdownIntervalRef = useRef(null);
+  const warningActiveRef     = useRef(false);
+  const scheduleWarningRef   = useRef(null);
+  const stillHereBtnRef      = useRef(null);
+
+  useEffect(() => {
+    if (!authed) {
+      clearTimeout(inactivityTimerRef.current);
+      clearInterval(countdownIntervalRef.current);
+      warningActiveRef.current = false;
+      setShowInactivityWarning(false);
+      return;
+    }
+
+    function startWarningCountdown() {
+      warningActiveRef.current = true;
+      setShowInactivityWarning(true);
+      setInactivitySecondsLeft(INACTIVITY_GRACE_S);
+      requestAnimationFrame(() => stillHereBtnRef.current?.focus());
+
+      clearInterval(countdownIntervalRef.current);
+      let s = INACTIVITY_GRACE_S;
+      countdownIntervalRef.current = setInterval(() => {
+        s -= 1;
+        setInactivitySecondsLeft(s);
+        if (s <= 0) {
+          clearInterval(countdownIntervalRef.current);
+          warningActiveRef.current = false;
+          setShowInactivityWarning(false);
+          window.dispatchEvent(new Event("auth:expired"));
+        }
+      }, 1000);
+    }
+
+    function scheduleWarning() {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = setTimeout(startWarningCountdown, INACTIVITY_WARN_MS);
+    }
+    scheduleWarningRef.current = scheduleWarning;
+
+    function onActivity() {
+      if (!warningActiveRef.current) scheduleWarning();
+    }
+
+    scheduleWarning();
+    const EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
+    EVENTS.forEach(ev => window.addEventListener(ev, onActivity, { passive: true }));
+    return () => {
+      clearTimeout(inactivityTimerRef.current);
+      clearInterval(countdownIntervalRef.current);
+      EVENTS.forEach(ev => window.removeEventListener(ev, onActivity));
+    };
+  }, [authed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleStillHere() {
+    clearInterval(countdownIntervalRef.current);
+    warningActiveRef.current = false;
+    setShowInactivityWarning(false);
+    setInactivitySecondsLeft(INACTIVITY_GRACE_S);
+    scheduleWarningRef.current?.();
+  }
+
   // Listen for token expiry from api.js — auto-logout on 401
   useEffect(() => {
     function handleExpired() {
@@ -751,6 +894,13 @@ export default function App() {
         >
           You're offline — we'll reconnect automatically.
         </div>
+      )}
+      {authed && showInactivityWarning && (
+        <InactivityWarningBanner
+          secondsLeft={inactivitySecondsLeft}
+          onStillHere={handleStillHere}
+          btnRef={stillHereBtnRef}
+        />
       )}
       {resetToken ? (
         <ResetPasswordScreen
