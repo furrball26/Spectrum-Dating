@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { abuseReportLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 
 const router = Router();
@@ -8,7 +9,7 @@ const router = Router();
 // POST /feedback — always-on "tell us what felt wrong" channel.
 // Body: { message }. Non-empty string, ≤ 2000 chars (400 otherwise).
 // ---------------------------------------------------------------------------
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, abuseReportLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { message } = req.body ?? {};
 

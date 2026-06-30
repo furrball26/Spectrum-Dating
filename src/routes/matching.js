@@ -1,5 +1,6 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { mutationLimiter } from '../middleware/rateLimits.js';
 import { getCandidates } from '../matching/candidates.js';
 import { listPrompts } from './profile.js';
 import { ageFromDob } from '../utils/time.js';
@@ -70,7 +71,7 @@ router.get('/candidates', requireAuth, (req, res) => {
 
 // POST /matching/swipe
 // Body: { candidateId: string, decision: 'like' | 'skip' }
-router.post('/swipe', requireAuth, async (req, res) => {
+router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
   const { db, userId } = req.ctx;
   const { candidateId, decision } = req.body ?? {};
 

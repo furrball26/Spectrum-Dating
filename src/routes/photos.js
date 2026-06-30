@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { mutationLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { r2Configured, getPresignedUploadUrl, getPublicUrl, deleteObject } from '../storage/r2.js';
 
@@ -54,7 +55,7 @@ function addGalleryPhoto(db, userId, key) {
 // POST /photos/profile-upload-url
 // Returns a presigned PUT URL for a profile photo upload, plus the key
 // ---------------------------------------------------------------------------
-router.post('/profile-upload-url', requireAuth, async (req, res) => {
+router.post('/profile-upload-url', requireAuth, mutationLimiter, async (req, res) => {
   if (!r2Configured()) {
     return res.status(503).json({ error: 'Photo storage not configured.' });
   }

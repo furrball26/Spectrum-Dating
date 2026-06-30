@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { mutationLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { isPushConfigured, sendPush } from '../push/webpush.js';
 
@@ -13,7 +14,7 @@ router.get('/vapid-public-key', (_req, res) => {
 });
 
 // POST /push/subscribe
-router.post('/subscribe', requireAuth, (req, res) => {
+router.post('/subscribe', requireAuth, mutationLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { endpoint, keys } = req.body ?? {};
   if (!endpoint || !keys?.p256dh || !keys?.auth) {

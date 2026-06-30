@@ -1,6 +1,7 @@
 ﻿import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth.js';
+import { abuseReportLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
 import { emitNewMessage, emitMessageDeleted, emitConversationArchived } from '../socket/emitters.js';
@@ -397,7 +398,7 @@ router.post('/conversations/:id/unarchive', requireAuth, (req, res) => {
 
 const VALID_REASONS = ['harassment', 'spam', 'fake_profile', 'other'];
 
-router.post('/block', requireAuth, (req, res) => {
+router.post('/block', requireAuth, abuseReportLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { blockedUserId, reason, details } = req.body;
 
@@ -465,7 +466,7 @@ router.delete('/blocked/:userId', requireAuth, (req, res) => {
 // SEPARATE from /block: a user can report without blocking and vice versa.
 // ---------------------------------------------------------------------------
 
-router.post('/report', requireAuth, (req, res) => {
+router.post('/report', requireAuth, abuseReportLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { reportedUserId, reason, details, conversationId } = req.body ?? {};
 
