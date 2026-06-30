@@ -648,6 +648,7 @@ export default function App() {
     setAuthed(false);
     setOnboarding(false);
     setUnreadCount(0);
+    setActivityCount(0);
     setIsAdmin(false);
     setShowAuth(false); // back to the landing page
     if (activeTab === "admin") setActiveTab("suggestions");
@@ -700,6 +701,8 @@ export default function App() {
 
   // Unread count — driven by live conversations list via onUnreadCount callback from MessagingApp
   const [unreadCount, setUnreadCount] = useState(0);
+  // Activity count — incoming likes from the activity inbox (drives the Matches tab badge)
+  const [activityCount, setActivityCount] = useState(0);
 
   // Ref so the socket effect can read the current tab without a stale closure
   const activeTabRef = useRef(activeTab);
@@ -914,6 +917,8 @@ export default function App() {
               )}
               {activeTab === "matches" && (
                 <MatchesScreen
+                  onGoDiscover={() => { setPrevTab("matches"); setActiveTab("suggestions"); }}
+                  onActivityCount={(n) => setActivityCount(n)}
                   onOpenConversation={(conversationId) => {
                     setPendingConversationId(conversationId);
                     setPrevTab("matches");
@@ -988,7 +993,8 @@ export default function App() {
                 label="Matches"
                 icon={<HeartIcon size={22} />}
                 active={activeTab === "matches"}
-                onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
+                onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); setActivityCount(0); }}
+                badgeCount={activeTab === "matches" ? 0 : activityCount}
               />
               <BottomNavTab
                 label="Messages"

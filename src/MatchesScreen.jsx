@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMatches, createConversation } from "./api.js";
+import { getMatches, createConversation, getActivity } from "./api.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
@@ -157,12 +157,97 @@ function MatchCard({ match, busy, onOpen }) {
   );
 }
 
-export default function MatchesScreen({ onOpenConversation }) {
+// ─── Liked-you section ────────────────────────────────────────────────────────
+
+// Small horizontal scroll of people who liked you (one-sided likes, no mutual match yet).
+// Tapping the avatar or "Go to Discover" button takes you back to the Discover deck
+// where they'll show up naturally in the candidate queue.
+function LikedYouSection({ people, onGoDiscover }) {
+  if (!people || people.length === 0) return null;
+  return (
+    <section aria-labelledby="liked-you-heading" style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <h2
+          id="liked-you-heading"
+          style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 600, color: t.text, margin: 0 }}
+        >
+          Liked you
+        </h2>
+        <span
+          aria-label={`${people.length} ${people.length === 1 ? "person" : "people"}`}
+          style={{
+            background: t.accentFill,
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            borderRadius: 10,
+            padding: "1px 8px",
+            lineHeight: 1.6,
+          }}
+        >
+          {people.length}
+        </span>
+      </div>
+      <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}>
+        {people.length === 1 ? "1 person has" : `${people.length} people have`} expressed interest.
+        Head to Discover to see them and decide at your own pace — no rush.
+      </p>
+      {/* Horizontal scroll row of liked-you avatars */}
+      <ul
+        aria-label="People who liked you"
+        style={{
+          display: "flex",
+          gap: 16,
+          overflowX: "auto",
+          padding: "4px 0 12px",
+          margin: 0,
+          listStyle: "none",
+          scrollbarWidth: "none",
+        }}
+      >
+        {people.map((person) => (
+          <li key={person.userId} style={{ flexShrink: 0, textAlign: "center", width: 72 }}>
+            <Avatar
+              name={person.displayName}
+              userId={person.userId}
+              photoUrl={person.photoUrl}
+              size={64}
+              style={{ margin: "0 auto 6px" }}
+            />
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: t.text,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: 72,
+              }}
+            >
+              {person.displayName || "Someone"}
+            </div>
+            {person.age && (
+              <div style={{ fontSize: 11, color: t.textMuted }}>{person.age}</div>
+            )}
+          </li>
+        ))}
+      </ul>
+      <Button variant="secondary" onClick={onGoDiscover} style={{ width: "100%" }}>
+        Go to Discover to meet them
+      </Button>
+    </section>
+  );
+}
+
+export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActivityCount }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  // Activity inbox — incoming likes (one-sided).
+  const [incomingLikes, setIncomingLikes] = useState([]);
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -181,6 +266,19 @@ export default function MatchesScreen({ onOpenConversation }) {
   useEffect(() => {
     loadMatches();
   }, [loadMatches]);
+
+  // Load activity inbox (incoming likes) — separate, best-effort
+  useEffect(() => {
+    let active = true;
+    getActivity()
+      .then(({ incomingLikes: likes }) => {
+        if (!active) return;
+        setIncomingLikes(likes);
+        if (onActivityCount) onActivityCount(likes.length);
+      })
+      .catch(() => { /* best-effort; no error UI for the inbox section */ });
+    return () => { active = false; };
+  }, [onActivityCount]);
 
   async function handleOpen(match) {
     if (match.hasConversation && match.conversationId) {
@@ -238,6 +336,9 @@ export default function MatchesScreen({ onOpenConversation }) {
           People you've both said yes to. Reach out whenever you're ready — there's no rush.
         </p>
 
+        {/* Activity inbox: people who liked you (one-sided) */}
+        <LikedYouSection people={incomingLikes} onGoDiscover={onGoDiscover} />
+
         {error && (
           <p role="alert" style={{ color: t.danger, fontSize: 14, marginBottom: 16 }}>
             {error}
@@ -271,16 +372,23 @@ export default function MatchesScreen({ onOpenConversation }) {
             can message you.
           </div>
         ) : (
-          <ul style={{ margin: 0, padding: 0 }}>
-            {matches.map((m) => (
-              <MatchCard
-                key={m.matchId}
-                match={m}
-                busy={busyId === m.matchId}
-                onOpen={handleOpen}
-              />
-            ))}
-          </ul>
+          <>
+            {matches.length > 0 && (
+              <h2 style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 600, color: t.text, margin: "0 0 14px" }}>
+                Your matches
+              </h2>
+            )}
+            <ul style={{ margin: 0, padding: 0 }}>
+              {matches.map((m) => (
+                <MatchCard
+                  key={m.matchId}
+                  match={m}
+                  busy={busyId === m.matchId}
+                  onOpen={handleOpen}
+                />
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>

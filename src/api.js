@@ -163,6 +163,15 @@ export async function swipe(candidateId, decision) {
 
 export async function undoSkip() { return apiFetch('/matching/undo-skip', { method: 'POST' }); }
 
+// Activity inbox — incoming likes + recent matches.
+export async function getActivity() {
+  const d = await apiFetch('/matching/activity');
+  return {
+    incomingLikes: Array.isArray(d?.incomingLikes) ? d.incomingLikes : [],
+    recentMatches: Array.isArray(d?.recentMatches) ? d.recentMatches : [],
+  };
+}
+
 export async function getMatches() {
   const data = await apiFetch("/matching/matches");
   return Array.isArray(data) ? data : (Array.isArray(data?.matches) ? data.matches : []);
