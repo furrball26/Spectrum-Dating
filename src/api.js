@@ -190,14 +190,7 @@ export async function unmatchConversation(matchId) {
 
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
-export async function getConversations() {
-  const data = await apiFetch("/messaging/conversations");
-  // Server returns { conversations: [...], activeCap, activeCount, capReached }
-  // Normalise to always return the array so callers don't need to know the shape.
-  const arr = Array.isArray(data) ? data : (Array.isArray(data?.conversations) ? data.conversations : []);
-  // Map server field names → the names the list UI reads. Server sends
-  // { lastMessageGroup, hasUnread } and omits `started`; the UI reads
-  // { lastMessageLabel, unread, started }.
+function normaliseConversationList(arr) {
   return arr.map(c => ({
     ...c,
     // The list UI keys/selects/archives on `conversationId`, but the server
@@ -207,6 +200,26 @@ export async function getConversations() {
     unread: c.unread ?? c.hasUnread ?? false,
     started: c.started ?? (c.lastMessageGroup != null),
   }));
+}
+
+export async function getConversations() {
+  const data = await apiFetch("/messaging/conversations");
+  // Server returns { conversations: [...], activeCap, activeCount, capReached, archivedCount }
+  const arr = Array.isArray(data) ? data : (Array.isArray(data?.conversations) ? data.conversations : []);
+  return {
+    conversations: normaliseConversationList(arr),
+    archivedCount: data?.archivedCount ?? 0,
+  };
+}
+
+export async function getArchivedConversations() {
+  const data = await apiFetch("/messaging/conversations/archived");
+  const arr = Array.isArray(data?.conversations) ? data.conversations : [];
+  return normaliseConversationList(arr);
+}
+
+export async function unarchiveConversation(conversationId) {
+  return apiFetch(`/messaging/conversations/${conversationId}/unarchive`, { method: 'POST' });
 }
 
 export async function getConversation(id, { limit, before } = {}) {

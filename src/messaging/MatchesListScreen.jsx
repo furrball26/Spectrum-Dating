@@ -45,10 +45,12 @@ function MatchesListSkeleton() {
   );
 }
 
-// Feature 3: MatchRow accepts showArchive and onArchive props
-function MatchRow({ match, onSelectConversation, showArchive, onArchive, selected }) {
+// MatchRow accepts showArchive/onArchive for active rows and
+// showUnarchive/onUnarchive for archived rows.
+function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUnarchive, onUnarchive, selected }) {
   const f = useFocusable();
   const fArchive = useFocusable();
+  const fRestore = useFocusable(); // for the unarchive / "Restore" button
   const { otherUser, lastMessageLabel, unread, started } = match;
   const ariaLabel = [
     `${otherUser.displayName}.`,
@@ -137,7 +139,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, selecte
           )}
         </button>
 
-        {/* Feature 3 — Archive button shown on active rows when cap reached */}
+        {/* Archive button shown on active rows when cap reached */}
         {showArchive && (
           <button
             type="button"
@@ -159,6 +161,31 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, selecte
             onBlur={fArchive.onBlur}
           >
             Archive
+          </button>
+        )}
+
+        {/* Restore button shown on archived rows */}
+        {showUnarchive && (
+          <button
+            type="button"
+            aria-label={`Restore conversation with ${otherUser.displayName}`}
+            onClick={() => onUnarchive && onUnarchive(match.conversationId)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: t.accent,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+              padding: "8px 16px",
+              minHeight: 44,
+              flexShrink: 0,
+              ...fRestore.style,
+            }}
+            onFocus={fRestore.onFocus}
+            onBlur={fRestore.onBlur}
+          >
+            Restore
           </button>
         )}
       </div>
@@ -207,7 +234,6 @@ function SectionList({ title, matches, onSelectConversation, showArchive, onArch
   );
 }
 
-// Feature 3: conversationCount prop and onArchive prop added
 export default function MatchesListScreen({
   conversations = [],
   loading = false,
@@ -218,9 +244,17 @@ export default function MatchesListScreen({
   onArchive,
   selectedConversationId = null,
   plainLanguage = false,
+  // ─── Archived view ─────────────────────────────────────────────────────────
+  showingArchived = false,
+  archivedConversations = [],
+  archivedLoading = false,
+  archivedCount = 0,
+  onToggleArchived,
+  onUnarchive,
 }) {
   const headingRef = useRef(null);
-  // Search filter — ALL hooks before any early return
+  // ALL hooks declared here — before any early return (including the archived
+  // view path below) so the hook order is always stable.
   const [query, setQuery] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
 
@@ -228,6 +262,106 @@ export default function MatchesListScreen({
     headingRef.current?.focus();
   }, []);
 
+  // ─── Archived view ───────────────────────────────────────────────────────────
+  // Returned before the active-load error/loading paths so those states don't
+  // bleed into the archived list experience.
+  if (showingArchived) {
+    return (
+      <div
+        style={{
+          minHeight: "100%",
+          background: t.bgGradient,
+          color: t.text,
+          fontFamily: t.sans,
+          fontSize: 17,
+          lineHeight: 1.65,
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "24px 16px 48px" }}>
+          {/* Back link */}
+          <button
+            type="button"
+            onClick={onToggleArchived}
+            aria-label="Back to active conversations"
+            style={{
+              background: "none",
+              border: "none",
+              color: t.accent,
+              fontSize: 15,
+              fontWeight: 500,
+              cursor: "pointer",
+              padding: "0 0 16px",
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            ← Messages
+          </button>
+
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            style={{
+              fontFamily: t.serif,
+              fontSize: 28,
+              fontWeight: 700,
+              margin: "0 0 20px",
+              color: t.text,
+              letterSpacing: "-0.01em",
+              outline: "none",
+            }}
+          >
+            Archived
+          </h1>
+
+          {archivedLoading ? (
+            <MatchesListSkeleton />
+          ) : archivedConversations.length === 0 ? (
+            <div style={{ textAlign: "center", marginTop: 48 }}>
+              <p style={{ color: t.textSoft, margin: 0, fontSize: 16 }}>
+                No archived conversations.
+              </p>
+              <p style={{ color: t.textMuted, margin: "8px 0 0", fontSize: 14 }}>
+                When you archive a conversation it will appear here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p style={{ color: t.textSoft, fontSize: 14, margin: "0 0 16px" }}>
+                Tap Restore to move a conversation back to your active list.
+              </p>
+              <ul
+                role="list"
+                style={{
+                  margin: 0,
+                  padding: 0,
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 14,
+                  overflow: "hidden",
+                }}
+              >
+                {archivedConversations.map((m) => (
+                  <MatchRow
+                    key={m.conversationId || m.matchId}
+                    match={m}
+                    onSelectConversation={onSelectConversation}
+                    showUnarchive
+                    onUnarchive={onUnarchive}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Active-load error / loading states ──────────────────────────────────────
   if (loadFailed) {
     return (
       <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "24px 16px 48px" }}>
@@ -494,6 +628,31 @@ export default function MatchesListScreen({
               </div>
             )}
           </>
+        )}
+
+        {/* Quiet link to archived conversations — always visible so users know
+            the feature exists; count shown when there are archived threads. */}
+        {onToggleArchived && (
+          <div style={{ textAlign: "center", marginTop: 32 }}>
+            <button
+              type="button"
+              onClick={onToggleArchived}
+              style={{
+                background: "none",
+                border: "none",
+                color: t.textMuted,
+                fontSize: 14,
+                cursor: "pointer",
+                padding: "8px 12px",
+                minHeight: 44,
+                borderRadius: 8,
+              }}
+            >
+              {archivedCount > 0
+                ? `Archived conversations (${archivedCount})`
+                : "Archived conversations"}
+            </button>
+          </div>
         )}
       </div>
     </div>

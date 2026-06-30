@@ -3,7 +3,7 @@ import MatchesListScreen from "./MatchesListScreen.jsx";
 import ConversationScreen from "./ConversationScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
-import { getConversations, archiveConversation, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation } from "../api.js";
+import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation } from "../api.js";
 import { t } from "../tokens.js";
 import { useViewport } from "../useViewport.js";
 
@@ -19,15 +19,19 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [convsLoadFailed, setConvsLoadFailed] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // ─── Archived view ───────────────────────────────────────────────────────────
+  const [showingArchived, setShowingArchived] = useState(false);
+  const [archivedConversations, setArchivedConversations] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedCount, setArchivedCount] = useState(0);
 
   useEffect(() => {
     setLoadingConvs(true);
     setConvsLoadFailed(false);
     getConversations()
-      .then(data => {
-        // Server returns { conversations: [...], activeCap, activeCount, capReached }
-        const arr = Array.isArray(data) ? data : (Array.isArray(data?.conversations) ? data.conversations : []);
+      .then(({ conversations: arr, archivedCount: count }) => {
         setConversations(arr);
+        setArchivedCount(count);
         if (onUnreadCount) {
           onUnreadCount(arr.filter(c => c.hasUnread).length);
         }
@@ -59,7 +63,34 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
     }
   }, [initialConversationId, conversations]);
 
-  const currentConvo = conversations.find(c => c.id === selectedConversationId) || null;
+  // Look up the selected conversation in both the active and archived lists so
+  // a user can open and read an archived thread after navigating to it.
+  const currentConvo =
+    conversations.find(c => c.id === selectedConversationId) ||
+    archivedConversations.find(c => c.id === selectedConversationId) ||
+    null;
+
+  function handleToggleArchived() {
+    if (!showingArchived) {
+      // Load archived conversations on first open (and every subsequent open so
+      // the list stays fresh after unarchiving).
+      setArchivedLoading(true);
+      getArchivedConversations()
+        .then(arr => setArchivedConversations(arr))
+        .catch(() => {}) // non-fatal — show empty state
+        .finally(() => setArchivedLoading(false));
+    }
+    setShowingArchived(prev => !prev);
+  }
+
+  async function handleUnarchive(conversationId) {
+    try { await unarchiveConversation(conversationId); } catch {}
+    // Remove from the archived list immediately
+    setArchivedConversations(prev => prev.filter(c => c.id !== conversationId));
+    setArchivedCount(prev => Math.max(0, prev - 1));
+    // Refresh the active list so the restored conversation appears
+    setRefreshKey(k => k + 1);
+  }
 
   function handleSelectConversation(conversationId) {
     setSelectedConversationId(conversationId);
@@ -136,6 +167,12 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
       conversationCount={conversations.filter(c => c.started).length}
       selectedConversationId={isDesktop ? selectedConversationId : null}
       plainLanguage={plainLanguage}
+      showingArchived={showingArchived}
+      archivedConversations={archivedConversations}
+      archivedLoading={archivedLoading}
+      archivedCount={archivedCount}
+      onToggleArchived={handleToggleArchived}
+      onUnarchive={handleUnarchive}
     />
   );
 
