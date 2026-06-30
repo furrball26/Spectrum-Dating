@@ -28,6 +28,7 @@ const MIGRATIONS = [
   '008_read_cursors.sql',
   '009_email_verification.sql',
   '010_moderation.sql',
+  '011_profile_photos_gallery.sql',
 ];
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a

@@ -8,6 +8,47 @@ const router = Router();
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MIME_TO_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_PHOTOS = 6;
+
+// Serialize a user's gallery, ordered by position.
+export function listPhotos(db, userId) {
+  const rows = db.prepare('SELECT id, url, is_primary, position FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC').all(userId);
+  return rows.map(r => ({ id: r.id, url: r.url, isPrimary: !!r.is_primary, position: r.position }));
+}
+
+// Shared "add a gallery photo" logic used by /profile-add and /profile-confirm.
+// Returns { ok: true, photos } on success, or { ok: false, status, error }.
+function addGalleryPhoto(db, userId, key) {
+  if (!key || typeof key !== 'string') {
+    return { ok: false, status: 400, error: 'key is required.' };
+  }
+  if (!key.startsWith(`profile-photos/${userId}/`)) {
+    return { ok: false, status: 403, error: 'Forbidden.' };
+  }
+
+  const count = db.prepare('SELECT COUNT(*) AS n FROM profile_photos WHERE user_id = ?').get(userId).n;
+  if (count >= MAX_PHOTOS) {
+    return { ok: false, status: 409, error: `You can have at most ${MAX_PHOTOS} photos.` };
+  }
+
+  const url = r2Configured() ? getPublicUrl(key) : key;
+  const isFirst = count === 0;
+  const nextPosRow = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM profile_photos WHERE user_id = ?').get(userId);
+  const position = nextPosRow.pos;
+  const now = Date.now();
+
+  db.transaction(() => {
+    db.prepare(
+      'INSERT INTO profile_photos (id, user_id, storage_key, url, position, is_primary, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(newId(), userId, key, url, position, isFirst ? 1 : 0, now);
+
+    if (isFirst) {
+      db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run(url, now, userId);
+    }
+  })();
+
+  return { ok: true, photos: listPhotos(db, userId) };
+}
 
 // ---------------------------------------------------------------------------
 // POST /photos/profile-upload-url
@@ -33,35 +74,91 @@ router.post('/profile-upload-url', requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /photos/profile-confirm
-// After browser uploads to R2, call this to save the photo URL to profile
+// POST /photos/profile-confirm  (backward-compat)
+// After browser uploads to R2, call this to add the photo to the gallery.
+// Adds via the shared gallery logic (first photo becomes primary and mirrors
+// to profiles.photo_url). Returns the legacy { photoUrl } shape plus { photos }.
 // ---------------------------------------------------------------------------
 router.post('/profile-confirm', requireAuth, async (req, res) => {
   const { db, userId } = req.ctx;
   const { key } = req.body;
-  if (!key || typeof key !== 'string') {
-    return res.status(400).json({ error: 'key is required.' });
-  }
-  // Validate key belongs to this user
-  if (!key.startsWith(`profile-photos/${userId}/`)) {
-    return res.status(403).json({ error: 'Forbidden.' });
-  }
-  const publicUrl = getPublicUrl(key);
 
-  // Get old photo key to delete
-  const profile = db.prepare('SELECT photo_url FROM profiles WHERE user_id = ?').get(userId);
-  const oldUrl = profile?.photo_url || '';
-
-  db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?')
-    .run(publicUrl, Date.now(), userId);
-
-  // Delete old photo from R2 (best-effort, don't fail request if it errors)
-  if (oldUrl && oldUrl !== publicUrl) {
-    const oldKey = oldUrl.replace(getPublicUrl(''), '').replace(/^\//, '');
-    if (oldKey) deleteObject(oldKey).catch(() => {});
+  const result = addGalleryPhoto(db, userId, key);
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error });
   }
 
-  res.json({ photoUrl: publicUrl });
+  const primary = result.photos.find(p => p.isPrimary);
+  res.json({ photoUrl: primary ? primary.url : (r2Configured() ? getPublicUrl(key) : key), photos: result.photos });
+});
+
+// ---------------------------------------------------------------------------
+// POST /photos/profile-add  — body { key }
+// Add a photo to the user's gallery (max 6). First photo becomes primary.
+// ---------------------------------------------------------------------------
+router.post('/profile-add', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const result = addGalleryPhoto(db, userId, req.body?.key);
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error });
+  }
+  res.json({ photos: result.photos });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /photos/profile-photos/:id/primary  — mark a photo primary
+// ---------------------------------------------------------------------------
+router.put('/profile-photos/:id/primary', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const photo = db.prepare('SELECT id, url FROM profile_photos WHERE id = ? AND user_id = ?').get(req.params.id, userId);
+  if (!photo) {
+    return res.status(404).json({ error: 'Photo not found.' });
+  }
+
+  const now = Date.now();
+  db.transaction(() => {
+    db.prepare('UPDATE profile_photos SET is_primary = 0 WHERE user_id = ?').run(userId);
+    db.prepare('UPDATE profile_photos SET is_primary = 1 WHERE id = ?').run(photo.id);
+    db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run(photo.url, now, userId);
+  })();
+
+  res.json({ photos: listPhotos(db, userId) });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /photos/profile-photos/:id  — remove a photo
+// Promotes the lowest-position remaining photo to primary if needed.
+// ---------------------------------------------------------------------------
+router.delete('/profile-photos/:id', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const photo = db.prepare('SELECT id, storage_key, is_primary FROM profile_photos WHERE id = ? AND user_id = ?').get(req.params.id, userId);
+  if (!photo) {
+    return res.status(404).json({ error: 'Photo not found.' });
+  }
+
+  const now = Date.now();
+  db.transaction(() => {
+    db.prepare('DELETE FROM profile_photos WHERE id = ?').run(photo.id);
+
+    if (photo.is_primary) {
+      const next = db.prepare(
+        'SELECT id, url FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC LIMIT 1'
+      ).get(userId);
+      if (next) {
+        db.prepare('UPDATE profile_photos SET is_primary = 1 WHERE id = ?').run(next.id);
+        db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run(next.url, now, userId);
+      } else {
+        db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run('', now, userId);
+      }
+    }
+  })();
+
+  // Best-effort delete from R2 (skip empty/legacy keys).
+  if (photo.storage_key) {
+    deleteObject(photo.storage_key).catch(() => {});
+  }
+
+  res.json({ photos: listPhotos(db, userId) });
 });
 
 // ---------------------------------------------------------------------------

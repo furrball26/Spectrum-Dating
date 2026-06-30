@@ -172,7 +172,47 @@ columns, a bare `ALTER TABLE ADD COLUMN` is fine — the runner tolerates re-run
 Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `004_reactions_photos` · `005_profile_photos` · `006_push_subscriptions` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
-`010_moderation`.
+`010_moderation` · `011_profile_photos_gallery`.
+
+---
+
+## 6b. Profile photos — multi-photo gallery
+
+Users can have up to **6** profile photos, one marked **primary**.
+
+**Schema** — `profile_photos` table (migration `011_profile_photos_gallery`):
+`id, user_id (FK → users, ON DELETE CASCADE), storage_key, url, position,
+is_primary, created_at`. Indexed on `(user_id, position)`. The migration
+**backfills** each user's existing `profiles.photo_url` as a single primary
+gallery row (`<userId>-legacy`, empty `storage_key`); the `NOT EXISTS` guard
+keeps the `INSERT ... SELECT` idempotent across boots.
+
+**The primary photo mirrors to `profiles.photo_url`** — that column is still
+what match cards / candidates display, so legacy read paths are untouched.
+
+**Endpoints** (`src/routes/photos.js`, all `requireAuth`, key format
+`profile-photos/<userId>/<id>.<ext>`):
+- `POST /photos/profile-upload-url` — body `{ mimeType }` → `{ uploadUrl, key, publicUrl }` (presigned PUT). Unchanged.
+- `POST /photos/profile-add` — body `{ key }`. Adds a gallery photo at the next
+  position. **409** if already at 6. First photo becomes primary and sets
+  `profiles.photo_url`. Returns `{ photos: [...] }`.
+- `PUT /photos/profile-photos/:id/primary` — marks that photo primary (others
+  off) and mirrors its url to `profiles.photo_url`. **404** if not owned.
+  Returns `{ photos: [...] }`.
+- `DELETE /photos/profile-photos/:id` — deletes (ownership-checked); best-effort
+  R2 `deleteObject` when `storage_key` is non-empty. If the deleted photo was
+  primary, promotes the lowest-`position` remaining photo (or clears
+  `photo_url` if none remain). Returns `{ photos: [...] }`.
+- `POST /photos/profile-confirm` — **backward-compat**: now routes through the
+  same add logic (adds the photo, sets primary if first). Returns the legacy
+  `{ photoUrl }` plus `{ photos }`.
+
+Photo serialization (ordered by `position`): `{ id, url, isPrimary, position }`.
+`GET /profile/me` now includes a `photos` array (plus the existing `photoUrl`).
+
+All endpoints still **503 gracefully** when R2 isn't configured (presign only);
+add/primary/delete work regardless — when R2 is unset, `url` falls back to the
+raw key.
 
 ---
 

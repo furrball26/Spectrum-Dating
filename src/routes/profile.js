@@ -2,6 +2,7 @@
 import { requireAuth } from '../middleware/auth.js';
 import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
+import { listPhotos } from './photos.js';
 
 const router = Router();
 
@@ -38,6 +39,7 @@ router.get('/me', requireAuth, (req, res) => {
     distCity: profile.dist_city,
     notificationTier: profile.notification_tier,
     photoUrl: profile.photo_url || '',
+    photos: listPhotos(db, userId),
     interests,
     onboardingComplete,
     emailVerified: !!userRow?.email_verified,
