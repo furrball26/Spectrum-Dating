@@ -53,7 +53,7 @@ function activeConvoCount(db, userId) {
 router.get('/conversations', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
   const rows = db.prepare(`
-    SELECT c.id, c.user_a_id, c.user_b_id,
+    SELECT c.id, c.match_id, c.user_a_id, c.user_b_id,
            c.last_read_at_a, c.last_read_at_b,
            m.sent_at as last_sent_at, m.sender_id as last_sender_id
     FROM conversations c
@@ -73,6 +73,7 @@ router.get('/conversations', requireAuth, (req, res) => {
     const hasUnread = !!(row.last_sent_at && row.last_sender_id !== userId && row.last_sent_at > lastReadAt);
     return {
       id: row.id,
+      matchId: row.match_id,
       otherUser: { userId: otherId, displayName: otherProfile?.display_name || '' },
       lastMessageGroup: row.last_sent_at ? coarseLabel(row.last_sent_at) : null,
       hasUnread,
