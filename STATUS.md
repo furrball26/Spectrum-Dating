@@ -729,3 +729,21 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Verification:** `curl` confirmed all four key strings present in live bundle `index-BQMHF8p8.js`: "You're a match", "Send a message when you're ready", "Starter ideas", "Click a conversation to open". ✅
 
 ~Auto Builder
+
+### 2026-06-30 — Backlog item #8: Preview my profile as others see it
+
+**What was built:** A read-only card preview of the user's own profile, showing exactly how it appears to candidates on Discover — launched from a "Preview my card" button in the ProfileScreen heading row.
+
+**Frontend only** (`src/ProfileScreen.jsx`):
+- New `showPreview` state declared alongside the other hooks, before the loading/error early returns (no hook-after-return).
+- New `ProfilePreviewModal` component (defined before `ProfileScreen`, ~260 lines): a full-screen scrollable dialog (`role="dialog"`, `aria-modal`, heading focused on open, Escape key closes, dim backdrop click closes). Content mirrors the SuggestionScreen candidate card layout exactly: hero photo (primary from gallery) or gradient-monogram avatar fallback; name / pronouns / verified badge / tagline; bio; communication note; interests chips; comms & sensory chips (inlined — no cross-file import); context card (labelled "visible to your matches only" to set expectations); Hinge-style prompt answers with catalog text. No new API calls — renders from live state already in memory. Empty/missing fields shown with calm italic placeholders ("No bio yet — add one…") so users know what's still blank.
+- "Preview my card" button added to the heading row (right-aligned, `aria-haspopup="dialog"`, 36px min-height, secondary outline style). The heading row is now a flex row with `justifyContent: space-between` holding the h1+badge group on the left and the button on the right.
+- Footer note in the modal: "This is the card other members see on Discover. Your search preferences and private settings are never shared."
+
+**Files touched:** `src/ProfileScreen.jsx`
+
+**Deploy:** `npm run build` clean (91 modules — +1 for the new component). Deployed to Vercel (`spectrum-dating-fxgyp6hgs-spectrum-dating.vercel.app`); alias manually re-pointed to `spectrum-dating-eta.vercel.app`. ✅
+
+**Verification:** `curl` confirmed all key strings present in live bundle `index-4kLMlmdw.js`: "Preview my card", "How others see you", "preview-modal-heading", "visible to your matches". ✅
+
+~Auto Builder
