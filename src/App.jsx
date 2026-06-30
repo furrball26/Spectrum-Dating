@@ -729,6 +729,7 @@ export default function App() {
         : onboarding
         ? <OnboardingScreen onComplete={() => setOnboarding(false)} />
         : (
+          <>
           <div
             style={{
               minHeight: "100vh",
@@ -737,6 +738,8 @@ export default function App() {
               background: t.bg,
               fontFamily: t.sans,
               color: t.text,
+              // Reserve space so content always clears the fixed bottom nav bar.
+              paddingBottom: "calc(56px + env(safe-area-inset-bottom))",
               ...a11yWrapperStyle(a11y),
             }}
           >
@@ -802,49 +805,9 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Top tab bar — tablet/desktop only. On mobile the primary
-                    nav moves to a fixed bottom bar (rendered below). The 4
-                    destinations are identical for every user; Moderation lives
-                    inside Profile now (not a peer tab). */}
-                {!isMobile && (
-                  <nav
-                    aria-label="Primary"
-                    style={{
-                      display: "flex",
-                      borderBottom: `1px solid ${t.border}`,
-                      marginBottom: -1,
-                    }}
-                  >
-                    <NavTab
-                      label="Discover"
-                      active={activeTab === "suggestions"}
-                      onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
-                    />
-                    <NavTab
-                      label="Matches"
-                      active={activeTab === "matches"}
-                      onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
-                    />
-                    <NavTab
-                      label="Messages"
-                      active={activeTab === "messages"}
-                      onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
-                      badgeCount={activeTab === "messages" ? 0 : unreadCount}
-                    />
-                    <NavTab
-                      label="Profile"
-                      active={activeTab === "profile"}
-                      onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
-                    />
-                    {isAdmin && (
-                      <NavTab
-                        label="Moderation"
-                        active={activeTab === "admin"}
-                        onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
-                      />
-                    )}
-                  </nav>
-                )}
+                {/* Primary nav is a single FIXED BOTTOM bar on every viewport
+                    (rendered as a sibling of this wrapper, below) so it's always
+                    pinned to the bottom of the screen regardless of scroll. */}
               </div>
             </header>
 
@@ -867,11 +830,11 @@ export default function App() {
                 flexDirection: "column",
                 minHeight: 0,
                 overflow: activeTab === "messages" ? "hidden" : "auto",
-                // Mobile: full-bleed; clear the fixed bottom nav bar.
+                // Mobile: full-bleed (the wrapper reserves bottom-bar space).
                 // Tablet/desktop: sit the content column inside a surface
                 // "panel" on the gradient — reads as an app, not a strip.
                 ...(isMobile
-                  ? { paddingBottom: 64 }
+                  ? {}
                   : {
                       background: t.surface,
                       border: `1px solid ${t.border}`,
@@ -940,60 +903,62 @@ export default function App() {
               )}
             </main>
 
-            {/* Mobile: fixed bottom tab bar — the primary nav. Same 4
-                destinations, same order, for every user. Safety/Settings stay
-                as the top-right header links above; Moderation lives in Profile. */}
-            {isMobile && (
-              <nav
-                aria-label="Primary"
-                style={{
-                  position: "fixed",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  display: "flex",
-                  background: t.surface,
-                  borderTop: `1px solid ${t.border}`,
-                  paddingBottom: "env(safe-area-inset-bottom)",
-                  zIndex: 50,
-                }}
-              >
-                <BottomNavTab
-                  label="Discover"
-                  icon={<DiscoverGlyph />}
-                  active={activeTab === "suggestions"}
-                  onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
-                />
-                <BottomNavTab
-                  label="Matches"
-                  icon={<HeartIcon size={22} />}
-                  active={activeTab === "matches"}
-                  onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
-                />
-                <BottomNavTab
-                  label="Messages"
-                  icon={<MessagesGlyph />}
-                  active={activeTab === "messages"}
-                  onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
-                  badgeCount={activeTab === "messages" ? 0 : unreadCount}
-                />
-                <BottomNavTab
-                  label="Profile"
-                  icon={<ProfileGlyph />}
-                  active={activeTab === "profile"}
-                  onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
-                />
-                {isAdmin && (
-                  <BottomNavTab
-                    label="Moderation"
-                    icon={<ModerationGlyph />}
-                    active={activeTab === "admin"}
-                    onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
-                  />
-                )}
-              </nav>
-            )}
           </div>
+
+          {/* Primary nav — a single FIXED BOTTOM bar on EVERY viewport, rendered
+              OUTSIDE the a11y wrapper so its filter/zoom can never break
+              position:fixed. Always pinned to the bottom, regardless of scroll.
+              On wide screens the tabs are centered within the content width. */}
+          <nav
+            aria-label="Primary"
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: t.surface,
+              borderTop: `1px solid ${t.border}`,
+              paddingBottom: "env(safe-area-inset-bottom)",
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: "flex", width: "100%", maxWidth: t.layout.maxContent, margin: "0 auto" }}>
+              <BottomNavTab
+                label="Discover"
+                icon={<DiscoverGlyph />}
+                active={activeTab === "suggestions"}
+                onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
+              />
+              <BottomNavTab
+                label="Matches"
+                icon={<HeartIcon size={22} />}
+                active={activeTab === "matches"}
+                onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
+              />
+              <BottomNavTab
+                label="Messages"
+                icon={<MessagesGlyph />}
+                active={activeTab === "messages"}
+                onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
+                badgeCount={activeTab === "messages" ? 0 : unreadCount}
+              />
+              <BottomNavTab
+                label="Profile"
+                icon={<ProfileGlyph />}
+                active={activeTab === "profile"}
+                onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
+              />
+              {isAdmin && (
+                <BottomNavTab
+                  label="Moderation"
+                  icon={<ModerationGlyph />}
+                  active={activeTab === "admin"}
+                  onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
+                />
+              )}
+            </div>
+          </nav>
+          </>
         )
       }
       </>

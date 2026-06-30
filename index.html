@@ -120,6 +120,13 @@
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }
       html, body, #root { height: 100%; margin: 0; }
+      /* Lock the page to vertical scrolling only — no horizontal scrollbar and
+         no left/right rubber-band / two-finger swipe-to-navigate pull. */
+      html, body {
+        overflow-x: hidden;
+        max-width: 100%;
+        overscroll-behavior-x: none;
+      }
       /* Skip-to-content link: off-screen until focused (bulletproof CSS :focus,
          no JS state). Revealed top-left when a keyboard user tabs to it. */
       .skip-link {
