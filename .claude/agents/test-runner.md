@@ -28,6 +28,11 @@ Procedure:
      output — omit passing-test noise.
 4. Do not attempt to fix failures unless explicitly asked. Diagnose and report.
 
+Scope: this agent only *executes* the suite and reports. Designing the test
+strategy — unit/integration/e2e plus automated and manual accessibility testing
+— belongs to the `qa-accessibility-test` agent. Defer to it for what to test;
+this agent answers "did it pass?".
+
 This repository ("subagenttesting") currently has no test suite, so the
 expected result today is "no test suite yet." Update this agent's assumptions
 once tests are added.

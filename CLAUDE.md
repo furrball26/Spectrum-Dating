@@ -80,6 +80,36 @@ to it — no explicit invocation required, though you can also ask for it by nam
 ("use the test-runner subagent"). It's a template: adjust its assumptions once a
 real test suite exists.
 
+### Domain subagents: dating site for autistic adults
+
+`.claude/agents/` also contains a roster of specialist subagents for building a
+state-of-the-art dating website for adults on the autism spectrum. They are
+designed to **auto-delegate** by description and to hand cross-cutting concerns
+to each other (e.g. every user-facing feature involves `accessibility-ux`; any
+data collection involves `privacy-compliance`). Each was informed by current
+(2025–2026) research and is told to verify claims rather than rely on memory.
+
+| Subagent | Focus | Model |
+| --- | --- | --- |
+| `user-research` | Participatory co-design *with* autistic users (distinct discipline) | opus |
+| `accessibility-ux` | Neurodivergent-friendly, WCAG 2.2 AA+ UX (the core differentiator) | opus |
+| `matchmaking` | Reciprocal compatibility/recommendation engine, fairness, cold-start | opus |
+| `trust-safety` | Verification, moderation, anti-scam/abuse for a vulnerable population | opus |
+| `privacy-compliance` | GDPR Art. 9 / CCPA, sensitive data, age assurance, EU AI Act | opus |
+| `security-engineer` | AppSec, authz/IDOR, encryption, location privacy, threat modeling | opus |
+| `frontend-engineer` | React/Next.js web client, sensory settings, Core Web Vitals | sonnet |
+| `backend-engineer` | APIs, profiles, media pipeline, search, notifications | sonnet |
+| `realtime-chat` | WebSocket messaging, conversation scaffolding, in-line safety | sonnet |
+| `database-architect` | Schema/migrations, PostGIS→geosharded search, privacy-aware modeling | sonnet |
+| `devops-infra` | IaC, CI/CD, observability, safe degradation of safety features | sonnet |
+| `payments-subscriptions` | Ethical billing/entitlements, no dark patterns | sonnet |
+| `qa-accessibility-test` | Test strategy + automated/manual a11y (axe, Playwright, screen readers) | sonnet |
+| `test-runner` | Executes the suite and reports pass/fail (defers strategy to qa) | sonnet |
+
+These are starting templates: refine them as real code, a chosen stack, and user
+research land. High-stakes design/judgment agents use `opus`; implementation
+agents use `sonnet`.
+
 ### Sample cloud routine
 
 `.claude/routines/nightly-health-check.md` is a **template**, not an executable
