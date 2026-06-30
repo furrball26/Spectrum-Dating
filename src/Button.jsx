@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { t } from "./tokens.js";
 
 // Reusable button with a light, calm hierarchy. Three variants:
@@ -26,12 +26,13 @@ const VARIANTS = {
   },
 };
 
-export default function Button({ variant = "primary", children, style, disabled, ...props }) {
+const Button = forwardRef(function Button({ variant = "primary", children, style, disabled, ...props }, ref) {
   const [focused, setFocused] = useState(false);
   const variantStyle = VARIANTS[variant] || VARIANTS.primary;
 
   return (
     <button
+      ref={ref}
       type="button"
       disabled={disabled}
       {...props}
@@ -57,4 +58,6 @@ export default function Button({ variant = "primary", children, style, disabled,
       {children}
     </button>
   );
-}
+});
+
+export default Button;

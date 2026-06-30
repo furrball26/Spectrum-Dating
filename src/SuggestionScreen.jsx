@@ -1,8 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip } from "./api.js";
+import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip, getUserId } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
+import MatchMoment from "./MatchMoment.jsx";
+
+// The current viewer's identity for the match moment — name/photo from the
+// cached profile, id from auth. Best-effort: the monogram avatar degrades
+// gracefully on a missing name.
+function getViewerIdentity() {
+  let profile = {};
+  try {
+    profile = JSON.parse(localStorage.getItem("spectrum_profile") || "{}") || {};
+  } catch {
+    profile = {};
+  }
+  return {
+    name: profile.displayName || profile.name || "You",
+    userId: getUserId() || profile.memberId || profile.userId || null,
+    photoUrl: profile.photoUrl || profile.photo_url || null,
+  };
+}
 
 // Suggestion screen — autism-friendly dating platform.
 // Built to docs/specs/matching.md + docs/architecture/matching-a11y.md
@@ -441,6 +459,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
   const [lastChoice, setLastChoice] = useState(null);
   const [lastPerson, setLastPerson] = useState(null);
   const [mutual, setMutual] = useState(false);
+  const [matchId, setMatchId] = useState(null);
   const [reportingCandidate, setReportingCandidate] = useState(null);
   const [undoing, setUndoing] = useState(false);
   const liveRef = useRef(null);
@@ -532,6 +551,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
       const result = await swipe(current.memberId, 'like');
       if (result.matched) {
         setMutual(true);
+        setMatchId(result.matchId || null);
       }
     } catch {
       // Swipe failed — already removed from queue, proceed gracefully
@@ -573,6 +593,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
 
   function next() {
     setMutual(false);
+    setMatchId(null);
     setLastChoice(null);
     setLastPerson(null);
     setStage("viewing");
@@ -878,29 +899,27 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
           </div>
         )}
 
-        {/* Mutual match */}
-        {stage === "confirmed" && mutual && (
-          <div style={{ ...card, textAlign: "center" }}>
-            <div aria-hidden="true" style={{ fontSize: 36, marginBottom: 16, color: t.accent }}>✦</div>
-            <h1
-              ref={liveRef}
-              tabIndex={-1}
-              aria-live="polite"
-              style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700, lineHeight: 1.3 }}
-            >
-              You and {lastPerson?.displayName} both said you're interested.
-            </h1>
-            <p style={{ color: t.textSoft, marginBottom: 28 }}>
-              You can now message each other whenever you're ready. There's no rush.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <ActionButton label="Open messages" kind="interested" onClick={onOpenMessages || (() => {})} />
-              <ActionButton label="Keep looking"  kind="notnow"    onClick={next} />
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {/* Mutual match — the signature, calm full-screen "match moment". */}
+      {stage === "confirmed" && mutual && lastPerson && (
+        <MatchMoment
+          you={getViewerIdentity()}
+          them={{
+            name: lastPerson.displayName,
+            userId: lastPerson.memberId,
+            photoUrl: lastPerson.photoUrl,
+          }}
+          onOpenChat={() => {
+            // Land the pair in Messages. (matchId is available as `matchId` if a
+            // future flow wants to deep-link / create the conversation here.)
+            next();
+            (onOpenMessages || (() => {}))();
+          }}
+          onContinue={next}
+        />
+      )}
+
       {reportingCandidate && (
         <ReportModal
           candidate={reportingCandidate}
