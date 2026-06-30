@@ -198,7 +198,8 @@ export default function MatchesScreen({ onOpenConversation }) {
             }}
           >
             No matches yet. When you and someone both say you're interested in
-            Discover, they'll appear here.
+            Discover, they'll appear here. Only people you've both matched with
+            can message you.
           </div>
         ) : (
           <ul style={{ margin: 0, padding: 0 }}>

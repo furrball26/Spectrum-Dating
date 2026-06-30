@@ -345,7 +345,8 @@ export default function MatchesListScreen({
 
         {conversations.length === 0 && (
           <p style={{ color: t.textSoft, textAlign: "center", marginTop: 48 }}>
-            No matches yet. Check back soon.
+            No matches yet. Check back soon. Only people you've both matched with
+            can message you.
           </p>
         )}
       </div>

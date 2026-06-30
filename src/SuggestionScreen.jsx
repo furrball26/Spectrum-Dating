@@ -591,7 +591,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
                     letterSpacing: "-0.02em",
                     lineHeight: 1.1,
                   }}>
-                    {person.displayName}{person.age ? `, ${person.age}` : ''}
+                    {person.displayName}{typeof person.age === "number" ? `, ${person.age}` : ''}
                   </h1>
                   <p style={{
                     fontFamily: t.serif,

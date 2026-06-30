@@ -2,6 +2,12 @@
 
 ## Frontend Dev
 
+### 2026-06-29 — DOB onboarding gate, age on cards, contact-gating copy
+- `src/OnboardingScreen.jsx`: added required **Date of birth** field to step 1 — native `<input type="date">`, labelled, helper "You must be 18 or older to use Spectrum Dating.", `max` attr = today minus 18 years. Client-side step-1 validation: required, parses/validates the date, computes age, blocks advancing with inline error "You must be 18 or older to use Spectrum Dating." when < 18. `dateOfBirth` ('YYYY-MM-DD') added to the final `updateProfile(...)` payload; server's 400 message already surfaces via existing `handleSave` (`e.message`). New pure helpers `maxDobToday()` / `ageFromDob()` (browser-side, not in a workflow). All hooks remain before the single return — no hook-after-return.
+- `src/SuggestionScreen.jsx`: candidate name now renders age when present ("Name, 29"), guarded by `typeof person.age === "number"`.
+- Contact-gating clarity (audit #6): reassurance line on onboarding final step ("You're in control of who can reach you…"); calm one-liner added to empty states in `src/MatchesScreen.jsx` and `src/messaging/MatchesListScreen.jsx` ("Only people you've both matched with can message you.").
+- `npm run build` clean.
+
 ### 2026-06-29 — Profile photo gallery (up to 6, choose main)
 - Added photo API helpers to `src/api.js` (`addProfilePhoto`, `setPrimaryPhoto`, `deleteProfilePhoto`), each returning the server's ordered `photos` array.
 - Replaced the single-avatar `PhotoUpload` in `src/ProfileScreen.jsx` with a responsive `PhotoGallery` (3-col grid, up to 6 cells). Each photo: square cover image, "Main" badge on the primary, "Set as main" on non-primary, inline-confirmed "Remove" (danger outline). One "+ Add photo" tile when under 6; helper text + empty state. Friendly 503 handling ("Photo uploads aren't available right now").

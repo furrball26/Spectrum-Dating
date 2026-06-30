@@ -44,6 +44,38 @@ function usePrefersReduced() {
   return prefersReduced;
 }
 
+// ─── Date-of-birth helpers (run client-side, in the browser) ────────────────────
+
+// The latest DOB that still makes someone 18 today, as 'YYYY-MM-DD'.
+function maxDobToday() {
+  const now = new Date();
+  const y = now.getFullYear() - 18;
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Whole years between a 'YYYY-MM-DD' string and today. Returns null if unparseable.
+function ageFromDob(dob) {
+  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+  const [y, m, d] = dob.split("-").map(Number);
+  const birth = new Date(y, m - 1, d);
+  if (
+    birth.getFullYear() !== y ||
+    birth.getMonth() !== m - 1 ||
+    birth.getDate() !== d
+  ) {
+    return null; // e.g. 2020-02-31
+  }
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  const hadBirthday =
+    now.getMonth() > m - 1 ||
+    (now.getMonth() === m - 1 && now.getDate() >= d);
+  if (!hadBirthday) age -= 1;
+  return age;
+}
+
 const SUGGESTED_INTERESTS = [
   "board games", "hiking", "baking", "reading", "cycling", "music",
   "cooking", "films", "photography", "gaming", "gardening", "crafts",
@@ -184,8 +216,9 @@ function RemoveChipButton({ tag, onRemove }) {
 
 // ─── Step 1: Basics ────────────────────────────────────────────────────────────
 
-function Step1({ displayName, setDisplayName, tagline, setTagline, errors, attempted }) {
+function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, setDateOfBirth, errors, attempted }) {
   const [nameTouched, setNameTouched] = useState(false);
+  const maxDob = maxDobToday();
 
   return (
     <>
@@ -220,7 +253,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, errors, attem
         <InlineError id="ob-display-name-error">{attempted ? errors.displayName : ""}</InlineError>
       </div>
 
-      <div>
+      <div style={{ marginBottom: 20 }}>
         <FieldLabel htmlFor="ob-tagline">Tagline</FieldLabel>
         <input
           id="ob-tagline"
@@ -235,6 +268,25 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, errors, attem
           placeholder=""
         />
         <HelperText id="ob-tagline-hint">One line that tells people what you&apos;re about</HelperText>
+      </div>
+
+      <div>
+        <FieldLabel htmlFor="ob-dob" required>Date of birth</FieldLabel>
+        <input
+          id="ob-dob"
+          type="date"
+          max={maxDob}
+          aria-required="true"
+          aria-describedby="ob-dob-hint ob-dob-error"
+          aria-invalid={attempted && errors.dateOfBirth ? "true" : undefined}
+          value={dateOfBirth}
+          onChange={(e) => setDateOfBirth(e.target.value)}
+          onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+          onBlur={(e) => { e.target.style.outline = "none"; }}
+          style={{ ...inputStyle(attempted && !!errors.dateOfBirth), minHeight: 44 }}
+        />
+        <HelperText id="ob-dob-hint">You must be 18 or older to use Spectrum Dating.</HelperText>
+        <InlineError id="ob-dob-error">{attempted ? errors.dateOfBirth : ""}</InlineError>
       </div>
     </>
   );
@@ -542,6 +594,22 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
           ))}
         </div>
       </fieldset>
+
+      {/* Contact-gating reassurance */}
+      <p
+        style={{
+          marginTop: 28,
+          padding: "14px 16px",
+          background: t.surfaceAlt,
+          borderRadius: 12,
+          fontSize: 14,
+          color: t.textSoft,
+          lineHeight: 1.55,
+        }}
+      >
+        You&apos;re in control of who can reach you. Only people you and they have both
+        said yes to can message you — no one can message you out of the blue.
+      </p>
     </>
   );
 }
@@ -556,6 +624,7 @@ export default function OnboardingScreen({ onComplete }) {
   // Step 1 fields
   const [displayName, setDisplayName] = useState("");
   const [tagline, setTagline] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
 
   // Step 2 fields
   const [bio, setBio] = useState("");
@@ -582,6 +651,16 @@ export default function OnboardingScreen({ onComplete }) {
   function validateStep1() {
     const errs = {};
     if (!displayName.trim()) errs.displayName = "Enter a display name to continue.";
+    if (!dateOfBirth) {
+      errs.dateOfBirth = "Enter your date of birth to continue.";
+    } else {
+      const age = ageFromDob(dateOfBirth);
+      if (age === null) {
+        errs.dateOfBirth = "Enter a valid date of birth.";
+      } else if (age < 18) {
+        errs.dateOfBirth = "You must be 18 or older to use Spectrum Dating.";
+      }
+    }
     return errs;
   }
 
@@ -619,6 +698,7 @@ export default function OnboardingScreen({ onComplete }) {
       await updateProfile({
         displayName: displayName.trim(),
         tagline,
+        dateOfBirth,
         bio,
         interests,
         commNote,
@@ -719,6 +799,8 @@ export default function OnboardingScreen({ onComplete }) {
             setDisplayName={setDisplayName}
             tagline={tagline}
             setTagline={setTagline}
+            dateOfBirth={dateOfBirth}
+            setDateOfBirth={setDateOfBirth}
             errors={step1Errors}
             attempted={attempted}
           />
