@@ -1,6 +1,34 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getAdminStats, getAdminReports, resolveReport, suspendUser } from "./api.js";
 import { t } from "./tokens.js";
+import Skeleton from "./Skeleton.jsx";
+
+// Calm placeholder cards shown while reports load.
+function ReportsSkeleton() {
+  return (
+    <div aria-hidden="true">
+      {[0, 1].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 16,
+            padding: "18px 20px",
+            marginBottom: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <Skeleton width="35%" height={16} />
+          <Skeleton width="80%" height={13} />
+          <Skeleton width="60%" height={13} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Moderation dashboard — autism-friendly: calm, low-stimulation, clear states.
 // Reds reserved for genuinely destructive actions (suspend).
@@ -456,7 +484,7 @@ export default function AdminScreen() {
 
         {/* Reports list */}
         {loadingReports ? (
-          <p style={{ color: t.textSoft }}>Loading reports…</p>
+          <ReportsSkeleton />
         ) : error ? (
           <p role="alert" style={{ color: t.danger }}>{error}</p>
         ) : reports.length === 0 ? (

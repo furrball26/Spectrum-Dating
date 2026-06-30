@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
+import Avatar from "./Avatar.jsx";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -474,11 +475,23 @@ function AddPhotoTile({ onAdd, uploading, disabled }) {
   );
 }
 
-function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove }) {
+function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove, name }) {
   const atMax = photos.length >= MAX_PHOTOS;
+  const isEmpty = photos.length === 0;
 
   return (
     <div style={{ marginBottom: 20 }}>
+      {/* Empty state — show the member's own default gradient avatar so the
+          gallery never reads as "broken/missing photo" before they upload. */}
+      {isEmpty && (
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+          <Avatar name={name} size={72} />
+          <p style={{ margin: 0, fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+            This is your default avatar. Add a photo below whenever you're ready —
+            there's no rush.
+          </p>
+        </div>
+      )}
       <div
         role="list"
         aria-label="Your profile photos"
@@ -1541,6 +1554,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               onAdd={handleAddPhoto}
               onSetPrimary={handleSetPrimary}
               onRemove={handleRemovePhoto}
+              name={displayName}
             />
 
             {/* Display name */}

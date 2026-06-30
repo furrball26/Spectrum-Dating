@@ -2,18 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
+import Avatar from "./Avatar.jsx";
 
 // Suggestion screen — autism-friendly dating platform.
 // Built to docs/specs/matching.md + docs/architecture/matching-a11y.md
 // + docs/design-system.md. Every interaction rule below maps to a checklist item.
-
-// Soft avatar palette — all within the muted design system
-const AVATAR_PALETTE = ["#7A9E9A", "#8A9E7A", "#9A8A7A", "#7A8A9E", "#9A7A8A"];
-function avatarBg(name) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
-}
 
 // Current viewer's interests — read from saved profile; falls back to demo defaults.
 function getViewerInterests() {
@@ -73,35 +66,6 @@ function ActionButton({ label, kind, onClick, icon }) {
       {icon && <span aria-hidden="true" style={{ fontSize: 16 }}>{icon}</span>}
       {label}
     </button>
-  );
-}
-
-function Monogram({ name }) {
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        width: 88,
-        height: 88,
-        borderRadius: "50%",
-        background: avatarBg(name),
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-    >
-      <span style={{
-        fontFamily: t.serif,
-        fontSize: 40,
-        fontWeight: 700,
-        color: "#fff",
-        lineHeight: 1,
-        userSelect: "none",
-      }}>
-        {name[0]}
-      </span>
-    </div>
   );
 }
 
@@ -742,24 +706,12 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
 
               {/* Avatar + name lockup */}
               <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20 }}>
-                {person.photoUrl ? (
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      width: 88, height: 88, borderRadius: "50%",
-                      overflow: "hidden", flexShrink: 0,
-                      border: `2px solid ${t.border}`,
-                    }}
-                  >
-                    <img
-                      src={person.photoUrl}
-                      alt={`${person.displayName}'s photo`}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
-                    />
-                  </div>
-                ) : (
-                  <Monogram name={person.displayName} />
-                )}
+                <Avatar
+                  name={person.displayName}
+                  userId={person.memberId}
+                  photoUrl={person.photoUrl}
+                  size={88}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h1 style={{
                     fontFamily: t.serif,

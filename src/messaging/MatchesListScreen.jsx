@@ -1,13 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
 import VerifiedBadge from "../VerifiedBadge.jsx";
-
-const AVATAR_PALETTE = ["#7A9E9A", "#8A9E7A", "#9A8A7A", "#7A8A9E", "#9A7A8A"];
-function avatarBg(name) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
-}
+import Avatar from "../Avatar.jsx";
+import Skeleton from "../Skeleton.jsx";
 
 const CONVERSATION_CAP = 5;
 const AVATAR_SIZE = 44;
@@ -23,31 +18,27 @@ function useFocusable() {
   };
 }
 
-function SmallMonogram({ name, size = 44 }) {
+// Calm placeholder rows shown while conversations load.
+function MatchesListSkeleton() {
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: avatarBg(name),
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-    >
-      <span style={{
-        fontFamily: t.serif,
-        fontSize: size * 0.45,
-        fontWeight: 700,
-        color: "#fff",
-        lineHeight: 1,
-        userSelect: "none",
-      }}>
-        {name[0]}
-      </span>
+    <div style={{ padding: "8px 16px" }} aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "10px 0",
+          }}
+        >
+          <Skeleton width={AVATAR_SIZE} height={AVATAR_SIZE} radius="50%" />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <Skeleton width="40%" height={15} />
+            <Skeleton width="60%" height={12} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -96,15 +87,12 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive }) {
           onFocus={f.onFocus}
           onBlur={f.onBlur}
         >
-          {otherUser?.photoUrl ? (
-            <img
-              src={otherUser.photoUrl}
-              alt={(otherUser.displayName || "") + " photo"}
-              style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-            />
-          ) : (
-            <SmallMonogram name={otherUser.displayName} size={AVATAR_SIZE} />
-          )}
+          <Avatar
+            name={otherUser.displayName}
+            userId={otherUser.userId}
+            photoUrl={otherUser.photoUrl}
+            size={AVATAR_SIZE}
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               display: "flex",
@@ -229,8 +217,20 @@ export default function MatchesListScreen({
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <p style={{ color: '#4E5F58', fontSize: 15 }}>Loading messages…</p>
+      <div style={{ maxWidth: 540, margin: "0 auto", padding: "24px 16px 48px" }}>
+        <h1
+          style={{
+            fontFamily: t.serif,
+            fontSize: 28,
+            fontWeight: 700,
+            margin: "0 0 24px",
+            color: t.text,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Your matches
+        </h1>
+        <MatchesListSkeleton />
       </div>
     );
   }

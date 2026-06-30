@@ -2,54 +2,44 @@ import { useState, useEffect, useRef } from "react";
 import { t } from "./tokens.js";
 import { getMatches, createConversation } from "./api.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
+import Avatar from "./Avatar.jsx";
+import Skeleton from "./Skeleton.jsx";
+import Button from "./Button.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
 // conversations (Messages). Calm, low-pressure: no counters, no urgency.
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
-
-function Avatar({ name, photoUrl }) {
-  const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
-  const size = 56;
+// Calm placeholder rows shown while matches load.
+function MatchesSkeleton() {
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        flexShrink: 0,
-        overflow: "hidden",
-        background: t.accent,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#fff",
-        fontFamily: t.serif,
-        fontSize: 24,
-        fontWeight: 700,
-      }}
-    >
-      {photoUrl ? (
-        <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      ) : (
-        initial
-      )}
-    </div>
+    <ul style={{ margin: 0, padding: 0 }} aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <li key={i} style={{ listStyle: "none", marginBottom: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 16,
+              padding: "14px 16px",
+            }}
+          >
+            <Skeleton width={56} height={56} radius="50%" />
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Skeleton width="45%" height={16} />
+              <Skeleton width="70%" height={13} />
+            </div>
+            <Skeleton width={84} height={38} radius={11} />
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function MatchCard({ match, busy, onOpen }) {
-  const f = useFocusable();
   const { otherUser, hasConversation } = match;
   // Optional first-prompt preview — only if it has an answer and no tagline/context
   // already filling the row, to keep the card calm and uncluttered.
@@ -72,7 +62,7 @@ function MatchCard({ match, busy, onOpen }) {
           boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
         }}
       >
-        <Avatar name={otherUser.displayName} photoUrl={otherUser.photoUrl} />
+        <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span>{otherUser.displayName || "Someone"}</span>
@@ -138,28 +128,14 @@ function MatchCard({ match, busy, onOpen }) {
             </div>
           )}
         </div>
-        <button
-          type="button"
+        <Button
+          variant={hasConversation ? "secondary" : "primary"}
           onClick={() => onOpen(match)}
           disabled={busy}
-          {...f}
-          style={{
-            flexShrink: 0,
-            minHeight: 44,
-            padding: "9px 18px",
-            borderRadius: 11,
-            border: "none",
-            cursor: busy ? "wait" : "pointer",
-            fontSize: 14,
-            fontWeight: 600,
-            background: hasConversation ? t.surfaceAlt : t.accentStrong,
-            color: hasConversation ? t.text : "#fff",
-            opacity: busy ? 0.7 : 1,
-            ...f.style,
-          }}
+          style={{ flexShrink: 0, cursor: busy ? "wait" : undefined }}
         >
           {busy ? "Starting…" : hasConversation ? "Open chat" : "Say hello"}
-        </button>
+        </Button>
       </div>
     </li>
   );
@@ -239,7 +215,7 @@ export default function MatchesScreen({ onOpenConversation }) {
         )}
 
         {loading ? (
-          <p style={{ color: t.textSoft }}>Loading your matches…</p>
+          <MatchesSkeleton />
         ) : matches.length === 0 ? (
           <div
             style={{

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
 import { getMyReports } from "./api.js";
+import Button from "./Button.jsx";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
 // place to prepare for the offline transition: meeting tips, ready-to-use
@@ -461,7 +462,7 @@ export default function SafetyScreen({ onBack }) {
 
       <div style={shell}>
         {/* Back control */}
-        <SecondaryButton onClick={onBack}>← Back</SecondaryButton>
+        <Button variant="secondary" onClick={onBack}>← Back</Button>
 
         <h1
           ref={headingRef}
@@ -493,7 +494,7 @@ export default function SafetyScreen({ onBack }) {
             <span style={{ flex: 1, fontSize: 16, color: "#6E5206", fontWeight: 600 }}>
               Time to check in — are you safe? Tap to dismiss.
             </span>
-            <SecondaryButton onClick={dismissBanner}>Dismiss</SecondaryButton>
+            <Button variant="secondary" onClick={dismissBanner}>Dismiss</Button>
           </div>
         )}
 
@@ -572,7 +573,7 @@ export default function SafetyScreen({ onBack }) {
               style={{ ...inputStyle, marginBottom: 18 }}
             />
 
-            <PrimaryButton onClick={handleSharePlan} full>Share plan</PrimaryButton>
+            <Button variant="primary" onClick={handleSharePlan} style={{ width: "100%" }}>Share plan</Button>
             {planStatus && (
               <p role="status" aria-live="polite" style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft }}>
                 {planStatus}
