@@ -65,6 +65,7 @@ railway variables set KEY="value"
 | `JWT_SECRET` | Signs auth tokens |
 | `DB_PATH` | `/data/spectrum.db` (persistent volume) |
 | `ALLOWED_ORIGIN` | CORS origin = the Vercel URL |
+| `ADMIN_EMAILS` | Comma-separated list of admin emails (e.g. `ttitleman@gmail.com,mod@x.com`). Grants access to the `/admin/*` moderation endpoints. Case-insensitive; unset = no admins. |
 
 ### Photos — Cloudflare R2 (public bucket)
 | Var | Notes |
@@ -170,7 +171,40 @@ columns, a bare `ALTER TABLE ADD COLUMN` is fine — the runner tolerates re-run
 
 Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `004_reactions_photos` · `005_profile_photos` · `006_push_subscriptions` ·
-`007_token_version` · `008_read_cursors` · `009_email_verification`.
+`007_token_version` · `008_read_cursors` · `009_email_verification` ·
+`010_moderation`.
+
+---
+
+## 6a. Moderation (trust & safety)
+
+A dedicated `reports` table (migration `010_moderation`) feeds moderator review,
+separate from the `blocks` table — a user can **report without blocking** and
+vice versa. Admin access is gated on `ADMIN_EMAILS` (see §2).
+
+**Reporting (any authenticated user):**
+- `POST /messaging/report` — body `{ reportedUserId, reason, details?, conversationId? }`.
+  `reason` required (≤100 chars), `details` optional (≤1000). Inserts a report
+  with status `open`. Cannot report yourself.
+
+**Admin endpoints** (all require `ADMIN_EMAILS` membership):
+- `GET  /admin/me` — auth-only; returns `{ isAdmin }` so the frontend can show/hide admin UI.
+- `GET  /admin/reports?status=open` — list reports (joined with reporter/reported
+  email + display name). `status=all` returns everything; default `open`. Newest first.
+- `GET  /admin/reports/:id` — single report with full reporter/reported profile context.
+- `POST /admin/reports/:id/resolve` — body `{ status, note }`; `status` ∈ `reviewed|actioned|dismissed`.
+  Stamps `moderator_note` and `resolved_at`.
+- `POST /admin/users/:id/suspend` — body `{ suspended: boolean }`.
+- `GET  /admin/stats` — platform counts (users, suspended, matches, conversations,
+  messages) + reports grouped by status.
+
+**Suspend flow:** suspending a user sets `users.suspended = 1` **and** bumps
+`token_version`, which immediately invalidates all their existing JWTs (next
+request → 401). Suspended users also cannot log in (login returns
+`403 "This account has been suspended. Contact support."` before any token is
+issued). Unsuspending (`{ suspended: false }`) clears the flag; the user can log
+in again. `isAdmin` is surfaced on the login response and `GET /profile/me` so
+the frontend can render admin UI after a reload.
 
 ---
 
@@ -183,7 +217,9 @@ Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 - **Email verification is non-blocking** by design — unverified users can still
   use the app; the status is shown as a dismissible banner.
 - **Photos/push/email are inert** until their env vars are set (graceful).
-- **No admin/moderation dashboard** yet.
+- **Moderation backend is live** (see §6a) — `ADMIN_EMAILS`-gated `/admin/*`
+  endpoints + report submission + suspension. A moderator **dashboard UI** on the
+  frontend is still to be built.
 
 ---
 

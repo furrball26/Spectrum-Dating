@@ -9,9 +9,10 @@ export function signToken(userId, tv = 0) {
 
 function checkTokenVersion(decoded) {
   const db = getDb();
-  const user = db.prepare('SELECT token_version FROM users WHERE id = ?').get(decoded.sub);
+  const user = db.prepare('SELECT token_version, suspended FROM users WHERE id = ?').get(decoded.sub);
   if (!user) return false; // user deleted
   if ((decoded.tv ?? -1) !== user.token_version) return false; // token revoked
+  if (user.suspended) return false; // suspended — treat as logged out
   return true;
 }
 

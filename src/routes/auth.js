@@ -4,6 +4,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { randomBytes } from 'crypto';
 import { newId } from '../utils/ids.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
+import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured, sendVerificationEmail } from '../email/resend.js';
 
 const router = Router();
@@ -101,7 +102,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 
   const { db } = req.ctx;
-  const user = db.prepare('SELECT id, password_hash, token_version, email_verified FROM users WHERE email = ?').get(normalizedEmail);
+  const user = db.prepare('SELECT id, password_hash, token_version, email_verified, suspended, email FROM users WHERE email = ?').get(normalizedEmail);
 
   // Use constant-time comparison even if user not found (timing safety)
   const dummyHash = '$2b$12$invalidhashfortimingprotection000000000000000000000000';
@@ -112,6 +113,11 @@ router.post('/login', authLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
+  // Suspended accounts cannot obtain a token.
+  if (user.suspended) {
+    return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
+  }
+
   const tv = user.token_version ?? 0;
   const token = signToken(user.id, tv);
   return res.json({
@@ -119,6 +125,7 @@ router.post('/login', authLimiter, async (req, res) => {
     userId: user.id,
     emailVerified: !!user.email_verified,
     emailVerificationEnabled: emailConfigured(),
+    isAdmin: isAdminEmail(user.email),
   });
 });
 

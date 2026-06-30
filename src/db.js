@@ -27,6 +27,7 @@ const MIGRATIONS = [
   '007_token_version.sql',
   '008_read_cursors.sql',
   '009_email_verification.sql',
+  '010_moderation.sql',
 ];
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a

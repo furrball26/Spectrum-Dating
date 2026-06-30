@@ -333,4 +333,45 @@ router.post('/block', requireAuth, (req, res) => {
   res.status(201).json({ blocked: true });
 });
 
+// ---------------------------------------------------------------------------
+// POST /messaging/report — file a report for moderator review.
+// SEPARATE from /block: a user can report without blocking and vice versa.
+// ---------------------------------------------------------------------------
+
+router.post('/report', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const { reportedUserId, reason, details, conversationId } = req.body ?? {};
+
+  if (!reportedUserId || typeof reportedUserId !== 'string') {
+    return res.status(400).json({ error: 'reportedUserId is required' });
+  }
+  if (reportedUserId === userId) {
+    return res.status(400).json({ error: 'You cannot report yourself' });
+  }
+
+  const reported = db.prepare('SELECT id FROM users WHERE id = ?').get(reportedUserId);
+  if (!reported) return res.status(404).json({ error: 'Reported user not found' });
+
+  if (typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ error: 'reason is required' });
+  }
+  if (reason.length > 100) {
+    return res.status(400).json({ error: 'reason exceeds 100 characters' });
+  }
+  if (details !== undefined && details !== null) {
+    if (typeof details !== 'string') return res.status(400).json({ error: 'details must be a string' });
+    if (details.length > 1000) return res.status(400).json({ error: 'details exceeds 1000 characters' });
+  }
+  if (conversationId !== undefined && conversationId !== null && typeof conversationId !== 'string') {
+    return res.status(400).json({ error: 'conversationId must be a string' });
+  }
+
+  db.prepare(`
+    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'open', ?)
+  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now());
+
+  res.status(201).json({ reported: true });
+});
+
 export default router;
