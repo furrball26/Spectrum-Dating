@@ -45,6 +45,9 @@ const DEFAULT_PROFILE = {
   relationshipGoal: "",        // "" | "long-term" | "friendship" | "open"
   distanceCity: "",
   searchRadiusMiles: 0,
+  gender: "",
+  pronouns: "",
+  seeking: "",
   notificationTier: "in_app", // "in_app" | "silent_push" | "name_only"
   // Lifestyle attributes (optional, shown on profile)
   wantsChildren: "",          // "" | "yes" | "no" | "open"
@@ -919,6 +922,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [relGoal, setRelGoal]         = useState(DEFAULT_PROFILE.relationshipGoal);
   const [distCity, setDistCity]       = useState(DEFAULT_PROFILE.distanceCity);
   const [searchRadius, setSearchRadius] = useState(DEFAULT_PROFILE.searchRadiusMiles);
+  const [gender, setGender]           = useState(DEFAULT_PROFILE.gender);
+  const [pronouns, setPronouns]       = useState(DEFAULT_PROFILE.pronouns);
+  const [seeking, setSeeking]         = useState(DEFAULT_PROFILE.seeking);
   const [notifTier, setNotifTier]     = useState(DEFAULT_PROFILE.notificationTier);
 
   // Lifestyle attributes (optional)
@@ -1019,6 +1025,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           relationshipGoal: data.relationshipGoal || '',
           distanceCity: data.distCity || '',
           searchRadiusMiles: data.searchRadiusMiles ?? 0,
+          gender: data.gender || '',
+          pronouns: data.pronouns || '',
+          seeking: data.seeking || '',
           notificationTier: data.notificationTier || 'in_app',
           wantsChildren: data.wantsChildren || '',
           smoking: data.smoking || '',
@@ -1043,6 +1052,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setRelGoal(merged.relationshipGoal);
         setDistCity(merged.distanceCity);
         setSearchRadius(merged.searchRadiusMiles ?? 0);
+        setGender(merged.gender || '');
+        setPronouns(merged.pronouns || '');
+        setSeeking(merged.seeking || '');
         setNotifTier(merged.notificationTier);
         setWantsChildren(merged.wantsChildren);
         setSmoking(merged.smoking);
@@ -1099,6 +1111,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         relGoal          !== savedProfile.relationshipGoal ||
         distCity         !== savedProfile.distanceCity ||
         searchRadius     !== savedProfile.searchRadiusMiles ||
+        gender           !== savedProfile.gender ||
+        pronouns         !== savedProfile.pronouns ||
+        seeking          !== savedProfile.seeking ||
         notifTier        !== savedProfile.notificationTier ||
         wantsChildren    !== savedProfile.wantsChildren ||
         smoking          !== savedProfile.smoking ||
@@ -1118,7 +1133,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -1269,6 +1284,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       relationshipGoal: relGoal,
       distanceCity: distCity,
       searchRadiusMiles: searchRadius,
+      gender,
+      pronouns,
+      seeking,
       notificationTier: notifTier,
       wantsChildren,
       smoking,
@@ -1296,6 +1314,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         relationshipGoal: currentProfile.relationshipGoal,
         distCity: currentProfile.distanceCity,
         searchRadiusMiles: currentProfile.searchRadiusMiles,
+        gender: currentProfile.gender,
+        pronouns: currentProfile.pronouns,
+        seeking: currentProfile.seeking,
         notificationTier: currentProfile.notificationTier,
         wantsChildren: currentProfile.wantsChildren,
         smoking: currentProfile.smoking,
@@ -1926,6 +1947,75 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                   </div>
                 ))}
               </div>
+            </fieldset>
+
+            {/* Identity — gender, pronouns, who you want to meet */}
+            <div style={fieldGroup}>
+              <FieldLabel htmlFor="gender">Gender</FieldLabel>
+              <select
+                id="gender"
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+              >
+                <option value="">Prefer not to say</option>
+                <option value="woman">Woman</option>
+                <option value="man">Man</option>
+                <option value="nonbinary">Nonbinary</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div style={fieldGroup}>
+              <FieldLabel htmlFor="pronouns">Pronouns</FieldLabel>
+              <input
+                id="pronouns"
+                type="text"
+                maxLength={40}
+                value={pronouns}
+                onChange={(e) => setPronouns(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. she/her, they/them"
+              />
+              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}>
+                Shown on your profile so people address you correctly.
+              </span>
+            </div>
+
+            <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
+                Who do you want to meet?
+              </legend>
+              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginBottom: 10, clear: "both" }}>
+                Choose any. Leave all unchecked to be open to everyone.
+              </span>
+              {[
+                { value: "woman", label: "Women" },
+                { value: "man", label: "Men" },
+                { value: "nonbinary", label: "Nonbinary people" },
+              ].map(({ value, label }) => {
+                const set = seeking.split(",").map((s) => s.trim()).filter(Boolean);
+                const checked = set.includes(value);
+                return (
+                  <label key={value} htmlFor={`seek-${value}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer" }}>
+                    <input
+                      id={`seek-${value}`}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = checked ? set.filter((x) => x !== value) : [...set, value];
+                        setSeeking(next.join(","));
+                      }}
+                      style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 15, color: t.text }}>{label}</span>
+                  </label>
+                );
+              })}
             </fieldset>
 
             {/* Distance city */}

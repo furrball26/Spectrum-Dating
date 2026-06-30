@@ -69,6 +69,9 @@ function MatchCard({ match, busy, onOpen }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span>{otherUser.displayName || "Someone"}</span>
+            {otherUser.pronouns && (
+              <span style={{ fontSize: 13, fontWeight: 400, color: t.textMuted }}>{otherUser.pronouns}</span>
+            )}
             {otherUser.verified && <VerifiedBadge />}
           </div>
           {otherUser.distCity && (

@@ -455,6 +455,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
         setQueue(arr.map(c => ({
           memberId: c.memberId,
           displayName: c.displayName,
+          pronouns: c.pronouns || '',
           age: c.age || null,
           tagline: c.tagline || '',
           bio: c.bio || '',
@@ -743,6 +744,11 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
                       <VerifiedBadge style={{ marginLeft: 10, position: "relative", top: -4 }} />
                     )}
                   </h1>
+                  {person.pronouns && (
+                    <div style={{ fontSize: 14, color: t.textMuted, margin: "2px 0" }}>
+                      {person.pronouns}
+                    </div>
+                  )}
                   <p style={{
                     fontFamily: t.serif,
                     fontSize: 15,

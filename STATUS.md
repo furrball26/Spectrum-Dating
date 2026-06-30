@@ -463,3 +463,157 @@ Method: live Chrome-driving MCP was **permission-denied** this run (and computer
 4. **⚪ Polish:** gate the post-register Discover flash; plan the backend message↔attachment link so message photos persist once R2 lands.
 
 ~QA Analyst
+
+## Backend & Security Reviewer
+
+_Date: 2026-06-30_
+
+POLL of what's **MISSING** for production (already-done items per brief excluded). Live header check confirms no security-header middleware: response leaks `x-powered-by: Express`, no HSTS / CSP / X-Frame-Options / X-Content-Type-Options.
+
+**[Critical]**
+1. **No `helmet` / security-response headers.** Confirmed live: missing HSTS, CSP, X-Content-Type-Options (nosniff), X-Frame-Options; `x-powered-by` exposed. → clickjacking, MIME-sniffing, downgrade, framework fingerprinting.
+2. **No error-handling middleware + no error tracking (Sentry/equiv).** No central `app.use((err,req,res,next))`; uncaught throws return default Express handler and may leak stack traces; no `process.on('unhandledRejection'/'uncaughtException')`. → crashes go unobserved, internals leak.
+3. **No moderation audit log.** suspend / unverify / report-resolve / verify mutate state with no append-only record of moderator, target, timestamp, reason. → no accountability, no abuse-of-admin trail, weak Trust & Safety/legal posture.
+
+**[High]**
+4. **No application monitoring / uptime alerting / structured request logging.** Only ad-hoc `console.log`; no `/health` polling alert, no metrics, no log aggregation. → outages and error spikes go unnoticed.
+5. **No per-account brute-force lockout.** Rate-limit is per-IP only (20/15min); distributed/rotating-IP credential stuffing against a single account is unthrottled. No account-level counter or progressive lockout.
+6. **No abuse / spam detection.** No message-flood throttle, duplicate-account / disposable-email / signup-velocity checks, or report-driven auto-flagging. → spam, scammers, ban-evasion via re-registration.
+7. **No GDPR data-retention automation.** Expired `email_verifications` purged only opportunistically; no scheduled purge of expired tokens, resolved reports, blocked/stale records, or inactive-account aging. → unbounded retention of personal data.
+
+**[Medium]**
+8. **No explicit request body-size limits.** `express.json()` uses the implicit 100kb default with no per-route caps; bodies aren't deliberately bounded. → memory-pressure / abuse vector; should be set intentionally.
+9. **No 2FA / TOTP option.** No second factor available even opt-in for a sensitive account type (location, photos, private chats).
+10. **No password strength / breach check.** Only length >= 8; no zxcvbn/HIBP-style rejection of weak or known-breached passwords.
+11. **No secrets-rotation story.** JWT signing secret is a single static env var; no key-id/rotation support, so rotating it logs everyone out and there's no documented procedure.
+
+**[Low]**
+12. **No CSRF consideration documented.** Token-in-header auth makes this low-risk, but it's unstated; worth an explicit note since CORS is currently single-origin only.
+13. **No dependency / vulnerability scanning** (Dependabot / `npm audit` in CI) wired into the deploy pipeline.
+
+~Security Reviewer
+
+## Design & Brand Director
+
+### 2026-06-30 — MISSING brand/marketing/conversion poll (launch-readiness gap audit)
+
+Ranked list of items a launch-ready 2026 product would have but that are ABSENT from the landing page, public site, and brand surface. Verified against `src/LandingScreen.jsx`, `index.html`, `public/manifest.json`, and App routing (`App.jsx` has no public marketing routes beyond Landing).
+
+1. **[Critical] No social proof / trust signal anywhere** — zero testimonials, member count, named community partner, or "as featured in." For an autistic-audience product, lived-experience endorsement is the #1 trust driver; the "built with the community" claim is currently unsubstantiated.
+2. **[Critical] No Privacy Policy or Terms pages** — a dating app collecting PII has legal exposure and app-store rejection risk without them. Privacy is only described prose-style in the in-app SafetyScreen; no public, linkable policy and no footer legal links.
+3. **[Critical] Landing hero has no human/product visual** — hero is logo + headline + buttons on flat gradient; no faces, screenshots, or product glimpse. Visitors can't see what they're joining, which depresses sign-up conversion.
+4. **[High] No email / launch-list capture** — only CTA is "Create your profile." No "notify me / join the list" path for visitors not ready to register, so all non-converting traffic is lost with no re-engagement hook.
+5. **[High] No App Store / Play Store presence or badges** — PWA-only; no store listings, no "available on iOS/Android," no phone-in-hand screenshots. In 2026 most daters expect a native app and store-badge legitimacy.
+6. **[High] No FAQ / About / founder-story page** — niche, mission-driven product with no place to explain "why this exists," who's behind it, or answer "is this safe / is it really free." Mission-led brands live or die on the about narrative.
+7. **[High] Favicon/mark inconsistency (5-tile favicon vs 6-tile in-app mark)** — brand mark must be identical everywhere; a mismatched favicon reads as unfinished and erodes the calm/considered brand promise.
+8. **[Medium] No Contact / support page** — no email, no support route, no way to reach a human. Trust-sensitive audience expects an obvious "talk to us."
+9. **[Medium] No referral / invite mechanism** — dating apps grow on word-of-mouth; nothing lets a happy member bring a friend, and "nothing about us without us" begs for an invite loop.
+10. **[Medium] No cookie / consent notice** — fonts load from Google; any analytics would need consent. Absent banner is a GDPR/UK-GDPR gap and a missing trust cue.
+11. **[Medium] Generic meta description ("Dating at your own pace.")** — `<title>` is plain "Spectrum Dating" and description is one line; no keyword-rich SEO copy, no structured data. OG tags exist (good) but discoverability is thin.
+12. **[Low] No custom 404 / branded error page** — off-route visitors fall to a default; a calm branded 404 is low effort and on-brand polish.
+13. **[Low] No press / media kit** — no logo downloads, brand colors, or boilerplate for journalists/partners covering an accessibility-forward launch.
+14. **[Low] No onboarding delight / welcome moment beyond functional flow** — match-moment is built, but no first-run "welcome to the calm" beat to reward sign-up and set tone.
+15. **[Low] No favicon `.ico` / Safari pinned-tab parity check** — SVG + PNG favicons present; verify legacy `.ico` and pinned-tab mask render the corrected mark once #7 is resolved.
+
+~Brand Director
+
+---
+
+## Accessibility Director — 2026-06-30
+
+POLL: what's **MISSING** for an autism-friendly, WCAG 2.2 AA, calm-by-design audience. Already-built items (dim/contrast/larger-text themes, reduce-motion, skip link, landmarks, aria-current, per-screen titles, SR announcements, focus mgmt, 44px targets, calm-by-design omissions) are NOT relisted. Ranked gaps:
+
+1. **[Critical] No descriptive alt text for user photos.** `Avatar.jsx` hardcodes `alt=""` on every profile/uploaded image and message photos use a generic `alt="Shared photo"`. On a *dating* app, photos carry the core meaning — blind/low-vision users get nothing. Need an alt/description field at upload and a sensible fallback (e.g. person's name) instead of empty alt.
+
+2. **[High] No reduced-/simplified-sensory profile or "calm content" controls beyond motion.** Calm mode only flattens background + kills motion. Missing: emoji/reaction muting, decorative-illustration toggle, and a single "low-stimulation" master switch — high-value for sensory-sensitive autistic users.
+
+3. **[High] No plain-language / simplified-text mode.** No mechanism to surface shorter, literal, idiom-free copy (onboarding, errors, safety). Literal-language support is one of the highest-impact autism accommodations and is entirely absent.
+
+4. **[High] No session-timeout / inactivity warning.** Auth silently 401s and dumps the user to sign-in with "session expired" (`App.jsx` auth:expired). WCAG 2.2 SC 2.2.1 expects a warning + a way to extend. Abrupt logout mid-message is disorienting and loses drafted text.
+
+5. **[High] No accessibility statement / "how we support you" page.** No discoverable page documenting features, conformance, known limits, and a contact route. Expected for WCAG-committed products and reassuring for this audience; also a credibility signal.
+
+6. **[Medium] No text-spacing controls (line-height / letter / word / paragraph).** Only a 15% zoom ("larger text"). WCAG 2.2 SC 1.4.12 expects content to tolerate user spacing; offering in-app spacing sliders directly aids dyslexic and many autistic readers.
+
+7. **[Medium] No font choice / dyslexia-friendly option.** App is locked to Atkinson Hyperlegible (good default) + Newsreader serif for headings. No opt-in alternative (e.g. a dyslexia-tuned face) and no way to disable the serif display font, which some find harder to scan.
+
+8. **[Medium] No content/sensitivity warnings or pre-message expectation-setting.** No content-warning affordance on profiles/messages and no upfront "what to expect" framing before opening a chat. Predictability reduces anxiety for autistic users; surfacing it explicitly is missing.
+
+9. **[Medium] No keyboard-shortcut help / discoverability.** Useful in-thread keys exist (Esc closes menus, arrow-nav in menus, PageUp/Down hint in the log) but there's no `?`-style shortcuts panel or visible affordance, so they're undiscoverable.
+
+10. **[Medium] Messages region lacks a persistent landmark + clear new-message SR semantics.** The thread uses `role="log" aria-live="polite"` (good) but there's no `<nav>`/landmark structure inside Messages and no heading-level map for SR users to jump between conversation header, log, and compose. Add explicit landmarks/headings within the messaging view.
+
+11. **[Low] Reaction-picker lacks arrow-key navigation.** Known gap. The picker is `role="toolbar"` but only focuses the first button; left/right arrow roving (per WAI-ARIA toolbar) is absent. Message/header menus already do arrow-nav — bring the picker to parity.
+
+12. **[Low] No prefers-* / OS-setting sync for contrast & text size.** Reduce-motion respects the OS query, but high-contrast and larger-text are in-app only; honoring `prefers-contrast` / `prefers-reduced-data` and OS text-zoom would reduce setup friction.
+
+13. **[Low] No skip mechanism within long scroll views (Discover/Matches).** Single global skip link only. A "skip to compose" / "skip to filters" within dense screens would cut keyboard travel for motor- and attention-affected users.
+
+~A11y Director
+
+---
+
+## Product / Dating-UX Designer
+
+_Poll date: 2026-06-30 — what's MISSING that a dating product needs (not a bug audit). Tags: [Critical]/[High]/[Medium]/[Low]. Excludes already-built features and the known founder-blocked items (R2, email, legal pages, domain)._
+
+### [Critical]
+1. **No gender / pronouns / who-you're-seeking — anywhere.** There is no gender, orientation, or "looking to meet" concept in the frontend or backend (grep: zero matches; `candidates.js` matches purely on interests + lifestyle deal-breakers). A dating app cannot ship without letting people say who they are and who they want to see — right now everyone is shown everyone. This is the single biggest table-stakes gap. For an autistic audience, explicit, structured identity/seeking fields (vs. inferred) are also a better fit than most apps.
+2. **No discovery preferences/filters.** Beyond 3 hard deal-breakers (local, non-smoker, wants-children) and a distance radius, the viewer can't set an age range, a "show me" gender filter, or any positive preference. `getCandidates` has no age-range or gender filter. Users expect to scope who appears in Discover; today it's interests-score only.
+3. **Can't change email or password while logged in.** `account.js` exposes only `DELETE /me`; `auth.js` only resets password via an emailed token (and email sending is founder-blocked, so reset is effectively dead too). A logged-in user has no in-app "change password" or "change email." This is basic account hygiene every product has — and the absence is sharpened because the email-token path is unavailable.
+
+### [High]
+4. **No identity/photo verification flow.** `verified`/`VerifiedBadge` exist but are read-only — set by an admin, with no user-facing "verify me" path (selfie/photo challenge). For a safety-sensitive autistic audience, a self-serve verification step is a trust feature users will look for, not a nice-to-have.
+5. **No profile-completeness guidance.** Onboarding requires only name + 1 interest + bio; the rich "moat" fields (comms style, sensory prefs, prompts, photos, lifestyle) are all optional with no completeness meter, no nudge, and no "your profile looks empty" prompt. Thin profiles hurt match quality and are a known retention lever. A calm, non-gamified completeness hint fits this audience well.
+6. **No notifications / activity inbox.** Push opt-in exists, but in-app there's no list of "X liked you," "new match," "new message" events — only a live unread badge on the Messages tab. Users expect a place to see who's expressed interest and recent activity. (Note: no "who liked you" surface at all — likes are invisible until mutual.)
+7. **No read receipts or typing indicator shown to the other person.** Read cursors exist server-side (`008_read_cursors.sql`, drives only the sender's own unread dot) but the recipient never sees "Read" or "typing…". For literal-communication users especially, knowing whether a message landed reduces anxiety; its absence is felt. (Make it optional/toggleable to respect those who'd find it pressuring.)
+8. **No conversation list search or message search.** With multiple matches there's no way to find a person or a past message. Standard in every messenger; missing here.
+
+### [Medium]
+9. **Onboarding is shallow on the differentiators.** The 3-step onboarding collects basics + interests + a free-text comms note, but never walks the user through the sensory/communication-style structured fields that are this app's whole reason to exist — they're buried in the profile editor and easy to never fill in. Bringing 1–2 of them into onboarding would lift the feature that differentiates Spectrum.
+10. **No re-match / "you unmatched" recovery, and no unmatch reason.** Unmatch exists but is one-way and final; no way to recover an accidental unmatch and no record/feedback. Also no block/unmatch distinction explained to the user.
+11. **Photo sharing in chat is dark.** `ATTACHMENTS_ENABLED = false` and `sendMessage` can't link an attachment. Sending a photo to a match is an expected messaging capability (partly tied to the R2 blocker, but the message↔attachment backend link is missing independent of R2).
+12. **No "first move" / icebreaker structure beyond starters.** Conversation starters exist, but there's no scheduled/low-pressure prompt exchange or structured first-message flow — a strong fit for users who find open-ended openers hard. Opportunity, not just a gap.
+13. **No way to hide/skip specific profile fields from view, or control field-level visibility.** Profile is all-or-nothing (plus the pre-match contextCard suppression). Granular "who can see what" controls are increasingly expected, especially by a privacy-conscious audience.
+
+### [Low]
+14. **No dark/light auto (system) theme option** — theme is manual light/dim only; no "match system."
+15. **No match/conversation sorting or filtering** (recent, unread, new) in the Matches/Messages lists.
+16. **No "preview my profile as others see it"** — users can't see their own card the way a candidate does.
+17. **No saved/favorite or note-to-self on a match** — no lightweight memory aid, which an autistic audience juggling several conversations may want.
+18. **No reporting from inside a conversation history / no report categories beyond two** (`inappropriate`, `spam`) — limited taxonomy for a safety-first product.
+
+~Product Designer
+
+## QA Front-End Analyst
+
+_Date: 2026-06-30_
+
+POLL of MISSING / half-built **functional** items (absent or partial states, flows, and options that would frustrate users). Source-grounded; no live click-through this run (browsers read-tier / Chrome MCP denied — a visual mobile + MatchMoment pass is still owed). A11y and brand items excluded per brief.
+
+**[Critical]**
+1. **No client-side routing — Back/Forward and refresh lose all in-app state.** `App.jsx` is a single `activeTab` state machine; `history.replaceState` is used only to scrub `?verify`/`?reset` params, never to push tab/conversation state. Browser Back exits the app or reloads to the default Discover tab; an open conversation, the Matches deck position, and Settings are all unrecoverable. No deep-linkable URLs at all.
+2. **Failed message sends silently vanish with no retry.** `ConversationScreen.handleSend` on a generic error removes the optimistic bubble and sets a transient status that auto-clears after 2s. The user's typed text is gone, there is no failed/queued state on the bubble, and no "Retry" affordance. Only 403/429 get sticky treatment; ordinary network failure loses the message.
+
+**[High]**
+3. **"No candidates nearby" vs "deck empty" are the same screen.** `SuggestionScreen` `atEnd` always renders "No new suggestions right now" regardless of cause — a brand-new user with zero candidates in radius, a user who exhausted a full deck, and a user whose filters/deal-breakers exclude everyone all see identical copy. No "widen your radius" vs "you've seen everyone" distinction, no refresh/reload-deck action (only "Go to Profile").
+4. **No offline handling anywhere.** No `navigator.onLine` / online-offline listeners in the codebase. Losing connectivity surfaces only as generic per-screen "check your connection" errors after a request fails; no global banner, no send queue, no auto-retry on reconnect. Socket `connect_error` is swallowed silently, so real-time messaging can be dead with no user signal.
+5. **MatchMoment "Say hello" dumps into the Messages list, not the thread.** `SuggestionScreen` `onOpenChat` calls `onOpenMessages()` which only switches the tab; `pendingConversationId` is never set (and for a brand-new match a conversation may not exist yet). The user lands on the inbox and must hunt for the person they just matched with. Known partial item — confirmed in source.
+6. **No message pagination / history loading.** `getConversation` returns the full message set in one shot and renders all of it; there is no infinite scroll, "load earlier messages," or windowing. Long threads load everything at once (slow) and there is no way to page back if the server ever caps the payload.
+7. **No delivery/read feedback on sent messages.** Optimistic bubbles show only a time-group label; there is no sending / sent / delivered / read state, no per-message timestamp, and `markConversationRead` updates the list dot but is never reflected back to the sender. Users can't tell if a message landed.
+
+**[Medium]**
+8. **Conversation "Archive" is a one-way trip — no archived view or restore.** `HeaderMenu` and the cap notice offer "Archive," and `archiveConversation` removes the row from the list, but there is no Archived section, no unarchive, and no way to find an archived thread again. The cap (5 active) forces archiving with no recovery path.
+9. **No conversation search or filter.** `MatchesListScreen` renders flat Active/New sections with no search box, no filter, and no sort. Becomes unusable as matches accumulate.
+10. **No profile preview ("see how others see me").** `ProfileScreen` is edit-only; there is no read-only render of the card a candidate sees in Discover, so users can't verify how their photos/prompts/bio actually present.
+11. **Empty-input edge on starters + attachments dead code shipped.** The whole photo-attachment compose path (preview, upload, R2 intent, scan status) is built but gated off by `ATTACHMENTS_ENABLED = false`, while `sendMessage` still can't link an attachmentId — so even if flipped on, photos render only optimistically and never persist. Half-built feature carrying real surface area.
+12. **No undo on the "Interested" choice.** Undo is offered only after Not-now/Skip (`SuggestionScreen`). An accidental "I'm interested" (which can trigger a real mutual match) has no take-back.
+13. **MatchesScreen surfaces no empty/error distinction for the createConversation cap inline.** Cap-reached is a toast-style `error` string with no link/affordance to the archive action it tells the user to perform; they must navigate to Messages and find a row to archive themselves.
+
+**[Low]**
+14. **Verify-email banner "Resend" has no cooldown / rate feedback.** `VerifyEmailBanner` flips to "Sent" but allows immediate repeated resends before that; no throttle UI. (Backend email is also disabled live, so the banner path is effectively inert.)
+15. **Auth form: no inline field validation or password-visibility toggle.** Errors are a single top-of-card alert; email format isn't validated client-side (`noValidate`), and there's no show/hide password control.
+16. **Reaction cap is silent.** When a message hits `MAX_REACTION_TYPES` (5) the React (＋) button simply disappears with no explanation.
+17. **No "new messages below" indicator.** The log force-scrolls to bottom on every change (`logRef.scrollTop = scrollHeight`); a user reading older messages gets yanked down with no jump-to-latest control or unread divider.
+
+~QA Analyst
