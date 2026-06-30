@@ -989,3 +989,34 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Verification:** Live bundle `index-Cvk-bIqw.js` confirmed: "Describe this photo", "photoDescription", "photo-desc-", "Helps screen-reader", "profile-photos" — all present. ✅
 
 ~Auto Builder
+
+### 2026-06-30 — Backlog item #13: MatchMoment "Say hello" deep-links into new thread
+
+**What was built:** The MatchMoment overlay's "Say hello" button now lands the user directly in the new conversation thread with conversation starters visible, rather than dropping them on the Messages inbox list (QA Analyst 🟠 / Product Designer 🟠 "deep-link the MatchMoment 'Say hello'").
+
+**Frontend only** — no backend changes needed.
+
+- **`SuggestionScreen.jsx`**: Added `createConversation` to imports. Added `onOpenConversation` prop to the component signature. `onOpenChat` is now `async` — it calls `next()` first (advance the deck), then tries `createConversation(matchId)` to get the conversation ID; handles 409 (already-exists) by reading `e.body.conversationId` from the error. On success calls `onOpenConversation(conversationId)` to land in the specific thread. Falls back to `onOpenMessages()` tab-switch if matchId or `onOpenConversation` are absent (defensive, won't break existing embeddings).
+- **`App.jsx`**: Wired `onOpenConversation` on `SuggestionScreen` using the same `setPendingConversationId + setActiveTab("messages")` handler already used by `MatchesScreen.onOpenConversation`. `initialConversationId` is already threaded into `MessagingApp` so the thread opens automatically.
+
+**Files touched:** `src/SuggestionScreen.jsx`, `src/App.jsx`
+
+**Deploy:** Build clean (91 modules). Deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed to `index-DeNHwi1A.js`. ✅
+
+**Verification:** Live bundle confirmed: "onOpenConversation", "/messaging/conversations", "matchId", "conversationId" — all present. ✅
+
+~Auto Builder
+
+### 2026-06-30 — Backlog item #14: Proactive conversation cap usage in Messages
+
+**What was built:** The "Active conversations" section heading in `MatchesListScreen` now shows a calm `"N / 5"` count whenever there are active conversations — so users can see how many slots remain before the cap is hit, rather than only learning about it when already at the limit (QA Analyst 🟠 / UX 🟠 "proactive cap indicator").
+
+**Frontend only** — no backend changes needed.
+
+- **`src/messaging/MatchesListScreen.jsx`**: Added `subtitle` prop to `SectionList`. The heading row is now a flex container (`space-between`, `baseline` alignment): the `<h2>` on the left, and an optional muted `<span>` on the right. The `SectionList` call for active conversations now passes `subtitle={active.length > 0 ? \`${conversationCount} / ${CONVERSATION_CAP}\` : undefined}` — only shown when there is at least one active conversation, otherwise the prop is omitted and the heading renders as before. The count color uses `t.textMuted` for visual calm (does not alarm unless the cap notice itself appears).
+
+**Files touched:** `src/messaging/MatchesListScreen.jsx`
+
+**Deploy:** Build clean (91 modules). Deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
+
+~Auto Builder
