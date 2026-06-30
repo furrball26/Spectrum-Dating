@@ -131,8 +131,8 @@ const MessagesGlyph = () => <NavGlyph><path d="M4 5h16v11H9l-4 3v-3H4z" /></NavG
 const ProfileGlyph = () => <NavGlyph><circle cx="12" cy="8" r="3.5" /><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" /></NavGlyph>;
 const ModerationGlyph = () => <NavGlyph><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></NavGlyph>;
 
-// Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label,
-// active = t.accent. Keeps tablist/tab/aria-selected semantics + focus rings.
+// Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label.
+// Plain nav buttons with aria-current="page" on the active item + focus rings.
 function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
   const f = useFocusable();
   return (

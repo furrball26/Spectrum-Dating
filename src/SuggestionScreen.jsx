@@ -565,16 +565,19 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
     setStage("viewing");
   }
 
-  // Undo the last skip: ask the backend to restore the candidate, then re-fetch
-  // the deck so the un-skipped person reappears. A no-op (ok:false) is handled
-  // quietly — we simply return to viewing without fuss.
+  // Undo the last skip: ask the backend to restore the candidate, then put that
+  // person back at the FRONT of the current deck — preserving the user's place
+  // instead of rebuilding the whole deck from the top. A no-op (ok:false) is
+  // handled quietly — we simply return to viewing without fuss.
   async function handleUndo() {
     if (undoing) return;
     setUndoing(true);
+    const restored = lastPerson;
     try {
       const result = await undoSkip();
-      if (result && result.ok) {
-        await loadCandidates();
+      if (result && result.ok && restored) {
+        setQueue(q => (q.some(c => c.memberId === restored.memberId) ? q : [restored, ...q]));
+        setIndex(0);
       }
     } catch {
       // Network hiccup — stay calm, just resume viewing the deck.

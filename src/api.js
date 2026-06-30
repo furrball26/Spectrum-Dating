@@ -58,6 +58,7 @@ async function apiFetch(path, options = {}) {
     const err = new Error(errBody.error || `HTTP ${res.status}`);
     err.status = res.status;
     err.code = errBody.code || null;
+    err.body = errBody; // full response body, so callers can read extra fields
     throw err;
   }
 

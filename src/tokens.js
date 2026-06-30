@@ -24,6 +24,9 @@ export const t = {
   borderLight: "var(--c-borderLight, #E8EDE7)",
   focus: "var(--c-focus, #24332D)",
   danger: "var(--c-danger, #B94040)",
+  // Dark red fill for destructive controls carrying WHITE text (delete confirm).
+  // Passes ≥4.5:1 in both themes — `danger` is a light tint in dim where white fails.
+  dangerFill: "var(--c-dangerFill, #B94040)",
   warning: "var(--c-warning, #B8860B)",
   serif: "'Newsreader', Georgia, 'Times New Roman', serif",
   sans: "'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif",

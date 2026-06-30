@@ -187,11 +187,18 @@ export default function MatchesScreen({ onOpenConversation }) {
       if (convId) onOpenConversation(convId);
       else setError("Couldn't open the conversation. Please try again.");
     } catch (e) {
-      setError(
-        e?.code === "CAP_REACHED"
-          ? "You've reached the limit of active conversations. Archive one from Messages to start a new chat."
-          : e?.message || "Couldn't start the conversation. Please try again."
-      );
+      // The conversation already exists (e.g. stale list / race): the server
+      // returns 409 with the existing id — just open it instead of erroring.
+      const existingId = e?.status === 409 && e?.body?.conversationId;
+      if (existingId) {
+        onOpenConversation(existingId);
+      } else {
+        setError(
+          e?.code === "CAP_REACHED"
+            ? "You've reached the limit of active conversations. Archive one from Messages to start a new chat."
+            : e?.message || "Couldn't start the conversation. Please try again."
+        );
+      }
     } finally {
       setBusyId(null);
     }

@@ -30,6 +30,9 @@ function useFocusable() {
   };
 }
 
+// Photo attachments are not yet end-to-end (needs R2 configured + a backend
+// path to link an uploaded photo to a message). Hidden until then.
+const ATTACHMENTS_ENABLED = false;
 const MAX_BODY = 2000;
 const CHAR_WARN_THRESHOLD = 200;
 const RATE_LIMIT_SECONDS = 60;
@@ -284,7 +287,7 @@ function DeleteConfirmDialog({ onConfirm, onCancel }) {
               fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
-              background: t.danger,
+              background: t.dangerFill,
               color: "#fff",
               border: "none",
               ...fDelete.style,
@@ -1496,7 +1499,10 @@ export default function ConversationScreen({
           alignItems: "flex-end",
         }}
       >
-        {/* Feature 2 — Attach photo button */}
+        {/* Feature 2 — Attach photo button. Hidden until the backend supports
+            linking an uploaded photo to a message (needs R2 configured + the
+            sendMessage attachmentId path). Flip ATTACHMENTS_ENABLED to restore. */}
+        {ATTACHMENTS_ENABLED && (
         <button
           ref={attachButtonRef}
           type="button"
@@ -1523,6 +1529,7 @@ export default function ConversationScreen({
         >
           📎
         </button>
+        )}
 
         {/* Hidden file input — Feature 2 */}
         <input

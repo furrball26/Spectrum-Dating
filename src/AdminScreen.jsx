@@ -103,7 +103,7 @@ function StatCard({ label, value }) {
 function SegmentedControl({ value, onChange }) {
   return (
     <div
-      role="tablist"
+      role="group"
       aria-label="Filter reports by status"
       style={{
         display: "flex",
@@ -132,8 +132,7 @@ function SegmentButton({ label, active, onClick }) {
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={onClick}
       style={{
         flex: "1 1 auto",
