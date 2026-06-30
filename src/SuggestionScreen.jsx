@@ -414,7 +414,7 @@ function ReportModal({ candidate, onClose }) {
   );
 }
 
-export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
+export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainLanguage = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -627,7 +627,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
           minHeight: 44,
         }}
       >
-        Done for now
+        {plainLanguage ? "Done" : "Done for now"}
       </button>
     </div>
   );
@@ -675,9 +675,13 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
             <div style={{ marginBottom: 12 }}>
               <AllCaughtUp size={110} />
             </div>
-            <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>You're all caught up.</h1>
+            <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
+              {plainLanguage ? "You've seen everyone." : "You're all caught up."}
+            </h1>
             <p style={{ color: t.textSoft, marginBottom: 20 }}>
-              You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join.
+              {plainLanguage
+                ? "You've seen everyone in your search for now. We will show more people as they join."
+                : "You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join."}
             </p>
             <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
               Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or who you're seeking in your profile can help.
@@ -848,9 +852,9 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
 
             {/* Three actions: fixed order, fixed labels (3.2.4). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <ActionButton label="I'm interested" kind="interested" onClick={handleInterested} icon="♡" />
-              <ActionButton label="Not right now"  kind="notnow"    onClick={handleNotNow} />
-              <ActionButton label="Skip"           kind="skip"      onClick={handleSkip} />
+              <ActionButton label={plainLanguage ? "Yes"      : "I'm interested"} kind="interested" onClick={handleInterested} icon="♡" />
+              <ActionButton label={plainLanguage ? "Not now" : "Not right now"}  kind="notnow"    onClick={handleNotNow} />
+              <ActionButton label="Skip"                                          kind="skip"      onClick={handleSkip} />
             </div>
 
             <p style={{ marginTop: 20, textAlign: "center" }}>
@@ -883,14 +887,21 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
               aria-live="polite"
               style={{ fontFamily: t.serif, fontSize: 22, fontWeight: 700, color: t.text, marginTop: 0, lineHeight: 1.35 }}
             >
-              {lastChoice === "interested" && `Saved. You said you're interested in ${lastPerson?.displayName}.`}
-              {lastChoice === "not_now"    && `Saved. ${lastPerson?.displayName} may come up again later.`}
-              {lastChoice === "skip"       && `Saved. You won't see ${lastPerson?.displayName} again.`}
+              {lastChoice === "interested" && (plainLanguage
+                ? `Done. You said yes to ${lastPerson?.displayName}.`
+                : `Saved. You said you're interested in ${lastPerson?.displayName}.`)}
+              {lastChoice === "not_now" && (plainLanguage
+                ? `Done. You pressed not now for ${lastPerson?.displayName}.`
+                : `Saved. ${lastPerson?.displayName} may come up again later.`)}
+              {lastChoice === "skip" && (plainLanguage
+                ? `Done. You skipped ${lastPerson?.displayName}.`
+                : `Saved. You won't see ${lastPerson?.displayName} again.`)}
             </p>
             {lastChoice === "interested" && (
               <p style={{ color: t.textSoft, marginBottom: 24 }}>
-                If {lastPerson?.displayName} also says they're interested, you'll both be able to message
-                each other. Until then, {lastPerson?.displayName} isn't told.
+                {plainLanguage
+                  ? <>If {lastPerson?.displayName} also says yes, you can both send messages. Until then, they won't be told.</>
+                  : <>If {lastPerson?.displayName} also says they're interested, you'll both be able to message each other. Until then, {lastPerson?.displayName} isn't told.</>}
               </p>
             )}
             {/* Next loads only on explicit press (3.2.5). */}

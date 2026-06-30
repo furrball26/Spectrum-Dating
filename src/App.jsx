@@ -913,6 +913,7 @@ export default function App() {
                 <SuggestionScreen
                   onOpenMessages={() => setActiveTab("messages")}
                   onGoToProfile={() => setActiveTab("profile")}
+                  plainLanguage={!!a11y.plainLanguage}
                 />
               )}
               {activeTab === "matches" && (
@@ -925,6 +926,7 @@ export default function App() {
                     setActiveTab("messages");
                     setUnreadCount(0);
                   }}
+                  plainLanguage={!!a11y.plainLanguage}
                 />
               )}
               {activeTab === "messages" && (

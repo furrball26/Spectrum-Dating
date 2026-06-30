@@ -42,7 +42,7 @@ function MatchesSkeleton() {
   );
 }
 
-function MatchCard({ match, busy, onOpen }) {
+function MatchCard({ match, busy, onOpen, plainLanguage }) {
   const { otherUser, hasConversation } = match;
   // Optional first-prompt preview — only if it has an answer and no tagline/context
   // already filling the row, to keep the card calm and uncluttered.
@@ -150,7 +150,7 @@ function MatchCard({ match, busy, onOpen }) {
               <Spectrum variant="loader" size={6} gap={3} />
               Starting…
             </span>
-          ) : hasConversation ? "Open chat" : "Say hello"}
+          ) : hasConversation ? "Open chat" : (plainLanguage ? "Send first message" : "Say hello")}
         </Button>
       </div>
     </li>
@@ -240,7 +240,7 @@ function LikedYouSection({ people, onGoDiscover }) {
   );
 }
 
-export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActivityCount }) {
+export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActivityCount, plainLanguage = false }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -385,6 +385,7 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
                   match={m}
                   busy={busyId === m.matchId}
                   onOpen={handleOpen}
+                  plainLanguage={plainLanguage}
                 />
               ))}
             </ul>
