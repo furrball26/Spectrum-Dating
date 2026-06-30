@@ -44,6 +44,7 @@ const DEFAULT_PROFILE = {
   commNote: "",
   relationshipGoal: "",        // "" | "long-term" | "friendship" | "open"
   distanceCity: "",
+  searchRadiusMiles: 0,
   notificationTier: "in_app", // "in_app" | "silent_push" | "name_only"
   // Lifestyle attributes (optional, shown on profile)
   wantsChildren: "",          // "" | "yes" | "no" | "open"
@@ -917,6 +918,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [commNote, setCommNote]       = useState(DEFAULT_PROFILE.commNote);
   const [relGoal, setRelGoal]         = useState(DEFAULT_PROFILE.relationshipGoal);
   const [distCity, setDistCity]       = useState(DEFAULT_PROFILE.distanceCity);
+  const [searchRadius, setSearchRadius] = useState(DEFAULT_PROFILE.searchRadiusMiles);
   const [notifTier, setNotifTier]     = useState(DEFAULT_PROFILE.notificationTier);
 
   // Lifestyle attributes (optional)
@@ -1016,6 +1018,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           commNote: data.commNote || '',
           relationshipGoal: data.relationshipGoal || '',
           distanceCity: data.distCity || '',
+          searchRadiusMiles: data.searchRadiusMiles ?? 0,
           notificationTier: data.notificationTier || 'in_app',
           wantsChildren: data.wantsChildren || '',
           smoking: data.smoking || '',
@@ -1039,6 +1042,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setCommNote(merged.commNote);
         setRelGoal(merged.relationshipGoal);
         setDistCity(merged.distanceCity);
+        setSearchRadius(merged.searchRadiusMiles ?? 0);
         setNotifTier(merged.notificationTier);
         setWantsChildren(merged.wantsChildren);
         setSmoking(merged.smoking);
@@ -1094,6 +1098,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         commNote         !== savedProfile.commNote ||
         relGoal          !== savedProfile.relationshipGoal ||
         distCity         !== savedProfile.distanceCity ||
+        searchRadius     !== savedProfile.searchRadiusMiles ||
         notifTier        !== savedProfile.notificationTier ||
         wantsChildren    !== savedProfile.wantsChildren ||
         smoking          !== savedProfile.smoking ||
@@ -1113,7 +1118,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -1263,6 +1268,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       commNote,
       relationshipGoal: relGoal,
       distanceCity: distCity,
+      searchRadiusMiles: searchRadius,
       notificationTier: notifTier,
       wantsChildren,
       smoking,
@@ -1289,6 +1295,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         commNote: currentProfile.commNote,
         relationshipGoal: currentProfile.relationshipGoal,
         distCity: currentProfile.distanceCity,
+        searchRadiusMiles: currentProfile.searchRadiusMiles,
         notificationTier: currentProfile.notificationTier,
         wantsChildren: currentProfile.wantsChildren,
         smoking: currentProfile.smoking,
@@ -1941,6 +1948,32 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                 style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}
               >
                 Used to show people near you. Approximate is fine.
+              </span>
+            </div>
+
+            {/* Search radius — distance-based matching (miles from your location) */}
+            <div style={{ marginTop: 18 }}>
+              <FieldLabel htmlFor="search-radius">Search radius</FieldLabel>
+              <select
+                id="search-radius"
+                aria-describedby="radius-help"
+                value={searchRadius}
+                onChange={(e) => setSearchRadius(Number(e.target.value))}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+              >
+                <option value={0}>Anywhere</option>
+                <option value={25}>Within 25 miles</option>
+                <option value={50}>Within 50 miles</option>
+                <option value={100}>Within 100 miles</option>
+                <option value={250}>Within 250 miles</option>
+              </select>
+              <span
+                id="radius-help"
+                style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}
+              >
+                Only show people within this distance. Set your location above for this to apply.
               </span>
             </div>
           </div>

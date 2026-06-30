@@ -71,6 +71,11 @@ function MatchCard({ match, busy, onOpen }) {
             <span>{otherUser.displayName || "Someone"}</span>
             {otherUser.verified && <VerifiedBadge />}
           </div>
+          {otherUser.distCity && (
+            <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+              {otherUser.distCity}
+            </div>
+          )}
           {otherUser.tagline && (
             <div
               style={{
