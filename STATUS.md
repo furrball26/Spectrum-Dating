@@ -787,6 +787,157 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 
 ~Auto Builder
 
+---
+
+## QA Front-End Analyst
+
+### 2026-06-30 — Deep code audit: functional/behavioral defects across all user-facing flows (static analysis pass)
+
+**Method:** Full static review of all source files under `C:\Users\Pen\Desktop\Spectrum-Dating\src` plus the backend routes under `C:\Users\Pen\Desktop\Spectrum-Dating-Server\src\routes`. Could not execute live click-through this run (Chrome MCP / Preview permission-denied; same harness limit as prior passes). Findings are code-level root-cause confirmed, not runtime-click confirmed. No source files were modified. Auth/onboarding, discover, matching, messaging, profile, settings/safety, and admin flows all covered. Accessibility/contrast owned by the A11y Director and not re-listed here.
+
+---
+
+#### 🔴 Blocker
+
+**B-1 — Real-time messaging permanently disabled for any user who hits a 429**
+- **Location:** `src/messaging/ConversationScreen.jsx` lines 801–804, 1124–1127
+- **Repro:** User sends messages quickly and receives a 429 from `POST .../messages`. The handler calls `setRateLimited(true)` (line 1126), which disables the composer (`composingDisabled`, line 1026). `RATE_LIMIT_SECONDS = 60` is defined (line 40) and `rateLimitTimerRef` is declared (line 804) and cleaned up on unmount (line 934), but **no `setTimeout(() => setRateLimited(false), ...)` is ever started**. The rate-limited state is never cleared.
+- **Effect:** After a single 429 the composer is permanently disabled until the page is refreshed. The user sees no countdown, no "try again in 60 seconds" message, no auto-reset. `setSendStatus` shows a transient "You're sending messages quickly. Please wait a moment." status that clears on its own, leaving the composer silently frozen forever.
+- **Severity:** Blocker — the server's rate window is 60 s per user per minute (20 messages/minute); hitting it once locks a legitimate user out of messaging for the rest of the session with no recovery path and no explanation.
+- **Fix:** Add `rateLimitTimerRef.current = setTimeout(() => { setRateLimited(false); setRateLimitStatus(""); }, RATE_LIMIT_SECONDS * 1000);` immediately after `setRateLimited(true)` at line 1126.
+
+**B-2 — Socket.io BASE_URL hard-codes localhost in production (real-time messaging silently dead if env var absent)**
+- **Location:** `src/messaging/ConversationScreen.jsx` line 868
+- **Code:** `const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";`
+- **Contrast with `api.js` line 5:** `const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");` — the REST client guards the localhost fallback behind `import.meta.env.DEV`. The socket client has no such guard.
+- **Effect:** If `VITE_API_URL` is ever absent from Vercel's environment (misconfiguration, secret rotation, new deployment slot), the socket connects to `http://localhost:3001` — which is unreachable in production. WebSocket connect fails silently (`socket.on("connect_error", () => setSocketConnected(false))`), the user sees no indication beyond the absence of real-time updates, and new messages from the other party never arrive. No toast, no banner, no reconnect prompt.
+- **Fix:** Mirror `api.js`: `const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");`
+
+---
+
+#### 🟠 High
+
+**H-1 — Swipe API failures are silently swallowed — interested/skip interactions are permanently lost**
+- **Location:** `src/SuggestionScreen.jsx` — `handleInterested` (line 509), `handleNotNow` (line 529), `handleSkip` (line 545)
+- **Pattern (all three):** The card is optimistically removed from the queue (`setQueue(q => q.slice(1))`) BEFORE the API call. The `catch` block is a no-op comment. If the network request fails for any reason (flaky connection, 429, 5xx), the swipe decision is gone — the candidate does not reappear, the like/skip is never recorded, and the user receives no indication anything went wrong.
+- **Impact:** A mutual match resulting from a like can be silently lost. A user who expressed interest never appears as a match even though the user clearly intended it. The candidate is effectively buried.
+- **Additional:** `handleNotNow` and `handleSkip` both call `swipe(current.memberId, 'skip')` — identical API call, different UI labels. This is intentional per code comments but worth noting for consistency.
+- **Fix:** On API failure in `handleInterested`, re-insert the candidate at the front of the queue and show an inline error, or surface a retry affordance.
+
+**H-2 — UnsavedDialog "Save and leave" navigates away even when save fails**
+- **Location:** `src/ProfileScreen.jsx` lines 2078–2082
+- **Code:**
+  ```
+  async function handleDialogSave() {
+    await handleSave();
+    setShowDialog(false);
+    onDone?.();
+  }
+  ```
+- **Root cause:** `handleSave()` wraps its own errors in an internal try/catch that sets `saveErrorSummary` — it never re-throws. So `handleDialogSave` always falls through to `setShowDialog(false)` and `onDone?.()` regardless of whether the save succeeded. The user is navigated away from the profile with unsaved edits; the `saveErrorSummary` toast may not even be visible once the screen unmounts.
+- **Fix:** Have `handleSave()` return a boolean `ok` value (or re-throw on failure), and guard the navigation: `const ok = await handleSave(); if (ok) { setShowDialog(false); onDone?.(); }`.
+
+**H-3 — Post-match "Say hello" lands user on the Messages list, not the new thread**
+- **Location:** `src/SuggestionScreen.jsx` lines 935–940
+- **Code:** `onOpenChat` calls `next()` then `onOpenMessages()`. `onOpenMessages` switches the tab but sets no `pendingConversationId`. The user lands on the full messages list and must locate the new match manually. `matchId` is captured in state (line 428) but is passed neither to `onOpenMessages` nor used to pre-create the conversation.
+- **Effect:** The conversation-starters scaffold in `EmptyConversationState` — the highest-value autism accommodation for the opener moment — is never surfaced. A code comment at line 936 acknowledges this is a known incomplete item.
+- **Fix:** Pass `matchId` from `SuggestionScreen` up to App, create the conversation (`POST /messaging/conversations { matchId }`), and pass the resulting `conversationId` as `initialConversationId` to `MessagingApp` so it auto-opens the thread on arrival.
+
+**H-4 — "Undo last skip" silently ignores API failures**
+- **Location:** `src/SuggestionScreen.jsx` — `handleUndo()`
+- **Pattern:** On API error, the catch block does nothing. The user clicks "Undo", sees no feedback, the deck does not restore the skipped person, and no error is shown. The button appears broken from the user's perspective.
+- **Fix:** Surface a brief status message ("Couldn't undo — please try again") on failure.
+
+---
+
+#### 🟡 Medium
+
+**M-1 — Calm mode → Reduce motion coupling is one-way (disabling calm does NOT disable reduce motion)**
+- **Location:** `src/SettingsScreen.jsx` lines 226–228
+- **Code:** `if (key === "calmMode" && value) next.reduceMotion = true;` — but there is no corresponding `if (key === "calmMode" && !value) next.reduceMotion = false;`.
+- **Effect:** A user who turns calm ON (which enables reduce-motion), then turns calm OFF, still has reduce-motion active without having explicitly chosen it. The reduce-motion toggle shows ON while calm is OFF — contradictory state that silently suppresses all animation.
+- **Fix:** Track whether reduce-motion was user-set vs. calm-implied (a separate flag or by checking previous value), and clear it when calm is turned off if the user had not independently set it.
+
+**M-2 — MatchMoment focus trap excludes the heading that receives initial focus**
+- **Location:** `src/MatchMoment.jsx`
+- **Root cause:** The dialog focuses `headingRef` (tabIndex={-1}) on open (correct for screen-reader announcement), but the Tab trap is bounded between `helloRef` (Say hello) and `keepRef` (Keep looking). The heading is outside the trap. The first Tab press from the heading escapes the dialog momentarily before cycling back in.
+- **Fix:** Include `headingRef` in the Tab cycle, or move initial focus directly to `helloRef`.
+
+**M-3 — `aria-invalid` is applied to the email field for password-length errors**
+- **Location:** `src/AuthScreen.jsx` line 239
+- **Code:** `aria-invalid={error ? "true" : undefined}` on the email input — fires for any `error` string, including "Password must be at least 8 characters."
+- **Effect:** Screen readers announce the email input as invalid when the error is about the password. Incorrect, misleading, and violates 4.1.2 Name/Role/Value.
+- **Fix:** Track which field caused the error separately and apply `aria-invalid` only to the field in error.
+
+**M-4 — Double-submit is possible on all three Discover action buttons**
+- **Location:** `src/SuggestionScreen.jsx` — `handleInterested`, `handleNotNow`, `handleSkip`
+- **No in-flight guard:** None of the three handlers check for a prior in-flight request. A fast double-click on "I'm interested" could produce two `POST /matching/swipe` calls for the same candidate, potentially producing a spurious match record.
+- **Fix:** Add an `inFlight` ref (set synchronously before the API call, cleared in `finally`) and disable the three action buttons while it is true.
+
+**M-5 — Photo orphaned in R2 if `addProfilePhoto` call fails after successful upload**
+- **Location:** `src/ProfileScreen.jsx` — photo upload handler (presign → R2 PUT → `addProfilePhoto` sequence)
+- **Pattern:** If the R2 presigned PUT succeeds but the subsequent `addProfilePhoto(key)` API call fails (network error, 5xx), the photo object remains in R2 indefinitely with no corresponding DB record. The user sees no new photo; the object costs storage and is not cleaned up on account deletion.
+- **Fix:** On `addProfilePhoto` failure, best-effort delete the R2 object (requires a backend cleanup endpoint), or have the backend confirm + add atomically in one call.
+
+---
+
+#### ⚪ Low
+
+**L-1 — `getExportUrl()` exposes the JWT as a URL query parameter**
+- **Location:** `src/api.js` line 413–416
+- **Risk:** Query-parameter tokens appear in browser history, server access logs, Referer headers, and any CDN/analytics in the path. Sharing a link after download inadvertently shares a live JWT. (The Security Reviewer's higher-priority item is that the same endpoint bypasses `checkTokenVersion` — fix that first; this is the exposure-in-logs follow-up.)
+- **Fix:** Once the export endpoint supports `Authorization: Bearer`, switch to a fetch-triggered download rather than a bare `<a href>`.
+
+**L-2 — Matches tab activity count only updates on mount, not reactively while the tab is open**
+- **Location:** `src/MatchesScreen.jsx` — `onActivityCount` callback
+- **Pattern:** Called once after the initial `getActivity()` fetch. If new likes arrive while the user is on the Matches tab, the badge count in the nav does not refresh until they leave and return.
+- **Fix:** Set up a periodic refresh or socket-event-driven refresh of `getActivity()` while the tab is active.
+
+**L-3 — Reaction cap removes the "+" button silently with no explanation**
+- **Location:** `src/messaging/ConversationScreen.jsx` — `ReactionPicker` render logic
+- **Pattern:** When a message reaches `MAX_REACTION_TYPES` (5) the add-reaction button disappears without explanation. No tooltip, no `aria-disabled`, no "maximum reached" message.
+- **Fix:** Keep the button visible, mark it `aria-disabled="true"`, and add a helper text or tooltip "Maximum 5 reaction types per message."
+
+**L-4 — Auth form has no client-side email format validation despite `noValidate`**
+- **Location:** `src/AuthScreen.jsx`
+- **Pattern:** `noValidate` suppresses browser validation but no custom check is run. Any string is submitted as an email; the server's 401/400 is the only feedback, adding a needless round-trip for a trivially detectable error.
+- **Fix:** Validate email format before submitting and surface the error inline without a network call.
+
+**L-5 — No double-submit guard on Onboarding save**
+- **Location:** `src/OnboardingScreen.jsx`
+- **Pattern:** Structural gap identical to the swipe buttons — `saving` state is set but has a tick of async delay before disabling re-clicks. Use a synchronous ref guard (`savingRef.current = true`) set before the first `await`.
+
+---
+
+#### Coverage notes
+
+**Flows exercised via code analysis this pass:**
+- Auth / onboarding — login, register, forgot-password mode, email verify (`?verify=`), reset password (`?reset=`), DOB 18+ gate
+- Discover — all three action buttons, undo skip, match moment, post-match flow, empty/exhausted deck states
+- Matching / match moment — mutual match detection, `MatchMoment` component, focus trap, keyboard handling
+- Matches tab — activity inbox, badge count, "Say hello" → conversation open flow
+- Messages — list view, desktop 2-pane layout, send/retry/delete, optimistic updates, reactions, rate-limit handling, socket lifecycle, archived conversations, search/filter, message pagination ("Load earlier messages")
+- Profile — all field cards, photo gallery (upload/delete/primary), prompts, unsaved-changes dialog, completeness nudge, profile preview modal, pause toggle, notifications, identity verification, sign-out, delete account
+- Settings / Safety — all a11y toggles (calm mode coupling confirmed), blocked-users list, check-in timer, your-reports section, script copy buttons
+- Admin — report list, stats card, status filter, suspend/unsuspend, resolve flow
+
+**Flows NOT confirmed at live runtime (owed — same harness limit as all prior passes):**
+- True mobile/tablet-width rendering (bottom nav, list→thread stack-swap, match-moment overlay on small screen)
+- Live 429 trigger + timer reset (or non-reset) confirmation
+- Live swipe double-submit timing window
+
+---
+
+#### Top items for the PM
+
+1. 🔴 **B-1 (rate-limit never resets)** — one-line fix; immediately corrects a silent messaging lockout for any active user who messages quickly.
+2. 🔴 **B-2 (Socket BASE_URL localhost fallback)** — one-line fix; mirrors the guard already present in `api.js`; eliminates a catastrophic real-time failure mode on any env-var misconfiguration.
+3. 🟠 **H-2 (UnsavedDialog navigates away on save failure)** — users silently lose profile edits; return value from `handleSave` needed.
+4. 🟠 **H-3 (post-match "Say hello" doesn't open the thread)** — confirmed in source and in two prior reports; the conversation-starters scaffold that is the app's strongest autism accommodation for the opener moment is never reached via this path.
+5. 🟠 **H-1 (swipe failures silently dropped)** — a user's "I'm interested" can be permanently lost on a flaky network with no retry and no indication anything went wrong.
+
+~QA Front-End Analyst
+
 ### 2026-06-30 — Backlog item #11: Self-serve identity verification request flow
 
 **What was built:** End-to-end self-serve verification request flow — users can now request identity verification from their Profile, see the status update in real time (pending / rejected / re-requestable), and the admin's approve/reject action updates the status immediately.
@@ -811,5 +962,30 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Deploy:** Build clean (91 modules). Backend health-gated deploy passed after 5 checks (Railway SHA `62e9029`). Frontend deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
 
 **Verification:** Live bundle `index-DKaAXJFx.js` confirmed: "Request verification", "Re-request verification", "Pending review", "verification-request" — all four strings present. ✅
+
+~Auto Builder
+
+### 2026-06-30 — Backlog item #12: Per-photo alt-text description field
+
+**What was built:** A user-authored photo description field — the A11y Director's #1 critical gap. Users can now write a short description for each profile photo ("Me hiking with my dog"), which becomes the `alt` text when their photo appears on candidate cards in Discover, eliminating the generic/empty alt text that left blind and low-vision users with no photo context.
+
+**Backend** (`Spectrum-Dating-Server/`):
+- **Migration `029_photo_alt_text.sql`**: `ALTER TABLE profile_photos ADD COLUMN description TEXT NOT NULL DEFAULT ''`. Existing rows default to empty; the `listPhotos` helper falls back to name-based alt on the client.
+- **`listPhotos()`**: updated to `SELECT … description …` and returns `description` in each photo object.
+- **`PUT /photos/profile-photos/:id/description`** (new, ownership-checked, `mutationLimiter`): accepts `{ description }`, trims to 200 chars, updates the row, returns `{ ok, description }`.
+- **`candidates.js`**: added a sub-query `(SELECT pp.description FROM profile_photos pp WHERE pp.user_id = p.user_id AND pp.is_primary = 1 LIMIT 1) AS primary_photo_description` to the allProfiles query so the Discover card can use the photo owner's description.
+- **`matching.js /candidates`**: exposes `photoDescription: c.primary_photo_description || ''` in the serialized candidate result.
+
+**Frontend** (`src/`):
+- **`Avatar.jsx`**: added `alt` prop — when provided it overrides the default `"Photo of {name}"` fallback so callers can pass a user-authored description. Existing call sites unaffected (prop is optional).
+- **`ProfileScreen.jsx`**: `PhotoCell` gains a labelled textarea "Describe this photo" (max 200, character counter, `aria-describedby` hint "Helps screen-reader users."). Saves to the backend on blur via `updatePhotoDescription()`; shows busy state + inline `role="alert"` error on failure; on success calls `onDescriptionSaved(id, description)` which updates local `photos` state optimistically (no reload needed). `handleDescriptionSaved` useCallback added; `PhotoGallery` and the JSX call site wired through.
+- **`SuggestionScreen.jsx`**: `photoDescription` threaded from the API response through the candidate queue mapping (`c.photoDescription || ''`); used as the hero card `<img alt>` (`person.photoDescription || "Photo of {name}"`).
+- **`api.js`**: `updatePhotoDescription(id, description)` → `PUT /photos/profile-photos/:id/description`.
+
+**Files touched:** `Spectrum-Dating-Server/src/migrations/029_photo_alt_text.sql` (new), `Spectrum-Dating-Server/src/db.js`, `Spectrum-Dating-Server/src/routes/photos.js`, `Spectrum-Dating-Server/src/matching/candidates.js`, `Spectrum-Dating-Server/src/routes/matching.js`, `src/api.js`, `src/Avatar.jsx`, `src/ProfileScreen.jsx`, `src/SuggestionScreen.jsx`
+
+**Deploy:** Build clean (91 modules). Backend health-gated deploy passed after 4 checks (Railway). Frontend deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
+
+**Verification:** Live bundle `index-Cvk-bIqw.js` confirmed: "Describe this photo", "photoDescription", "photo-desc-", "Helps screen-reader", "profile-photos" — all present. ✅
 
 ~Auto Builder
