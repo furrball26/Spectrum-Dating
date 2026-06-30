@@ -617,3 +617,25 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 17. **No "new messages below" indicator.** The log force-scrolls to bottom on every change (`logRef.scrollTop = scrollHeight`); a user reading older messages gets yanked down with no jump-to-latest control or unread divider.
 
 ~QA Analyst
+
+---
+
+## Autonomous Build
+
+### 2026-06-30 — Backlog item #1: Notifications / activity inbox
+
+**What was built:** Activity inbox — a "Liked you" section inside the Matches screen showing people who swiped 'like' on you that you haven't acted on yet, plus a nav badge on the Matches tab.
+
+**Backend** (`Spectrum-Dating-Server/src/routes/matching.js`):
+- New `GET /matching/activity` endpoint. Returns `incomingLikes[]` (people who liked you, you haven't swiped on, no match exists) and `recentMatches[]` (mutual matches from last 7 days). Query uses existing `swipes`, `matches`, `profiles` tables — no migration needed. Each person includes `userId`, `displayName`, `age`, `photoUrl`, `pronouns`, `distCity`, `verified`, `likedAt`. Capped at 20 incoming likes. Live-verified: `{"incomingLikes":[],"recentMatches":[{"matchId":"…","displayName":"Eli Brenner",…}]}` ✅
+
+**Frontend** (`src/api.js`, `src/MatchesScreen.jsx`, `src/App.jsx`):
+- `api.js`: `getActivity()` → `GET /matching/activity`
+- `MatchesScreen`: new `LikedYouSection` component — horizontal scroll of avatars with count badge, calm copy ("N people have expressed interest. Head to Discover…"), and a "Go to Discover to meet them" button. Accepts `onGoDiscover` + `onActivityCount` props (all hooks declared before early returns — no hook-after-return). Added "Your matches" subheading when mutual matches exist.
+- `App.jsx`: `activityCount` state drives a badge on the Matches bottom-nav tab (cleared when entering Matches tab or signing out). `onGoDiscover` routes back to Discover.
+
+**Deploy:** Backend health-gated deploy passed (5 checks). Frontend deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed; live bundle `index-4V46myUf.js` contains `incomingLikes` / `Liked you` strings. ✅
+
+**Verification:** Probed `GET /matching/activity` as sample user `mira.k.1` — 200 with correct shape. Build clean (90 modules). ✅
+
+~Auto Builder
