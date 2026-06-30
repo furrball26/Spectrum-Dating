@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl, changePassword, changeEmail } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl, changePassword, changeEmail, requestVerification } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
@@ -1575,6 +1575,10 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   // the other hooks — before the loading/error early returns — so the hook count
   // stays constant across renders (React #310 / a hook-after-return crashed prod).
   const [verified, setVerified] = useState(false);
+  // Self-serve verification request state: null | 'pending' | 'rejected'
+  const [verificationRequested, setVerificationRequested] = useState(null);
+  const [verifRequestBusy, setVerifRequestBusy] = useState(false);
+  const [verifRequestError, setVerifRequestError] = useState("");
 
   // All form fields (initialised to defaults; overwritten by API load in useEffect)
   const [displayName, setDisplayName] = useState(DEFAULT_PROFILE.displayName);
@@ -1746,6 +1750,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         setVerified(!!data.verified);
+        setVerificationRequested(data.verificationRequested || null);
         // Prompts — map server shape ({ promptKey, promptText, answer }) to the
         // editable shape ({ promptKey, answer }); cap at MAX_PROMPTS defensively.
         if (Array.isArray(data.prompts)) {
@@ -3168,11 +3173,11 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               <p style={{ margin: 0, fontSize: 15, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
                 <span aria-hidden="true">✓</span> Your identity is verified.
               </p>
-            ) : (
+            ) : verificationRequested === "pending" ? (
               <>
-                <p style={{ margin: "0 0 12px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
-                  Identity verification is coming soon. It helps everyone trust they're
-                  talking to a real person. We'll let you know when it's ready.
+                <p style={{ margin: "0 0 10px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+                  <strong style={{ color: t.text }}>Verification request received.</strong> Our
+                  team will review it and confirm your identity shortly.
                 </p>
                 <span
                   style={{
@@ -3182,14 +3187,58 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                     borderRadius: 999,
                     fontSize: 13,
                     fontWeight: 600,
-                    color: t.textMuted,
+                    color: t.textSoft,
                     background: t.surfaceAlt,
                     border: `1px solid ${t.border}`,
                     letterSpacing: "0.01em",
                   }}
                 >
-                  Coming soon
+                  Pending review
                 </span>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 14px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+                  {verificationRequested === "rejected"
+                    ? "Your previous request wasn't approved. You can submit a new one — make sure your profile photo clearly shows your face."
+                    : "Get a verified badge to show other members you're a real person. We'll review your profile and confirm your identity."}
+                </p>
+                {verifRequestError && (
+                  <p role="alert" style={{ color: t.danger, fontSize: 13, margin: "0 0 10px" }}>
+                    {verifRequestError}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={verifRequestBusy}
+                  onClick={async () => {
+                    setVerifRequestBusy(true);
+                    setVerifRequestError("");
+                    try {
+                      await requestVerification();
+                      setVerificationRequested("pending");
+                    } catch (e) {
+                      setVerifRequestError(e?.message || "Couldn't submit your request. Please try again.");
+                    } finally {
+                      setVerifRequestBusy(false);
+                    }
+                  }}
+                  style={{
+                    minHeight: 44,
+                    padding: "10px 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${t.accentStrong}`,
+                    background: "transparent",
+                    color: t.accentStrong,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: verifRequestBusy ? "wait" : "pointer",
+                    fontFamily: t.sans,
+                    opacity: verifRequestBusy ? 0.7 : 1,
+                  }}
+                >
+                  {verifRequestBusy ? "Submitting…" : verificationRequested === "rejected" ? "Re-request verification" : "Request verification"}
+                </button>
               </>
             )}
           </div>

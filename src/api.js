@@ -142,6 +142,12 @@ export async function updateProfile(fields) {
   return apiFetch("/profile/me", { method: "PUT", body: fields });
 }
 
+// Self-serve identity-verification request (backlog #11).
+// Idempotent — safe to call even if a request already exists.
+export async function requestVerification() {
+  return apiFetch("/profile/verification-request", { method: "POST" });
+}
+
 // Hinge-style profile prompts
 export async function getPromptCatalog() {
   const d = await apiFetch('/profile/prompt-catalog');
