@@ -1065,6 +1065,12 @@ export default function App() {
               {activeTab === "suggestions" && (
                 <SuggestionScreen
                   onOpenMessages={() => setActiveTab("messages")}
+                  onOpenConversation={(conversationId) => {
+                    setPendingConversationId(conversationId);
+                    setPrevTab("suggestions");
+                    setActiveTab("messages");
+                    setUnreadCount(0);
+                  }}
                   onGoToProfile={() => setActiveTab("profile")}
                   plainLanguage={!!a11y.plainLanguage}
                   reducedSensory={!!a11y.reducedSensory}

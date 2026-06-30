@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip, getUserId } from "./api.js";
+import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip, getUserId, createConversation } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
@@ -414,7 +414,7 @@ function ReportModal({ candidate, onClose }) {
   );
 }
 
-export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainLanguage = false, reducedSensory = false }) {
+export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, plainLanguage = false, reducedSensory = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -933,10 +933,23 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile, plainL
             userId: lastPerson.memberId,
             photoUrl: lastPerson.photoUrl,
           }}
-          onOpenChat={() => {
-            // Land the pair in Messages. (matchId is available as `matchId` if a
-            // future flow wants to deep-link / create the conversation here.)
+          onOpenChat={async () => {
+            // Create the conversation (or find the existing one via 409) then
+            // deep-link directly into the thread so the user lands on the empty
+            // conversation with starters, not on the Messages inbox.
             next();
+            if (matchId && onOpenConversation) {
+              try {
+                const conv = await createConversation(matchId);
+                const convId = conv?.conversationId || conv?.id;
+                if (convId) { onOpenConversation(convId); return; }
+              } catch (e) {
+                // 409 = conversation already exists; server returns conversationId
+                const convId = e?.body?.conversationId;
+                if (convId) { onOpenConversation(convId); return; }
+              }
+            }
+            // Fallback: just open the Messages tab if we can't deep-link.
             (onOpenMessages || (() => {}))();
           }}
           onContinue={next}
