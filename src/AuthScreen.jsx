@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { register, login, forgotPassword } from "./api.js";
+import { register, login, forgotPassword, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
@@ -27,12 +27,14 @@ function inputStyle(hasError) {
 }
 
 export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
-  const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register" | "forgot"
+  const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register" | "forgot" | "check-email"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
+  const [pendingAuth, setPendingAuth] = useState(null); // auth data held while on check-email screen
+  const [resendStatus, setResendStatus] = useState("idle"); // 'idle' | 'sending' | 'sent' | 'error'
   const headingRef = useRef(null);
   const errorRef = useRef(null);
   // Move focus to the error when one appears so it's announced and reachable (M2).
@@ -70,6 +72,15 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
       let data;
       if (mode === "register") {
         data = await register(email.trim().toLowerCase(), password);
+        // If email verification is configured, pause here and show the check-email
+        // screen rather than immediately landing in the app. This gives the user a
+        // clear handoff moment and avoids the "why is there a banner?" confusion.
+        if (data.emailVerificationEnabled && !data.emailVerified) {
+          setPendingAuth(data);
+          setResendStatus("idle");
+          setMode("check-email");
+          return;
+        }
       } else {
         data = await login(email.trim().toLowerCase(), password);
       }
@@ -78,6 +89,16 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setResendStatus("sending");
+    try {
+      await resendVerification();
+      setResendStatus("sent");
+    } catch {
+      setResendStatus("error");
     }
   }
 
@@ -174,10 +195,79 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               outline: "none",
             }}
           >
-            {mode === "login" ? "Welcome back" : mode === "forgot" ? "Reset your password" : "Create your account"}
+            {mode === "login" ? "Welcome back"
+              : mode === "forgot" ? "Reset your password"
+              : mode === "check-email" ? "Check your inbox"
+              : "Create your account"}
           </h1>
 
-          {mode === "forgot" && forgotSent ? (
+          {mode === "check-email" ? (
+            <div>
+              <p style={{ margin: "0 0 6px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+                We sent a verification link to{" "}
+                <strong style={{ color: t.text }}>{email}</strong>.
+                Click the link to confirm your account.
+              </p>
+              <p style={{ margin: "0 0 20px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+                Can't find it? Check your spam folder.
+              </p>
+
+              {/* Resend */}
+              <div style={{ marginBottom: 16 }}>
+                {resendStatus === "sent" ? (
+                  <p role="status" style={{ fontSize: 14, color: t.positive, margin: 0 }}>
+                    Sent — check your inbox again.
+                  </p>
+                ) : resendStatus === "error" ? (
+                  <p role="alert" style={{ fontSize: 14, color: t.danger, margin: 0 }}>
+                    Couldn't resend right now. Please try again.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendStatus === "sending"}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${t.border}`,
+                      color: t.accentStrong,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: resendStatus === "sending" ? "wait" : "pointer",
+                      padding: "8px 16px",
+                      borderRadius: 8,
+                      minHeight: 44,
+                      opacity: resendStatus === "sending" ? 0.6 : 1,
+                    }}
+                  >
+                    {resendStatus === "sending" ? "Sending…" : "Resend verification email"}
+                  </button>
+                )}
+              </div>
+
+              {/* Continue to app */}
+              <button
+                type="button"
+                onClick={() => onAuth(pendingAuth)}
+                style={{
+                  width: "100%",
+                  minHeight: 48,
+                  borderRadius: 12,
+                  background: t.accentFill,
+                  color: "#fff",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Continue to app →
+              </button>
+              <p style={{ marginTop: 12, fontSize: 13, color: t.textMuted, textAlign: "center", lineHeight: 1.5 }}>
+                You can verify later — a reminder will appear at the top of the app.
+              </p>
+            </div>
+          ) : mode === "forgot" && forgotSent ? (
             <div>
               <p role="status" style={{ margin: "0 0 20px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
                 If an account exists for that email, we've sent a link to reset your
