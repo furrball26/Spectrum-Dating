@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, deleteAccount, getPromptCatalog, savePrompts, getExportUrl, changePassword, changeEmail } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
@@ -2520,6 +2520,9 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
             </div>
           )}
 
+          {/* ── Account & security ── */}
+          <AccountSecuritySection />
+
           {/* ── Download my data ── */}
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
             <a
@@ -2556,6 +2559,78 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         </div>
       </div>
     </>
+  );
+}
+
+// ── Account & security: change password / change email ────────────────────────
+function AccountSecuritySection() {
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [pwStatus, setPwStatus] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [emPw, setEmPw] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [emStatus, setEmStatus] = useState("");
+  const [emBusy, setEmBusy] = useState(false);
+
+  const field = { ...inputStyle(false), marginBottom: 10 };
+  const submitBtn = (busy) => ({
+    background: t.accentFill, color: "#fff", border: "none", borderRadius: 10,
+    padding: "10px 18px", minHeight: 44, fontSize: 15, fontWeight: 600,
+    cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1,
+  });
+
+  async function submitPw(e) {
+    e.preventDefault();
+    setPwStatus("");
+    if (newPw.length < 8) { setPwStatus("New password must be at least 8 characters."); return; }
+    setPwBusy(true);
+    try { await changePassword(curPw, newPw); setPwStatus("✓ Password updated."); setCurPw(""); setNewPw(""); }
+    catch (err) { setPwStatus(err.message || "Couldn't change password."); }
+    finally { setPwBusy(false); }
+  }
+  async function submitEmail(e) {
+    e.preventDefault();
+    setEmStatus("");
+    setEmBusy(true);
+    try {
+      const r = await changeEmail(newEmail, emPw);
+      setEmStatus(r.emailVerified ? "✓ Email updated." : "✓ Email updated — check your inbox to verify.");
+      setNewEmail(""); setEmPw("");
+    } catch (err) { setEmStatus(err.message || "Couldn't change email."); }
+    finally { setEmBusy(false); }
+  }
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}` }}>
+      <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "0 0 14px", color: t.text }}>
+        Account &amp; security
+      </h2>
+
+      <form onSubmit={submitPw} style={{ marginBottom: 22 }}>
+        <FieldLabel htmlFor="cur-pw">Change password</FieldLabel>
+        <input id="cur-pw" type="password" autoComplete="current-password" placeholder="Current password"
+          value={curPw} onChange={(e) => setCurPw(e.target.value)} style={field} />
+        <input type="password" autoComplete="new-password" placeholder="New password (min 8 chars)"
+          value={newPw} onChange={(e) => setNewPw(e.target.value)} style={field} />
+        <button type="submit" disabled={pwBusy} style={submitBtn(pwBusy)}>
+          {pwBusy ? "Saving…" : "Update password"}
+        </button>
+        {pwStatus && <p role="status" style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft }}>{pwStatus}</p>}
+      </form>
+
+      <form onSubmit={submitEmail}>
+        <FieldLabel htmlFor="new-email">Change email</FieldLabel>
+        <input id="new-email" type="email" autoComplete="email" placeholder="New email"
+          value={newEmail} onChange={(e) => setNewEmail(e.target.value)} style={field} />
+        <input type="password" autoComplete="current-password" placeholder="Current password"
+          value={emPw} onChange={(e) => setEmPw(e.target.value)} style={field} />
+        <button type="submit" disabled={emBusy} style={submitBtn(emBusy)}>
+          {emBusy ? "Saving…" : "Update email"}
+        </button>
+        {emStatus && <p role="status" style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft }}>{emStatus}</p>}
+      </form>
+    </div>
   );
 }
 

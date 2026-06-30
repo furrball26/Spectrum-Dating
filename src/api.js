@@ -115,6 +115,18 @@ export async function resetPassword(token, password) {
   return apiFetch('/auth/reset-password', { method: 'POST', body: { token, password } });
 }
 
+// Logged-in account changes.
+export async function changePassword(currentPassword, newPassword) {
+  const res = await apiFetch('/account/change-password', { method: 'POST', body: { currentPassword, newPassword } });
+  // Keep this session signed in with the fresh token (others are invalidated).
+  if (res?.token) localStorage.setItem('spectrum_token', res.token);
+  return res;
+}
+
+export async function changeEmail(newEmail, currentPassword) {
+  return apiFetch('/account/change-email', { method: 'POST', body: { newEmail, currentPassword } });
+}
+
 // ─── Profile ───────────────────────────────────────────────────────────────────
 
 export async function getProfile() {
