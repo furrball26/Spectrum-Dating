@@ -747,3 +747,30 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Verification:** `curl` confirmed all key strings present in live bundle `index-4kLMlmdw.js`: "Preview my card", "How others see you", "preview-modal-heading", "visible to your matches". ✅
 
 ~Auto Builder
+
+### 2026-06-30 — Backlog item #9: Archived-conversations view + unarchive
+
+**What was built:** A full archived-conversations section in Messages so users can view conversations they've previously archived and restore them to their active list.
+
+**Frontend only** — no backend changes needed (archive/unarchive API already existed).
+
+**`src/messaging/MatchesListScreen.jsx`:**
+- Accepts `showingArchived`, `archivedConversations`, `archivedLoading`, `archivedCount`, `onToggleArchived`, `onUnarchive` props (all declared/handled before early returns — no hook-after-return).
+- When `showingArchived` is true, renders a calm "Archived" screen: "← Messages" back link, `h1` heading (auto-focused), skeleton while loading, empty state ("No archived conversations. When you archive a conversation it will appear here."), and a list of archived rows with "Restore" buttons.
+- `MatchRow` has `showUnarchive`/`onUnarchive` support — pressing "Restore" calls `onUnarchive(conversationId)`.
+- In the active view, a quiet "Archived conversations (N)" / "Archived conversations" button (centered, `t.textMuted`, shown when `onToggleArchived` is provided) gives users the entry point to the archived list.
+
+**`src/messaging/MessagingApp.jsx`:**
+- Added `showingArchived`, `archivedConversations`, `archivedLoading`, `archivedCount` state — all declared with other hooks before any early return.
+- `handleToggleArchived()`: on first open, calls `getArchivedConversations()` into `archivedConversations` (non-fatal on failure). Toggles `showingArchived`.
+- `handleUnarchive(conversationId)`: calls `unarchiveConversation(conversationId)` (best-effort), removes from `archivedConversations` optimistically, decrements `archivedCount`, and refreshes the active list via `refreshKey`.
+- `getConversations()` already returned `archivedCount` (set into state, shown in the entry-point button).
+- All props wired through to `MatchesListScreen`.
+
+**Files touched:** `src/messaging/MatchesListScreen.jsx`, `src/messaging/MessagingApp.jsx`
+
+**Deploy:** `npm run build` clean (91 modules). Deployed to Vercel (`spectrum-dating-ex5ydmh5z-spectrum-dating.vercel.app`); alias re-pointed to `spectrum-dating-eta.vercel.app`. ✅
+
+**Verification:** `curl` confirmed all key strings in live bundle `index-BewrA3pr.js`: "Archived conversations", "Tap Restore to move a conversation", "Back to active conversations", "Restore". ✅
+
+~Auto Builder
