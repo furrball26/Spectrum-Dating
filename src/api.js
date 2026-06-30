@@ -129,6 +129,12 @@ export async function getMatches() {
   return Array.isArray(data) ? data : (Array.isArray(data?.matches) ? data.matches : []);
 }
 
+// Permanently unmatch: removes the match AND its conversation. The other person
+// is not notified.
+export async function unmatchConversation(matchId) {
+  return apiFetch(`/matching/matches/${matchId}`, { method: "DELETE" });
+}
+
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
 export async function getConversations() {

@@ -140,9 +140,14 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
         >
           Unmatch with {displayName}?
         </h2>
-        <p style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.65, margin: "0 0 28px" }}>
-          Are you sure you want to unmatch with {displayName}? This conversation will be removed.
+        <p style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.65, margin: "0 0 14px" }}>
+          Here's exactly what happens:
         </p>
+        <ul style={{ color: t.textSoft, fontSize: 15, lineHeight: 1.6, margin: "0 0 28px", paddingLeft: 20 }}>
+          <li>{displayName} <strong>won't be told</strong>.</li>
+          <li>Your conversation closes and is removed for both of you.</li>
+          <li>You won't see each other in Discover or Matches again.</li>
+        </ul>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {/* Cancel first in DOM order */}

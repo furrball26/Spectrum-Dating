@@ -3,7 +3,7 @@ import MatchesListScreen from "./MatchesListScreen.jsx";
 import ConversationScreen from "./ConversationScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
-import { getConversations, archiveConversation, blockUser, reportUser, getUserId, markConversationRead } from "../api.js";
+import { getConversations, archiveConversation, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation } from "../api.js";
 
 export default function MessagingApp({ onUnreadCount, initialConversationId }) {
   // state: 'list' | 'conversation' | 'block-report'
@@ -70,9 +70,13 @@ export default function MessagingApp({ onUnreadCount, initialConversationId }) {
 
   async function handleUnmatchConfirm() {
     const name = currentConvo?.otherUser?.displayName || "this person";
+    const matchId = currentConvo?.matchId;
     setShowUnmatchSheet(false);
     try {
-      await archiveConversation(selectedConversationId);
+      // True unmatch: removes the match + conversation server-side. Falls back
+      // to archiving if matchId is somehow missing.
+      if (matchId) await unmatchConversation(matchId);
+      else await archiveConversation(selectedConversationId);
     } catch {}
     setConversations(prev => prev.filter(c => c.id !== selectedConversationId));
     setMatchesStatusMessage(`You unmatched with ${name}.`);
