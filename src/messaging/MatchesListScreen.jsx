@@ -219,6 +219,9 @@ export default function MatchesListScreen({
   selectedConversationId = null,
 }) {
   const headingRef = useRef(null);
+  // Search filter — ALL hooks before any early return
+  const [query, setQuery] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -274,6 +277,15 @@ export default function MatchesListScreen({
 
   const capReached = conversationCount >= CONVERSATION_CAP;
 
+  // Filtering logic — computed from query state
+  const trimmedQuery = query.trim().toLowerCase();
+  const isFiltering = trimmedQuery.length > 0;
+  const filteredConversations = isFiltering
+    ? conversations.filter((m) =>
+        (m.otherUser?.displayName || "").toLowerCase().includes(trimmedQuery)
+      )
+    : [];
+
   return (
     <div
       id="matches-list"
@@ -313,7 +325,7 @@ export default function MatchesListScreen({
             fontFamily: t.serif,
             fontSize: 28,
             fontWeight: 700,
-            margin: "0 0 24px",
+            margin: "0 0 20px",
             color: t.text,
             letterSpacing: "-0.01em",
             outline: "none",
@@ -322,52 +334,164 @@ export default function MatchesListScreen({
           Your matches
         </h1>
 
-        <SectionList
-          title="Active conversations"
-          matches={active}
-          onSelectConversation={onSelectConversation}
-          showArchive={capReached}
-          onArchive={onArchive}
-          selectedConversationId={selectedConversationId}
-        />
-
-        {/* Feature 3 — Conversation cap notice above New matches */}
-        {capReached && (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              marginBottom: 16,
-              padding: "12px 16px",
-              background: t.surfaceAlt,
-              border: `1px solid ${t.border}`,
-              borderRadius: 12,
-              color: t.textSoft,
-              fontSize: 15,
-              lineHeight: 1.5,
-            }}
-          >
-            You have {CONVERSATION_CAP} active conversations. Archive one to start a new one.
+        {/* Search / filter input — only shown when there are conversations to filter */}
+        {conversations.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <label
+              htmlFor="conversation-filter"
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 500,
+                color: t.textSoft,
+                marginBottom: 6,
+                fontFamily: t.sans,
+              }}
+            >
+              Filter by name
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                id="conversation-filter"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search your matches…"
+                autoComplete="off"
+                aria-controls="matches-list"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: query ? "10px 44px 10px 14px" : "10px 14px",
+                  fontSize: 15,
+                  fontFamily: t.sans,
+                  color: t.text,
+                  background: t.surface,
+                  border: `1.5px solid ${inputFocused ? t.accent : t.formBorder}`,
+                  borderRadius: 12,
+                  outline: "none",
+                  transition: `border-color ${t.motion.base} ${t.motion.standard}`,
+                }}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+              />
+              {query && (
+                <button
+                  type="button"
+                  aria-label="Clear filter"
+                  onClick={() => setQuery("")}
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: t.textMuted,
+                    fontSize: 20,
+                    lineHeight: 1,
+                    padding: 0,
+                    width: 32,
+                    height: 32,
+                    minHeight: 44,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {/* Live result count announced to screen readers */}
+            {isFiltering && (
+              <div
+                aria-live="polite"
+                aria-atomic="true"
+                style={{
+                  position: "absolute",
+                  left: "-9999px",
+                  width: 1,
+                  height: 1,
+                  overflow: "hidden",
+                }}
+              >
+                {filteredConversations.length === 0
+                  ? `No matches found for "${query.trim()}".`
+                  : `${filteredConversations.length} match${filteredConversations.length === 1 ? "" : "es"} found.`}
+              </div>
+            )}
           </div>
         )}
 
-        <SectionList
-          title="New matches"
-          matches={newMatches}
-          onSelectConversation={onSelectConversation}
-          selectedConversationId={selectedConversationId}
-        />
-
-        {conversations.length === 0 && (
-          <div style={{ textAlign: "center", marginTop: 48 }}>
-            <div style={{ marginBottom: 16 }}>
-              <EmptyMessages size={104} />
+        {/* Filtered view */}
+        {isFiltering ? (
+          filteredConversations.length > 0 ? (
+            <SectionList
+              title={`Results (${filteredConversations.length})`}
+              matches={filteredConversations}
+              onSelectConversation={onSelectConversation}
+              selectedConversationId={selectedConversationId}
+            />
+          ) : (
+            <div style={{ textAlign: "center", padding: "32px 0" }}>
+              <p style={{ color: t.textSoft, margin: 0, fontSize: 16 }}>
+                No matches named &ldquo;{query.trim()}&rdquo;.
+              </p>
             </div>
-            <p style={{ color: t.textSoft, margin: 0 }}>
-              No matches yet. Check back soon. Only people you've both matched with
-              can message you.
-            </p>
-          </div>
+          )
+        ) : (
+          /* Normal sections view */
+          <>
+            <SectionList
+              title="Active conversations"
+              matches={active}
+              onSelectConversation={onSelectConversation}
+              showArchive={capReached}
+              onArchive={onArchive}
+              selectedConversationId={selectedConversationId}
+            />
+
+            {/* Feature 3 — Conversation cap notice above New matches */}
+            {capReached && (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  marginBottom: 16,
+                  padding: "12px 16px",
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  color: t.textSoft,
+                  fontSize: 15,
+                  lineHeight: 1.5,
+                }}
+              >
+                You have {CONVERSATION_CAP} active conversations. Archive one to start a new one.
+              </div>
+            )}
+
+            <SectionList
+              title="New matches"
+              matches={newMatches}
+              onSelectConversation={onSelectConversation}
+              selectedConversationId={selectedConversationId}
+            />
+
+            {conversations.length === 0 && (
+              <div style={{ textAlign: "center", marginTop: 48 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <EmptyMessages size={104} />
+                </div>
+                <p style={{ color: t.textSoft, margin: 0 }}>
+                  No matches yet. Check back soon. Only people you've both matched with
+                  can message you.
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
