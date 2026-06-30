@@ -502,6 +502,35 @@ export default function App() {
     }
     document.title = title;
   }, [resetToken, authed, showAuth, authMode, onboarding, activeTab]);
+
+  // ── Client-side routing for the authed tabs ──────────────────────────────────
+  // Sync activeTab <-> the URL (?tab=) so the browser Back/Forward buttons move
+  // between tabs instead of leaving the app or resetting to Discover.
+  const navFromPop = useRef(false);
+  useEffect(() => {
+    if (!authed || onboarding || resetToken) return;
+    if (navFromPop.current) { navFromPop.current = false; return; }
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("tab") !== activeTab) {
+        url.searchParams.set("tab", activeTab);
+        window.history.pushState({ tab: activeTab }, "", url);
+      }
+    } catch { /* no-op */ }
+  }, [activeTab, authed, onboarding, resetToken]);
+  useEffect(() => {
+    const onPop = () => {
+      let tab = null;
+      try { tab = new URLSearchParams(window.location.search).get("tab"); } catch { /* no-op */ }
+      if (tab && tab !== activeTab) {
+        navFromPop.current = true; // don't push a new entry for this change
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [activeTab]);
+
   // When opening a chat from the Matches tab, this tells MessagingApp which
   // conversation to open on mount.
   const [pendingConversationId, setPendingConversationId] = useState(null);
