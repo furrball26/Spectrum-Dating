@@ -97,12 +97,39 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
   const otherId = conv.user_a_id === userId ? conv.user_b_id : conv.user_a_id;
   const otherProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get(otherId);
 
-  const msgs = db.prepare(`
-    SELECT id, sender_id, body, deleted, sent_at
-    FROM messages
-    WHERE conversation_id = ?
-    ORDER BY sent_at ASC
-  `).all(req.params.id);
+  // Pagination: ?limit=N (default 50, max 100) and ?before=<messageId> cursor.
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+  const before = typeof req.query.before === 'string' && req.query.before ? req.query.before : null;
+
+  let msgs;
+  if (before) {
+    // Fetch the pivot timestamp; also verify it belongs to this conversation to
+    // prevent information-disclosure via a foreign message id.
+    const pivot = db.prepare(
+      'SELECT sent_at FROM messages WHERE id = ? AND conversation_id = ?'
+    ).get(before, req.params.id);
+    if (!pivot) return res.status(400).json({ error: 'Invalid cursor' });
+    msgs = db.prepare(`
+      SELECT id, sender_id, body, deleted, sent_at
+      FROM messages
+      WHERE conversation_id = ? AND sent_at < ?
+      ORDER BY sent_at DESC, id DESC
+      LIMIT ?
+    `).all(req.params.id, pivot.sent_at, limit + 1);
+  } else {
+    msgs = db.prepare(`
+      SELECT id, sender_id, body, deleted, sent_at
+      FROM messages
+      WHERE conversation_id = ?
+      ORDER BY sent_at DESC, id DESC
+      LIMIT ?
+    `).all(req.params.id, limit + 1);
+  }
+
+  // If we got more than `limit` rows there are older messages available.
+  const hasMore = msgs.length > limit;
+  if (hasMore) msgs.pop();
+  msgs.reverse(); // restore chronological (ASC) order for the client
 
   const messages = msgs.map(m => ({
     id: m.id,
@@ -121,6 +148,7 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
       otherUser: { userId: otherId, displayName: otherProfile?.display_name || '' },
     },
     messages,
+    hasMore,
   });
 });
 
