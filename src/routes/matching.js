@@ -141,6 +141,27 @@ router.post('/swipe', requireAuth, async (req, res) => {
   return res.json({ matched: true, matchId });
 });
 
+// POST /matching/undo-skip — undo the viewer's MOST RECENT 'skip' swipe.
+// Deleting the skip lets that person resurface in candidates. Never touches
+// 'like' swipes. Returns { ok: false } when there's no skip to undo.
+router.post('/undo-skip', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+
+  const lastSkip = db.prepare(
+    `SELECT id, swiped_id FROM swipes
+     WHERE swiper_id = ? AND decision = 'skip'
+     ORDER BY created_at DESC LIMIT 1`
+  ).get(userId);
+
+  if (!lastSkip) {
+    return res.json({ ok: false });
+  }
+
+  db.prepare('DELETE FROM swipes WHERE id = ?').run(lastSkip.id);
+
+  return res.json({ ok: true, candidateId: lastSkip.swiped_id });
+});
+
 // GET /matching/matches — list the viewer's mutual matches, with the other
 // person's profile and whether a conversation has been started yet.
 router.get('/matches', requireAuth, (req, res) => {

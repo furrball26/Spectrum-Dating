@@ -55,6 +55,7 @@ router.get('/me', requireAuth, (req, res) => {
     dbWantsChildren: !!profile.db_wants_children,
     dbNonSmoker: !!profile.db_non_smoker,
     dbMustBeLocal: !!profile.db_must_be_local,
+    paused: !!profile.paused,
     interests,
     onboardingComplete,
     verified: !!profile.identity_verified,
@@ -163,11 +164,13 @@ router.put('/me', requireAuth, (req, res) => {
     drinking: 'drinking',
   };
 
-  // Deal-breaker flags: stored as 0/1, coerced from any truthy/falsy boolean.
+  // Boolean flags stored as 0/1, coerced from any truthy/falsy value.
   const boolFieldMap = {
     dbWantsChildren: 'db_wants_children',
     dbNonSmoker: 'db_non_smoker',
     dbMustBeLocal: 'db_must_be_local',
+    // Pause/snooze: 1 hides the user from others' Discover; they keep full app access.
+    paused: 'paused',
   };
 
   const setClauses = [];
@@ -229,6 +232,7 @@ router.put('/me', requireAuth, (req, res) => {
     dbWantsChildren: !!profile.db_wants_children,
     dbNonSmoker: !!profile.db_non_smoker,
     dbMustBeLocal: !!profile.db_must_be_local,
+    paused: !!profile.paused,
     interests: interestRows.map(r => r.interest),
   });
 });

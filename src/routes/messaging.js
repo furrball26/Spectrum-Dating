@@ -375,4 +375,34 @@ router.post('/report', requireAuth, (req, res) => {
   res.status(201).json({ reported: true });
 });
 
+// ---------------------------------------------------------------------------
+// GET /messaging/my-reports — the current user's submitted reports, newest
+// first. Lets a reporter see their report was reviewed/actioned. Never exposes
+// the moderator_note.
+// ---------------------------------------------------------------------------
+
+router.get('/my-reports', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+
+  const rows = db.prepare(`
+    SELECT r.id, r.reason, r.status, r.created_at, r.resolved_at,
+           p.display_name AS reported_name
+    FROM reports r
+    LEFT JOIN profiles p ON p.user_id = r.reported_id
+    WHERE r.reporter_id = ?
+    ORDER BY r.created_at DESC
+  `).all(userId);
+
+  const reports = rows.map(row => ({
+    id: row.id,
+    reportedName: row.reported_name || '',
+    reason: row.reason,
+    status: row.status,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at || null,
+  }));
+
+  res.json({ reports });
+});
+
 export default router;

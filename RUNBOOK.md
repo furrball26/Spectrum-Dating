@@ -174,7 +174,7 @@ Current migrations: `001_init` · `002_matching` · `003_messaging` ·
 `007_token_version` · `008_read_cursors` · `009_email_verification` ·
 `010_moderation` · `011_profile_photos_gallery` · `012_date_of_birth` ·
 `013_backfill_demo_dob` · `014_dealbreakers` · `015_verification` ·
-`016_backfill_demo_verified`.
+`016_backfill_demo_verified` · `017_pause`.
 
 > **Data backfills go in their own file.** The runner skips an entire `.sql` file
 > wholesale once its `ALTER` has been applied (the `duplicate column name` catch
@@ -319,6 +319,35 @@ never touches real users.
 > `identity_verified` column from a webhook handler on a successful check — no
 > schema or read-path changes needed. The admin endpoint stays as a manual
 > override/fallback.
+
+---
+
+## 6f. Pause/snooze · undo-skip · report feedback loop
+
+Three member-facing controls. All `requireAuth`.
+
+**Pause / snooze** — `profiles.paused` (migration `017_pause`:
+`INTEGER NOT NULL DEFAULT 0`). A paused user simply **doesn't appear to others**
+in Discover; they keep full app access (matches, messaging, profile editing).
+- `PUT /profile/me` accepts `paused` (boolean in the request → coerced to 0/1
+  via the existing bool field handling).
+- `GET /profile/me` (and the `PUT` response) returns `paused: !!profile.paused`.
+- `src/matching/candidates.js` selects `p.paused` and filters with `p.paused = 0`
+  in the SQL `WHERE` — paused profiles are never surfaced as candidates.
+
+**Undo last skip** — `POST /matching/undo-skip`. Finds the viewer's MOST RECENT
+swipe with `decision='skip'` (`ORDER BY created_at DESC LIMIT 1`) and deletes
+that row, letting that person resurface in candidates.
+- No skip to undo → `{ ok: false }`.
+- Otherwise → `{ ok: true, candidateId: <swiped_id> }`.
+- **Never touches `'like'` swipes** (the `decision='skip'` filter guarantees it).
+
+**Report feedback loop** — `GET /messaging/my-reports`. Returns the current
+user's submitted reports (`reporter_id = me`), newest first, so a reporter can
+see their report was reviewed/actioned:
+`{ reports: [{ id, reportedName, reason, status, createdAt, resolvedAt }] }`.
+`reportedName` is the reported user's `display_name` (LEFT JOIN `profiles`, `''`
+if missing). **`moderator_note` is deliberately NOT exposed.**
 
 ---
 
