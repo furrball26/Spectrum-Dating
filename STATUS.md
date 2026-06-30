@@ -6,6 +6,34 @@ Rolling log of notable changes, newest first, grouped by role.
 
 ## Backend Dev
 
+### 2026-06-29 — Pause/snooze · undo-skip · report feedback loop
+- **Migration `017_pause`**: `profiles.paused INTEGER NOT NULL DEFAULT 0`.
+  Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner tolerates
+  re-runs). A paused user is **hidden from others' Discover** but keeps full app
+  access (matches, messaging, profile editing).
+- **Pause** (`src/routes/profile.js`): `PUT /profile/me` accepts `paused`
+  (boolean → 0/1, handled via the existing `boolFieldMap`); `GET /profile/me` and
+  the `PUT` echo return `paused: !!profile.paused`. `src/matching/candidates.js`
+  selects `p.paused` and filters `AND p.paused = 0` in SQL — paused profiles never
+  surface as candidates.
+- **Undo last skip** (`src/routes/matching.js`): `POST /matching/undo-skip`
+  (`requireAuth`) finds the viewer's most recent `decision='skip'` swipe
+  (`ORDER BY created_at DESC LIMIT 1`) and deletes it → `{ ok: true,
+  candidateId }`, resurfacing that person. No skip → `{ ok: false }`. Never
+  touches `'like'` swipes.
+- **Report feedback loop** (`src/routes/messaging.js`): `GET /messaging/my-reports`
+  (`requireAuth`) returns the user's own reports (`reporter_id = me`), newest
+  first, as `{ reports: [{ id, reportedName, reason, status, createdAt,
+  resolvedAt }] }` — `reportedName` via LEFT JOIN `profiles`. **`moderator_note`
+  deliberately NOT exposed.** Lets a reporter see their report was reviewed/actioned.
+- Deployed via `npm run deploy` (health-gated, SHA `65ab8ae`). Verified in
+  production: `/health` 200 with new SHA; `PUT {paused:true}` then `GET` shows
+  `paused:true` (and toggles back to `false`); `undo-skip` returns `{ok:false}`
+  with no prior skip, and on a real skip returns `{ok:true, candidateId:<skipped>}`
+  then `{ok:false}` on the second call; `GET /messaging/my-reports` returns
+  `{reports:[]}`.
+- Updated `RUNBOOK.md` (new §6f, migrations list).
+
 ### 2026-06-29 — Identity verification trust signal (badge)
 - **Migration `015_verification`**: `profiles.identity_verified INTEGER NOT NULL
   DEFAULT 0`. **Migration `016_backfill_demo_verified`** (separate file — data
