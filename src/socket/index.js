@@ -36,14 +36,21 @@ export function setupSocketIO(httpServer, db) {
     `).all(userId, userId);
     convos.forEach(c => socket.join(`conv:${c.id}`));
 
-    // Client joins a specific conversation room (e.g. when opening a thread)
-    socket.on('join_conversation', (convId) => {
-      // Verify membership before joining
-      const conv = db.prepare(
-        'SELECT user_a_id, user_b_id FROM conversations WHERE id = ?'
-      ).get(convId);
-      if (conv && (conv.user_a_id === userId || conv.user_b_id === userId)) {
-        socket.join(`conv:${convId}`);
+    // Client joins a specific conversation room (e.g. when opening a thread).
+    // Wrapped in try/catch — a malformed payload must NEVER crash the process.
+    socket.on('join_conversation', (payload) => {
+      try {
+        // Frontend emits { conversationId }; also tolerate a bare string id.
+        const convId = typeof payload === 'string' ? payload : payload?.conversationId;
+        if (!convId || typeof convId !== 'string') return;
+        const conv = db.prepare(
+          'SELECT user_a_id, user_b_id FROM conversations WHERE id = ?'
+        ).get(convId);
+        if (conv && (conv.user_a_id === userId || conv.user_b_id === userId)) {
+          socket.join(`conv:${convId}`);
+        }
+      } catch (e) {
+        console.error('[socket] join_conversation failed:', e.message);
       }
     });
 
