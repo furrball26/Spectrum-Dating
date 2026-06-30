@@ -17,19 +17,12 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again in 15 minutes.' },
   skipSuccessfulRequests: false,
-  // Use real client IP from proxy headers (Railway / Cloudflare) before
-  // falling back to req.ip, which is the proxy address behind Railway.
-  keyGenerator: (req) => {
-    // Prefer real client IP from proxy headers (Railway / Cloudflare), then
-    // normalise through the IPv6-safe helper required by express-rate-limit v8
-    // (avoids ERR_ERL_KEY_GEN_IPV6 at startup).
-    const ip =
-      req.headers['x-real-ip'] ||
-      req.headers['cf-connecting-ip'] ||
-      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-      req.ip;
-    return ipKeyGenerator(ip);
-  },
+  // Key on req.ip — Express derives this safely from X-Forwarded-For using the
+  // `trust proxy` setting (1 hop, set in index.js for Railway), so it's the real
+  // client IP and NOT attacker-spoofable. Reading raw x-real-ip/x-forwarded-for
+  // headers directly would let an attacker rotate their rate-limit key per
+  // request and bypass the limit entirely. ipKeyGenerator normalises IPv6.
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
 });
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

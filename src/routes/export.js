@@ -1,21 +1,19 @@
 ﻿import { Router } from 'express';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../middleware/auth.js';
 import { coarseLabel } from '../utils/time.js';
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
-
 router.get('/conversations', (req, res) => {
   // Accept token from Authorization header OR ?token= query param (needed for
-  // browser download links that cannot send custom headers).
+  // browser download links that cannot send custom headers). The ?token= path
+  // MUST run the same version/suspension check as requireAuth — otherwise a
+  // signed-out, suspended, or deleted user's 30-day token could still export.
   let userId = req.ctx?.userId ?? null;
 
   if (!userId && req.query.token) {
-    try {
-      const payload = jwt.verify(req.query.token, JWT_SECRET);
-      userId = payload.sub || payload.userId || payload.id || null;
-    } catch {
+    userId = verifyToken(req.query.token);
+    if (!userId) {
       return res.status(401).json({ error: 'Invalid token.' });
     }
   }

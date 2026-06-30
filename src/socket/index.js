@@ -1,7 +1,6 @@
 ﻿import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../middleware/auth.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
 
 export function setupSocketIO(httpServer, db) {
@@ -9,17 +8,14 @@ export function setupSocketIO(httpServer, db) {
     cors: { origin: ALLOWED_ORIGIN, methods: ['GET', 'POST'] },
   });
 
-  // Auth middleware — validate JWT on every connection
+  // Auth middleware — validate JWT (incl. version/suspension) on every connection
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Unauthorized'));
-    try {
-      const payload = jwt.verify(token, JWT_SECRET);
-      socket.userId = payload.sub;
-      next();
-    } catch {
-      next(new Error('Unauthorized'));
-    }
+    const userId = verifyToken(token);
+    if (!userId) return next(new Error('Unauthorized'));
+    socket.userId = userId;
+    next();
   });
 
   io.on('connection', (socket) => {

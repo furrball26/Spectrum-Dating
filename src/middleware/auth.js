@@ -1,13 +1,32 @@
 import jwt from 'jsonwebtoken';
 import { getDb } from '../db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+// Fail fast: never silently fall back to a public dev secret in production —
+// an unset JWT_SECRET there would let anyone forge tokens (incl. admin).
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET is not set in production. Refusing to start with an insecure fallback.');
+  }
+  return 'dev-secret-change-in-production';
+})();
 
 export function signToken(userId, tv = 0) {
   return jwt.sign({ sub: userId, tv }, JWT_SECRET, { expiresIn: '30d' });
 }
 
-function checkTokenVersion(decoded) {
+// Verify a raw token AND its version/suspension/existence. Returns the userId
+// or null. Use this everywhere a token is accepted (header, ?token=, socket).
+export function verifyToken(token) {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (!checkTokenVersion(payload)) return null;
+    return payload.sub;
+  } catch {
+    return null;
+  }
+}
+
+export function checkTokenVersion(decoded) {
   const db = getDb();
   const user = db.prepare('SELECT token_version, suspended FROM users WHERE id = ?').get(decoded.sub);
   if (!user) return false; // user deleted
