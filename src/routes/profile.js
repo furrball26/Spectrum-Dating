@@ -426,4 +426,52 @@ router.put('/prompts', requireAuth, (req, res) => {
   return res.json({ prompts: listPrompts(db, userId) });
 });
 
+// GET /profile/:userId — a matched person's PUBLIC profile (read-only). Gated:
+// only returns data when the viewer is MATCHED with the target (or it's self).
+// Registered last so it never shadows /me, /prompt-catalog, /prompts.
+router.get('/:userId', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const targetId = req.params.userId;
+
+  if (targetId !== userId) {
+    const matched = db.prepare(
+      `SELECT 1 FROM matches WHERE (user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?)`
+    ).get(userId, targetId, targetId, userId);
+    if (!matched) {
+      return res.status(403).json({ error: 'You can only view the profile of someone you have matched with.' });
+    }
+  }
+
+  const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(targetId);
+  if (!profile) return res.status(404).json({ error: 'Profile not found.' });
+
+  const interests = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?').all(targetId).map(r => r.interest);
+  const age = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null;
+  const distCity = (profile.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim();
+
+  return res.json({
+    userId: profile.user_id,
+    displayName: profile.display_name,
+    tagline: profile.tagline || '',
+    bio: profile.bio || '',
+    pronouns: profile.pronouns || '',
+    age,
+    distCity,
+    verified: !!profile.identity_verified,
+    photoUrl: profile.photo_url || '',
+    photos: listPhotos(db, targetId),
+    interests,
+    relationshipGoal: profile.relationship_goal || '',
+    commNote: profile.comm_note || '',
+    commDirectness: profile.comm_directness || '',
+    commLiteral: profile.comm_literal || '',
+    commCadence: profile.comm_cadence || '',
+    sensoryEnvironment: profile.sensory_environment || '',
+    sensoryLighting: profile.sensory_lighting || '',
+    socialDuration: profile.social_duration || '',
+    contextCard: profile.context_card || '', // post-match disclosure — they're matched
+    prompts: listPrompts(db, targetId),
+  });
+});
+
 export default router;
