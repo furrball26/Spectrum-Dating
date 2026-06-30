@@ -675,18 +675,25 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
             <div style={{ marginBottom: 12 }}>
               <AllCaughtUp size={110} />
             </div>
-            <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>No new suggestions right now.</h1>
-            <p style={{ color: t.textSoft, marginBottom: 24 }}>
-              We'll let you know when there are more people to see. There's nothing you need to do.
+            <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>You're all caught up.</h1>
+            <p style={{ color: t.textSoft, marginBottom: 20 }}>
+              You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join.
             </p>
-            <p style={{ color: t.textSoft, marginBottom: 16, fontSize: 15 }}>
-              Try updating your profile with more interests to widen your matches.
+            <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
+              Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or who you're seeking in your profile can help.
             </p>
-            <ActionButton
-              label="Go to Profile"
-              kind="notnow"
-              onClick={onGoToProfile || (() => {})}
-            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <ActionButton
+                label="Check again"
+                kind="interested"
+                onClick={() => loadCandidates()}
+              />
+              <ActionButton
+                label="Adjust your search"
+                kind="notnow"
+                onClick={onGoToProfile || (() => {})}
+              />
+            </div>
           </div>
         </div>
       </div>

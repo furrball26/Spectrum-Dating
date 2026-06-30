@@ -402,6 +402,7 @@ function MessageBubble({
   currentUserId,
   msgReactions,
   onToggleReaction,
+  onRetry,
 }) {
   const prefersReduced = usePrefersReduced();
   const isOwn = message.senderId === currentUserId;
@@ -580,6 +581,19 @@ function MessageBubble({
             />
           )}
         </div>
+
+        {isOwn && message.failed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 13, color: t.danger }}>
+            <span>Didn't send.</span>
+            <button
+              type="button"
+              onClick={() => onRetry && onRetry(message)}
+              style={{ background: "none", border: "none", color: t.accentStrong, fontWeight: 600, fontSize: 13, cursor: "pointer", textDecoration: "underline", padding: "4px 2px", minHeight: 32 }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {menuOpen && (
           <MessageMenu
@@ -1074,21 +1088,37 @@ export default function ConversationScreen({
 
     try {
       const saved = await sendMessage(conversationId, body);
-      // Replace temp with server message
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today' } : m));
+      // Replace temp with server message (clear any prior failed flag)
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false } : m));
       setSendStatus("Message sent.");
     } catch (err) {
-      // Remove optimistic message
-      setMessages(prev => prev.filter(m => m.id !== tempId));
       if (err.status === 403) {
+        setMessages(prev => prev.filter(m => m.id !== tempId)); // terminal — gone
         setConsentGateFailed(true);
         setSendStatus("Unable to send. This conversation is no longer available.");
       } else if (err.status === 429) {
+        setMessages(prev => prev.filter(m => m.id !== tempId)); // they can retype after the limit
         setRateLimited(true);
         setSendStatus("You're sending messages quickly. Please wait a moment.");
       } else {
-        setSendStatus("Message could not be sent. Please try again.");
+        // Keep the message (with its text) and mark it failed so it can be retried.
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, failed: true } : m));
+        setSendStatus("Message didn't send. Tap Retry.");
       }
+    }
+  }
+
+  // Re-send a failed message: clear the flag and try again in place.
+  async function retrySend(failedMsg) {
+    if (!failedMsg?.body) return;
+    setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: false } : m));
+    try {
+      const saved = await sendMessage(conversationId, failedMsg.body);
+      setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false } : m));
+      setSendStatus("Message sent.");
+    } catch {
+      setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: true } : m));
+      setSendStatus("Still couldn't send. Check your connection.");
     }
   }
 
@@ -1384,6 +1414,7 @@ export default function ConversationScreen({
                   currentUserId={currentUserId}
                   msgReactions={reactions[msg.id] || {}}
                   onToggleReaction={toggleReaction}
+                  onRetry={retrySend}
                 />
               );
             })}
