@@ -639,3 +639,60 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 **Verification:** Probed `GET /matching/activity` as sample user `mira.k.1` — 200 with correct shape. Build clean (90 modules). ✅
 
 ~Auto Builder
+
+### 2026-06-30 — Backlog item #2: Conversation search/filter in Messages list
+
+**What was built:** A "Filter by name" search input in `MatchesListScreen` so users can filter the Messages list by the other person's name.
+
+**Frontend only** (`src/messaging/MatchesListScreen.jsx`):
+- Two new `useState` hooks (`query`, `inputFocused`) declared alongside `headingRef` — before the `loadFailed` / `loading` early returns (no hook-after-return).
+- A labelled `<input type="search">` renders below the "Your matches" heading, but only when the conversation list is non-empty (hidden on the empty state). Styled with `t.formBorder` / `t.accent` border (live focus ring), `t.surface` bg, rounded-12. A `×` clear button appears when there is a query.
+- Filtering is case-insensitive substring match on `otherUser.displayName`. While filtering: shows a flat "Results (N)" `SectionList`; zero-result case shows a calm "No matches named '…'." paragraph. Clearing the query restores the normal Active / New sections view.
+- Screen-reader support: an off-screen `aria-live="polite" aria-atomic="true"` region announces result count changes ("3 matches found." / "No matches found for '…'."). `aria-controls="matches-list"` on the input ties it to the list. Label tied via `htmlFor`/`id`.
+- No backend changes — pure client-side filter.
+
+**Files touched:** `src/messaging/MatchesListScreen.jsx`
+
+**Deploy:** `npm run build` clean (90 modules). Deployed to Vercel; alias re-pointed to `spectrum-dating-f2tpxukc5-spectrum-dating.vercel.app`. Live bundle `index-1cQKz8wp.js` confirmed to contain "Filter by name" and "Search your matches…" strings. ✅
+
+**Verification:** Curl-confirmed both key strings present in the live bundle. Build produced 90 modules (unchanged count — no new dependencies). ✅
+
+~Auto Builder
+
+### 2026-06-30 — Backlog item #3: Message pagination
+
+**What was built:** Cursor-based "load earlier messages" support so conversations no longer render their full history at once.
+
+**Backend** (`Spectrum-Dating-Server/src/routes/messaging.js`):
+- `GET /messaging/conversations/:id` now accepts `?limit` (default 50, max 100) and `?before=<messageId>`. Without `?before` it returns the most-recent N messages (DESC then reversed to ASC). With `?before` it fetches the page of messages older than that message's `sent_at`, validated to the same conversation (prevents info-leak). Returns `hasMore: bool` alongside `messages`. Backend deployed; health check confirmed SHA `85ca6dd`.
+
+**Frontend** (`src/api.js`, `src/messaging/ConversationScreen.jsx`):
+- `api.js`: `getConversation(id, { limit, before } = {})` — builds query-string; backward-compatible (existing callers pass no options).
+- `ConversationScreen`: initial load now fetches `?limit=50`; tracks `hasMore`, `oldestCursor`, `isLoadingEarlier`, and a `scrollRestorationRef`. When `hasMore`, a calm "Load earlier messages" button renders at the top of the message log. Clicking prepends the older page, saves the pre-prepend `scrollHeight`, and the scroll `useEffect` restores relative position instead of snapping to bottom. Reactions are hydrated for the loaded page. All three new `useState` calls and the new `useRef` are declared before early returns — no hook-after-return.
+
+**Files touched:** `Spectrum-Dating-Server/src/routes/messaging.js`, `src/api.js`, `src/messaging/ConversationScreen.jsx`
+
+**Deploy:** Build clean (90 modules). Backend health-gated deploy passed. Frontend deployed to Vercel (`spectrum-dating-9hotgward-spectrum-dating.vercel.app`); alias re-pointed to `spectrum-dating-eta.vercel.app`. ✅
+
+**Verification:** `curl` confirmed "Load earlier messages" string in live bundle `index-B3liSYY6.js`; backend health returns new SHA `85ca6dd`. ✅
+
+~Auto Builder
+
+### 2026-06-30 — Backlog item #4: Profile-completeness guidance
+
+**What was built:** A calm, non-gamified profile-completeness nudge in `ProfileScreen` — a tile-based progress bar and a chip list showing which autism-specific differentiator fields are still empty.
+
+**Frontend only** (`src/ProfileScreen.jsx`):
+- `COMPLETENESS_FIELDS` — 8 differentiator fields tracked: photo, tagline, bio, pronouns/gender, seeking, comms style (any of commDirectness/commLiteral/commCadence), sensory prefs (sensoryEnvironment/sensoryLighting), and at least one prompt.
+- `computeCompleteness({ photos, tagline, bio, gender, pronouns, seeking, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, prompts })` — pure function returning `{ score, total, missing }`.
+- `ProfileCompletenessNudge` sub-component: renders a `role="progressbar"` tile bar (8 evenly-spaced rounded segments, brand accentFill for filled / surfaceAlt for empty, echoing the Spectrum tile motif) + a `role="region"` wrapper + a wrapping chip list of missing fields as green-50/green-200 pills. Returns `null` when `missing.length === 0` so it vanishes once the profile is complete. All tokens via `t.*`, no hardcoded hex.
+- Injected into the main render via an IIFE between the P-27 first-time framing copy and Card 1 ("About you") — always visible after load, responds live as fields are filled.
+- No new hooks — pure derived render from existing state. No hook-after-return concerns. No backend changes needed.
+
+**Files touched:** `src/ProfileScreen.jsx`
+
+**Deploy:** `npm run build` clean (90 modules). Deployed to Vercel (`spectrum-dating-9nelwmk04-spectrum-dating.vercel.app`); alias manually re-pointed to `spectrum-dating-eta.vercel.app`. Live bundle `index-CCxh99S2.js`. ✅
+
+**Verification:** `curl` confirmed "Profile completeness", "Add a photo", "Answer a prompt", and "commStyle" strings present in live bundle. ✅
+
+~Auto Builder
