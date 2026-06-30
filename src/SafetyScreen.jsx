@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
+import { getMyReports } from "./api.js";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
 // place to prepare for the offline transition: meeting tips, ready-to-use
@@ -196,6 +197,45 @@ function formatDuration(ms) {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+// ----- report status pill ---------------------------------------------------
+
+// Map backend status → calm label + token colour.
+const REPORT_STATUS = {
+  open:      { label: "Open",      color: t.warning },
+  reviewed:  { label: "Reviewed",  color: t.accent },
+  actioned:  { label: "Actioned",  color: t.accentStrong },
+  dismissed: { label: "Dismissed", color: t.textMuted },
+};
+
+function StatusPill({ status }) {
+  const meta = REPORT_STATUS[status] || REPORT_STATUS.open;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "3px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        color: "#fff",
+        background: meta.color,
+        letterSpacing: "0.01em",
+        flexShrink: 0,
+      }}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function formatReportDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
 // ----- main component -------------------------------------------------------
 
 export default function SafetyScreen({ onBack }) {
@@ -226,7 +266,21 @@ export default function SafetyScreen({ onBack }) {
   const [now, setNow] = useState(() => Date.now());
   const [elapsed, setElapsed] = useState(false);
 
+  // "Your reports" (backlog #10) — fetched on mount.
+  const [reports, setReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [reportsError, setReportsError] = useState(false);
+
   // --- ALL hooks declared before any early return ---
+
+  useEffect(() => {
+    let active = true;
+    getMyReports()
+      .then((list) => { if (active) setReports(Array.isArray(list) ? list : []); })
+      .catch(() => { if (active) setReportsError(true); })
+      .finally(() => { if (active) setReportsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -564,6 +618,67 @@ export default function SafetyScreen({ onBack }) {
                   </SecondaryButton>
                 )}
               </div>
+            )}
+          </div>
+        </Section>
+
+        {/* Your privacy (backlog #9) — advertises the no-presence design. */}
+        <Section title="Your privacy">
+          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 15, lineHeight: 1.65 }}>
+            We never show when you're online, when you were last active, or whether
+            you've read a message. You're never put on the spot to reply quickly.
+          </div>
+        </Section>
+
+        {/* Your reports (backlog #10) */}
+        <Section
+          title="Your reports"
+          note="When you report someone, our team reviews it. You'll see the status update here."
+        >
+          <div style={cardStyle}>
+            {reportsLoading ? (
+              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>Loading your reports…</p>
+            ) : reportsError ? (
+              <p role="alert" style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+                Couldn't load your reports right now. Please try again later.
+              </p>
+            ) : reports.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+                You haven't reported anyone.
+              </p>
+            ) : (
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {reports.map((r, i) => (
+                  <li
+                    key={r.id ?? i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "12px 0",
+                      borderTop: i === 0 ? "none" : `1px solid ${t.borderLight}`,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
+                        {r.reportedName || "Someone"}
+                      </div>
+                      {r.reason && (
+                        <div style={{ fontSize: 14, color: t.textSoft, marginTop: 2 }}>
+                          {r.reason}
+                        </div>
+                      )}
+                      {formatReportDate(r.createdAt) && (
+                        <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+                          Reported {formatReportDate(r.createdAt)}
+                        </div>
+                      )}
+                    </div>
+                    <StatusPill status={r.status} />
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </Section>

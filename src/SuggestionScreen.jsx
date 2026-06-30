@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { getCandidates, swipe, blockUser, reportUser, getProfile } from "./api.js";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 
@@ -336,6 +336,7 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
   const [lastPerson, setLastPerson] = useState(null);
   const [mutual, setMutual] = useState(false);
   const [reportingCandidate, setReportingCandidate] = useState(null);
+  const [undoing, setUndoing] = useState(false);
   const liveRef = useRef(null);
   const doneHeadingRef = useRef(null);
   const endHeadingRef = useRef(null);
@@ -353,8 +354,9 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
       });
   }, []);
 
-  useEffect(() => {
-    getCandidates()
+  // Fetch candidates and reset the deck to the top. Reused on mount and after Undo.
+  const loadCandidates = useCallback(() => {
+    return getCandidates()
       .then(candidates => {
         // Backend returns array directly (not {candidates: [...]})
         const arr = Array.isArray(candidates) ? candidates : [];
@@ -374,10 +376,15 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
           photoUrl: c.photoUrl || c.photo_url || null,
           verified: !!c.verified,
         })));
-      })
+        setIndex(0);
+      });
+  }, []);
+
+  useEffect(() => {
+    loadCandidates()
       .catch(() => setLoadError('Could not load suggestions. Please check your connection.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [loadCandidates]);
 
   const person = queue[index];
   const atEnd = index >= queue.length;
@@ -455,6 +462,25 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
     setLastChoice(null);
     setLastPerson(null);
     setStage("viewing");
+  }
+
+  // Undo the last skip: ask the backend to restore the candidate, then re-fetch
+  // the deck so the un-skipped person reappears. A no-op (ok:false) is handled
+  // quietly — we simply return to viewing without fuss.
+  async function handleUndo() {
+    if (undoing) return;
+    setUndoing(true);
+    try {
+      const result = await undoSkip();
+      if (result && result.ok) {
+        await loadCandidates();
+      }
+    } catch {
+      // Network hiccup — stay calm, just resume viewing the deck.
+    } finally {
+      setUndoing(false);
+      next();
+    }
   }
 
   const page = {
@@ -714,7 +740,17 @@ export default function SuggestionScreen({ onOpenMessages, onGoToProfile }) {
               </p>
             )}
             {/* Next loads only on explicit press (3.2.5). */}
-            <ActionButton label="Next person" kind="interested" onClick={next} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <ActionButton label="Next person" kind="interested" onClick={next} />
+              {/* Undo is offered after a skip-style choice; a no-op resolves quietly. */}
+              {(lastChoice === "not_now" || lastChoice === "skip") && (
+                <ActionButton
+                  label={undoing ? "Undoing…" : "Undo"}
+                  kind="notnow"
+                  onClick={handleUndo}
+                />
+              )}
+            </div>
           </div>
         )}
 

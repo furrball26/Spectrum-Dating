@@ -124,6 +124,8 @@ export async function swipe(candidateId, decision) {
   });
 }
 
+export async function undoSkip() { return apiFetch('/matching/undo-skip', { method: 'POST' }); }
+
 export async function getMatches() {
   const data = await apiFetch("/matching/matches");
   return Array.isArray(data) ? data : (Array.isArray(data?.matches) ? data.matches : []);
@@ -220,6 +222,12 @@ export async function getAdminStats() {
 }
 export async function reportUser(reportedUserId, reason, details, conversationId) {
   return apiFetch('/messaging/report', { method: 'POST', body: { reportedUserId, reason, details, conversationId } });
+}
+
+// Reports the current user has filed — for the "Your reports" status view.
+export async function getMyReports() {
+  const d = await apiFetch('/messaging/my-reports');
+  return Array.isArray(d?.reports) ? d.reports : (Array.isArray(d) ? d : []);
 }
 
 // ─── Reactions ────────────────────────────────────────────────────────────────

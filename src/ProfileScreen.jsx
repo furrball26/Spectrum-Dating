@@ -52,6 +52,7 @@ const DEFAULT_PROFILE = {
   dbWantsChildren: false,
   dbNonSmoker: false,
   dbMustBeLocal: false,
+  paused: false,
 };
 
 const SUGGESTED_INTERESTS = [
@@ -638,6 +639,53 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
   );
 }
 
+// ─── Pause toggle (backlog #8 — reuses the switch pattern) ────────────────────
+function PauseToggle({ checked, onChange }) {
+  const f = useFocusable();
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <p id="pause-profile-label" style={{ margin: 0, fontSize: 15, fontWeight: 500, color: t.text }}>
+        Pause my profile
+      </p>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-labelledby="pause-profile-label"
+        onClick={() => onChange(!checked)}
+        {...f}
+        style={{
+          position: "relative",
+          width: 48,
+          height: 28,
+          borderRadius: 14,
+          background: checked ? t.accentStrong : t.border,
+          border: "none",
+          cursor: "pointer",
+          flexShrink: 0,
+          transition: "background 0.2s",
+          ...f.style,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 3,
+            left: checked ? 23 : 3,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left 0.2s",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
@@ -668,6 +716,8 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
   const [dbWantsChildren, setDbWantsChildren] = useState(DEFAULT_PROFILE.dbWantsChildren);
   const [dbNonSmoker, setDbNonSmoker]         = useState(DEFAULT_PROFILE.dbNonSmoker);
   const [dbMustBeLocal, setDbMustBeLocal]     = useState(DEFAULT_PROFILE.dbMustBeLocal);
+  // Pause / snooze (backlog #8) — declared with the other hooks, before early returns.
+  const [paused, setPaused]                   = useState(DEFAULT_PROFILE.paused);
 
   // savedProfile mirrors the last-known server state, used for isDirty comparison
   const [savedProfile, setSavedProfile] = useState(null);
@@ -736,6 +786,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
           dbWantsChildren: !!data.dbWantsChildren,
           dbNonSmoker: !!data.dbNonSmoker,
           dbMustBeLocal: !!data.dbMustBeLocal,
+          paused: !!data.paused,
         };
         setDisplayName(merged.displayName);
         setTagline(merged.tagline);
@@ -751,6 +802,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         setDbWantsChildren(merged.dbWantsChildren);
         setDbNonSmoker(merged.dbNonSmoker);
         setDbMustBeLocal(merged.dbMustBeLocal);
+        setPaused(merged.paused);
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         setVerified(!!data.verified);
@@ -769,7 +821,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         displayName || tagline || bio || interests.length > 0 ||
         commNote || relGoal || distCity || notifTier !== "in_app" ||
         wantsChildren || smoking || drinking ||
-        dbWantsChildren || dbNonSmoker || dbMustBeLocal;
+        dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused;
       setIsDirty(hasContent);
     } else {
       const dirty =
@@ -786,11 +838,12 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         dbWantsChildren  !== savedProfile.dbWantsChildren ||
         dbNonSmoker      !== savedProfile.dbNonSmoker ||
         dbMustBeLocal    !== savedProfile.dbMustBeLocal ||
+        paused           !== savedProfile.paused ||
         JSON.stringify([...interests].sort()) !==
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, savedProfile]);
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -947,6 +1000,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       dbWantsChildren,
       dbNonSmoker,
       dbMustBeLocal,
+      paused,
     };
 
     try {
@@ -965,6 +1019,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
         dbWantsChildren: currentProfile.dbWantsChildren,
         dbNonSmoker: currentProfile.dbNonSmoker,
         dbMustBeLocal: currentProfile.dbMustBeLocal,
+        paused: currentProfile.paused,
       });
       cacheProfile(currentProfile);  // keep localStorage in sync for SuggestionScreen
       setSavedProfile(currentProfile);
@@ -1706,6 +1761,27 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
                 ))}
               </div>
             </fieldset>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — Pause my profile (backlog #8)
+          ══════════════════════════════════════════════════════ */}
+          <div style={card}>
+            <h2 style={{ ...h2Style, marginBottom: 12 }}>Pause my profile</h2>
+            <PauseToggle checked={paused} onChange={setPaused} />
+            {paused && (
+              <p
+                style={{
+                  margin: "16px 0 0",
+                  fontSize: 15,
+                  color: t.textSoft,
+                  lineHeight: 1.7,
+                }}
+              >
+                Your profile is paused. You won't appear in Discover, and you can
+                turn this back on anytime. Your matches and messages stay.
+              </p>
+            )}
           </div>
 
           {/* ══════════════════════════════════════════════════════
