@@ -55,7 +55,9 @@ export function getCandidates(db, viewerId, viewerInterests) {
            p.identity_verified, p.paused,
            p.comm_directness, p.comm_literal, p.comm_cadence,
            p.sensory_environment, p.sensory_lighting, p.social_duration,
-           p.context_card
+           p.context_card,
+           (SELECT pp.description FROM profile_photos pp
+            WHERE pp.user_id = p.user_id AND pp.is_primary = 1 LIMIT 1) AS primary_photo_description
     FROM profiles p
     WHERE p.user_id NOT IN (${placeholders})
       AND p.display_name != ''

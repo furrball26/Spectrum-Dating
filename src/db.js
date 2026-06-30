@@ -46,6 +46,7 @@ const MIGRATIONS = [
   '026_age_pref.sql',
   '027_moderation_log.sql',
   '028_verification_requests.sql',
+  '029_photo_alt_text.sql',
 ];
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a

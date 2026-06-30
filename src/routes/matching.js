@@ -63,6 +63,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     whyReasons: c.whyReasons,
     prompts: listPrompts(db, c.user_id),
     photoUrl: c.photo_url || null,
+    photoDescription: c.primary_photo_description || '',
     matchedAt: null,
   }));
 

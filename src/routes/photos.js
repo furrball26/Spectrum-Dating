@@ -13,8 +13,8 @@ const MAX_PHOTOS = 6;
 
 // Serialize a user's gallery, ordered by position.
 export function listPhotos(db, userId) {
-  const rows = db.prepare('SELECT id, url, is_primary, position FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC').all(userId);
-  return rows.map(r => ({ id: r.id, url: r.url, isPrimary: !!r.is_primary, position: r.position }));
+  const rows = db.prepare('SELECT id, url, description, is_primary, position FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC').all(userId);
+  return rows.map(r => ({ id: r.id, url: r.url, description: r.description || '', isPrimary: !!r.is_primary, position: r.position }));
 }
 
 // Shared "add a gallery photo" logic used by /profile-add and /profile-confirm.
@@ -124,6 +124,26 @@ router.put('/profile-photos/:id/primary', requireAuth, (req, res) => {
   })();
 
   res.json({ photos: listPhotos(db, userId) });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /photos/profile-photos/:id/description  — set a photo's alt-text description
+// Max 200 chars; empty string is valid (clears description). Rate-limited.
+// ---------------------------------------------------------------------------
+router.put('/profile-photos/:id/description', requireAuth, mutationLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+  const { description } = req.body ?? {};
+
+  if (typeof description !== 'string') {
+    return res.status(400).json({ error: 'description must be a string.' });
+  }
+  const trimmed = description.slice(0, 200).trim();
+
+  const photo = db.prepare('SELECT id FROM profile_photos WHERE id = ? AND user_id = ?').get(req.params.id, userId);
+  if (!photo) return res.status(404).json({ error: 'Photo not found.' });
+
+  db.prepare('UPDATE profile_photos SET description = ? WHERE id = ?').run(trimmed, req.params.id);
+  res.json({ ok: true, description: trimmed });
 });
 
 // ---------------------------------------------------------------------------
