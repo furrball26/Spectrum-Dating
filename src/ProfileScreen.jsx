@@ -903,6 +903,113 @@ function PromptChooser({ available, onAdd, onCancel }) {
   );
 }
 
+// ─── Profile-completeness nudge (backlog #4) ─────────────────────────────────
+// Tracks the 8 autism-specific "differentiator" fields that enrich a Spectrum
+// profile beyond the required name + interests. Renders a calm tile-based
+// progress bar + a chip list of what's still empty. Hidden once all 8 are done.
+
+const COMPLETENESS_FIELDS = [
+  { key: "photo",     label: "Add a photo" },
+  { key: "tagline",   label: "Add a tagline" },
+  { key: "bio",       label: "Write your bio" },
+  { key: "pronouns",  label: "Add pronouns / gender" },
+  { key: "seeking",   label: "Set who you're looking for" },
+  { key: "commStyle", label: "Fill in comms style" },
+  { key: "sensory",   label: "Add sensory preferences" },
+  { key: "prompt",    label: "Answer a prompt" },
+];
+
+function computeCompleteness({ photos, tagline, bio, gender, pronouns, seeking,
+    commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, prompts }) {
+  const filled = {
+    photo:     photos.length > 0,
+    tagline:   tagline.trim().length > 0,
+    bio:       bio.trim().length > 0,
+    pronouns:  !!(gender || pronouns),
+    seeking:   !!seeking,
+    commStyle: !!(commDirectness || commLiteral || commCadence),
+    sensory:   !!(sensoryEnvironment || sensoryLighting),
+    prompt:    prompts.length > 0,
+  };
+  const missing = COMPLETENESS_FIELDS.filter((f) => !filled[f.key]);
+  return { score: COMPLETENESS_FIELDS.length - missing.length, total: COMPLETENESS_FIELDS.length, missing };
+}
+
+function ProfileCompletenessNudge({ score, total, missing }) {
+  if (missing.length === 0) return null;
+  const pct = Math.round((score / total) * 100);
+  return (
+    <div
+      role="region"
+      aria-label="Profile completeness"
+      style={{
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 16,
+        padding: "18px 20px 16px",
+        marginBottom: 16,
+        boxShadow: "0 2px 8px rgba(36,51,45,0.06)",
+      }}
+    >
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontFamily: t.serif, fontSize: 17, fontWeight: 700, color: t.text }}>
+          Profile completeness
+        </span>
+        <span style={{ fontSize: 14, color: t.textSoft }}>{score}/{total}</span>
+      </div>
+
+      {/* Tile bar — rounded squares echoing the brand spectrum mark */}
+      <div
+        role="progressbar"
+        aria-valuenow={score}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-label={`${pct}% complete — ${score} of ${total} profile sections filled`}
+        style={{ display: "flex", gap: 5, marginBottom: 14 }}
+      >
+        {Array.from({ length: total }).map((_, i) => (
+          <div
+            key={i}
+            aria-hidden="true"
+            style={{
+              flex: 1,
+              height: 10,
+              borderRadius: 5,
+              background: i < score ? t.accentFill : t.surfaceAlt,
+              border: `1.5px solid ${i < score ? "transparent" : t.border}`,
+              transition: `background 220ms cubic-bezier(0.2,0,0,1)`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Missing-field chips */}
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+        Adding these helps matches understand you better:
+      </p>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {missing.map((f) => (
+          <li key={f.key}>
+            <span style={{
+              display: "inline-block",
+              padding: "4px 10px",
+              borderRadius: 20,
+              background: t.green50,
+              border: `1px solid ${t.green200}`,
+              color: t.accentStrong,
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}>
+              {f.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
@@ -1580,6 +1687,17 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               is required except your display name and at least one interest.
             </p>
           )}
+
+          {/* Profile-completeness nudge (backlog #4): shown after first load,
+              hidden automatically once all 8 differentiator fields are filled. */}
+          {(() => {
+            const { score, total, missing } = computeCompleteness({
+              photos, tagline, bio, gender, pronouns, seeking,
+              commDirectness, commLiteral, commCadence,
+              sensoryEnvironment, sensoryLighting, prompts,
+            });
+            return <ProfileCompletenessNudge score={score} total={total} missing={missing} />;
+          })()}
 
           {/* ══════════════════════════════════════════════════════
               CARD 1 — About you
