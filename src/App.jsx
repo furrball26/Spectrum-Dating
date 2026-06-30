@@ -545,8 +545,21 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login"); // "login" | "register"
   const [onboarding, setOnboarding] = useState(false);
   // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety' | 'settings'
-  const [activeTab, setActiveTab] = useState("suggestions");
-  const [prevTab, setPrevTab] = useState("suggestions");
+  // Honor a ?tab= deep-link / refresh on cold load. Without this the tab always
+  // initialized to "suggestions" and the sync effect below rewrote the URL,
+  // so bookmarks, shared links, and refresh-mid-flow all dumped you on Discover.
+  // 'admin' is intentionally NOT cold-bootable from the URL — admin status is
+  // fetched async, so a crafted ?tab=admin falls back to Discover rather than
+  // flashing a gated screen. In-app nav to admin still works for admins.
+  const initialTab = (() => {
+    try {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings"];
+      return allowed.includes(tab) ? tab : "suggestions";
+    } catch { return "suggestions"; }
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [prevTab, setPrevTab] = useState(initialTab);
 
   // ?reset=TOKEN → show the reset-password screen (declared here so the title
   // effect below can account for it).
