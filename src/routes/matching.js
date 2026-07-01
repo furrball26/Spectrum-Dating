@@ -190,6 +190,68 @@ router.post('/undo-skip', requireAuth, mutationLimiter, (req, res) => {
   return res.json({ ok: true, candidateId: lastSkip.swiped_id });
 });
 
+// POST /matching/undo-like — undo a still-PENDING 'like'. Mirrors undo-skip:
+// deleting the like removes the caller's one-sided interest so that person can
+// resurface in candidates (Discover). Never touches 'skip' swipes.
+//
+// Body (optional): { candidateId?: string }
+//   - candidateId present → undo the like on that specific candidate (targeted).
+//   - candidateId absent  → undo the caller's MOST RECENT 'like' (parity with undo-skip).
+//
+// GUARD — the like can only be undone while it's still ONE-SIDED. If it has
+// already produced a mutual match (the other person liked back), the match row
+// exists and this endpoint refuses with 409 and leaves the match untouched. To
+// end a real match the user must use the unmatch flow (DELETE /matches/:id).
+// This route NEVER deletes a match.
+//
+// Authz: scoped to the caller's own swipes via swiper_id = req.ctx.userId, so
+// no IDOR — a caller can only ever undo a like they themselves made.
+//
+// Returns { ok: false } when there's no matching pending like to undo.
+router.post('/undo-like', requireAuth, mutationLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+  const { candidateId } = req.body ?? {};
+
+  if (candidateId != null && (typeof candidateId !== 'string' || !candidateId)) {
+    return res.status(400).json({ error: 'candidateId must be a non-empty string.' });
+  }
+
+  // Find the like to undo — always scoped to the caller's own swipes.
+  const like = candidateId
+    ? db.prepare(
+        `SELECT id, swiped_id FROM swipes
+         WHERE swiper_id = ? AND swiped_id = ? AND decision = 'like'`
+      ).get(userId, candidateId)
+    : db.prepare(
+        `SELECT id, swiped_id FROM swipes
+         WHERE swiper_id = ? AND decision = 'like'
+         ORDER BY created_at DESC LIMIT 1`
+      ).get(userId);
+
+  if (!like) {
+    return res.json({ ok: false });
+  }
+
+  // GUARD: refuse if this like already became a mutual match. Look up the match
+  // by canonical pair order (smaller id first), matching how /swipe creates it.
+  const otherId = like.swiped_id;
+  const [userA, userB] = userId < otherId ? [userId, otherId] : [otherId, userId];
+  const match = db.prepare(
+    'SELECT id FROM matches WHERE user_a_id = ? AND user_b_id = ?'
+  ).get(userA, userB);
+
+  if (match) {
+    return res.status(409).json({
+      error: "You've already matched — you can unmatch from the conversation instead.",
+      matched: true,
+    });
+  }
+
+  db.prepare('DELETE FROM swipes WHERE id = ?').run(like.id);
+
+  return res.json({ ok: true, candidateId: like.swiped_id });
+});
+
 // GET /matching/matches — list the viewer's mutual matches, with the other
 // person's profile and whether a conversation has been started yet.
 router.get('/matches', requireAuth, (req, res) => {
