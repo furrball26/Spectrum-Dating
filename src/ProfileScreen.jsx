@@ -281,9 +281,11 @@ const MAX_PHOTOS = 6;
 // Single existing-photo cell
 const DESC_MAX = 200;
 
-function PhotoCell({ photo, onSetPrimary, onRemove, onDescriptionSaved }) {
+function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onRemove, onDescriptionSaved }) {
   const fPrimary = useFocusable();
   const fRemove = useFocusable();
+  const fReplace = useFocusable();
+  const replaceRef = useRef(null);
   const [confirming, setConfirming] = useState(false);
   const [desc, setDesc] = useState(photo.description || "");
   const [descSaving, setDescSaving] = useState(false);
@@ -419,48 +421,101 @@ function PhotoCell({ photo, onSetPrimary, onRemove, onDescriptionSaved }) {
           </button>
         )}
 
-        {confirming ? (
-          <div style={{ display: "flex", gap: 4 }}>
+        {/* Replace — swaps this slot's photo using the normal upload flow */}
+        {!confirming && (
+          <>
             <button
               type="button"
-              onClick={() => { onRemove(photo.id); setConfirming(false); }}
-              aria-label="Confirm remove photo"
-              {...fRemove}
+              onClick={() => replaceRef.current?.click()}
+              disabled={uploading}
+              aria-label="Replace this photo"
+              aria-busy={uploading}
+              {...fReplace}
               style={{
-                flex: 1,
                 minHeight: 44,
-                padding: "8px 6px",
+                padding: "8px 10px",
                 borderRadius: 8,
-                border: `1px solid ${t.danger}`,
-                background: t.danger,
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                ...fRemove.style,
-              }}
-            >
-              Remove
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              aria-label="Cancel removing photo"
-              style={{
-                flex: 1,
-                minHeight: 44,
-                padding: "8px 6px",
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
+                border: `1px solid ${t.formBorder}`,
                 background: t.surface,
-                color: t.text,
+                color: t.accentStrong,
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: uploading ? "wait" : "pointer",
+                opacity: uploading ? 0.7 : 1,
+                ...fReplace.style,
               }}
             >
-              Cancel
+              {uploading ? "Uploading…" : "Replace"}
             </button>
+            <input
+              ref={replaceRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              aria-hidden="true"
+              tabIndex={-1}
+              style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onReplace(photo.id, file);
+                e.target.value = ""; // reset so same file can be re-selected
+              }}
+            />
+          </>
+        )}
+
+        {confirming ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {isOnlyPhoto && (
+              <p
+                role="alert"
+                style={{ margin: 0, fontSize: 12, color: t.text, lineHeight: 1.5 }}
+              >
+                You'll have no photo, and you won't appear in Discover until you add
+                one. Remove anyway?
+              </p>
+            )}
+            <div style={{ display: "flex", gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => { onRemove(photo.id); setConfirming(false); }}
+                aria-label={isOnlyPhoto ? "Remove anyway" : "Confirm remove photo"}
+                {...fRemove}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  padding: "8px 6px",
+                  borderRadius: 8,
+                  border: `1px solid ${t.danger}`,
+                  background: t.danger,
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  ...fRemove.style,
+                }}
+              >
+                {isOnlyPhoto ? "Remove anyway" : "Remove"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                aria-label="Cancel removing photo"
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  padding: "8px 6px",
+                  borderRadius: 8,
+                  border: `1px solid ${t.border}`,
+                  background: t.surface,
+                  color: t.text,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -546,7 +601,7 @@ function AddPhotoTile({ onAdd, uploading, disabled }) {
   );
 }
 
-function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove, onDescriptionSaved, name }) {
+function PhotoGallery({ photos, uploading, error, onAdd, onReplace, onSetPrimary, onRemove, onDescriptionSaved, name }) {
   const atMax = photos.length >= MAX_PHOTOS;
   const isEmpty = photos.length === 0;
 
@@ -576,6 +631,9 @@ function PhotoGallery({ photos, uploading, error, onAdd, onSetPrimary, onRemove,
           <div role="listitem" key={photo.id}>
             <PhotoCell
               photo={photo}
+              isOnlyPhoto={photos.length === 1}
+              uploading={uploading}
+              onReplace={onReplace}
               onSetPrimary={onSetPrimary}
               onRemove={onRemove}
               onDescriptionSaved={onDescriptionSaved}
@@ -1895,6 +1953,30 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
     return (e && e.message) || "Photo upload failed. Please try again.";
   }
 
+  // ── Validate a chosen image file; returns an error string or "" if OK.
+  function validatePhotoFile(file) {
+    const MAX = 10 * 1024 * 1024;
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!ALLOWED.includes(file.type)) return "Please choose a JPEG, PNG, WebP, or GIF.";
+    if (file.size > MAX) return "Photo must be under 10 MB.";
+    return "";
+  }
+
+  // ── Upload a file to R2 and register it; returns the new gallery list.
+  async function uploadAndAddPhoto(file) {
+    // 1. Get presigned URL
+    const { uploadUrl, key } = await getProfileUploadUrl(file.type);
+    // 2. Upload directly to R2
+    const upload = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!upload.ok) throw new Error("Upload failed");
+    // 3. Register the photo with the backend; returns the full ordered list
+    return addProfilePhoto(key);
+  }
+
   // ── Add a photo to the gallery
   const handleAddPhoto = useCallback(async (file) => {
     if (!file) return;
@@ -1902,30 +1984,15 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       setPhotoError(`You can add up to ${MAX_PHOTOS} photos.`);
       return;
     }
-    const MAX = 10 * 1024 * 1024;
-    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!ALLOWED.includes(file.type)) {
-      setPhotoError("Please choose a JPEG, PNG, WebP, or GIF.");
-      return;
-    }
-    if (file.size > MAX) {
-      setPhotoError("Photo must be under 10 MB.");
+    const invalid = validatePhotoFile(file);
+    if (invalid) {
+      setPhotoError(invalid);
       return;
     }
     setPhotoError("");
     setPhotoUploading(true);
     try {
-      // 1. Get presigned URL
-      const { uploadUrl, key } = await getProfileUploadUrl(file.type);
-      // 2. Upload directly to R2
-      const upload = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!upload.ok) throw new Error("Upload failed");
-      // 3. Register the photo with the backend; returns the full ordered list
-      const result = await addProfilePhoto(key);
+      const result = await uploadAndAddPhoto(file);
       setPhotos(result);
     } catch (e) {
       setPhotoError(photoErrorMessage(e));
@@ -1933,6 +2000,39 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
       setPhotoUploading(false);
     }
   }, [photos.length]);
+
+  // ── Replace a photo in place: upload the new one, then remove the old one,
+  //    preserving the old photo's primary status. (Add-then-delete: the new
+  //    photo is safely stored before the old one is removed.)
+  const handleReplacePhoto = useCallback(async (oldId, file) => {
+    if (!file) return;
+    const invalid = validatePhotoFile(file);
+    if (invalid) {
+      setPhotoError(invalid);
+      return;
+    }
+    const wasPrimary = photos.find((p) => p.id === oldId)?.isPrimary;
+    const prevIds = new Set(photos.map((p) => p.id));
+    setPhotoError("");
+    setPhotoUploading(true);
+    try {
+      // 1. Upload + register the new photo. Result includes the new photo.
+      const afterAdd = await uploadAndAddPhoto(file);
+      const added = afterAdd.find((p) => !prevIds.has(p.id));
+      // 2. Remove the old photo. If it was primary, the backend promotes the
+      //    lowest-position remaining photo — so we re-assert primary on the new
+      //    one afterward to preserve the slot's main status.
+      let list = await deleteProfilePhoto(oldId);
+      if (wasPrimary && added && list.some((p) => p.id === added.id)) {
+        list = await setPrimaryPhoto(added.id);
+      }
+      setPhotos(list);
+    } catch (e) {
+      setPhotoError(photoErrorMessage(e));
+    } finally {
+      setPhotoUploading(false);
+    }
+  }, [photos]);
 
   // ── Choose a new main photo
   const handleSetPrimary = useCallback((id) => {
@@ -2392,6 +2492,7 @@ export default function ProfileScreen({ onDone, onSignOut, onAccountDeleted, pus
               uploading={photoUploading}
               error={photoError}
               onAdd={handleAddPhoto}
+              onReplace={handleReplacePhoto}
               onSetPrimary={handleSetPrimary}
               onRemove={handleRemovePhoto}
               onDescriptionSaved={handleDescriptionSaved}
