@@ -547,6 +547,7 @@ function MessageBubble({
   onToggleReaction,
   onRetry,
   onEnlargeImage,
+  showSent = false,
 }) {
   const prefersReduced = usePrefersReduced();
   const isOwn = message.senderId === currentUserId;
@@ -755,6 +756,26 @@ function MessageBubble({
             currentUserId={currentUserId}
             onToggle={onToggleReaction}
           />
+        </div>
+      )}
+
+      {/* F4 — calm "Sent" micro-state. Only ever shown on the user's own most
+          recent, server-confirmed message (the parent computes this). It means
+          the message reached the server — NOT that the other person saw it.
+          Quiet, muted, right-aligned; announced once via role="status". */}
+      {isOwn && showSent && !message.failed && (
+        <div
+          role="status"
+          aria-label="Sent"
+          style={{
+            marginTop: 3,
+            fontSize: 11,
+            color: t.textMuted,
+            fontFamily: t.sans,
+            lineHeight: 1.2,
+          }}
+        >
+          Sent
         </div>
       )}
     </div>
@@ -1898,6 +1919,24 @@ export default function ConversationScreen({
     </div>
   );
 
+  // F4 — a calm "Sent" micro-state. Reassures literal-communication users that a
+  // message reached the SERVER (the send was persisted), and nothing more. This
+  // is NOT a read receipt: it says nothing about the other person receiving or
+  // reading the message. To stay uncluttered, only the single most-recent own
+  // message carries it, and only once it has a real server id (not a temp-/failed
+  // one). As soon as the other person replies or the user sends again, the last
+  // message is no longer this confirmed own bubble, so the label drops away.
+  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+  const sentMessageId =
+    lastMsg &&
+    lastMsg.senderId === currentUserId &&
+    !lastMsg.deleted &&
+    !lastMsg.failed &&
+    typeof lastMsg.id === "string" &&
+    !lastMsg.id.startsWith("temp-")
+      ? lastMsg.id
+      : null;
+
   // Group messages by timeLabel for group headers
   const grouped = [];
   let lastLabel = null;
@@ -2206,6 +2245,7 @@ export default function ConversationScreen({
                   onToggleReaction={toggleReaction}
                   onRetry={retrySend}
                   onEnlargeImage={setEnlargedImage}
+                  showSent={msg.id === sentMessageId}
                 />
               );
             })}
