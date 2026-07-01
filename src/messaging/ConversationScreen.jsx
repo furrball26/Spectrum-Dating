@@ -25,9 +25,9 @@ function usePrefersReduced() {
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
-// Small, muted "You" / match-name label shown above the first bubble in a run
-// of consecutive same-sender messages. Since every bubble now left-aligns, this
-// (plus bubble color) is how you tell at a glance who said what.
+// Small, muted match-name label shown above the FIRST bubble in an OTHER-person
+// run (and just after a day divider). Own messages get no label — right side +
+// green bubble already reads as "you". Primary sender cues are now SIDE + COLOR.
 const senderLabelStyle = {
   fontSize: 12,
   color: t.textMuted,
@@ -35,6 +35,11 @@ const senderLabelStyle = {
   margin: "2px 2px 3px",
   lineHeight: 1.2,
 };
+
+// Avatar gutter reserved on the OTHER side so bubbles in a run stay aligned even
+// when the avatar only renders on the first bubble. 28px avatar + 8px gap.
+const OTHER_AVATAR_SIZE = 28;
+const OTHER_GUTTER = OTHER_AVATAR_SIZE + 8;
 
 function useFocusable() {
   const [focused, setFocused] = useState(false);
@@ -597,10 +602,12 @@ function MessageBubble({
   onRetry,
   onEnlargeImage,
   showSent = false,
-  // All bubbles now left-align; sender is signalled by bubble color + a small
-  // muted name label shown above the first message in a same-sender run.
+  // Sender is signalled primarily by SIDE (own=right, other=left) + bubble color.
+  // The other person's name label + avatar render only at the start of their run.
   senderName = "",
   showSender = false,
+  otherUserId,
+  otherPhotoUrl,
 }) {
   const prefersReduced = usePrefersReduced();
   const isOwn = message.senderId === currentUserId;
@@ -618,32 +625,53 @@ function MessageBubble({
   const reactionCapReached = reactionCount >= MAX_REACTION_TYPES;
   const showReactBtn = !message.deleted && !reactionCapReached;
 
+  // Own → right, other → left. The other side reserves an avatar gutter so
+  // subsequent bubbles in a run line up under the first bubble (which shows the
+  // avatar). `showSender` marks the first bubble of the other person's run.
+  const showAvatar = !isOwn && showSender;
+
+  // sr-only programmatic sender, spoken on EVERY bubble even though the visible
+  // name label is demoted to run-starts only.
+  const srSender = (
+    <span className="sr-only">{isOwn ? "You:" : `${senderName || "They"}:`}</span>
+  );
+
   if (message.deleted) {
     return (
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          alignItems: "flex-start",
+          alignItems: isOwn ? "flex-end" : "flex-start",
           marginBottom: 8,
         }}
       >
-        {showSender && (
-          <div style={senderLabelStyle}>{isOwn ? "You" : senderName}</div>
+        {!isOwn && showSender && (
+          <div style={{ ...senderLabelStyle, marginLeft: OTHER_GUTTER }}>{senderName}</div>
         )}
-        <div
-          aria-label="Message deleted."
-          style={{
-            fontStyle: "italic",
-            color: t.tombstone,
-            fontSize: 14,
-            padding: "8px 14px",
-            borderRadius: 16,
-            border: `1px solid ${t.borderLight}`,
-            background: "transparent",
-          }}
-        >
-          Message deleted
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, maxWidth: "min(88%, 34rem)" }}>
+          {!isOwn && (
+            <div style={{ width: OTHER_AVATAR_SIZE, flexShrink: 0 }}>
+              {showAvatar && (
+                <Avatar name={senderName} userId={otherUserId} photoUrl={otherPhotoUrl} size={OTHER_AVATAR_SIZE} />
+              )}
+            </div>
+          )}
+          <div
+            aria-label="Message deleted."
+            style={{
+              fontStyle: "italic",
+              color: t.tombstone,
+              fontSize: 14,
+              padding: "8px 14px",
+              borderRadius: 16,
+              border: `1px solid ${t.borderLight}`,
+              background: "transparent",
+            }}
+          >
+            {srSender}
+            Message deleted
+          </div>
         </div>
       </div>
     );
@@ -654,79 +682,80 @@ function MessageBubble({
       style={{
         display: "flex",
         flexDirection: "column",
-        alignItems: "flex-start",
-        marginBottom: 8,
+        // Own → right, other → left. This two-sided alignment is the primary
+        // "who said what" cue, reinforced by bubble color.
+        alignItems: isOwn ? "flex-end" : "flex-start",
+        // Grouping: bubbles in a same-sender run sit tight (3px); a sender change
+        // (showSender) opens a turn break (12px). The parent sets showSender.
+        marginBottom: 3,
+        marginTop: showSender ? 9 : 0,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Sender name label — shown above the first message in a same-sender run.
-          Left-aligned like the bubble; color still carries the primary signal. */}
-      {showSender && (
-        <div style={senderLabelStyle}>{isOwn ? "You" : senderName}</div>
+      {/* Other person's name label — only at the start of their run / after a
+          divider. Own side has no label (right + green already says "you"). */}
+      {!isOwn && showSender && (
+        <div style={{ ...senderLabelStyle, marginLeft: OTHER_GUTTER }}>{senderName}</div>
       )}
       <div
         ref={menuAnchorRef}
         style={{
           position: "relative",
-          // Full-width bubbles: use nearly the whole thread column (minus a small
-          // margin for the trailing hover controls) instead of the old 84%.
-          maxWidth: "98%",
-          display: "flex",
-          // Every bubble left-aligns now; bubble hugs the left, the ⋯/＋ controls
-          // trail to its right (row-reverse over the DOM order buttons→bubble).
-          flexDirection: "row-reverse",
-          alignItems: "flex-end",
-          gap: 6,
+          // Dual cap: hug content (fit-content) but cap the measure. 34rem ≈ 66ch
+          // protects readability on wide panes; 88% is the mobile ceiling. The
+          // bubble sizes this box; hover controls float ABSOLUTELY on the outer
+          // edge so they never widen the row (which previously stopped own
+          // bubbles from hugging the right at narrow widths).
+          maxWidth: "min(88%, 34rem)",
+          width: "fit-content",
+          // Reserve the avatar gutter on the other side so run bubbles align.
+          marginLeft: isOwn ? 0 : OTHER_GUTTER,
         }}
       >
-        {/* Own message: ⋯ button appears on hover or focus */}
-        {isOwn && (
-          <button
-            type="button"
-            aria-label="Message options"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
+        {/* Other person's avatar — once, at the start of their run. Absolutely
+            placed into the reserved gutter so following bubbles stay aligned. */}
+        {!isOwn && (
+          <div
+            aria-hidden="true"
             style={{
-              background: "transparent",
-              border: "none",
-              color: t.textMuted,
-              fontSize: 18,
-              cursor: "pointer",
-              padding: "4px 6px",
-              borderRadius: 6,
-              minHeight: 44,
-              minWidth: 44,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: hovered || menuOpen || fDots.style.outline !== "none" ? 1 : 0,
-              transition: prefersReduced ? "none" : "opacity 120ms",
-              flexShrink: 0,
-              ...fDots.style,
+              position: "absolute",
+              left: -OTHER_GUTTER,
+              bottom: 0,
+              width: OTHER_AVATAR_SIZE,
             }}
-            onFocus={(e) => { fDots.onFocus(e); setHovered(true); }}
-            onBlur={(e) => { fDots.onBlur(e); setHovered(false); }}
           >
-            ⋯
-          </button>
+            {showAvatar && (
+              <Avatar name={senderName} userId={otherUserId} photoUrl={otherPhotoUrl} size={OTHER_AVATAR_SIZE} />
+            )}
+          </div>
         )}
 
-        {/* React button (＋) — appears on hover/focus for all messages */}
-        {showReactBtn && (
-          <div style={{ position: "relative" }}>
+        {/* Hover/focus controls (⋯ own-only, ＋ all). Absolutely anchored to the
+            bubble's OUTER edge — own on the left, other on the right — so they
+            never consume row width and the bubble hugs the correct side. */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            ...(isOwn ? { right: "100%" } : { left: "100%" }),
+            display: "flex",
+            flexDirection: isOwn ? "row-reverse" : "row",
+            alignItems: "flex-end",
+          }}
+        >
+          {isOwn && (
             <button
-              ref={reactButtonRef}
               type="button"
-              aria-label="Add reaction"
-              aria-expanded={pickerOpen}
-              onClick={() => setPickerOpen((v) => !v)}
+              aria-label="Message options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
               style={{
                 background: "transparent",
                 border: "none",
                 color: t.textMuted,
-                fontSize: 16,
+                fontSize: 18,
                 cursor: "pointer",
                 padding: "4px 6px",
                 borderRadius: 6,
@@ -735,43 +764,77 @@ function MessageBubble({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                opacity: hovered || pickerOpen || fReact.style.outline !== "none" ? 1 : 0,
+                opacity: hovered || menuOpen || fDots.style.outline !== "none" ? 1 : 0,
                 transition: prefersReduced ? "none" : "opacity 120ms",
                 flexShrink: 0,
-                ...fReact.style,
+                ...fDots.style,
               }}
-              onFocus={(e) => { fReact.onFocus(e); setHovered(true); }}
-              onBlur={(e) => { fReact.onBlur(e); setHovered(false); }}
+              onFocus={(e) => { fDots.onFocus(e); setHovered(true); }}
+              onBlur={(e) => { fDots.onBlur(e); setHovered(false); }}
             >
-              ＋
+              ⋯
             </button>
-            {pickerOpen && (
-              <ReactionPicker
-                onSelect={(emoji) => {
-                  onToggleReaction(message.id, emoji);
-                  setPickerOpen(false);
-                  reactButtonRef.current?.focus();
+          )}
+
+          {showReactBtn && (
+            <div style={{ position: "relative" }}>
+              <button
+                ref={reactButtonRef}
+                type="button"
+                aria-label="Add reaction"
+                aria-expanded={pickerOpen}
+                onClick={() => setPickerOpen((v) => !v)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: t.textMuted,
+                  fontSize: 16,
+                  cursor: "pointer",
+                  padding: "4px 6px",
+                  borderRadius: 6,
+                  minHeight: 44,
+                  minWidth: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: hovered || pickerOpen || fReact.style.outline !== "none" ? 1 : 0,
+                  transition: prefersReduced ? "none" : "opacity 120ms",
+                  flexShrink: 0,
+                  ...fReact.style,
                 }}
-                onClose={() => {
-                  setPickerOpen(false);
-                  reactButtonRef.current?.focus();
-                }}
-                reactButtonRef={reactButtonRef}
-                isOwn={isOwn}
-              />
-            )}
-          </div>
-        )}
+                onFocus={(e) => { fReact.onFocus(e); setHovered(true); }}
+                onBlur={(e) => { fReact.onBlur(e); setHovered(false); }}
+              >
+                ＋
+              </button>
+              {pickerOpen && (
+                <ReactionPicker
+                  onSelect={(emoji) => {
+                    onToggleReaction(message.id, emoji);
+                    setPickerOpen(false);
+                    reactButtonRef.current?.focus();
+                  }}
+                  onClose={() => {
+                    setPickerOpen(false);
+                    reactButtonRef.current?.focus();
+                  }}
+                  reactButtonRef={reactButtonRef}
+                  isOwn={isOwn}
+                />
+              )}
+            </div>
+          )}
+        </div>
 
         <div
           style={{
-            // Sender is signalled by COLOR now (position no longer differs):
-            // own = green-tinted bubble, other = white/surface bubble.
+            // own = green-tinted bubble (tail lower-right), other = surface bubble
+            // (tail lower-left). Other bubble needs a visible border (≥3:1 vs the
+            // page background) — t.border is too faint in light, so use textSoft.
             background: isOwn ? t.bubbleOwn : t.bubbleOther,
-            border: isOwn ? `1px solid ${t.bubbleOwnBorder}` : `1px solid ${t.border}`,
-            // All bubbles left-align, so all get the left-tail corner treatment.
-            borderRadius: "18px 18px 18px 4px",
-            padding: "10px 14px",
+            border: isOwn ? `1px solid ${t.bubbleOwnBorder}` : `1px solid ${t.textSoft}`,
+            borderRadius: isOwn ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+            padding: "11px 15px",
             fontSize: 16,
             color: t.text,
             lineHeight: 1.55,
@@ -779,6 +842,7 @@ function MessageBubble({
             wordBreak: "break-word",
           }}
         >
+          {srSender}
           {message.body}
           {/* Photo attachment — only ever render an approved image with a
               publicUrl. The sender sees a gentle pending-review state for their
@@ -816,9 +880,17 @@ function MessageBubble({
         )}
       </div>
 
-      {/* Reaction pills — in tab order after the bubble */}
+      {/* Reaction pills — in tab order after the bubble, aligned to the bubble's
+          side (own→right, other→left) and inset past the avatar gutter. */}
       {msgReactions && (
-        <div style={{ maxWidth: "98%" }}>
+        <div
+          style={{
+            maxWidth: "min(88%, 34rem)",
+            marginLeft: isOwn ? 0 : OTHER_GUTTER,
+            display: "flex",
+            justifyContent: isOwn ? "flex-end" : "flex-start",
+          }}
+        >
           <ReactionPills
             messageId={message.id}
             msgReactions={msgReactions}
@@ -831,13 +903,16 @@ function MessageBubble({
       {/* F4 — calm "Sent" micro-state. Only ever shown on the user's own most
           recent, server-confirmed message (the parent computes this). It means
           the message reached the server — NOT that the other person saw it.
-          Quiet, muted, left-aligned; announced once via role="status". */}
+          Quiet, muted, right-aligned under the own bubble; announced once via
+          role="status". */}
       {isOwn && showSent && !message.failed && (
         <div
           role="status"
           aria-label="Sent"
           style={{
             marginTop: 3,
+            marginRight: 2,
+            alignSelf: "flex-end",
             fontSize: 11,
             color: t.textMuted,
             fontFamily: t.sans,
@@ -2017,10 +2092,10 @@ export default function ConversationScreen({
       ? lastMsg.id
       : null;
 
-  // Group messages by timeLabel for group headers. Also flag `showSender` on the
-  // first message of each consecutive same-sender run (and after any day divider)
-  // so a small "You"/name label renders above it — since bubbles no longer differ
-  // by side, this + color is how you tell who said what.
+  // Group messages by timeLabel for group headers. `showSender` marks the first
+  // message of each consecutive same-sender run (and the first after any day
+  // divider). It drives the turn-break gap on BOTH sides, and — for the OTHER
+  // person only — the name label + avatar at the start of their run.
   const grouped = [];
   let lastLabel = null;
   let lastSenderId = null;
@@ -2234,11 +2309,14 @@ export default function ConversationScreen({
             style={{
               flex: 1,
               overflowY: "auto",
-              padding: "16px 16px 8px",
+              padding: "16px 0 8px",
               minHeight: 0,
               ...logFocus.style,
             }}
           >
+           {/* Cap the inner content measure on wide panes; keep 16px side padding
+               on mobile. Centered so the thread doesn't sprawl across a wide pane. */}
+           <div style={{ maxWidth: "46rem", margin: "0 auto", padding: "0 16px" }}>
             {/* F26 — one-time "staying safe in chat" reassurance card */}
             {safetyReassuranceCard}
 
@@ -2277,7 +2355,8 @@ export default function ConversationScreen({
                 return (
                   <div
                     key={`header-${item.label}-${i}`}
-                    aria-hidden="true"
+                    role="separator"
+                    aria-label={item.label}
                     style={{
                       textAlign: "center",
                       fontSize: 12,
@@ -2288,44 +2367,67 @@ export default function ConversationScreen({
                       margin: "16px 0 10px",
                     }}
                   >
-                    {item.label}
+                    <span aria-hidden="true">{item.label}</span>
                   </div>
                 );
               }
               const msg = item.msg;
               const isOwnMsg = msg.senderId === currentUserId;
               if (msg.deleted) {
+                const showAvatarT = !isOwnMsg && item.showSender;
                 return (
                   <div
                     key={msg.id}
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      alignItems: "flex-start",
-                      marginBottom: 8,
+                      alignItems: isOwnMsg ? "flex-end" : "flex-start",
+                      marginBottom: 3,
+                      marginTop: item.showSender ? 9 : 0,
                     }}
                   >
-                    {item.showSender && (
-                      <div style={senderLabelStyle}>
-                        {isOwnMsg ? "You" : otherUser.displayName}
+                    {!isOwnMsg && item.showSender && (
+                      <div style={{ ...senderLabelStyle, marginLeft: OTHER_GUTTER }}>
+                        {otherUser.displayName}
                       </div>
                     )}
                     <div
-                      id={`tombstone-${msg.id}`}
-                      tabIndex={-1}
-                      aria-label="Message deleted."
                       style={{
-                        fontStyle: "italic",
-                        color: t.tombstone,
-                        fontSize: 14,
-                        padding: "8px 14px",
-                        borderRadius: 16,
-                        border: `1px solid ${t.borderLight}`,
-                        background: "transparent",
-                        outline: "none",
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "flex-end",
+                        marginLeft: isOwnMsg ? 0 : OTHER_GUTTER,
+                        maxWidth: "min(88%, 34rem)",
                       }}
                     >
-                      Message deleted
+                      {!isOwnMsg && (
+                        <div
+                          aria-hidden="true"
+                          style={{ position: "absolute", left: -OTHER_GUTTER, bottom: 0, width: OTHER_AVATAR_SIZE }}
+                        >
+                          {showAvatarT && (
+                            <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} size={OTHER_AVATAR_SIZE} />
+                          )}
+                        </div>
+                      )}
+                      <div
+                        id={`tombstone-${msg.id}`}
+                        tabIndex={-1}
+                        aria-label="Message deleted."
+                        style={{
+                          fontStyle: "italic",
+                          color: t.tombstone,
+                          fontSize: 14,
+                          padding: "8px 14px",
+                          borderRadius: 16,
+                          border: `1px solid ${t.borderLight}`,
+                          background: "transparent",
+                          outline: "none",
+                        }}
+                      >
+                        <span className="sr-only">{isOwnMsg ? "You:" : `${otherUser.displayName}:`}</span>
+                        Message deleted
+                      </div>
                     </div>
                   </div>
                 );
@@ -2343,6 +2445,8 @@ export default function ConversationScreen({
                   showSent={msg.id === sentMessageId}
                   senderName={otherUser.displayName}
                   showSender={item.showSender}
+                  otherUserId={otherUser.userId}
+                  otherPhotoUrl={otherUser.photoUrl}
                 />
               );
             })}
@@ -2351,6 +2455,7 @@ export default function ConversationScreen({
                 signal is detected in either person's message. Never blocks or
                 alters any message. */}
             {safetySignalSeen && <SafetyInlineNote />}
+           </div>
           </div>
         </>
       )}
