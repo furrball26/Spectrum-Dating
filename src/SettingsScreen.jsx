@@ -1,67 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
 import { submitFeedback, getProfile, updateProfile } from "./api.js";
+// A11y pref helpers live in their own small module (a11yPrefs.js) so App can
+// import readA11y on the critical path without pulling this whole (now lazily
+// split) screen back into the main bundle. Re-exported here for any existing
+// importers.
+import { A11Y_KEY, DEFAULT_A11Y, readA11y } from "./a11yPrefs.js";
+
+export { A11Y_KEY, DEFAULT_A11Y, readA11y };
 
 // Accessibility settings — frontend-only. Prefs persist in localStorage under
 // `spectrum_a11y` and are applied globally by App.jsx. This screen just lets the
 // user toggle them and saves immediately. Same calm shell as MatchesScreen /
 // SafetyScreen.
-
-export const A11Y_KEY = "spectrum_a11y";
-
-export const DEFAULT_A11Y = {
-  reduceMotion: false,
-  highContrast: false,
-  largerText: false,
-  theme: "light", // 'light' | 'dim'
-  plainLanguage: false,   // shorter, more literal copy throughout the app
-  reducedSensory: false,  // hide decorative illustrations + flatten header mark
-};
-
-// D14 — when the visitor has never set a preference (e.g. logged-out Landing /
-// Auth), seed the initial theme from the OS `prefers-color-scheme: dark` query
-// so dim-preferring users get a calm first impression instead of a bright one.
-// An explicit saved choice always wins over this (see readA11y below).
-function osPrefersDim() {
-  try {
-    return typeof window !== "undefined"
-      && typeof window.matchMedia === "function"
-      && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  } catch {
-    return false;
-  }
-}
-
-// The defaults for a first-time visitor, with the theme seeded from the OS.
-function seededDefaults() {
-  return { ...DEFAULT_A11Y, theme: osPrefersDim() ? "dim" : "light" };
-}
-
-// Read + normalise the saved prefs. Always returns a full, well-typed object so
-// callers never have to guard for missing/garbage values. When nothing is saved
-// yet, the theme follows the OS preference (D14) — but any explicitly saved
-// theme is honored verbatim and never overridden.
-export function readA11y() {
-  try {
-    const raw = localStorage.getItem(A11Y_KEY);
-    if (!raw) return seededDefaults();
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return seededDefaults();
-    return {
-      reduceMotion: !!parsed.reduceMotion,
-      highContrast: !!parsed.highContrast,
-      largerText: !!parsed.largerText,
-      // Explicit saved choice wins; if the stored blob predates the theme field,
-      // fall back to the OS preference rather than forcing light.
-      theme: parsed.theme === "dim" ? "dim" : parsed.theme === "light" ? "light" : (osPrefersDim() ? "dim" : "light"),
-      plainLanguage: !!parsed.plainLanguage,
-      // Low Stimulation absorbed the former "Calm mode" — migrate any legacy calmMode=true.
-      reducedSensory: !!(parsed.reducedSensory || parsed.calmMode),
-    };
-  } catch {
-    return seededDefaults();
-  }
-}
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 

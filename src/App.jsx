@@ -1,18 +1,27 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { io } from "socket.io-client";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+// socket.io-client is loaded lazily (dynamic import inside the authed socket
+// effect) so it stays off the logged-out critical path — see the socket effect.
 import SuggestionScreen from "./SuggestionScreen.jsx";
 import MessagingApp from "./messaging/MessagingApp.jsx";
-import ProfileScreen from "./ProfileScreen.jsx";
 import MatchesScreen from "./MatchesScreen.jsx";
-import SafetyScreen from "./SafetyScreen.jsx";
-import SettingsScreen, { readA11y } from "./SettingsScreen.jsx";
-import AccountSecurityScreen from "./AccountSecurityScreen.jsx";
-import AdminScreen from "./AdminScreen.jsx";
 import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
-import LandingScreen from "./LandingScreen.jsx";
-import OnboardingScreen from "./OnboardingScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
+import Skeleton from "./Skeleton.jsx";
+import { readA11y } from "./a11yPrefs.js";
+
+// ── Code-split screens ──────────────────────────────────────────────────────
+// Screens that are never the first paint are lazy-loaded so they ship in their
+// own chunk instead of the main bundle. SuggestionScreen (Discover, first authed
+// screen), MessagingApp, and MatchesScreen stay eager above. lazy() calls live at
+// module scope (never inside a component).
+const ProfileScreen = lazy(() => import("./ProfileScreen.jsx"));
+const SafetyScreen = lazy(() => import("./SafetyScreen.jsx"));
+const SettingsScreen = lazy(() => import("./SettingsScreen.jsx"));
+const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
+const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
+const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
+const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
@@ -25,6 +34,33 @@ function urlBase64ToUint8Array(base64String) {
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = atob(base64);
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+// Calm Suspense fallback for lazily-loaded screens. Reuses the shared Skeleton
+// (which respects prefers-reduced-motion — static tint, no shimmer, for those
+// users), so there's no spinner jank. A few stacked blocks approximate a screen
+// header + body so the transition reads as "content loading", not a flash.
+function ScreenFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        padding: "24px",
+        width: "100%",
+        maxWidth: 640,
+        margin: "0 auto",
+        boxSizing: "border-box",
+      }}
+    >
+      <Skeleton width="45%" height={28} radius={10} />
+      <Skeleton width="100%" height={120} radius={14} />
+      <Skeleton width="100%" height={72} radius={14} />
+      <Skeleton width="70%" height={72} radius={14} />
+    </div>
+  );
 }
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
@@ -954,33 +990,51 @@ export default function App() {
     const token = getToken();
     if (!token || !BASE_URL) return;
 
-    const socket = io(BASE_URL, {
-      auth: { token },
-      transports: ["websocket"],
+    // socket.io-client is dynamically imported here so it stays out of the main
+    // (logged-out) bundle. The effect is already gated on `authed`, so the first
+    // time a session needs a socket we fetch the client, then connect. A
+    // cancellation flag guards against the effect tearing down before the import
+    // resolves so we never leak a live socket.
+    let socket = null;
+    let cancelled = false;
+
+    import("socket.io-client").then(({ io }) => {
+      if (cancelled) return;
+
+      socket = io(BASE_URL, {
+        auth: { token },
+        transports: ["websocket"],
+      });
+
+      socket.on("new_message", (payload) => {
+        // Don't count the user's own sent messages — the badge tracks messages
+        // *received* while away from the Messages tab.
+        if (payload?.message?.senderId === getUserId()) return;
+        if (activeTabRef.current !== "messages") {
+          setUnreadCount(prev => prev + 1);
+        }
+      });
+
+      // Realtime new-match signal — bump the Matches tab activity badge when a
+      // mutual match lands while the user is elsewhere. Mirrors new_message.
+      socket.on("new_match", () => {
+        if (activeTabRef.current !== "matches") {
+          setActivityCount(prev => prev + 1);
+        }
+      });
+
+      socket.on("connect_error", () => {
+        // Silent — badge just won't update in real-time; no UX impact
+      });
+    }).catch(() => {
+      // Import failed (offline / chunk load error) — realtime badges just won't
+      // update this session; no UX impact.
     });
 
-    socket.on("new_message", (payload) => {
-      // Don't count the user's own sent messages — the badge tracks messages
-      // *received* while away from the Messages tab.
-      if (payload?.message?.senderId === getUserId()) return;
-      if (activeTabRef.current !== "messages") {
-        setUnreadCount(prev => prev + 1);
-      }
-    });
-
-    // Realtime new-match signal — bump the Matches tab activity badge when a
-    // mutual match lands while the user is elsewhere. Mirrors new_message.
-    socket.on("new_match", () => {
-      if (activeTabRef.current !== "matches") {
-        setActivityCount(prev => prev + 1);
-      }
-    });
-
-    socket.on("connect_error", () => {
-      // Silent — badge just won't update in real-time; no UX impact
-    });
-
-    return () => socket.disconnect();
+    return () => {
+      cancelled = true;
+      if (socket) socket.disconnect();
+    };
   }, [authed]);
 
   return (
@@ -1039,14 +1093,20 @@ export default function App() {
           : (
             <>
               <SkipLink />
-              <LandingScreen
-                onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
-                onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
-              />
+              <Suspense fallback={<ScreenFallback />}>
+                <LandingScreen
+                  onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
+                  onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
+                />
+              </Suspense>
             </>
           )
         : onboarding
-        ? <OnboardingScreen onComplete={() => setOnboarding(false)} />
+        ? (
+          <Suspense fallback={<ScreenFallback />}>
+            <OnboardingScreen onComplete={() => setOnboarding(false)} />
+          </Suspense>
+        )
         : (
           <>
           <div
@@ -1188,6 +1248,7 @@ export default function App() {
                     }),
               }}
             >
+              <Suspense fallback={<ScreenFallback />}>
               {activeTab === "suggestions" && (
                 <SuggestionScreen
                   onOpenMessages={() => setActiveTab("messages")}
@@ -1262,6 +1323,7 @@ export default function App() {
                   onOpenAccount={() => { setPrevTab("settings"); setActiveTab("account"); }}
                 />
               )}
+              </Suspense>
             </main>
 
           </div>

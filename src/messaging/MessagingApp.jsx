@@ -1,11 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import MatchesListScreen from "./MatchesListScreen.jsx";
-import ConversationScreen from "./ConversationScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
 import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation } from "../api.js";
 import { t } from "../tokens.js";
 import { useViewport } from "../useViewport.js";
+import Skeleton from "../Skeleton.jsx";
+
+// ConversationScreen is lazy-loaded so its (heavy) subtree AND its statically
+// imported socket.io-client ship in a separate chunk, keeping both off the main
+// (logged-out) bundle. MessagingApp keeps all conversation-list state; only this
+// leaf loads on first thread-open, so no list/selection state is lost.
+const ConversationScreen = lazy(() => import("./ConversationScreen.jsx"));
+
+// Calm fallback while the ConversationScreen chunk loads (respects
+// prefers-reduced-motion via the shared Skeleton — static tint, no shimmer).
+function ConversationFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        padding: "20px",
+        height: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <Skeleton width="55%" height={22} radius={8} />
+      <Skeleton width="80%" height={48} radius={14} />
+      <Skeleton width="65%" height={48} radius={14} />
+      <Skeleton width="72%" height={48} radius={14} />
+    </div>
+  );
+}
 
 export default function MessagingApp({ onUnreadCount, initialConversationId, plainLanguage = false }) {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
@@ -227,18 +256,20 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
 
   const conversationPane = currentConvo && (
     <>
-      <ConversationScreen
-        conversationId={currentConvo.id}
-        otherUser={currentConvo.otherUser}
-        started={currentConvo.started}
-        onBack={handleBackToList}
-        onUnmatch={handleUnmatch}
-        onBlockReport={handleBlockReport}
-        currentUserId={getUserId() || "me"}
-        onArchive={handleArchive}
-        hideBack={isDesktop}
-        plainLanguage={plainLanguage}
-      />
+      <Suspense fallback={<ConversationFallback />}>
+        <ConversationScreen
+          conversationId={currentConvo.id}
+          otherUser={currentConvo.otherUser}
+          started={currentConvo.started}
+          onBack={handleBackToList}
+          onUnmatch={handleUnmatch}
+          onBlockReport={handleBlockReport}
+          currentUserId={getUserId() || "me"}
+          onArchive={handleArchive}
+          hideBack={isDesktop}
+          plainLanguage={plainLanguage}
+        />
+      </Suspense>
       {showUnmatchSheet && (
         <UnmatchSheet
           displayName={currentConvo.otherUser.displayName}
