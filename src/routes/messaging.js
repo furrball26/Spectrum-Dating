@@ -35,6 +35,19 @@ function isConversationMember(db, convId, userId) {
   return conv;
 }
 
+// F21 — is the match behind this conversation ended (unmatched)? An ended match
+// makes the thread READ-ONLY for BOTH people. We never expose WHO ended it
+// (ended_by stays server-side) — only the boolean fact that it has ended.
+function isConversationEnded(db, convId) {
+  const row = db.prepare(`
+    SELECT m.ended_at
+    FROM conversations c
+    JOIN matches m ON m.id = c.match_id
+    WHERE c.id = ?
+  `).get(convId);
+  return !!(row && row.ended_at);
+}
+
 function isBlocked(db, userA, userB) {
   return !!(
     db.prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(userA, userB, userB, userA)
@@ -42,9 +55,13 @@ function isBlocked(db, userA, userB) {
 }
 
 function activeConvoCount(db, userId) {
+  // F21: an ENDED (unmatched) conversation is read-only and must not occupy an
+  // active-conversation slot for either party.
   return db.prepare(`
-    SELECT COUNT(*) as cnt FROM conversations
-    WHERE (user_a_id = ? AND archived_by_a = 0) OR (user_b_id = ? AND archived_by_b = 0)
+    SELECT COUNT(*) as cnt FROM conversations c
+    JOIN matches mt ON mt.id = c.match_id
+    WHERE ((c.user_a_id = ? AND c.archived_by_a = 0) OR (c.user_b_id = ? AND c.archived_by_b = 0))
+      AND mt.ended_at IS NULL
   `).get(userId, userId).cnt;
 }
 
@@ -54,31 +71,44 @@ function activeConvoCount(db, userId) {
 
 router.get('/conversations', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
+  // F21: LEFT JOIN the match so we know its ended state. The person who ENDED
+  // the match (mt.ended_by = them) drops the thread from their list entirely
+  // (like archive/block — they chose to end it). The OTHER person keeps the
+  // thread but it's flagged ended:true so the list can show it as read-only;
+  // they discover the neutral notice only on opening it. We never expose who
+  // ended it.
   const rows = db.prepare(`
     SELECT c.id, c.match_id, c.user_a_id, c.user_b_id,
            c.last_read_at_a, c.last_read_at_b,
+           mt.ended_at, mt.ended_by,
            m.sent_at as last_sent_at, m.sender_id as last_sender_id
     FROM conversations c
+    JOIN matches mt ON mt.id = c.match_id
     LEFT JOIN messages m ON m.id = (
       SELECT id FROM messages WHERE conversation_id = c.id ORDER BY sent_at DESC LIMIT 1
     )
-    WHERE (c.user_a_id = ? AND c.archived_by_a = 0)
-       OR (c.user_b_id = ? AND c.archived_by_b = 0)
+    WHERE ((c.user_a_id = ? AND c.archived_by_a = 0)
+       OR (c.user_b_id = ? AND c.archived_by_b = 0))
+      AND (mt.ended_at IS NULL OR mt.ended_by != ?)
     ORDER BY COALESCE(m.sent_at, c.created_at) DESC
-  `).all(userId, userId);
+  `).all(userId, userId, userId);
 
   const conversations = rows.map(row => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const otherProfile = db.prepare('SELECT display_name, identity_verified, photo_url FROM profiles WHERE user_id = ?').get(otherId);
     const isUserA = row.user_a_id === userId;
     const lastReadAt = isUserA ? (row.last_read_at_a || 0) : (row.last_read_at_b || 0);
-    const hasUnread = !!(row.last_sent_at && row.last_sender_id !== userId && row.last_sent_at > lastReadAt);
+    const ended = !!row.ended_at;
+    // An ended thread carries no "unread" nudge — nothing new can arrive, and we
+    // don't want to draw the unmatched person back with a badge.
+    const hasUnread = !ended && !!(row.last_sent_at && row.last_sender_id !== userId && row.last_sent_at > lastReadAt);
     return {
       id: row.id,
       matchId: row.match_id,
       otherUser: { userId: otherId, displayName: otherProfile?.display_name || '', verified: !!otherProfile?.identity_verified, photoUrl: otherProfile?.photo_url || null },
       lastMessageGroup: row.last_sent_at ? coarseLabel(row.last_sent_at) : null,
       hasUnread,
+      ended,
     };
   });
 
@@ -201,6 +231,10 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
     conversation: {
       id: conv.id || req.params.id,
       otherUser: { userId: otherId, displayName: otherProfile?.display_name || '', verified: !!otherProfile?.identity_verified, photoUrl: otherProfile?.photo_url || null },
+      // F21 — read-only flag. True once EITHER party has unmatched; the client
+      // renders the neutral "This conversation has ended." notice and hides the
+      // composer. We never say who ended it.
+      ended: isConversationEnded(db, req.params.id),
     },
     messages,
     hasMore,
@@ -277,6 +311,14 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
   const { db, userId } = req.ctx;
   const conv = isConversationMember(db, req.params.id, userId);
   if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  // F21 — read-only enforcement. Once the match is ended (unmatched by either
+  // party) no new messages may be posted by EITHER person. Server-side gate so a
+  // stale client (or a direct API call) can't write into an ended thread. The
+  // message is neutral — it never reveals who ended the conversation.
+  if (isConversationEnded(db, req.params.id)) {
+    return res.status(409).json({ error: 'This conversation has ended.', code: 'CONVERSATION_ENDED' });
+  }
 
   const body = (req.body.body || '').trim();
 

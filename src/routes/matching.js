@@ -196,7 +196,8 @@ router.get('/matches', requireAuth, (req, res) => {
     FROM matches m
     LEFT JOIN conversations c ON c.match_id = m.id
     LEFT JOIN match_notes n ON n.match_id = m.id AND n.user_id = ?
-    WHERE m.user_a_id = ? OR m.user_b_id = ?
+    WHERE (m.user_a_id = ? OR m.user_b_id = ?)
+      AND m.ended_at IS NULL
     ORDER BY m.matched_at DESC
   `).all(userId, userId, userId);
 
@@ -240,21 +241,33 @@ router.get('/matches', requireAuth, (req, res) => {
   res.json({ matches });
 });
 
-// DELETE /matching/matches/:id — unmatch: remove the match + its conversation
+// DELETE /matching/matches/:id — F21 unmatch: SOFT-end the match instead of
+// hard-deleting it. The pair stops appearing as candidates (the match row still
+// exists → still excluded), the conversation becomes read-only for BOTH people,
+// and the person who was unmatched keeps a quiet "This conversation has ended."
+// notice they only discover if/when they reopen the thread. NO push, NO reason,
+// NO "X unmatched you" — ended_by is kept server-side for authz/audit only and
+// is NEVER surfaced to the other party.
+//
+// Authz: only a participant may end their own match (no IDOR). Idempotent — if
+// it's already ended we just re-confirm success without changing ended_by/at.
 router.delete('/matches/:id', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
-  const match = db.prepare('SELECT id, user_a_id, user_b_id FROM matches WHERE id = ?').get(req.params.id);
+  const match = db.prepare('SELECT id, user_a_id, user_b_id, ended_at FROM matches WHERE id = ?').get(req.params.id);
   if (!match) return res.status(404).json({ error: 'Match not found' });
   if (match.user_a_id !== userId && match.user_b_id !== userId) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  const unmatch = db.transaction(() => {
-    db.prepare('DELETE FROM conversations WHERE match_id = ?').run(match.id);
-    db.prepare('DELETE FROM matches WHERE id = ?').run(match.id);
-  });
-  unmatch();
-  res.json({ ok: true, unmatched: true });
+  // Already ended (by either party) → no-op, still a success for the caller.
+  if (match.ended_at) {
+    return res.json({ ok: true, unmatched: true, ended: true });
+  }
+
+  db.prepare('UPDATE matches SET ended_at = ?, ended_by = ? WHERE id = ?')
+    .run(Date.now(), userId, match.id);
+
+  res.json({ ok: true, unmatched: true, ended: true });
 });
 
 // PUT /matching/matches/:id/note — set/clear the requester's OWN private note
@@ -340,6 +353,7 @@ router.get('/activity', requireAuth, (req, res) => {
     LEFT JOIN conversations c ON c.match_id = m.id
     WHERE (m.user_a_id = ? OR m.user_b_id = ?)
       AND m.matched_at >= ?
+      AND m.ended_at IS NULL
     ORDER BY m.matched_at DESC
     LIMIT 10
   `).all(userId, userId, userId, sevenDaysAgo);

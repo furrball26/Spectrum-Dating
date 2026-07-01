@@ -43,7 +43,9 @@ export function getCandidates(db, viewerId, viewerInterests) {
     'SELECT swiped_id FROM swipes WHERE swiper_id = ?'
   ).all(viewerId).map(r => r.swiped_id);
 
-  // Get IDs already matched with
+  // Get IDs already matched with. F21: an ENDED (unmatched) match keeps its row
+  // (soft-end via ended_at), so ended pairs stay in this exclusion set and never
+  // resurface as candidates to each other — no re-match after an unmatch.
   const matchedIds = db.prepare(
     'SELECT CASE WHEN user_a_id = ? THEN user_b_id ELSE user_a_id END as other_id FROM matches WHERE user_a_id = ? OR user_b_id = ?'
   ).all(viewerId, viewerId, viewerId).map(r => r.other_id);
