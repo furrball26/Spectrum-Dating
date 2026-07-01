@@ -168,10 +168,18 @@ function ScriptCard({ script, copied, onCopy }) {
 
 async function copyText(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return true;
+    // writeText can reject with NotAllowedError (insecure context, denied
+    // permission, document not focused). Swallow it and fall through to the
+    // execCommand fallback so callers get a graceful `false`, never an
+    // unhandled rejection (E4 / D2).
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall through to the legacy fallback below
+    }
   }
-  // Fallback for environments without the async clipboard API.
+  // Fallback for environments without (or denied) the async clipboard API.
   try {
     const ta = document.createElement("textarea");
     ta.value = text;

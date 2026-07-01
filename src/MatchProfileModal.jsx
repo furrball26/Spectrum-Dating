@@ -14,6 +14,7 @@ export default function MatchProfileModal({ userId, onClose }) {
   const [error, setError] = useState("");
   const closeRef = useRef(null);
   const headingRef = useRef(null);
+  const dialogRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -25,9 +26,45 @@ export default function MatchProfileModal({ userId, onClose }) {
     return () => { active = false; };
   }, [userId]);
 
-  useEffect(() => { closeRef.current?.focus(); }, []);
+  // Move focus into the dialog on open, and restore focus to whatever triggered
+  // it (the tapped avatar) on close. Mirrors UnmatchSheet's focus discipline. WCAG 2.4.3.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    const prevFocus = document.activeElement;
+    closeRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
+  }, []);
+
+  // Escape to close + Tab/Shift+Tab focus trap. The dialog's focusable set is
+  // dynamic (varies with loaded content), so query it live on each Tab. WCAG 2.4.3 / 2.1.2.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") { onClose?.(); return; }
+      if (e.key === "Tab") {
+        const root = dialogRef.current;
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll(
+            'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -38,6 +75,7 @@ export default function MatchProfileModal({ userId, onClose }) {
     <>
       <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(36,51,45,0.4)", zIndex: 1200 }} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Profile"

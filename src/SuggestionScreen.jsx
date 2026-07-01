@@ -249,14 +249,45 @@ function ReportModal({ candidate, onClose, onBlocked }) {
   const [failed, setFailed] = useState(false);
   const [failMsg, setFailMsg] = useState("");
   const headingRef = useRef(null);
+  const dialogRef = useRef(null);
 
+  // Move focus into the dialog on open, restore to the trigger on close. WCAG 2.4.3.
   useEffect(() => {
+    const prevFocus = document.activeElement;
     headingRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
   }, []);
 
+  // Escape to close + Tab/Shift+Tab focus trap. Focusable set is dynamic
+  // (checkboxes, reason radios, textarea, buttons), so query live. WCAG 2.4.3 / 2.1.2.
   useEffect(() => {
     function handleKey(e) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Tab") {
+        const root = dialogRef.current;
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll(
+            'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -331,6 +362,7 @@ function ReportModal({ candidate, onClose, onBlocked }) {
         }}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-modal-heading"

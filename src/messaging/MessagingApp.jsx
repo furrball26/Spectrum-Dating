@@ -26,12 +26,21 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
   const [archivedCount, setArchivedCount] = useState(0);
   // Server-authoritative active-conversation cap (default 5 until first load).
   const [activeCap, setActiveCap] = useState(5);
+  // E13: the in-flight markConversationRead PUT. The list re-fetch awaits this
+  // so the read state has committed server-side before we GET — otherwise the
+  // unread badge can flicker back on when the refresh out-races the write.
+  const pendingReadRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
     setLoadingConvs(true);
     setConvsLoadFailed(false);
-    getConversations()
+    // Sequence after any in-flight mark-read so the refetch reflects it.
+    Promise.resolve(pendingReadRef.current)
+      .catch(() => {}) // a failed mark-read must not block the list load
+      .then(() => getConversations())
       .then(({ conversations: arr, archivedCount: count, activeCap: cap }) => {
+        if (cancelled) return;
         setConversations(arr);
         setArchivedCount(count);
         if (cap != null) setActiveCap(cap);
@@ -39,8 +48,9 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
           onUnreadCount(arr.filter(c => c.unread).length);
         }
       })
-      .catch(() => setConvsLoadFailed(true))
-      .finally(() => setLoadingConvs(false));
+      .catch(() => { if (!cancelled) setConvsLoadFailed(true); })
+      .finally(() => { if (!cancelled) setLoadingConvs(false); });
+    return () => { cancelled = true; };
   }, [refreshKey]);
 
   const retryLoadConversations = () => setRefreshKey(k => k + 1);
@@ -98,7 +108,13 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
   function handleSelectConversation(conversationId) {
     setSelectedConversationId(conversationId);
     setScreen("conversation");
-    markConversationRead(conversationId).catch((e) => console.warn("Mark-read failed", e));
+    // Optimistically clear unread locally so the badge doesn't linger, and hold
+    // the PUT promise so the next list refresh (on "back") awaits it (E13).
+    setConversations(prev =>
+      prev.map(c => (c.id === conversationId && c.unread ? { ...c, unread: false } : c))
+    );
+    pendingReadRef.current = markConversationRead(conversationId)
+      .catch((e) => console.warn("Mark-read failed", e));
   }
 
   function handleBackToList() {

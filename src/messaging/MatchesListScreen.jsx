@@ -635,9 +635,15 @@ export default function MatchesListScreen({
                   <EmptyMessages size={104} />
                 </div>
                 <p style={{ color: t.textSoft, margin: 0 }}>
-                  {plainLanguage
-                    ? "No matches yet. Only people you've both matched with can message you."
-                    : "No matches yet. Check back soon. Only people you've both matched with can message you."}
+                  {archivedCount > 0
+                    // D36: they DO have matches — they're just archived. Don't
+                    // say "no matches yet"; point them to the archive instead.
+                    ? (plainLanguage
+                        ? "Your conversations are archived. Open Archived conversations below to see them."
+                        : "Your matches are archived. You'll find them under Archived conversations below.")
+                    : (plainLanguage
+                        ? "No matches yet. Only people you've both matched with can message you."
+                        : "No matches yet. Check back soon. Only people you've both matched with can message you.")}
                 </p>
               </div>
             )}

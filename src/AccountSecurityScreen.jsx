@@ -101,30 +101,46 @@ function AccountSecuritySection() {
     finally { setEmBusy(false); }
   }
 
+  // Success messages are prefixed with "✓"; anything else is an error. Errors
+  // must read AND sound like errors — role="alert" + t.danger (D28).
+  const isPwOk = pwStatus.startsWith("✓");
+  const isEmOk = emStatus.startsWith("✓");
+
   return (
     <div style={{ marginTop: 4 }}>
       <form onSubmit={submitPw} style={{ marginBottom: 22 }}>
         <FieldLabel htmlFor="cur-pw">Change password</FieldLabel>
-        <input id="cur-pw" type="password" autoComplete="current-password" placeholder="Current password"
+        <input id="cur-pw" type="password" autoComplete="current-password" aria-label="Current password"
+          placeholder="Current password"
           value={curPw} onChange={(e) => setCurPw(e.target.value)} style={field} />
-        <input type="password" autoComplete="new-password" placeholder="New password (min 8 chars)"
+        <input type="password" autoComplete="new-password" aria-label="New password"
+          placeholder="New password (min 8 chars)"
           value={newPw} onChange={(e) => setNewPw(e.target.value)} style={field} />
         <button type="submit" disabled={pwBusy} style={submitBtn(pwBusy)}>
           {pwBusy ? "Saving…" : "Update password"}
         </button>
-        {pwStatus && <p role="status" style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft }}>{pwStatus}</p>}
+        {pwStatus && (
+          isPwOk
+            ? <p role="status" style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft }}>{pwStatus}</p>
+            : <p role="alert" style={{ margin: "8px 0 0", fontSize: 14, color: t.danger }}>{pwStatus}</p>
+        )}
       </form>
 
       <form onSubmit={submitEmail}>
         <FieldLabel htmlFor="new-email">Change email</FieldLabel>
         <input id="new-email" type="email" autoComplete="email" placeholder="New email"
           value={newEmail} onChange={(e) => setNewEmail(e.target.value)} style={field} />
-        <input type="password" autoComplete="current-password" placeholder="Current password"
+        <input type="password" autoComplete="current-password" aria-label="Current password"
+          placeholder="Current password"
           value={emPw} onChange={(e) => setEmPw(e.target.value)} style={field} />
         <button type="submit" disabled={emBusy} style={submitBtn(emBusy)}>
           {emBusy ? "Saving…" : "Update email"}
         </button>
-        {emStatus && <p role="status" style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft }}>{emStatus}</p>}
+        {emStatus && (
+          isEmOk
+            ? <p role="status" style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft }}>{emStatus}</p>
+            : <p role="alert" style={{ margin: "8px 0 0", fontSize: 14, color: t.danger }}>{emStatus}</p>
+        )}
       </form>
     </div>
   );
