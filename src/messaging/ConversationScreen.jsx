@@ -36,7 +36,7 @@ function useFocusable() {
 // confirm → sendMessage with attachmentId → moderator review). Kept gated OFF
 // so no user can upload until product flips this on. Flip to true to enable the
 // compose/attach UI. The admin Photo-review queue ships regardless.
-const ATTACHMENTS_ENABLED = false;
+const ATTACHMENTS_ENABLED = true;
 const MAX_BODY = 2000;
 const CHAR_WARN_THRESHOLD = 200;
 const RATE_LIMIT_SECONDS = 60;
