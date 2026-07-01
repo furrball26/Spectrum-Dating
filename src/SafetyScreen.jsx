@@ -384,7 +384,7 @@ export default function SafetyScreen({ onBack }) {
     ) {
       try {
         new Notification("Spectrum — time to check in", {
-          body: "Are you safe? Open the app to dismiss.",
+          body: "Your check-in time is here. Open the app when you're ready.",
         });
       } catch {
         // Some browsers require a service worker for notifications; ignore.
@@ -783,7 +783,7 @@ export default function SafetyScreen({ onBack }) {
         >
           <div style={cardStyle}>
             {blockedLoading ? (
-              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>Loading…</p>
+              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>Loading your blocked list…</p>
             ) : blockedError ? (
               <p role="alert" style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
                 Couldn't load your blocked list right now. Please try again later.
@@ -829,7 +829,7 @@ export default function SafetyScreen({ onBack }) {
           <div style={{ ...cardStyle, color: t.textSoft, fontSize: 15 }}>
             If you ever feel unsafe or are in immediate danger, contact your local
             emergency services. You can also block and report anyone from their
-            profile or your chat.
+            profile or your conversation.
           </div>
         </Section>
       </div>

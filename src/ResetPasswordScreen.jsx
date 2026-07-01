@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { resetPassword } from "./api.js";
+import { resetPassword, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 
 // Shown when the app is opened with ?reset=TOKEN (from the password-reset email).
@@ -26,7 +26,7 @@ export default function ResetPasswordScreen({ token, onDone }) {
       await resetPassword(token, password);
       setDone(true);
     } catch (err) {
-      setError(err.message || "This reset link is invalid or has expired.");
+      setError(safeErrorMessage(err, "This reset link is invalid or has expired."));
     } finally {
       setLoading(false);
     }

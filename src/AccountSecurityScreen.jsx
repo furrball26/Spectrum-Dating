@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { changePassword, changeEmail, deleteAccount } from "./api.js";
+import { changePassword, changeEmail, deleteAccount, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 
 // AccountSecurityScreen — Spectrum Dating
@@ -87,7 +87,7 @@ function AccountSecuritySection() {
     if (newPw.length < 8) { setPwStatus("New password must be at least 8 characters."); return; }
     setPwBusy(true);
     try { await changePassword(curPw, newPw); setPwStatus("✓ Password updated."); setCurPw(""); setNewPw(""); }
-    catch (err) { setPwStatus(err.message || "Couldn't change password."); }
+    catch (err) { setPwStatus(safeErrorMessage(err, "Couldn't change your password right now. Please try again.")); }
     finally { setPwBusy(false); }
   }
   async function submitEmail(e) {
@@ -98,7 +98,7 @@ function AccountSecuritySection() {
       const r = await changeEmail(newEmail, emPw);
       setEmStatus(r.emailVerified ? "✓ Email updated." : "✓ Email updated — check your inbox to verify.");
       setNewEmail(""); setEmPw("");
-    } catch (err) { setEmStatus(err.message || "Couldn't change email."); }
+    } catch (err) { setEmStatus(safeErrorMessage(err, "Couldn't change your email right now. Please try again.")); }
     finally { setEmBusy(false); }
   }
 

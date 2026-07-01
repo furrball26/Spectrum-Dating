@@ -67,6 +67,52 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
+// ─── Safe error display ─────────────────────────────────────────────────────────
+// The fetch wrapper sets err.message to the raw backend `error` string. Some of
+// those are already calm, user-facing copy (wrong-password, cap-reached, etc.);
+// others are developer-grade validation strings (e.g. "candidateId is required.")
+// that must NEVER render to a user. `safeErrorMessage` gates this: it surfaces
+// err.message ONLY when the error is recognised as user-safe — either it carries
+// a known error `code`, or its exact text is on the allowlist of already-friendly
+// backend messages below. Anything unrecognised falls back to the calm generic.
+//
+// To allow a new backend message, add its EXACT string here (or give it a code).
+const KNOWN_ERROR_CODES = new Set([
+  "CAP_REACHED",
+  "CONVERSATION_ENDED",
+  "CONSENT_GATE",
+]);
+
+const SAFE_ERROR_MESSAGES = new Set([
+  // auth.js
+  "Email and password are required.",
+  "Invalid email address.",
+  "Password must be at least 8 characters.",
+  "We couldn’t create an account with those details. If you already have an account, try signing in or resetting your password.",
+  "Invalid email or password.",
+  "This account has been suspended. Contact support.",
+  "Token and new password are required.",
+  "This reset link is invalid or has expired.",
+  "Verification link has expired. Please request a new one.",
+  // account.js
+  "Current and new password are required.",
+  "Please choose a password with at least 8 characters.",
+  "That current password doesn't match. Please check it and try again.",
+  "New email and current password are required.",
+  "That email address doesn't look complete. Please check it.",
+  "That's already your email address — no change needed.",
+  "We couldn’t change your email to that address. Please try a different one.",
+]);
+
+// Returns a message safe to show a user: err.message when recognised (known code
+// or allowlisted text), else the provided calm fallback. Never leaks a raw
+// developer/validation string.
+export function safeErrorMessage(err, fallback = "Something went wrong. Please try again.") {
+  if (err && err.code && KNOWN_ERROR_CODES.has(err.code)) return err.message || fallback;
+  if (err && typeof err.message === "string" && SAFE_ERROR_MESSAGES.has(err.message)) return err.message;
+  return fallback;
+}
+
 // ─── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function register(email, password) {

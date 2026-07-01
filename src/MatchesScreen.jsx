@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMatches, createConversation, getActivity, saveMatchNote } from "./api.js";
+import { getMatches, createConversation, getActivity, saveMatchNote, safeErrorMessage } from "./api.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
@@ -294,7 +294,7 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
               <Spectrum variant="loader" size={6} gap={3} />
               Starting…
             </span>
-          ) : hasConversation ? "Open chat" : (plainLanguage ? "Send first message" : "Say hello")}
+          ) : hasConversation ? "Open conversation" : (plainLanguage ? "Send first message" : "Say hello")}
         </Button>
       </div>
     </li>
@@ -453,8 +453,8 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
       } else {
         setError(
           e?.code === "CAP_REACHED"
-            ? "You've reached the limit of active conversations. Archive one from Messages to start a new chat."
-            : e?.message || "Couldn't start the conversation. Please try again."
+            ? "You've reached your active conversations for now. Archive one from Messages to start a new one."
+            : safeErrorMessage(e, "Couldn't start the conversation. Please try again.")
         );
       }
     } finally {

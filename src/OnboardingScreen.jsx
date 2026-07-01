@@ -649,7 +649,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
               onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
               onBlur={(e) => { e.target.style.outline = "none"; }}
               style={inputStyle(false)}
-              placeholder="Type and press Add"
+              placeholder="Type an interest, then press Add"
             />
           </div>
           <button
@@ -716,7 +716,7 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
           placeholder=""
         />
         <HelperText id="ob-comm-note-hint">
-          Tell matches how you prefer to connect — async messages, structured chat, low-pressure pacing, whatever fits you
+          Tell matches how you like to connect — for example: written messages, clear back-and-forth, or a slower pace. Whatever fits you.
         </HelperText>
       </div>
 

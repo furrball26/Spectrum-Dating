@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { register, login, forgotPassword, resendVerification } from "./api.js";
+import { register, login, forgotPassword, resendVerification, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
@@ -108,7 +108,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
       }
       onAuth(data);
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
+      setError(safeErrorMessage(err, "Something went wrong. Please try again."));
     } finally {
       setLoading(false);
     }
