@@ -788,24 +788,30 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     if (!current) return;
     setSubmitting(true);
     setSwipeFailed(null);
-    // Optimistically advance the deck, but remember `current` so we can restore
-    // it to the FRONT if the server rejects the like — an interested swipe that
-    // silently vanishes is a broken promise, so we surface a calm retry instead.
+    // Do NOT advance the deck optimistically here: on a mutual match the result
+    // flips us to the MatchMoment overlay, and advancing first would briefly
+    // render the NEXT candidate's viewing card in the gap before the awaited
+    // result resolves (the match-moment flash). Instead we keep `current` in
+    // place during the in-flight request and only advance once the like
+    // succeeds. On failure the card is still current, so E9 retry can re-fire.
     setLastChoice("interested");
     setLastPerson(current);
-    setQueue(q => q.slice(1));
-    setIndex(0);
     try {
       const result = await swipe(current.memberId, 'like');
+      // Advance the deck only after the like resolves. On a match this happens
+      // in the same tick as the stage flip, so the confirmed/MatchMoment view
+      // replaces the current card with no flash of the next person.
+      setQueue(q => q.slice(1));
+      setIndex(0);
       if (result.matched) {
         setMutual(true);
         setMatchId(result.matchId || null);
       }
       setStage("confirmed");
     } catch {
-      // Restore the candidate to the front of the deck and offer a retry so the
-      // "I'm interested" is never lost. Stay on the viewing stage.
-      setQueue(q => (q.some(c => c.memberId === current.memberId) ? q : [current, ...q]));
+      // The candidate never left the front of the deck, so nothing to restore —
+      // just surface a calm retry so the "I'm interested" is never lost. Stay on
+      // the viewing stage.
       setSwipeFailed(current);
       setLastChoice(null);
       setLastPerson(null);

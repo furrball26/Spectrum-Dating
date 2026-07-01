@@ -1094,24 +1094,23 @@ export default function App() {
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {a11y.reducedSensory
-                      ? <SpectrumMark height={14} />
-                      : <AnimatedSpectrumMark height={14} />}
-                    {/* Wordmark is desktop-only. On mobile the top bar shows only
-                        the 6-tile glyph — the utility nav lives in the Profile hub
-                        (avoids the WCAG 1.4.10 reflow overlap at ≤360px). */}
-                    {!isMobile && (
-                      <div
-                        style={{
-                          fontFamily: t.serif,
-                          fontWeight: 700,
-                          fontSize: 19,
-                          letterSpacing: "-0.01em",
-                          color: t.text,
-                        }}
-                      >
-                        Spectrum
-                      </div>
-                    )}
+                      ? <SpectrumMark height={isMobile ? 16 : 14} />
+                      : <AnimatedSpectrumMark height={isMobile ? 16 : 14} />}
+                    {/* Wordmark is shown in BOTH breakpoints. The earlier mobile
+                        overflow came from the utility BUTTON cluster (now moved to
+                        the Profile hub, see below), not the wordmark — so there's
+                        room for "Spectrum" on mobile and hiding it read as broken. */}
+                    <div
+                      style={{
+                        fontFamily: t.serif,
+                        fontWeight: 700,
+                        fontSize: 19,
+                        letterSpacing: "-0.01em",
+                        color: t.text,
+                      }}
+                    >
+                      Spectrum
+                    </div>
                   </div>
                   {/* Utility cluster is desktop-only; on mobile it moves into the
                       Profile account hub (see ProfileScreen). */}
