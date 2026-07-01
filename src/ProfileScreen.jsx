@@ -35,6 +35,137 @@ function usePrefersReduced() {
   return prefersReduced;
 }
 
+// ─── Collapsible sections (mobile-overwhelm reduction) ───────────────────────
+// Independent disclosures — opening one NEVER closes another (no single-open
+// accordion). "about" is always open and NOT collapsible (required fields).
+// Persisted open/closed choices live under this localStorage key.
+const SECTIONS_STORAGE_KEY = "spectrum_profile_sections";
+
+// Keys match the render order of the cards below. "about" is intentionally
+// absent from this list — it is always open and rendered as a plain <h2>.
+const COLLAPSIBLE_SECTIONS = [
+  "prompts",
+  "interests",
+  "search",
+  "lifestyle",
+  "communicate",
+  "sensory",
+  "notifications",
+  "pause",
+  "verification",
+];
+
+function loadPersistedSections() {
+  try {
+    const raw = localStorage.getItem(SECTIONS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistSections(open) {
+  try {
+    localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify(open));
+  } catch {}
+}
+
+// A single collapsible disclosure. Header button lives inside the <h2> and
+// controls a MOUNTED panel toggled via the `hidden` attribute (never
+// unmounted — keeps in-progress edits + lifted field state alive). Focus stays
+// on the header on expand; open/close is instant (no slide). A chevron rotates
+// unless reduced motion is preferred.
+function CollapsibleSection({ id, title, summary, hasContent, open, onToggle, headerStyle, cardStyle, children }) {
+  const f = useFocusable();
+  const prefersReduced = usePrefersReduced();
+  const buttonId = `section-${id}-button`;
+  const panelId = `section-${id}-panel`;
+
+  // Accessible name folds in the summary so SR users hear it while collapsed.
+  const accessibleName = summary ? `${title}, ${summary}` : title;
+
+  return (
+    <div style={cardStyle}>
+      <h2 style={{ ...headerStyle, margin: 0 }}>
+        <button
+          type="button"
+          id={buttonId}
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={accessibleName}
+          onClick={onToggle}
+          {...f}
+          style={{
+            width: "100%",
+            minHeight: 44,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            textAlign: "left",
+            cursor: "pointer",
+            font: "inherit",
+            color: "inherit",
+            ...f.style,
+          }}
+        >
+          <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+            <span>{title}</span>
+            {summary && (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 4,
+                  fontFamily: t.sans,
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: t.textSoft,
+                  lineHeight: 1.4,
+                }}
+              >
+                {hasContent && (
+                  <span aria-hidden="true" style={{ color: t.positiveText, fontWeight: 700 }}>✓</span>
+                )}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{summary}</span>
+              </span>
+            )}
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              fontSize: 15,
+              color: t.textMuted,
+              transform: open ? "rotate(180deg)" : "rotate(0deg)",
+              transition: prefersReduced ? "none" : "transform 180ms cubic-bezier(0.2,0,0,1)",
+              lineHeight: 1,
+            }}
+          >
+            ⌄
+          </span>
+        </button>
+      </h2>
+      <div
+        id={panelId}
+        role="region"
+        aria-labelledby={buttonId}
+        hidden={!open}
+        style={{ marginTop: open ? 18 : 0 }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Default profile ─────────────────────────────────────────────────────────
 const DEFAULT_PROFILE = {
   displayName: "",
@@ -323,7 +454,7 @@ function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onR
           borderRadius: 12,
           overflow: "hidden",
           border: `1px solid ${t.border}`,
-          background: "#EEF1ED",
+          background: t.surfaceAlt,
         }}
       >
         <img
@@ -1819,6 +1950,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
   // Custom interest input
   const [customTagInput, setCustomTagInput] = useState("");
 
+  // ── Collapsible sections (mobile-overwhelm reduction) ──────────────────────
+  // Map of sectionKey -> boolean open. Initialised empty; the real defaults are
+  // computed once the profile loads (state-aware) unless the user has persisted
+  // manual choices. Declared with the other hooks, before any early return.
+  const [sectionOpen, setSectionOpen] = useState({});
+  const sectionsInitialised = useRef(false);
+
   // SR announcement for tag add/remove (P-13, P-14)
   const [tagAnnouncement, setTagAnnouncement] = useState("");
 
@@ -1976,6 +2114,86 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
       setIsDirty(dirty);
     }
   }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
+
+  // ── Initialise collapsible-section open state once the profile has loaded.
+  // Persisted manual choices win; otherwise apply the state-aware defaults from
+  // the spec. Runs once (guarded by sectionsInitialised) after loading clears.
+  useEffect(() => {
+    if (loading || sectionsInitialised.current) return;
+    sectionsInitialised.current = true;
+
+    // Base: everything collapsed.
+    const defaults = {};
+    for (const key of COLLAPSIBLE_SECTIONS) defaults[key] = false;
+
+    const { missing } = computeCompleteness({
+      photos, tagline, bio, gender, pronouns, seeking,
+      commDirectness, commLiteral, commCadence,
+      sensoryEnvironment, sensoryLighting, prompts,
+    });
+    const missingKeys = new Set(missing.map((m) => m.key));
+
+    if (!hasEverSaved) {
+      // First-run: don't make setup a scavenger hunt — open the two core ones.
+      defaults.interests = true;
+      defaults.search = true;
+    } else {
+      // Returning user: auto-open incomplete sections so nothing hides.
+      // "Your interests" — required; open if empty AND flagged missing… but the
+      // completeness set has no direct "interests" key, so key off emptiness.
+      if (interests.length === 0) defaults.interests = true;
+      // Prompts: flagged as "prompt" in the completeness set when empty.
+      if (missingKeys.has("prompt") && prompts.length === 0) defaults.prompts = true;
+      // "How you communicate": flagged as "commStyle" when empty.
+      if (missingKeys.has("commStyle") &&
+          !(commDirectness || commLiteral || commCadence)) defaults.communicate = true;
+      // "Sensory & environment": flagged as "sensory" when empty.
+      if (missingKeys.has("sensory") &&
+          !(sensoryEnvironment || sensoryLighting || socialDuration)) defaults.sensory = true;
+      // Identity verification: surface a rejected status so it isn't buried.
+      if (verificationRequested === "rejected") defaults.verification = true;
+    }
+
+    // Persisted manual choices override defaults on return.
+    const persisted = loadPersistedSections();
+    if (persisted) {
+      for (const key of COLLAPSIBLE_SECTIONS) {
+        if (typeof persisted[key] === "boolean") defaults[key] = persisted[key];
+      }
+    }
+
+    setSectionOpen(defaults);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // ── Toggle a single section (VIEW change — never sets isDirty). Persists.
+  function toggleSection(key) {
+    setSectionOpen((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      persistSections(next);
+      return next;
+    });
+  }
+
+  // ── Force a section open (used by the error-auto-open fix + expand-all).
+  function openSection(key) {
+    setSectionOpen((prev) => {
+      if (prev[key]) return prev;
+      const next = { ...prev, [key]: true };
+      persistSections(next);
+      return next;
+    });
+  }
+
+  // ── Expand all / Collapse all (persisted).
+  const allExpanded = COLLAPSIBLE_SECTIONS.every((k) => sectionOpen[k]);
+  function toggleExpandAll() {
+    const target = !allExpanded;
+    const next = {};
+    for (const key of COLLAPSIBLE_SECTIONS) next[key] = target;
+    persistSections(next);
+    setSectionOpen(next);
+  }
 
   // ── Announce tag add/remove and clear after 300ms (P-13, P-14)
   function announce(msg) {
@@ -2154,12 +2372,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
 
     if (nameErr || intErr) {
       setSaveErrorSummary("Please fix the errors below before saving.");
-      // P-7: focus first invalid field
-      if (nameErr) {
-        displayNameRef.current?.focus();
-      } else {
-        interestsErrorRef.current?.focus();
-      }
+      // P-7: focus the FIRST invalid field. If that field lives inside a
+      // collapsible section, force the section open first so the node isn't
+      // `hidden` (which would dead-end focus/scroll), then focus + scroll it on
+      // the next frame. Generalised: `section` is null for always-open fields.
+      const firstInvalid = nameErr
+        ? { ref: displayNameRef, section: null }          // display name — always-open "About you"
+        : { ref: interestsErrorRef, section: "interests" }; // interests — collapsible
+
+      if (firstInvalid.section) openSection(firstInvalid.section);
+      requestAnimationFrame(() => {
+        const node = firstInvalid.ref.current;
+        if (!node) return;
+        node.focus();
+        node.scrollIntoView({ block: "center" });
+      });
       return;
     }
 
@@ -2351,6 +2578,87 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
     );
   }
 
+  // ── Per-section collapsed summaries + done indicators ─────────────────────
+  // Computed from state already in scope each render. `summary` folds into the
+  // header's accessible name; `hasContent` drives the ✓ done dot.
+  const RADIUS_LABEL = { 0: "anywhere", 25: "within 25 mi", 50: "within 50 mi", 100: "within 100 mi", 250: "within 250 mi" };
+  const GOAL_LABEL = { "long-term": "Long-term", friendship: "Friendship first", open: "Open to either" };
+  const NOT_SET = "Not set yet";
+
+  function joinParts(parts) {
+    const kept = parts.filter(Boolean);
+    return kept.length ? kept.join(" · ") : NOT_SET;
+  }
+
+  // Interests
+  const interestsHasContent = interests.length > 0;
+  const interestsSummary = interestsHasContent
+    ? `${interests.length} added`
+    : NOT_SET;
+
+  // Prompts
+  const answeredPrompts = prompts.filter((p) => p.promptKey && p.answer.trim());
+  const promptsHasContent = answeredPrompts.length > 0;
+  const promptsSummary = promptsHasContent
+    ? `${answeredPrompts.length} answered`
+    : NOT_SET;
+
+  // About your search
+  const lifestylePrefCount = [dbWantsChildren, dbNonSmoker, dbMustBeLocal].filter(Boolean).length;
+  const searchParts = [
+    GOAL_LABEL[relGoal] || "",
+    searchRadius ? RADIUS_LABEL[searchRadius] : "",
+    lifestylePrefCount ? `${lifestylePrefCount} deal-breaker${lifestylePrefCount > 1 ? "s" : ""}` : "",
+  ];
+  const searchHasContent = !!(relGoal || seeking || gender || pronouns || searchRadius || distCity.trim());
+  const searchSummary = searchHasContent ? joinParts(searchParts.length ? searchParts : []) : NOT_SET;
+
+  // Lifestyle
+  const lifestyleParts = [
+    wantsChildren && `children: ${wantsChildren === "open" ? "open" : wantsChildren}`,
+    smoking && `smoking: ${smoking}`,
+    drinking && `drinking: ${drinking}`,
+  ];
+  const lifestyleHasContent = !!(wantsChildren || smoking || drinking || lifestylePrefCount);
+  const lifestyleSummary = lifestyleHasContent ? joinParts(lifestyleParts) : NOT_SET;
+
+  // How you communicate
+  const commParts = [
+    commDirectness && (commDirectness === "direct" ? "Direct" : "Softened"),
+    commLiteral && (commLiteral === "literal" ? "Literal" : "Playful"),
+    commCadence && (commCadence === "instant" ? "Quick replies" : commCadence === "daily" ? "Once a day" : "Whenever"),
+  ];
+  const communicateHasContent = !!(commDirectness || commLiteral || commCadence || contextCard.trim());
+  const communicateSummary = communicateHasContent ? joinParts(commParts) : NOT_SET;
+
+  // Sensory & environment
+  const sensoryParts = [
+    sensoryEnvironment && (sensoryEnvironment === "either" ? "either setting" : sensoryEnvironment),
+    sensoryLighting && `${sensoryLighting} lighting`,
+    socialDuration && (socialDuration === "short" ? "short meetups" : socialDuration === "long" ? "longer meetups" : "medium meetups"),
+  ];
+  const sensoryHasContent = !!(sensoryEnvironment || sensoryLighting || socialDuration);
+  const sensorySummary = sensoryHasContent ? joinParts(sensoryParts) : NOT_SET;
+
+  // Notifications
+  const NOTIF_LABEL = { in_app: "Off (in-app dot)", silent_push: "Silent push", name_only: "Name only" };
+  const notificationsSummary = NOTIF_LABEL[notifTier] || NOT_SET;
+  const notificationsHasContent = true; // always has a value
+
+  // Pause
+  const pauseSummary = paused ? "Paused" : "Active";
+  const pauseHasContent = paused;
+
+  // Identity verification
+  const verificationSummary = verified
+    ? "Verified"
+    : verificationRequested === "pending"
+      ? "Pending review"
+      : verificationRequested === "rejected"
+        ? "Not approved — you can re-request"
+        : NOT_SET;
+  const verificationHasContent = verified;
+
   // ── Header
   return (
     <>
@@ -2519,6 +2827,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
             return <ProfileCompletenessNudge score={score} total={total} missing={missing} />;
           })()}
 
+          {/* Expand all / Collapse all — controls every collapsible section at
+              once. Persisted. Label reflects current state. */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <ExpandAllToggle allExpanded={allExpanded} onClick={toggleExpandAll} />
+          </div>
+
           {/* ══════════════════════════════════════════════════════
               CARD 1 — About you
           ══════════════════════════════════════════════════════ */}
@@ -2658,8 +2972,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
           {/* ══════════════════════════════════════════════════════
               CARD — Prompts (Hinge-style)
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>Prompts</h2>
+          <CollapsibleSection
+            id="prompts"
+            title="Prompts"
+            summary={promptsSummary}
+            hasContent={promptsHasContent}
+            open={!!sectionOpen.prompts}
+            onToggle={() => toggleSection("prompts")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
               Answer up to 3 prompts — an easy way to share who you are without a blank page.
             </p>
@@ -2689,14 +3011,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 />
               )
             )}
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD 2 — Interests
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>Your interests</h2>
-
+          <CollapsibleSection
+            id="interests"
+            title="Your interests"
+            summary={interestsSummary}
+            hasContent={interestsHasContent}
+            open={!!sectionOpen.interests}
+            onToggle={() => toggleSection("interests")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <p
               id="interests-helper"
               style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}
@@ -2840,13 +3169,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
             >
               {hasSaveAttempted ? interestsError : ""}
             </span>
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD 3 — About your search
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>About your search</h2>
+          <CollapsibleSection
+            id="search"
+            title="About your search"
+            summary={searchSummary}
+            hasContent={searchHasContent}
+            open={!!sectionOpen.search}
+            onToggle={() => toggleSection("search")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
 
             {/* Relationship goal */}
             <fieldset
@@ -3039,14 +3376,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 Only show people within this distance. Set your location above for this to apply.
               </span>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD — Lifestyle
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>Lifestyle</h2>
-
+          <CollapsibleSection
+            id="lifestyle"
+            title="Lifestyle"
+            summary={lifestyleSummary}
+            hasContent={lifestyleHasContent}
+            open={!!sectionOpen.lifestyle}
+            onToggle={() => toggleSection("lifestyle")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
               All optional. Anything you share here is shown on your profile.
             </p>
@@ -3130,13 +3474,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 onChange={setDbMustBeLocal}
               />
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD — How you communicate (moat: comms-style + context card)
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>How you communicate</h2>
+          <CollapsibleSection
+            id="communicate"
+            title="How you communicate"
+            summary={communicateSummary}
+            hasContent={communicateHasContent}
+            open={!!sectionOpen.communicate}
+            onToggle={() => toggleSection("communicate")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
 
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
               This helps matches know how to talk with you. Optional.
@@ -3217,14 +3569,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 {contextCardTouched ? `${300 - contextCard.length} remaining` : ""}
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD — Sensory & environment (moat: sensory prefs)
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>Sensory &amp; environment</h2>
-
+          <CollapsibleSection
+            id="sensory"
+            title="Sensory & environment"
+            summary={sensorySummary}
+            hasContent={sensoryHasContent}
+            open={!!sectionOpen.sensory}
+            onToggle={() => toggleSection("sensory")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
               This helps matches know how to talk with you. Optional.
             </p>
@@ -3270,14 +3629,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 { value: "long", label: "Longer is fine" },
               ]}
             />
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD 4 — Notifications
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>Notifications</h2>
-
+          <CollapsibleSection
+            id="notifications"
+            title="Notifications"
+            summary={notificationsSummary}
+            hasContent={notificationsHasContent}
+            open={!!sectionOpen.notifications}
+            onToggle={() => toggleSection("notifications")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <NotificationToggle
               enabled={pushEnabled}
               supported={pushSupported}
@@ -3352,13 +3718,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 ))}
               </div>
             </fieldset>
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD — Pause my profile (backlog #8)
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={{ ...h2Style, marginBottom: 12 }}>Pause my profile</h2>
+          <CollapsibleSection
+            id="pause"
+            title="Pause my profile"
+            summary={pauseSummary}
+            hasContent={pauseHasContent}
+            open={!!sectionOpen.pause}
+            onToggle={() => toggleSection("pause")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <PauseToggle checked={paused} onChange={setPaused} />
             {paused && (
               <p
@@ -3373,13 +3747,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 turn this back on anytime. Your matches and messages stay.
               </p>
             )}
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               CARD — Identity verification
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={{ ...h2Style, marginBottom: 12 }}>Identity verification</h2>
+          <CollapsibleSection
+            id="verification"
+            title="Identity verification"
+            summary={verificationSummary}
+            hasContent={verificationHasContent}
+            open={!!sectionOpen.verification}
+            onToggle={() => toggleSection("verification")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             {verified ? (
               <p style={{ margin: 0, fontSize: 15, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
                 <span aria-hidden="true">✓</span> Your identity is verified.
@@ -3452,7 +3834,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
                 </button>
               </>
             )}
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               Save button + status
@@ -3724,6 +4106,32 @@ function AddPromptButton({ onClick, disabled }) {
     >
       <span aria-hidden="true" style={{ marginRight: 6 }}>+</span>
       Add a prompt
+    </button>
+  );
+}
+
+// ── Expand all / Collapse all toggle ──────────────────────────────────────────
+function ExpandAllToggle({ allExpanded, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...f}
+      style={{
+        background: "transparent",
+        border: "none",
+        color: t.accentStrong,
+        fontSize: 14,
+        fontWeight: 600,
+        cursor: "pointer",
+        padding: "8px 4px",
+        minHeight: 44,
+        fontFamily: t.sans,
+        ...f.style,
+      }}
+    >
+      {allExpanded ? "Collapse all" : "Expand all"}
     </button>
   );
 }
