@@ -1515,7 +1515,8 @@ function computeCompleteness({ photos, tagline, bio, gender, pronouns, seeking,
   return { score: COMPLETENESS_FIELDS.length - missing.length, total: COMPLETENESS_FIELDS.length, missing };
 }
 
-function ProfileCompletenessNudge({ score, total, missing }) {
+function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
+  const fPrompt = useFocusable();
   if (missing.length === 0) return null;
   const pct = Math.round((score / total) * 100);
   return (
@@ -1569,22 +1570,47 @@ function ProfileCompletenessNudge({ score, total, missing }) {
         Adding these helps matches understand you better:
       </p>
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {missing.map((f) => (
-          <li key={f.key}>
-            <span style={{
-              display: "inline-block",
-              padding: "4px 10px",
-              borderRadius: 20,
-              background: t.green50,
-              border: `1px solid ${t.green200}`,
-              color: t.accentStrong,
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}>
-              {f.label}
-            </span>
-          </li>
-        ))}
+        {missing.map((f) => {
+          const chipStyle = {
+            display: "inline-block",
+            padding: "4px 10px",
+            borderRadius: 20,
+            background: t.green50,
+            border: `1px solid ${t.green200}`,
+            color: t.accentStrong,
+            fontSize: 13,
+            lineHeight: 1.5,
+          };
+          // The "prompt" chip is an actionable shortcut that jumps to the
+          // Prompts section (opens it, scrolls to it, and moves focus in).
+          // Rendered as a real <button> so it works for keyboard / SR users.
+          if (f.key === "prompt" && onAnswerPrompt) {
+            return (
+              <li key={f.key}>
+                <button
+                  type="button"
+                  onClick={onAnswerPrompt}
+                  {...fPrompt}
+                  style={{
+                    ...chipStyle,
+                    minHeight: 30,
+                    fontFamily: "inherit",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    ...fPrompt.style,
+                  }}
+                >
+                  {f.label}
+                </button>
+              </li>
+            );
+          }
+          return (
+            <li key={f.key}>
+              <span style={chipStyle}>{f.label}</span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -2343,6 +2369,47 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     });
   }
 
+  // ── Jump from the completeness nudge into the Prompts section.
+  // Reuses the exact reveal pattern from handleSave's first-invalid-field focus:
+  // force the collapsible section open (so its panel isn't `hidden`, which would
+  // dead-end focus/scroll), then on the next frame scroll it into view and move
+  // focus INTO the panel so keyboard / screen-reader users land in the right
+  // place (WCAG 2.4.3). Reduced-motion is respected for the scroll.
+  function jumpToPrompts() {
+    openSection("prompts");
+    // openSection triggers a state update; the Prompts panel stays `hidden`
+    // until React commits that re-render — and focusing/scrolling a hidden node
+    // silently no-ops. rAF alone can fire before the commit lands, so poll a few
+    // frames until the panel is visible, then focus + scroll. Bounded so we
+    // never loop forever if the panel never opens.
+    let tries = 0;
+    const settle = () => {
+      const panel = document.getElementById("section-prompts-panel");
+      const header = document.getElementById("section-prompts-button");
+      const panelReady = panel && !panel.hidden;
+      if (!panelReady && tries++ < 10) {
+        requestAnimationFrame(settle);
+        return;
+      }
+      // Prefer the first actionable control inside the now-open panel (the
+      // "Add prompt" button / prompt chooser field). Fall back to the section
+      // header button if the panel never became focusable.
+      const firstControl = panelReady
+        ? panel.querySelector(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          )
+        : null;
+      const target = firstControl || header;
+      if (!target) return;
+      target.focus();
+      (header || target).scrollIntoView({
+        behavior: prefersReduced ? "auto" : "smooth",
+        block: "start",
+      });
+    };
+    requestAnimationFrame(settle);
+  }
+
   // ── Expand all / Collapse all (persisted).
   const allExpanded = COLLAPSIBLE_SECTIONS.every((k) => sectionOpen[k]);
   function toggleExpandAll() {
@@ -2982,7 +3049,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               commDirectness, commLiteral, commCadence,
               sensoryEnvironment, sensoryLighting, prompts,
             });
-            return <ProfileCompletenessNudge score={score} total={total} missing={missing} />;
+            return <ProfileCompletenessNudge score={score} total={total} missing={missing} onAnswerPrompt={jumpToPrompts} />;
           })()}
 
           {/* Expand all / Collapse all — controls every collapsible section at
