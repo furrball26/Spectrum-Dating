@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { submitFeedback } from "./api.js";
+import { submitFeedback, getProfile, updateProfile } from "./api.js";
 
 // Accessibility settings — frontend-only. Prefs persist in localStorage under
 // `spectrum_a11y` and are applied globally by App.jsx. This screen just lets the
@@ -320,6 +320,73 @@ function FeedbackSection() {
   );
 }
 
+// F6 — weekly email digest opt-in. Unlike the a11y toggles (localStorage), this
+// preference lives on the profile: read from GET /profile/me, persisted via
+// PUT /profile/me { weeklyDigest }. Optimistic with revert-on-failure so the
+// switch always reflects what's actually saved. Off by default.
+function DigestSection() {
+  const [enabled, setEnabled] = useState(false);
+  const [loaded, setLoaded] = useState(false); // profile fetched yet?
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    getProfile()
+      .then((p) => {
+        if (!alive) return;
+        setEnabled(!!p?.weeklyDigest);
+        setLoaded(true);
+      })
+      .catch(() => {
+        // Couldn't load — leave the switch off (the safe default) and let the
+        // user still toggle; a failed persist will surface its own message.
+        if (alive) setLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function handleToggle(next) {
+    if (saving) return;
+    const prev = enabled;
+    setEnabled(next); // optimistic
+    setSaving(true);
+    setError("");
+    try {
+      await updateProfile({ weeklyDigest: next });
+    } catch {
+      setEnabled(prev); // revert on failure
+      setError("We couldn't save that just now. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={cardStyle}>
+      <ToggleRow
+        id="digest-weekly"
+        first
+        label="Weekly email digest"
+        description="A calm weekly email with your new matches and unread counts. Off by default — turn it on if a gentle nudge helps. No message content, ever."
+        checked={enabled}
+        onChange={loaded ? handleToggle : () => {}}
+      />
+      <p style={{ margin: "0 0 14px", fontSize: 13, color: t.textMuted, lineHeight: 1.6 }}>
+        Emails only start once this is on and your email address is verified. You
+        can turn it off here anytime.
+      </p>
+      {error && (
+        <p role="alert" style={{ margin: "0 0 14px", fontSize: 14, color: t.danger, lineHeight: 1.5 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // A calm navigation row (icon-free) that links to another screen.
 function LinkRow({ title, description, onClick }) {
   const f = useFocusable();
@@ -477,6 +544,11 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
             />
           </>
         )}
+
+        <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
+          Email
+        </h2>
+        <DigestSection />
 
         <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
           Send feedback
