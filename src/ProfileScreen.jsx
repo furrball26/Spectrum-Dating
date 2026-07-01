@@ -2802,7 +2802,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 
   // ── Styles
   const page = {
-    minHeight: "100%",
     background: t.bgGradient,
     color: t.text,
     fontFamily: t.sans,
