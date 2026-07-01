@@ -6,7 +6,9 @@ import ProfileScreen from "./ProfileScreen.jsx";
 import MatchesScreen from "./MatchesScreen.jsx";
 import SafetyScreen from "./SafetyScreen.jsx";
 import SettingsScreen, { readA11y } from "./SettingsScreen.jsx";
+import AccountSecurityScreen from "./AccountSecurityScreen.jsx";
 import AdminScreen from "./AdminScreen.jsx";
+import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import LandingScreen from "./LandingScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
@@ -46,6 +48,7 @@ const SCREEN_NAMES = {
   admin: "Moderation",
   safety: "Safety Center",
   settings: "Settings",
+  account: "Account & security",
 };
 
 // Skip-to-content link — the first focusable element. Visibility is handled by
@@ -130,7 +133,6 @@ function NavGlyph({ children }) {
 }
 const DiscoverGlyph = () => <NavGlyph><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></NavGlyph>;
 const MessagesGlyph = () => <NavGlyph><path d="M4 5h16v11H9l-4 3v-3H4z" /></NavGlyph>;
-const ProfileGlyph = () => <NavGlyph><circle cx="12" cy="8" r="3.5" /><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" /></NavGlyph>;
 const ModerationGlyph = () => <NavGlyph><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></NavGlyph>;
 
 // Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label.
@@ -554,7 +556,7 @@ export default function App() {
   const initialTab = (() => {
     try {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings"];
+      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account"];
       return allowed.includes(tab) ? tab : "suggestions";
     } catch { return "suggestions"; }
   })();
@@ -639,6 +641,29 @@ export default function App() {
 
   // Admin / moderation access
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Current user's own primary photo — drives the Profile nav-tab avatar.
+  // Loaded once when authed (see the getProfile effect below) and refreshed
+  // when the user leaves the Profile screen (where photo edits happen).
+  const [myPhotoUrl, setMyPhotoUrl] = useState(null);
+  const [myDisplayName, setMyDisplayName] = useState("");
+
+  // Pull the signed-in user's primary photo + name out of a profile payload.
+  // Primary = first photo flagged isPrimary, else the first photo, else none.
+  const applyMyProfile = useCallback((p) => {
+    if (!p || typeof p !== "object") return;
+    if (typeof p.displayName === "string") setMyDisplayName(p.displayName);
+    if (Array.isArray(p.photos)) {
+      const primary = p.photos.find((ph) => ph && ph.isPrimary) || p.photos[0] || null;
+      setMyPhotoUrl(primary?.url || null);
+    }
+  }, []);
+
+  // Refresh the nav avatar when returning from the Profile screen, where the
+  // user may have changed their primary photo.
+  const refreshMyProfile = useCallback(() => {
+    getProfile().then(applyMyProfile).catch(() => { /* keep last-known avatar */ });
+  }, [applyMyProfile]);
 
   // Accessibility prefs (frontend-only, persisted in localStorage). Read once on
   // mount; applied globally via the effect below + inline wrapper styles.
@@ -792,12 +817,14 @@ export default function App() {
         if (typeof p.emailVerified === "boolean") setEmailVerified(p.emailVerified);
         if (typeof p.emailVerificationEnabled === "boolean") setEmailVerifyEnabled(p.emailVerificationEnabled);
         if (typeof p.isAdmin === "boolean") setIsAdmin(p.isAdmin);
+        // Seed the Profile nav-tab avatar from the same payload.
+        applyMyProfile(p);
       })
       .catch(() => {
         // Silently fail — if we can't load the profile here, let the main app
         // handle it; don't block auth behind a network error.
       });
-  }, [authed]);
+  }, [authed, applyMyProfile]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -807,6 +834,8 @@ export default function App() {
     setUnreadCount(0);
     setActivityCount(0);
     setIsAdmin(false);
+    setMyPhotoUrl(null);
+    setMyDisplayName("");
     setShowAuth(false); // back to the landing page
     if (activeTab === "admin") setActiveTab("suggestions");
   }, [activeTab]);
@@ -1057,7 +1086,8 @@ export default function App() {
                 activeTab === "messages" ? "Messages" :
                 activeTab === "admin" ? "Moderation" :
                 activeTab === "safety" ? "Safety Center" :
-                activeTab === "settings" ? "Accessibility settings" : "Profile"
+                activeTab === "settings" ? "Accessibility settings" :
+                activeTab === "account" ? "Account & security" : "Profile"
               }
               style={{
                 flex: 1,
@@ -1123,20 +1153,28 @@ export default function App() {
               )}
               {activeTab === "profile" && (
                 <ProfileScreen
-                  onDone={() => setActiveTab(prevTab || "suggestions")}
+                  onDone={() => { refreshMyProfile(); setActiveTab(prevTab || "suggestions"); }}
                   onSignOut={handleSignOut}
+                  onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
+                  pushEnabled={pushEnabled}
+                  pushSupported={pushSupported}
+                  onEnablePush={enablePush}
+                  onDisablePush={disablePush}
+                />
+              )}
+              {activeTab === "account" && (
+                <AccountSecurityScreen
+                  onBack={() => setActiveTab(prevTab || "profile")}
                   onAccountDeleted={() => {
                     setAuthMessage("Your account has been deleted.");
                     setAuthed(false);
                     setOnboarding(false);
                     setUnreadCount(0);
                     setIsAdmin(false);
+                    setMyPhotoUrl(null);
+                    setMyDisplayName("");
                     setShowAuth(false); // back to the landing page
                   }}
-                  pushEnabled={pushEnabled}
-                  pushSupported={pushSupported}
-                  onEnablePush={enablePush}
-                  onDisablePush={disablePush}
                 />
               )}
               {activeTab === "admin" && isAdmin && <AdminScreen />}
@@ -1147,6 +1185,7 @@ export default function App() {
                 <SettingsScreen
                   onBack={() => setActiveTab(prevTab || "suggestions")}
                   onChange={applyA11y}
+                  onOpenAccount={() => { setPrevTab("settings"); setActiveTab("account"); }}
                 />
               )}
             </main>
@@ -1193,7 +1232,19 @@ export default function App() {
               />
               <BottomNavTab
                 label="Profile"
-                icon={<ProfileGlyph />}
+                icon={
+                  <Avatar
+                    name={myDisplayName}
+                    userId={getUserId()}
+                    photoUrl={myPhotoUrl}
+                    size={24}
+                    style={
+                      activeTab === "profile"
+                        ? { boxShadow: `0 0 0 2px ${t.surface}, 0 0 0 4px ${t.accentStrong}` }
+                        : undefined
+                    }
+                  />
+                }
                 active={activeTab === "profile"}
                 onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
               />

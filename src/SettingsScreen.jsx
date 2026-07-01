@@ -320,7 +320,40 @@ function FeedbackSection() {
   );
 }
 
-export default function SettingsScreen({ onBack, onChange }) {
+// A calm navigation row (icon-free) that links to another screen.
+function LinkRow({ title, description, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...f}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        width: "100%",
+        minHeight: 56,
+        padding: "14px 18px",
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 16,
+        cursor: "pointer",
+        textAlign: "left",
+        ...f.style,
+      }}
+    >
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text }}>{title}</span>
+        <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 2 }}>{description}</span>
+      </span>
+      <span aria-hidden="true" style={{ fontSize: 20, color: t.accentStrong, flexShrink: 0 }}>→</span>
+    </button>
+  );
+}
+
+export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
 
@@ -431,6 +464,19 @@ export default function SettingsScreen({ onBack, onChange }) {
           These settings only change how the app appears for you. If text still
           isn't large enough, your browser or device zoom can enlarge it further.
         </p>
+
+        {onOpenAccount && (
+          <>
+            <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
+              Account
+            </h2>
+            <LinkRow
+              title="Account & security"
+              description="Change your password or email, or delete your account."
+              onClick={onOpenAccount}
+            />
+          </>
+        )}
 
         <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
           Send feedback
