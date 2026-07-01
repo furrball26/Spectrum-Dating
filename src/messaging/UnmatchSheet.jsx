@@ -42,7 +42,7 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
       if (e.key === "Escape") {
         onCancel();
       }
-      // Focus trap: Tab cycles between Cancel and "Yes, unmatch"
+      // Focus trap: Tab cycles between Cancel and "End conversation"
       if (e.key === "Tab") {
         const focusable = [cancelRef.current, confirmRef.current].filter(Boolean);
         const idx = focusable.indexOf(document.activeElement);
@@ -126,15 +126,15 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
             outline: "none",
           }}
         >
-          Unmatch with {displayName}?
+          End your conversation with {displayName}?
         </h2>
         <p style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.65, margin: "0 0 14px" }}>
           Here's exactly what happens:
         </p>
         <ul style={{ color: t.textSoft, fontSize: 15, lineHeight: 1.6, margin: "0 0 28px", paddingLeft: 20 }}>
-          <li>{displayName} <strong>won't be told</strong>.</li>
-          <li>Your conversation closes and is removed for both of you.</li>
-          <li>You won't see each other in Discover or Matches again.</li>
+          <li>This ends the conversation and you won't see each other again.</li>
+          <li>{displayName} <strong>won't be told</strong>, and won't know it was you.</li>
+          <li>Your conversation becomes read-only — no one can send new messages.</li>
         </ul>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -181,7 +181,7 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
             onFocus={fConfirm.onFocus}
             onBlur={fConfirm.onBlur}
           >
-            Yes, unmatch
+            End conversation
           </button>
         </div>
       </div>

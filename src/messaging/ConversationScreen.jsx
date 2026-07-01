@@ -928,7 +928,7 @@ function MessageBubble({
 
 // Overflow (⋯) header menu — A11y Blocker 2: arrow-key navigation
 // Feature 3: added "Archive conversation" menu item
-function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef }) {
+function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef, ended = false }) {
   const containerRef = useRef(null);
   const firstRef = useRef(null);
 
@@ -991,6 +991,8 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef })
         overflow: "hidden",
       }}
     >
+      {/* F21 — hide Unmatch once the conversation is already ended (read-only). */}
+      {!ended && (
       <button
         ref={firstRef}
         role="menuitem"
@@ -1013,9 +1015,11 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef })
         onFocus={f1.onFocus}
         onBlur={f1.onBlur}
       >
-        Unmatch
+        End conversation
       </button>
+      )}
       <button
+        ref={ended ? firstRef : undefined}
         role="menuitem"
         type="button"
         onClick={() => { onClose(); onBlockReport(); }}
@@ -1619,6 +1623,10 @@ export default function ConversationScreen({
   const [messages, setMessages] = useState([]);
   const [apiLoading, setApiLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
+  // F21 — read-only "ended" (unmatched) state, sourced from the conversation
+  // GET. When true, the composer is replaced by a neutral centered notice and no
+  // messages can be sent. We never learn/show who ended it.
+  const [ended, setEnded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [composeValue, setComposeValue] = useState("");
   const [sendStatus, setSendStatus] = useState("");
@@ -1720,6 +1728,7 @@ export default function ConversationScreen({
       .then(data => {
         const msgs = data.messages || [];
         setMessages(msgs);
+        setEnded(!!data.conversation?.ended);
         setHasMore(data.hasMore ?? false);
         setOldestCursor(msgs.length > 0 ? msgs[0].id : null);
         // Hydrate reactions from server
@@ -1951,8 +1960,11 @@ export default function ConversationScreen({
     attachButtonRef.current?.focus();
   }
 
-  // Derived disabled state for compose/send
-  const composingDisabled = consentGateFailed || rateLimited;
+  // Derived disabled state for compose/send. F21: an ended (unmatched) thread is
+  // read-only — the composer is replaced by a neutral notice below, but we also
+  // fold `ended` in here so nothing is ever sendable if the notice branch is
+  // somehow bypassed.
+  const composingDisabled = consentGateFailed || rateLimited || ended;
   const hasAttachment = attachment.file !== null;
   const sendDisabled =
     composingDisabled ||
@@ -2022,7 +2034,11 @@ export default function ConversationScreen({
         // this path, so it's still intact. Keep the selected photo too so they
         // can retry. Surface a calm, specific message.
         setAttachment((prev) => ({ ...prev, status: "selected" }));
-        if (err.status === 403) {
+        if (err.status === 409 && err.code === "CONVERSATION_ENDED") {
+          setEnded(true);
+          setAttachStatusMsg("");
+          setSendStatus("This conversation has ended.");
+        } else if (err.status === 403) {
           setConsentGateFailed(true);
           setAttachStatusMsg("");
           setSendStatus("Unable to send. This conversation is no longer available.");
@@ -2061,7 +2077,13 @@ export default function ConversationScreen({
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false } : m));
       setSendStatus("Message sent.");
     } catch (err) {
-      if (err.status === 403) {
+      if (err.status === 409 && err.code === "CONVERSATION_ENDED") {
+        // F21 — the other person ended the conversation while this was open. Flip
+        // to read-only quietly: the composer is replaced by the neutral notice.
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setEnded(true);
+        setSendStatus("This conversation has ended.");
+      } else if (err.status === 403) {
         setMessages(prev => prev.filter(m => m.id !== tempId)); // terminal — gone
         setConsentGateFailed(true);
         setSendStatus("Unable to send. This conversation is no longer available.");
@@ -2085,7 +2107,13 @@ export default function ConversationScreen({
       const saved = await sendMessage(conversationId, failedMsg.body);
       setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false } : m));
       setSendStatus("Message sent.");
-    } catch {
+    } catch (err) {
+      if (err.status === 409 && err.code === "CONVERSATION_ENDED") {
+        setMessages(prev => prev.filter(m => m.id !== failedMsg.id));
+        setEnded(true);
+        setSendStatus("This conversation has ended.");
+        return;
+      }
       setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: true } : m));
       setSendStatus("Still couldn't send. Check your connection.");
     }
@@ -2429,6 +2457,7 @@ export default function ConversationScreen({
                 overflowButtonRef.current?.focus();
               }}
               anchorRef={headerMenuAnchorRef}
+              ended={ended}
             />
           )}
         </div>
@@ -2736,9 +2765,33 @@ export default function ConversationScreen({
         </div>
       )}
 
-      {/* Compose area — two-row layout so the message field is full-width and
+      {/* F21 — ended (unmatched) thread: replace the composer entirely with a
+          soft, neutral, centered notice. Reuses the day-divider / system-notice
+          visual language (muted, centered). No error styling, no blame, no hint
+          of who ended it. The composer is removed (not just disabled) so there's
+          never a dead unresponsive box. */}
+      {ended ? (
+        <div
+          role="status"
+          style={{
+            padding: "20px 24px calc(20px + env(safe-area-inset-bottom, 0px))",
+            background: t.surface,
+            borderTop: `1px solid ${t.border}`,
+            flexShrink: 0,
+            textAlign: "center",
+            color: t.textSoft,
+            fontSize: 14,
+            lineHeight: 1.6,
+          }}
+        >
+          {plainLanguage
+            ? "This conversation has ended. You can still read it, but no one can send new messages."
+            : "This conversation has ended."}
+        </div>
+      ) : (
+      /* Compose area — two-row layout so the message field is full-width and
           readable on mobile. Row 1: attach + helpers actions. Row 2: the
-          auto-growing textarea beside the send button. */}
+          auto-growing textarea beside the send button. */
       <div
         style={{
           padding: "10px 16px 12px",
@@ -2953,6 +3006,7 @@ export default function ConversationScreen({
           </button>
         </div>
       </div>
+      )}
 
       {/* F27 — conversation helpers tray */}
       {helperTrayOpen && (

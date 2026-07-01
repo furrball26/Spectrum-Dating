@@ -51,11 +51,12 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
   const f = useFocusable();
   const fArchive = useFocusable();
   const fRestore = useFocusable(); // for the unarchive / "Restore" button
-  const { otherUser, lastMessageLabel, unread, started } = match;
+  const { otherUser, lastMessageLabel, unread, started, ended } = match;
   const ariaLabel = [
     `${otherUser.displayName}.`,
-    unread ? "Unread: New messages." : "",
-    `Last message group: ${lastMessageLabel || "Not started"}.`,
+    // F21 — an ended (read-only) thread never carries an unread nudge.
+    ended ? "This conversation has ended." : (unread ? "Unread: New messages." : ""),
+    ended ? "" : `Last message group: ${lastMessageLabel || "Not started"}.`,
   ].filter(Boolean).join(" ");
 
   return (
@@ -119,13 +120,17 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
               </span>
               {otherUser.verified && <VerifiedBadge style={{ flexShrink: 0 }} />}
             </div>
-            {lastMessageLabel && (
+            {ended ? (
+              <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
+                Conversation ended
+              </div>
+            ) : lastMessageLabel && (
               <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
                 {lastMessageLabel}
               </div>
             )}
           </div>
-          {unread && (
+          {!ended && unread && (
             <div
               aria-hidden="true"
               style={{

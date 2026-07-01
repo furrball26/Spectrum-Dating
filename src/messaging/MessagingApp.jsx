@@ -122,7 +122,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
       else await archiveConversation(selectedConversationId);
     } catch (e) { console.warn("Unmatch failed", e); }
     setConversations(prev => prev.filter(c => c.id !== selectedConversationId));
-    setMatchesStatusMessage(`You unmatched with ${name}.`);
+    setMatchesStatusMessage(`You ended your conversation with ${name}.`);
     handleBackToList();
   }
 
