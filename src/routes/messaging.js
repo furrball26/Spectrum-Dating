@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { safetyActionLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
-import { emitNewMessage, emitMessageDeleted, emitConversationArchived } from '../socket/emitters.js';
+import { emitNewMessage, emitMessageDeleted, emitConversationArchived, joinConversationRoom } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
 import { getReactionSummary } from './reactions.js';
 
@@ -247,6 +247,13 @@ router.post('/conversations', requireAuth, (req, res) => {
     INSERT INTO conversations (id, match_id, user_a_id, user_b_id, created_at)
     VALUES (?, ?, ?, ?, ?)
   `).run(id, matchId, userId, otherId, now);
+
+  // Join BOTH parties' live sockets to the new room now, so the very first
+  // message delivers in real-time without either client reloading. The badge
+  // socket only auto-joins conv rooms at connect time (socket/index.js), so a
+  // conversation created mid-session would otherwise be silent until reload.
+  const { io } = req.app.locals;
+  joinConversationRoom(io, id, userId, otherId);
 
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id);
   res.status(201).json({ conversation: conv });

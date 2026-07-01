@@ -47,7 +47,27 @@ const MIGRATIONS = [
   '027_moderation_log.sql',
   '028_verification_requests.sql',
   '029_photo_alt_text.sql',
+  '030_reports_preserve_evidence.sql',
 ];
+
+// Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't
+// be made idempotent purely by the per-statement runner — re-running them would
+// churn the table every boot. They are GUARDED here: a predicate decides whether
+// the file should run at all, and the whole file runs inside ONE transaction so
+// a rebuild can never leave the DB half-migrated. Guard = "already applied?".
+const GUARDED_MIGRATIONS = {
+  // E6: skip once reports.reporter_id/reported_id are already ON DELETE SET NULL.
+  '030_reports_preserve_evidence.sql': (db) => {
+    const fks = db.pragma('foreign_key_list(reports)');
+    // If the table doesn't exist yet (fks empty AND no table), let it run and
+    // fail loudly — but 010 always creates it first, so fks will be non-empty.
+    if (!fks.length) return true; // no FKs found → not yet the SET NULL shape
+    // Run only while any user-referencing FK is still CASCADE (i.e. not applied).
+    return fks.some(
+      (fk) => (fk.from === 'reporter_id' || fk.from === 'reported_id') && fk.on_delete !== 'SET NULL'
+    );
+  },
+};
 
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a
 // migration that adds a column throws "duplicate column name" on every boot
@@ -63,6 +83,23 @@ const MIGRATIONS = [
 // statement is attempted regardless of earlier already-applied ones.
 function runMigrations(db) {
   for (const file of MIGRATIONS) {
+    const guard = GUARDED_MIGRATIONS[file];
+    if (guard) {
+      // Guarded (table-rebuild) migration: run only if the predicate says it
+      // hasn't been applied yet, and run the WHOLE file atomically in one
+      // transaction so a rebuild can never leave the DB half-migrated. Foreign
+      // key enforcement is deferred to COMMIT inside a transaction, so the
+      // CREATE/copy/DROP/RENAME sequence is safe.
+      if (!guard(db)) continue; // already applied → skip entirely
+      const sql = readFileSync(join(__dirname, 'migrations', file), 'utf8');
+      const statements = splitStatements(sql);
+      const apply = db.transaction(() => {
+        for (const statement of statements) db.exec(statement);
+      });
+      apply();
+      continue;
+    }
+
     const sql = readFileSync(join(__dirname, 'migrations', file), 'utf8');
     for (const statement of splitStatements(sql)) {
       try {

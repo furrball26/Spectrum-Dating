@@ -36,3 +36,22 @@ export function emitConversationArchived(io, conversationId, archivedByUserId) {
   // Only the archiver needs to know — used to update their list in real-time
   io.to(`user:${archivedByUserId}`).emit('conversation_archived', { conversationId });
 }
+
+// Join BOTH parties' currently-open sockets to a conversation's room the moment
+// the conversation is created. The badge socket only auto-joins `conv:<id>`
+// rooms at CONNECT time (see socket/index.js), so a conversation created later
+// in a live session would never receive `new_message` until the client
+// reconnects/reloads. socketsJoin on the personal `user:<id>` rooms (joined at
+// connect) pulls every live socket for each user into the new room. Best-effort
+// and defensive — a missing io or a socket-adapter error must never break the
+// HTTP request that created the conversation.
+export function joinConversationRoom(io, conversationId, userIdA, userIdB) {
+  if (!io || !conversationId) return;
+  try {
+    const room = `conv:${conversationId}`;
+    io.in(`user:${userIdA}`).socketsJoin(room);
+    io.in(`user:${userIdB}`).socketsJoin(room);
+  } catch (e) {
+    console.error('[socket] joinConversationRoom failed:', e?.message);
+  }
+}
