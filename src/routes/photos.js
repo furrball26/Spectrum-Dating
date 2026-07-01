@@ -12,7 +12,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_PHOTOS = 6;
 
 // TEMP diagnostic — presence-only (no secret VALUES ever returned) to debug R2
-// env wiring on Railway. Remove once storage is confirmed configured.
+// env wiring on Railway. Remove once storage is confirmed configured. (redeploy 2)
 router.get('/_config-check', requireAuth, (req, res) => {
   res.json({
     R2_ACCOUNT_ID: !!process.env.R2_ACCOUNT_ID,
