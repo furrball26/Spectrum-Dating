@@ -4,6 +4,19 @@ import { requireAuth } from '../middleware/auth.js';
 import { safetyActionLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
+
+// F23 — conversation-list wayfinding. Server-side truncation of the last-message
+// snippet so the client never receives more than it renders (and so we don't leak
+// full message bodies into an at-a-glance list). Collapses whitespace/newlines to
+// keep the one-line preview tidy, then hard-caps length with an ellipsis.
+const SNIPPET_MAX = 80;
+function makeSnippet(body) {
+  if (typeof body !== 'string') return null;
+  const collapsed = body.replace(/\s+/g, ' ').trim();
+  if (!collapsed) return null;
+  if (collapsed.length <= SNIPPET_MAX) return collapsed;
+  return collapsed.slice(0, SNIPPET_MAX - 1).trimEnd() + '…';
+}
 import { emitNewMessage, emitMessageDeleted, emitConversationArchived, joinConversationRoom } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
 import { getReactionSummary } from './reactions.js';
@@ -81,7 +94,8 @@ router.get('/conversations', requireAuth, (req, res) => {
     SELECT c.id, c.match_id, c.user_a_id, c.user_b_id,
            c.last_read_at_a, c.last_read_at_b,
            mt.ended_at, mt.ended_by,
-           m.sent_at as last_sent_at, m.sender_id as last_sender_id
+           m.sent_at as last_sent_at, m.sender_id as last_sender_id,
+           m.body as last_body, m.deleted as last_deleted
     FROM conversations c
     JOIN matches mt ON mt.id = c.match_id
     LEFT JOIN messages m ON m.id = (
@@ -102,11 +116,23 @@ router.get('/conversations', requireAuth, (req, res) => {
     // An ended thread carries no "unread" nudge — nothing new can arrive, and we
     // don't want to draw the unmatched person back with a badge.
     const hasUnread = !ended && !!(row.last_sent_at && row.last_sender_id !== userId && row.last_sent_at > lastReadAt);
+    // F23 wayfinding: surface a truncated preview of the last message + who sent
+    // it, so multi-thread users can tell where they left off. A tombstoned last
+    // message shows NO content — null snippet + a lastMessageDeleted flag so the
+    // client can render a neutral "Message removed" marker instead. NOT an unread
+    // count (calm-by-design). lastMessageAt is the COARSE label (never raw ms),
+    // matching lastMessageGroup / coarseLabel used everywhere in this response.
+    const hasLastMessage = !!row.last_sent_at;
+    const lastDeleted = hasLastMessage && !!row.last_deleted;
     return {
       id: row.id,
       matchId: row.match_id,
       otherUser: { userId: otherId, displayName: otherProfile?.display_name || '', verified: !!otherProfile?.identity_verified, photoUrl: otherProfile?.photo_url || null },
-      lastMessageGroup: row.last_sent_at ? coarseLabel(row.last_sent_at) : null,
+      lastMessageGroup: hasLastMessage ? coarseLabel(row.last_sent_at) : null,
+      lastMessageSnippet: hasLastMessage && !lastDeleted ? makeSnippet(row.last_body) : null,
+      lastMessageSenderId: hasLastMessage ? row.last_sender_id : null,
+      lastMessageDeleted: lastDeleted,
+      lastMessageAt: hasLastMessage ? coarseLabel(row.last_sent_at) : null,
       hasUnread,
       ended,
     };
