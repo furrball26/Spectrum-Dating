@@ -127,8 +127,8 @@ Two builder agents fixed the Error Log in parallel (backend + frontend repos, se
 - 🟡 **E16** (parseInt radix), **E17/E17▲** (shared `coarseCity()`, strips embedded ZIPs), **E23** (auth subview titles), **E24** (client consumes server `activeCap`), **E25** (dead reaction branch removed), **E38** (sockets torn down on suspend/sign-out), **E40** (`verifyToken` rejects purpose tokens), **E43** (unsent discard client-side), **E44** (`limit=0` survives), **E45** (interest case normalized), **E22** (catch-block logging) + the reactions/unblock/change-email nits.
 - ℹ️ **E36** — found **already fixed** in current source (migration 004 CHECK already allows `image/gif`); no change needed.
 
-## DEFERRED (flagged, not attempted — risk/scope)
-- **E6** — `reports` FK → `ON DELETE SET NULL` requires a SQLite table rebuild (risks moderation data).
-- **E12** — dual-socket consolidation (real refactor; reconnection/room-rejoin risk).
-- **E2 / E37** — gated photo-attachment flow (`ATTACHMENTS_ENABLED=false`); needs coordinated backend build (message↔attachment link + real scan).
-- **E33** — `new_match` listener now exists, but the badge socket still only joins rooms at connect, so a brand-new-match thread won't bump unread until reload (small backend follow-up).
+## Deferred-four → follow-up status (updated 2026-07-01)
+- ✅ **E33 — FIXED** (backend `1e458aa`): new conversations `socketsJoin` both users' live sockets on create; new-match threads bump unread without a reload.
+- ✅ **E6 — FIXED** (backend `1e458aa`, migration `030`): `reports` rebuilt to `ON DELETE SET NULL`, guarded + boot-twice tested — deleting a user now preserves the report row (moderation evidence retained instead of cascading away).
+- ✅ **E2 / E37 — BUILT, GATED OFF** (backend `2d6b634` + frontend `8f8bdaa`): full attachment flow — attachment↔message linking in one txn, honest `pending → pending_review → approved/rejected` lifecycle (`scanned` retired, migration `031` boot-twice tested), strict serving (approved + member only), admin human-review queue logged to `moderation_log`; typed text preserved on failure (E37 closed). `ATTACHMENTS_ENABLED=false` — attach UI tree-shaken out of the bundle; gate verified live (`400 "Attachments are not enabled"`). R2 storage configured + round-trip verified in prod. **Go-live requires:** backend env flag `true` + frontend flag flip + redeploys + your ToS/Privacy update + NCMEC reporting process (+ optional real CSAM/NSFW scanner to augment human review).
+- ⏳ **E12 — still DEFERRED**: dual-socket consolidation (real refactor with reconnection/room-rejoin risk) — parked for a dedicated QA-backed session.
