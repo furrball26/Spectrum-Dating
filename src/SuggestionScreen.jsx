@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getCandidates, swipe, blockUser, reportUser, getProfile, undoSkip, getUserId, createConversation } from "./api.js";
+import { getCandidates, swipe, blockUser, reportUser, getProfile, updateProfile, undoSkip, getUserId, createConversation } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import MatchMoment from "./MatchMoment.jsx";
+import DiscoverFilters from "./DiscoverFilters.jsx";
 import { AllCaughtUp } from "./illustrations.jsx";
 
 // The current viewer's identity for the match moment — name/photo from the
@@ -468,6 +469,18 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // failed "I'm interested" swipe (the one choice we must not silently lose).
   const [submitting, setSubmitting] = useState(false);
   const [swipeFailed, setSwipeFailed] = useState(null);
+  // F18 — in-context Discover filters. `filterInitial` pre-fills the sheet from
+  // the current profile's filter fields; `applyingFilters` drives a calm loading
+  // state while we persist + re-fetch the deck.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [applyingFilters, setApplyingFilters] = useState(false);
+  const [filterInitial, setFilterInitial] = useState({
+    prefAgeMin: 18,
+    prefAgeMax: 99,
+    searchRadiusMiles: 0,
+    seeking: "",
+    distanceCity: "",
+  });
   const liveRef = useRef(null);
   const doneHeadingRef = useRef(null);
   const endHeadingRef = useRef(null);
@@ -479,6 +492,15 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
         if (Array.isArray(profile.interests) && profile.interests.length > 0) {
           setViewerInterests(profile.interests);
         }
+        // Seed the Filters sheet from the live profile. The GET returns the
+        // coarse city as `distCity`; the filter fields keep their profile keys.
+        setFilterInitial({
+          prefAgeMin: profile.prefAgeMin ?? 18,
+          prefAgeMax: profile.prefAgeMax ?? 99,
+          searchRadiusMiles: profile.searchRadiusMiles ?? 0,
+          seeking: profile.seeking || "",
+          distanceCity: profile.distCity || profile.distanceCity || "",
+        });
       })
       .catch(() => {
         // Silently fall back to the localStorage-seeded initial value
@@ -525,6 +547,35 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     loadCandidates()
       .catch(() => setLoadError('Could not load suggestions. Please check your connection.'))
       .finally(() => setLoading(false));
+  }, [loadCandidates]);
+
+  // F18 — persist changed filter fields to the profile, then re-fetch the deck
+  // so results update immediately (not behind the profile Save). `changed` only
+  // carries fields that actually differ, so a no-op Apply skips the PUT.
+  const handleApplyFilters = useCallback(async (changed) => {
+    setApplyingFilters(true);
+    // Optimistically fold the new values into the sheet's seed so a re-open
+    // reflects them even if the caller closes and reopens quickly.
+    setFilterInitial(prev => ({ ...prev, ...changed }));
+    try {
+      if (changed && Object.keys(changed).length > 0) {
+        await updateProfile(changed);
+      }
+      await loadCandidates();
+      // Land the user back on a fresh deck rather than a stale confirmation.
+      setMutual(false);
+      setMatchId(null);
+      setLastChoice(null);
+      setLastPerson(null);
+      setSwipeFailed(null);
+      setStage("viewing");
+    } catch (e) {
+      // A failed apply shouldn't strand the user — log and keep the deck as-is.
+      console.warn("Applying filters failed", e);
+    } finally {
+      setApplyingFilters(false);
+      setFiltersOpen(false);
+    }
   }, [loadCandidates]);
 
   const person = queue[index];
@@ -684,7 +735,30 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // renders its own "Spectrum" header (was a duplicate landmark) or the dead
   // "#help" link. Just the real "Done for now" action, as a proper button.
   const Header = () => (
-    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <button
+        type="button"
+        onClick={() => setFiltersOpen(true)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 999,
+          color: t.text,
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: "pointer",
+          padding: "8px 16px",
+          minHeight: 44,
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        Filters
+      </button>
       <button
         type="button"
         onClick={() => setStage("done")}
@@ -734,6 +808,15 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             <ActionButton label="See suggestions again" kind="interested" onClick={() => setStage("viewing")} />
           </div>
         </div>
+        {filtersOpen && (
+          <DiscoverFilters
+            initial={filterInitial}
+            applying={applyingFilters}
+            plainLanguage={plainLanguage}
+            onApply={handleApplyFilters}
+            onClose={() => setFiltersOpen(false)}
+          />
+        )}
       </div>
     );
   }
@@ -758,7 +841,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                 : "You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join."}
             </p>
             <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
-              Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or who you're seeking in your profile can help.
+              Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or <strong>who you want to meet</strong> can help — you can adjust all three here.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <ActionButton
@@ -769,11 +852,20 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               <ActionButton
                 label="Adjust your search"
                 kind="notnow"
-                onClick={onGoToProfile || (() => {})}
+                onClick={() => setFiltersOpen(true)}
               />
             </div>
           </div>
         </div>
+        {filtersOpen && (
+          <DiscoverFilters
+            initial={filterInitial}
+            applying={applyingFilters}
+            plainLanguage={plainLanguage}
+            onApply={handleApplyFilters}
+            onClose={() => setFiltersOpen(false)}
+          />
+        )}
       </div>
     );
   }
@@ -1061,6 +1153,16 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             setQueue(q => q.filter(p => p.memberId !== c.memberId));
             setIndex(0);
           }}
+        />
+      )}
+
+      {filtersOpen && (
+        <DiscoverFilters
+          initial={filterInitial}
+          applying={applyingFilters}
+          plainLanguage={plainLanguage}
+          onApply={handleApplyFilters}
+          onClose={() => setFiltersOpen(false)}
         />
       )}
     </div>
