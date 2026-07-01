@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
+import { getUserId } from "../api.js";
 import VerifiedBadge from "../VerifiedBadge.jsx";
 import Avatar from "../Avatar.jsx";
 import Skeleton from "../Skeleton.jsx";
@@ -47,15 +48,45 @@ function MatchesListSkeleton() {
 
 // MatchRow accepts showArchive/onArchive for active rows and
 // showUnarchive/onUnarchive for archived rows.
-function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUnarchive, onUnarchive, selected }) {
+function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUnarchive, onUnarchive, selected, currentUserId }) {
   const f = useFocusable();
   const fArchive = useFocusable();
   const fRestore = useFocusable(); // for the unarchive / "Restore" button
-  const { otherUser, lastMessageLabel, unread, started, ended } = match;
+  const {
+    otherUser, lastMessageLabel, unread, started, ended,
+    lastMessageSnippet, lastMessageSenderId, lastMessageDeleted,
+  } = match;
+
+  // F23 — who-replied-last cue. Prefix the snippet with "You: " when the last
+  // sender is the current user, otherwise the other person's short (first-word)
+  // name. Snippet itself is already ≤80 chars + "…"-truncated server-side; we
+  // add single-line ellipsis so long snippets never break row height.
+  const otherShortName = (otherUser.displayName || "").trim().split(/\s+/)[0] || otherUser.displayName;
+  const sentByMe = lastMessageSenderId != null && lastMessageSenderId === currentUserId;
+  const snippetPrefix = sentByMe ? "You: " : `${otherShortName}: `;
+
+  // The wayfinding line under the name: removed marker, snippet, or a calm
+  // placeholder when the thread has started but has no messages yet.
+  let wayfindingText = null;
+  let wayfindingMuted = false;
+  if (started && !ended) {
+    if (lastMessageDeleted) {
+      wayfindingText = "Message removed";
+      wayfindingMuted = true;
+    } else if (lastMessageSnippet) {
+      wayfindingText = `${snippetPrefix}${lastMessageSnippet}`;
+    } else {
+      wayfindingText = "No messages yet — say hello";
+      wayfindingMuted = true;
+    }
+  }
+
   const ariaLabel = [
     `${otherUser.displayName}.`,
     // F21 — an ended (read-only) thread never carries an unread nudge.
     ended ? "This conversation has ended." : (unread ? "Unread: New messages." : ""),
+    // F23 — announce the last-message cue (or removed/empty state) for SR users.
+    !ended && wayfindingText ? `${wayfindingText}.` : "",
     ended ? "" : `Last message group: ${lastMessageLabel || "Not started"}.`,
   ].filter(Boolean).join(" ");
 
@@ -124,10 +155,31 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
               <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
                 Conversation ended
               </div>
-            ) : lastMessageLabel && (
-              <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
-                {lastMessageLabel}
-              </div>
+            ) : (
+              <>
+                {/* F23 — last-message snippet + who-replied-last cue. Single
+                    line, ellipsis-truncated so rows stay tidy and calm. Deleted
+                    → neutral "Message removed"; no messages → gentle placeholder.
+                    No unread count (calm-by-design). */}
+                {wayfindingText && (
+                  <div style={{
+                    fontSize: 13,
+                    color: wayfindingMuted ? t.textMuted : t.textSoft,
+                    marginTop: 2,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontStyle: wayfindingMuted ? "italic" : "normal",
+                  }}>
+                    {wayfindingText}
+                  </div>
+                )}
+                {lastMessageLabel && (
+                  <div style={{ fontSize: 12, color: t.textMuted, marginTop: 1 }}>
+                    {lastMessageLabel}
+                  </div>
+                )}
+              </>
             )}
           </div>
           {!ended && unread && (
@@ -199,7 +251,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
 }
 
 // Feature 3: SectionList passes showArchive and onArchive down to MatchRow
-function SectionList({ title, subtitle, matches, onSelectConversation, showArchive, onArchive, selectedConversationId }) {
+function SectionList({ title, subtitle, matches, onSelectConversation, showArchive, onArchive, selectedConversationId, currentUserId }) {
   if (matches.length === 0) return null;
   return (
     <section style={{ marginBottom: 24 }}>
@@ -236,6 +288,7 @@ function SectionList({ title, subtitle, matches, onSelectConversation, showArchi
             onSelectConversation={onSelectConversation}
             showArchive={showArchive}
             onArchive={onArchive}
+            currentUserId={currentUserId}
             selected={selectedConversationId != null && m.conversationId === selectedConversationId}
           />
         ))}
@@ -270,6 +323,10 @@ export default function MatchesListScreen({
   // view path below) so the hook order is always stable.
   const [query, setQuery] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
+
+  // F23 — current user id for the who-replied-last cue ("You:" vs their name).
+  // Same source the conversation screen uses (getUserId reads local auth).
+  const currentUserId = getUserId();
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -364,6 +421,7 @@ export default function MatchesListScreen({
                     onSelectConversation={onSelectConversation}
                     showUnarchive
                     onUnarchive={onUnarchive}
+                    currentUserId={currentUserId}
                   />
                 ))}
               </ul>
@@ -581,6 +639,7 @@ export default function MatchesListScreen({
               matches={filteredConversations}
               onSelectConversation={onSelectConversation}
               selectedConversationId={selectedConversationId}
+              currentUserId={currentUserId}
             />
           ) : (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
@@ -600,6 +659,7 @@ export default function MatchesListScreen({
               showArchive={capReached}
               onArchive={onArchive}
               selectedConversationId={selectedConversationId}
+              currentUserId={currentUserId}
             />
 
             {/* Feature 3 — Conversation cap notice above New matches */}
@@ -627,6 +687,7 @@ export default function MatchesListScreen({
               matches={newMatches}
               onSelectConversation={onSelectConversation}
               selectedConversationId={selectedConversationId}
+              currentUserId={currentUserId}
             />
 
             {conversations.length === 0 && (

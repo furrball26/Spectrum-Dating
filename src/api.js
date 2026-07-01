@@ -227,6 +227,13 @@ function normaliseConversationList(arr) {
     // returns the conversation under `id` — alias it so row clicks resolve.
     conversationId: c.conversationId ?? c.id,
     lastMessageLabel: c.lastMessageLabel ?? c.lastMessageGroup ?? null,
+    // F23 — last-message wayfinding fields. The server sends these directly; we
+    // pin them here (with null/false defaults) so the list rows can rely on them
+    // even if the spread above is ever narrowed to a whitelist.
+    lastMessageSnippet: c.lastMessageSnippet ?? null,
+    lastMessageSenderId: c.lastMessageSenderId ?? null,
+    lastMessageDeleted: c.lastMessageDeleted ?? false,
+    lastMessageAt: c.lastMessageAt ?? null,
     // Canonical unread flag: map the server's `hasUnread` into `unread` here so
     // every consumer reads one field. The raw `hasUnread` is intentionally not
     // spread through — `unread` is the single source of truth.

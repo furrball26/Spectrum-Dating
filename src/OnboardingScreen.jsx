@@ -942,6 +942,9 @@ export default function OnboardingScreen({ onComplete }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // D33 — brief "You're all set" arrival beat after a successful save, before
+  // the Discover feed. Optional/auto-advancing and low-stimulation.
+  const [celebrating, setCelebrating] = useState(false);
 
   // Step 1 fields
   const [displayName, setDisplayName] = useState("");
@@ -979,6 +982,18 @@ export default function OnboardingScreen({ onComplete }) {
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
+
+  // D33 — auto-advance the "You're all set" beat into Discover. A calm, fixed
+  // dwell (a touch shorter when reduced-motion is on) so it never lingers or
+  // feels like a gate; the user can also tap "Enter Spectrum" to go immediately.
+  const welcomeRef = useRef(null);
+  useEffect(() => {
+    if (!celebrating) return;
+    welcomeRef.current?.focus();
+    const ms = prefersReduced ? 1400 : 2600;
+    const id = setTimeout(() => onComplete(), ms);
+    return () => clearTimeout(id);
+  }, [celebrating, prefersReduced, onComplete]);
 
   // ── Validation per step ──────────────────────────────────────────────────────
 
@@ -1058,7 +1073,10 @@ export default function OnboardingScreen({ onComplete }) {
         commCadence,
         sensoryEnvironment,
       });
-      onComplete();
+      // D33 — show the calm "You're all set" beat instead of jumping straight
+      // into Discover. It auto-advances (and is skippable) below.
+      setSaving(false);
+      setCelebrating(true);
     } catch (e) {
       setError(e.message || "Something went wrong. Please try again.");
       setSaving(false);
@@ -1121,6 +1139,63 @@ export default function OnboardingScreen({ onComplete }) {
 
   const isLastStep = step === TOTAL_STEPS;
   const isOptionalStep = step >= 4; // steps 4 & 5 are optional / skippable
+
+  // D33 — "You're all set" arrival beat. Calm, low-stimulation: a soft spectrum
+  // mark, a warm line, and a quiet auto-advance. No confetti / sound / motion
+  // (reduced-motion shortens the dwell). Fully skippable via the button.
+  if (celebrating) {
+    const firstName = (displayName.trim().split(/\s+/)[0]) || "";
+    return (
+      <div style={page}>
+        <div
+          role="status"
+          aria-live="polite"
+          style={{ ...card, textAlign: "center", padding: "48px 28px" }}
+        >
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }} aria-hidden="true">
+            <Spectrum variant="progress" value={TOTAL_STEPS} count={TOTAL_STEPS} size={11} gap={6} />
+          </div>
+          <h1
+            ref={welcomeRef}
+            tabIndex={-1}
+            style={{
+              fontFamily: t.serif,
+              fontSize: 28,
+              fontWeight: 700,
+              margin: "0 0 12px",
+              color: t.text,
+              lineHeight: 1.25,
+              outline: "none",
+            }}
+          >
+            You're all set{firstName ? `, ${firstName}` : ""}.
+          </h1>
+          <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 28px", lineHeight: 1.6 }}>
+            Your profile is ready. Take your time — there's no rush here.
+          </p>
+          <button
+            type="button"
+            onClick={onComplete}
+            {...fContinue}
+            style={{
+              minHeight: 44,
+              padding: "12px 24px",
+              borderRadius: 12,
+              border: "none",
+              background: t.accentFill,
+              color: "#fff",
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              ...fContinue.style,
+            }}
+          >
+            Enter Spectrum
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={page}>

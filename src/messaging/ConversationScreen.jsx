@@ -222,7 +222,6 @@ function ReactionPills({ messageId, msgReactions, currentUserId, onToggle }) {
         display: "flex",
         flexWrap: "wrap",
         gap: 4,
-        marginTop: 4,
       }}
     >
       {entries.map(([emoji, data]) => {
@@ -881,12 +880,15 @@ function MessageBubble({
       </div>
 
       {/* Reaction pills — in tab order after the bubble, aligned to the bubble's
-          side (own→right, other→left) and inset past the avatar gutter. */}
+          side (own→right, other→left) and inset past the avatar gutter.
+          D18 — pull the pill up so it slightly overlaps the bubble's lower edge,
+          reading as attached to its message rather than floating below it. */}
       {msgReactions && (
         <div
           style={{
             maxWidth: "min(88%, 34rem)",
             marginLeft: isOwn ? 0 : OTHER_GUTTER,
+            marginTop: -10,
             display: "flex",
             justifyContent: isOwn ? "flex-end" : "flex-start",
           }}

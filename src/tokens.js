@@ -38,6 +38,10 @@ export const t = {
   // Dark amber fill for status pills carrying WHITE text ("Open"). Passes
   // ≥4.5:1 in both themes — `warning` is a lighter amber where white fails.
   warningFill: "var(--c-warningFill, #8A6508)",
+  // Warning-tinted BORDER with ≥3:1 non-text contrast (WCAG 1.4.11) on the
+  // banner backgrounds it edges (sand / surfaceAlt). Theme-aware: dark amber in
+  // light, lighter amber in dim. Use for borders, not fills. (D32)
+  warningBorder: "var(--c-warningBorder, #8A6508)",
   // Neutral gray fill for status pills carrying WHITE text ("Dismissed"/
   // "Withdrawn"). Passes ≥4.5:1 in both themes — `textMuted` fails as a fill in dim.
   mutedFill: "var(--c-mutedFill, #566860)",

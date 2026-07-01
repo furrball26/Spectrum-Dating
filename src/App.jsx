@@ -327,14 +327,23 @@ function applyTheme(prefs) {
 
 // Inline style overrides for the top-level app container based on prefs.
 // - high contrast: a root `filter` (global + safe).
-// - larger text: `zoom` enlarges everything proportionally (px inline styles
-//   won't scale via root font-size). Fixed-position sheets/dialogs render
-//   relative to the zoomed container, so this stays visually consistent.
-// - calm mode: flatten the page background to t.bg (drop decorative gradient).
+// - larger text: a `transform: scale` wrapper enlarges everything
+//   proportionally (px inline styles won't scale via root font-size). D4 — CSS
+//   `zoom` is a no-op in Firefox; `transform` works cross-browser. To keep the
+//   scaled container edge-aligned we pin the origin to the top-center and
+//   pre-shrink width by the inverse factor so the post-scale box refills the
+//   viewport (no horizontal clipping / centered as before). Fixed sheets/dialogs
+//   inside render relative to this transformed container, matching prior behavior.
+const LARGER_TEXT_SCALE = 1.15;
 function a11yWrapperStyle(prefs) {
   const style = {};
   if (prefs.highContrast) style.filter = "contrast(1.15)";
-  if (prefs.largerText) style.zoom = 1.15;
+  if (prefs.largerText) {
+    style.transform = `scale(${LARGER_TEXT_SCALE})`;
+    style.transformOrigin = "top center";
+    style.width = `${100 / LARGER_TEXT_SCALE}%`;
+    style.margin = "0 auto";
+  }
   if (prefs.reducedSensory) style.background = t.bg;
   return style;
 }
@@ -395,7 +404,13 @@ function VerifyResultBanner({ result, onDismiss }) {
             fontSize: 20,
             lineHeight: 1,
             cursor: "pointer",
-            padding: "4px 8px",
+            // D7 — 44px hit target (was ~28×20px) without enlarging the glyph.
+            width: 44,
+            height: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
             borderRadius: 6,
             ...f.style,
           }}
@@ -458,7 +473,8 @@ function VerifyEmailBanner({ onDismiss }) {
             {...fResend}
             style={{
               background: "none",
-              border: `1px solid ${t.warning}`,
+              // D32 — warningBorder ≥3:1 on the sand banner bg (was t.warning at 2.34:1).
+              border: `1px solid ${t.warningBorder}`,
               color: t.text,
               fontSize: 13,
               fontWeight: 600,
@@ -484,7 +500,13 @@ function VerifyEmailBanner({ onDismiss }) {
             fontSize: 20,
             lineHeight: 1,
             cursor: "pointer",
-            padding: "4px 8px",
+            // D7 — 44px hit target (was ~28×20px) without enlarging the glyph.
+            width: 44,
+            height: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
             borderRadius: 6,
             ...fDismiss.style,
           }}
@@ -974,7 +996,8 @@ export default function App() {
           role="status"
           style={{
             position: "fixed", top: 0, left: 0, right: 0, zIndex: 150,
-            background: t.surfaceAlt, borderBottom: `2px solid ${t.warning}`,
+            // D32 — warningBorder ≥3:1 on surfaceAlt (was t.warning at 2.86:1).
+            background: t.surfaceAlt, borderBottom: `2px solid ${t.warningBorder}`,
             color: t.text, textAlign: "center", padding: "8px 16px",
             fontSize: 14, fontWeight: 600,
           }}
