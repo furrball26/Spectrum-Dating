@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
-import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, uploadAttachmentIntent, confirmAttachment } from "../api.js";
+import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, uploadAttachmentIntent, confirmAttachment } from "../api.js";
 import { io } from "socket.io-client";
 import { t } from "../tokens.js";
+import { commChips } from "../commChips.js";
 import ErrorState from "../ErrorState.jsx";
 import Avatar from "../Avatar.jsx";
 import MatchProfileModal from "../MatchProfileModal.jsx";
@@ -897,6 +898,103 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef })
   );
 }
 
+// F11 — a calm "What to expect" card surfaced at the top of a conversation so
+// the anxious moment of starting a chat is more predictable. It shows the
+// matched person's already-available communication preferences (same chip
+// mapping as their profile) plus their "In their words" context card, framed
+// gently and with no pressure. Fully collapsible/dismissible; the collapsed
+// state persists per-conversation in localStorage.
+function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
+  const f = useFocusable();
+  const chips = commChips(profile);
+  const hasContext = !!(profile?.contextCard && profile.contextCard.trim());
+  // Nothing to show → render nothing (no empty card).
+  if (chips.length === 0 && !hasContext) return null;
+
+  const toggleButton = (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      style={{
+        background: "transparent",
+        border: `1px solid ${t.border}`,
+        borderRadius: 20,
+        color: t.accent,
+        padding: "6px 14px",
+        fontSize: 13,
+        fontFamily: t.sans,
+        cursor: "pointer",
+        minHeight: 36,
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      {collapsed ? "Show what to expect" : "Hide"}
+    </button>
+  );
+
+  if (collapsed) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: "0 0 12px" }}>
+        {toggleButton}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      aria-label={`What to expect from ${firstName}`}
+      style={{
+        margin: "0 0 16px",
+        padding: "14px 16px",
+        background: t.green50,
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 16,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+        <div style={{ fontFamily: t.serif, fontSize: 16, fontWeight: 700, color: t.text }}>
+          How {firstName} likes to talk
+        </div>
+        {toggleButton}
+      </div>
+
+      <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5, margin: "0 0 12px" }}>
+        Here's how {firstName} likes to connect — no pressure, take your time.
+      </p>
+
+      {chips.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: hasContext ? 12 : 0 }}>
+          {chips.map((c) => (
+            <span
+              key={c}
+              style={{
+                padding: "5px 13px",
+                borderRadius: 24,
+                fontSize: 13,
+                background: t.surface,
+                color: t.textSoft,
+                border: `1px solid ${t.border}`,
+              }}
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {hasContext && (
+        <div style={{ padding: "12px 16px", background: t.surface, borderRadius: 12, border: `1px solid ${t.borderLight}` }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>
+          <p style={{ fontStyle: "italic", color: t.text, margin: 0, lineHeight: 1.5 }}>"{profile.contextCard}"</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function ConversationScreen({
   conversationId,
   otherUser,
@@ -931,6 +1029,15 @@ export default function ConversationScreen({
   const [viewingProfile, setViewingProfile] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const headerMenuAnchorRef = useRef(null);
+
+  // F11 — "What to expect" card. Reuses the same match-gated profile fetch as
+  // MatchProfileModal (getUserProfile), so no redundant/extra data plumbing.
+  const [expectProfile, setExpectProfile] = useState(null);
+  const expectStorageKey = `spectrum_expect_collapsed_${conversationId}`;
+  const [expectCollapsed, setExpectCollapsed] = useState(() => {
+    try { return localStorage.getItem(`spectrum_expect_collapsed_${conversationId}`) === "1"; }
+    catch { return false; }
+  });
 
   // Security Fix 2 — consent-gate state
   const [consentGateFailed, setConsentGateFailed] = useState(false);
@@ -1001,6 +1108,24 @@ export default function ConversationScreen({
       .catch(() => setApiError('Could not load messages. Please try again.'))
       .finally(() => setApiLoading(false));
   }, [conversationId, reloadKey]);
+
+  // F11 — fetch the matched person's public profile for the "What to expect"
+  // card (comms preferences + context card). Same endpoint MatchProfileModal
+  // uses; match-gated server-side. Non-blocking: failure just hides the card.
+  useEffect(() => {
+    if (!otherUser?.userId) return;
+    let active = true;
+    getUserProfile(otherUser.userId)
+      .then((p) => { if (active) setExpectProfile(p); })
+      .catch(() => { if (active) setExpectProfile(null); });
+    return () => { active = false; };
+  }, [otherUser?.userId]);
+
+  // Persist the collapsed state per-conversation so a dismissed card stays hidden.
+  useEffect(() => {
+    try { localStorage.setItem(expectStorageKey, expectCollapsed ? "1" : "0"); }
+    catch { /* ignore storage failures */ }
+  }, [expectStorageKey, expectCollapsed]);
 
   // socket.io real-time updates
   useEffect(() => {
@@ -1412,6 +1537,18 @@ export default function ConversationScreen({
 
   const hasMessages = messages.length > 0;
 
+  // F11 — first name for the gentle framing; the card renders itself null when
+  // there's no comms/context data to show.
+  const expectFirstName = (otherUser.displayName || "").trim().split(/\s+/)[0] || otherUser.displayName;
+  const whatToExpectCard = (
+    <WhatToExpectCard
+      profile={expectProfile}
+      firstName={expectFirstName}
+      collapsed={expectCollapsed}
+      onToggle={() => setExpectCollapsed((v) => !v)}
+    />
+  );
+
   // Security Fix 3 — character counter
   const charsRemaining = MAX_BODY - composeValue.length;
   const showCharCounter = charsRemaining < CHAR_WARN_THRESHOLD;
@@ -1545,6 +1682,7 @@ export default function ConversationScreen({
       {/* Message log or empty state */}
       {!hasMessages && !started ? (
         <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+          <div style={{ padding: "16px 16px 0" }}>{whatToExpectCard}</div>
           <EmptyConversationState
             displayName={otherUser.displayName}
             conversationId={conversationId}
@@ -1592,6 +1730,9 @@ export default function ConversationScreen({
               ...logFocus.style,
             }}
           >
+            {/* F11 — "What to expect" card at the top of the thread */}
+            {whatToExpectCard}
+
             {/* Load-earlier button — only shown when the server reports more pages */}
             {hasMore && (
               <div style={{ textAlign: "center", padding: "4px 0 8px" }}>
