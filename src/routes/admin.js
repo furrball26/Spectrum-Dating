@@ -345,19 +345,4 @@ function userContext(db, userId) {
   };
 }
 
-// TEMP maintenance — hard-remove soft-deleted (tombstone) messages from a
-// conversation to tidy demo/sample threads. Also clears any attachments those
-// tombstones referenced. Remove after use.
-router.post('/_cleanup-tombstones/:conversationId', requireAuth, requireAdmin, (req, res) => {
-  const { db } = req.ctx;
-  const convId = req.params.conversationId;
-  const rows = db.prepare('SELECT id FROM messages WHERE conversation_id = ? AND deleted = 1').all(convId);
-  const ids = rows.map(r => r.id);
-  db.transaction(() => {
-    for (const id of ids) db.prepare('DELETE FROM message_attachments WHERE message_id = ?').run(id);
-    db.prepare('DELETE FROM messages WHERE conversation_id = ? AND deleted = 1').run(convId);
-  })();
-  res.json({ removed: ids.length });
-});
-
 export default router;
