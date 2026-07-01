@@ -233,10 +233,12 @@ function PromptCards({ prompts }) {
   );
 }
 
-function ReportModal({ candidate, onClose }) {
+function ReportModal({ candidate, onClose, onBlocked }) {
   const [reason, setReason] = useState("inappropriate");
   const [details, setDetails] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [blockFailed, setBlockFailed] = useState(false);
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -253,17 +255,32 @@ function ReportModal({ candidate, onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setBlockFailed(false);
     // Send the report to moderators (primary action)
     try {
       await reportUser(candidate.memberId, reason, details || undefined);
-    } catch {
-      // Best-effort — close regardless
+    } catch (err) {
+      console.warn("Report failed", err);
     }
-    // Also block so the reporter won't see this candidate again
+    // Also block so the reporter won't see this candidate again. blockUser
+    // canonicalises the reason to a valid block reason server-side.
+    let blocked = false;
     try {
       await blockUser(candidate.memberId, reason, details || undefined);
-    } catch {
-      // Best-effort
+      blocked = true;
+    } catch (err) {
+      console.warn("Block failed", err);
+    }
+    setSubmitting(false);
+    // Client-side fallback: keep the reported person out of the deck regardless
+    // of whether the block landed server-side.
+    if (onBlocked) onBlocked(candidate);
+    if (!blocked) {
+      // Don't promise they're gone if the block failed — offer a calm retry.
+      setBlockFailed(true);
+      return;
     }
     setSubmitted(true);
     setTimeout(onClose, 1200);
@@ -321,6 +338,23 @@ function ReportModal({ candidate, onClose }) {
             >
               Report {candidate.displayName}
             </h2>
+            {blockFailed && (
+              <div
+                role="alert"
+                style={{
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  marginBottom: 16,
+                  fontSize: 14,
+                  color: t.text,
+                  lineHeight: 1.5,
+                }}
+              >
+                We couldn't block them — please try again.
+              </div>
+            )}
             <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
               <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
                 Reason
@@ -392,19 +426,21 @@ function ReportModal({ candidate, onClose }) {
               </button>
               <button
                 type="submit"
+                disabled={submitting}
                 style={{
                   flex: 1,
                   minHeight: 48,
                   borderRadius: 12,
                   fontSize: 16,
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: submitting ? "not-allowed" : "pointer",
                   background: "#B94040",
                   color: "#fff",
                   border: "none",
+                  opacity: submitting ? 0.7 : 1,
                 }}
               >
-                Submit report
+                {submitting ? "Submitting…" : blockFailed ? "Try again" : "Submit report"}
               </button>
             </div>
           </form>
@@ -428,6 +464,10 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const [matchId, setMatchId] = useState(null);
   const [reportingCandidate, setReportingCandidate] = useState(null);
   const [undoing, setUndoing] = useState(false);
+  // In-flight guard against double-submit, and a calm retry surface for a
+  // failed "I'm interested" swipe (the one choice we must not silently lose).
+  const [submitting, setSubmitting] = useState(false);
+  const [swipeFailed, setSwipeFailed] = useState(null);
   const liveRef = useRef(null);
   const doneHeadingRef = useRef(null);
   const endHeadingRef = useRef(null);
@@ -509,8 +549,14 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
 
   async function handleInterested() {
     // Explicit action only — never triggered by focus, hover, or scroll (3.2.1 / 3.2.2).
+    if (submitting) return; // in-flight guard against double-submit
     const current = queue[index];
     if (!current) return;
+    setSubmitting(true);
+    setSwipeFailed(null);
+    // Optimistically advance the deck, but remember `current` so we can restore
+    // it to the FRONT if the server rejects the like — an interested swipe that
+    // silently vanishes is a broken promise, so we surface a calm retry instead.
     setLastChoice("interested");
     setLastPerson(current);
     setQueue(q => q.slice(1));
@@ -521,42 +567,66 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
         setMutual(true);
         setMatchId(result.matchId || null);
       }
+      setStage("confirmed");
     } catch {
-      // Swipe failed — already removed from queue, proceed gracefully
+      // Restore the candidate to the front of the deck and offer a retry so the
+      // "I'm interested" is never lost. Stay on the viewing stage.
+      setQueue(q => (q.some(c => c.memberId === current.memberId) ? q : [current, ...q]));
+      setSwipeFailed(current);
+      setLastChoice(null);
+      setLastPerson(null);
+    } finally {
+      setSubmitting(false);
     }
-    setStage("confirmed");
   }
 
   async function handleNotNow() {
     // Explicit action only — never triggered by focus, hover, or scroll (3.2.1 / 3.2.2).
+    if (submitting) return; // in-flight guard against double-submit
     const current = queue[index];
     if (!current) return;
+    setSubmitting(true);
     setLastChoice("not_now");
     setLastPerson(current);
     setQueue(q => q.slice(1));
     setIndex(0);
     try {
       await swipe(current.memberId, 'skip');
-    } catch {
-      // Swipe failed silently — queue already advanced
+    } catch (e) {
+      // A skip that fails to persist is low-harm (the person may simply reappear
+      // later), so we don't block the flow — but log it rather than swallow.
+      console.warn('Skip (not now) failed to persist', e);
+    } finally {
+      setSubmitting(false);
     }
     setStage("confirmed");
   }
 
   async function handleSkip() {
     // Explicit action only — never triggered by focus, hover, or scroll (3.2.1 / 3.2.2).
+    if (submitting) return; // in-flight guard against double-submit
     const current = queue[index];
     if (!current) return;
+    setSubmitting(true);
     setLastChoice("skip");
     setLastPerson(current);
     setQueue(q => q.slice(1));
     setIndex(0);
     try {
       await swipe(current.memberId, 'skip');
-    } catch {
-      // Swipe failed silently — queue already advanced, don't show error for a skip
+    } catch (e) {
+      // Skip is low-harm on failure; log rather than swallow silently.
+      console.warn('Skip failed to persist', e);
+    } finally {
+      setSubmitting(false);
     }
     setStage("confirmed");
+  }
+
+  // Retry a previously-failed "I'm interested" swipe from the viewing stage.
+  async function handleRetryInterested() {
+    setSwipeFailed(null);
+    await handleInterested();
   }
 
   function next() {
@@ -564,6 +634,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     setMatchId(null);
     setLastChoice(null);
     setLastPerson(null);
+    setSwipeFailed(null);
     setStage("viewing");
   }
 
@@ -714,6 +785,29 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
 
         {stage === "viewing" && (
           <>
+            {/* Calm retry surface for a failed "I'm interested" — the person is
+                restored to the front of the deck so nothing is lost. */}
+            {swipeFailed && person && swipeFailed.memberId === person.memberId && (
+              <div
+                role="alert"
+                style={{
+                  ...card,
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.border}`,
+                  boxShadow: "none",
+                  marginBottom: 16,
+                }}
+              >
+                <p style={{ margin: "0 0 12px", color: t.text, lineHeight: 1.6 }}>
+                  We couldn't save that you're interested in {swipeFailed.displayName}. Please try again.
+                </p>
+                <ActionButton
+                  label={submitting ? "Trying again…" : "Try again"}
+                  kind="interested"
+                  onClick={handleRetryInterested}
+                />
+              </div>
+            )}
             {/* Profile card — one person at a time. No grid, no auto-advance, no timer. */}
             <div style={card}>
 
@@ -961,6 +1055,12 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
         <ReportModal
           candidate={reportingCandidate}
           onClose={() => setReportingCandidate(null)}
+          onBlocked={(c) => {
+            // Client-side fallback: drop the reported person from the deck so
+            // they don't resurface this session, even if the block 400s.
+            setQueue(q => q.filter(p => p.memberId !== c.memberId));
+            setIndex(0);
+          }}
         />
       )}
     </div>

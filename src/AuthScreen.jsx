@@ -51,6 +51,18 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     headingRef.current?.focus();
   }, [mode]);
 
+  // Keep document.title in sync with the auth subview. The app-level title effect
+  // only tracks login/register, so the in-card toggle and the forgot-password /
+  // check-email subviews would otherwise leave a stale title.
+  useEffect(() => {
+    let sub;
+    if (mode === "check-email") sub = "Check your email";
+    else if (mode === "forgot") sub = forgotSent ? "Check your email" : "Reset your password";
+    else if (mode === "register") sub = "Create account";
+    else sub = "Sign in";
+    document.title = `${sub} · Spectrum`;
+  }, [mode, forgotSent]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");

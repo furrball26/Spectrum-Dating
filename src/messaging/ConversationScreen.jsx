@@ -188,7 +188,7 @@ function ReactionPills({ messageId, msgReactions, currentUserId, onToggle }) {
 }
 
 // Confirm delete dialog
-function DeleteConfirmDialog({ onConfirm, onCancel }) {
+function DeleteConfirmDialog({ onConfirm, onCancel, unsent = false }) {
   const cancelRef = useRef(null);
   const confirmRef = useRef(null);
 
@@ -251,10 +251,10 @@ function DeleteConfirmDialog({ onConfirm, onCancel }) {
           id="delete-dialog-heading"
           style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 700, margin: "0 0 12px", color: t.text }}
         >
-          Delete message?
+          {unsent ? "Discard unsent message?" : "Delete message?"}
         </h2>
         <p id="delete-dialog-desc" style={{ color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}>
-          Are you sure? This can't be undone.
+          {unsent ? "This message hasn't been sent yet." : "Are you sure? This can't be undone."}
         </p>
         <div style={{ display: "flex", gap: 12 }}>
           <button
@@ -297,7 +297,7 @@ function DeleteConfirmDialog({ onConfirm, onCancel }) {
             onFocus={fDelete.onFocus}
             onBlur={fDelete.onBlur}
           >
-            Delete
+            {unsent ? "Discard" : "Delete"}
           </button>
         </div>
       </div>
@@ -853,7 +853,7 @@ export default function ConversationScreen({
         msgs.forEach(msg => {
           if (msg.reactions && msg.reactions.length > 0) {
             const emojiMap = {};
-            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
+            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
             rxMap[msg.id] = emojiMap;
           }
         });
@@ -899,7 +899,7 @@ export default function ConversationScreen({
 
     socket.on("reaction_update", ({ messageId, reactions }) => {
       const emojiMap = {};
-      (reactions || []).forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
+      (reactions || []).forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
       setReactions(prev => ({ ...prev, [messageId]: emojiMap }));
     });
 
@@ -965,7 +965,7 @@ export default function ConversationScreen({
       // Update with authoritative server state
       const reactionMap = {};
       (result.reactions || []).forEach(r => {
-        reactionMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted };
+        reactionMap[r.emoji] = { count: r.count, youReacted: r.userReacted };
       });
       setReactions(prev => ({ ...prev, [messageId]: reactionMap }));
     } catch {
@@ -1161,6 +1161,14 @@ export default function ConversationScreen({
   async function handleConfirmDelete() {
     const targetId = pendingDeleteId;
     setPendingDeleteId(null);
+    // Unsent (temp-) messages exist only client-side — they were never persisted,
+    // so there's nothing to DELETE. Remove the row outright and stop (a server
+    // call would 404 on the fabricated id).
+    if (typeof targetId === "string" && targetId.startsWith("temp-")) {
+      setMessages(prev => prev.filter(m => m.id !== targetId));
+      composeRef.current?.focus();
+      return;
+    }
     // Optimistic update
     setMessages(prev => prev.map(m => m.id === targetId ? { ...m, deleted: true, body: null } : m));
     requestAnimationFrame(() => {
@@ -1213,7 +1221,7 @@ export default function ConversationScreen({
         olderMsgs.forEach(msg => {
           if (msg.reactions && msg.reactions.length > 0) {
             const emojiMap = {};
-            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted ?? r.youReacted }; });
+            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
             rxMap[msg.id] = emojiMap;
           }
         });
@@ -1798,6 +1806,7 @@ export default function ConversationScreen({
         <DeleteConfirmDialog
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
+          unsent={typeof pendingDeleteId === "string" && pendingDeleteId.startsWith("temp-")}
         />
       )}
     </div>

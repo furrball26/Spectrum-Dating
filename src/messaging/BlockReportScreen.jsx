@@ -43,6 +43,8 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
 
   const fBack = useFocusable();
@@ -59,12 +61,28 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
     }
   }, [submitted]);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!reason) return;
+    if (!reason || submitting) return;
+    setFailed(false);
+    setSubmitting(true);
+    // Only confirm "you will not see them again" once the block actually lands.
+    let result;
+    try {
+      result = onSubmit ? await onSubmit({ reason, details }) : { blocked: true };
+    } catch {
+      result = { blocked: false };
+    }
+    setSubmitting(false);
+    // Treat a missing/undefined result as success for backward-compatibility
+    // with callers that don't return a status.
+    if (result && result.blocked === false) {
+      setFailed(true);
+      setStatusMsg(`We couldn't block ${displayName}. Please try again.`);
+      return;
+    }
     setSubmitted(true);
     setStatusMsg(`You have blocked and reported ${displayName}. You will not see them again.`);
-    if (onSubmit) onSubmit({ reason, details });
   }
 
   return (
@@ -173,6 +191,23 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
               boxShadow: "0 2px 8px rgba(36,51,45,0.07)",
             }}
           >
+            {failed && (
+              <div
+                role="alert"
+                style={{
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  marginBottom: 20,
+                  fontSize: 15,
+                  color: t.text,
+                  lineHeight: 1.5,
+                }}
+              >
+                We couldn't block {displayName} — please try again.
+              </div>
+            )}
             <fieldset
               style={{
                 border: "none",
@@ -252,14 +287,14 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
 
             <button
               type="submit"
-              disabled={!reason}
+              disabled={!reason || submitting}
               style={{
                 width: "100%",
                 minHeight: 52,
                 borderRadius: 14,
                 fontSize: 17,
                 fontWeight: 600,
-                cursor: reason ? "pointer" : "not-allowed",
+                cursor: reason && !submitting ? "pointer" : "not-allowed",
                 background: reason ? t.danger : t.borderLight,
                 color: reason ? "#fff" : t.textMuted,
                 border: "none",
@@ -268,7 +303,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
               onFocus={fSubmit.onFocus}
               onBlur={fSubmit.onBlur}
             >
-              Block and report
+              {submitting ? "Blocking…" : failed ? "Try again" : "Block and report"}
             </button>
           </form>
         )}

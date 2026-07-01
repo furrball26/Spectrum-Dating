@@ -11,7 +11,7 @@ import AuthScreen from "./AuthScreen.jsx";
 import LandingScreen from "./LandingScreen.jsx";
 import OnboardingScreen from "./OnboardingScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
-import { isLoggedIn, clearAuth, getToken, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
+import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
@@ -877,9 +877,20 @@ export default function App() {
       transports: ["websocket"],
     });
 
-    socket.on("new_message", () => {
+    socket.on("new_message", (payload) => {
+      // Don't count the user's own sent messages — the badge tracks messages
+      // *received* while away from the Messages tab.
+      if (payload?.message?.senderId === getUserId()) return;
       if (activeTabRef.current !== "messages") {
         setUnreadCount(prev => prev + 1);
+      }
+    });
+
+    // Realtime new-match signal — bump the Matches tab activity badge when a
+    // mutual match lands while the user is elsewhere. Mirrors new_message.
+    socket.on("new_match", () => {
+      if (activeTabRef.current !== "matches") {
+        setActivityCount(prev => prev + 1);
       }
     });
 

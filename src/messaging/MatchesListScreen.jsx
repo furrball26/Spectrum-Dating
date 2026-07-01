@@ -249,6 +249,9 @@ export default function MatchesListScreen({
   onArchive,
   selectedConversationId = null,
   plainLanguage = false,
+  // Server-authoritative active-conversation cap (falls back to the module
+  // default if the server didn't send one).
+  activeCap = CONVERSATION_CAP,
   // ─── Archived view ─────────────────────────────────────────────────────────
   showingArchived = false,
   archivedConversations = [],
@@ -415,7 +418,7 @@ export default function MatchesListScreen({
   const newMatches = conversations.filter((m) => !m.started);
   const conversationCount = active.length;
 
-  const capReached = conversationCount >= CONVERSATION_CAP;
+  const capReached = conversationCount >= activeCap;
 
   // Filtering logic — computed from query state
   const trimmedQuery = query.trim().toLowerCase();
@@ -586,7 +589,7 @@ export default function MatchesListScreen({
           <>
             <SectionList
               title="Active conversations"
-              subtitle={active.length > 0 ? `${conversationCount} / ${CONVERSATION_CAP}` : undefined}
+              subtitle={active.length > 0 ? `${conversationCount} / ${activeCap}` : undefined}
               matches={active}
               onSelectConversation={onSelectConversation}
               showArchive={capReached}
@@ -610,7 +613,7 @@ export default function MatchesListScreen({
                   lineHeight: 1.5,
                 }}
               >
-                You have {CONVERSATION_CAP} active conversations. Archive one to start a new one.
+                You have {activeCap} active conversations. Archive one to start a new one.
               </div>
             )}
 

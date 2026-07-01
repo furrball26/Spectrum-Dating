@@ -197,13 +197,16 @@ export async function unmatchConversation(matchId) {
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
 function normaliseConversationList(arr) {
-  return arr.map(c => ({
+  return arr.map(({ hasUnread, ...c }) => ({
     ...c,
     // The list UI keys/selects/archives on `conversationId`, but the server
     // returns the conversation under `id` — alias it so row clicks resolve.
     conversationId: c.conversationId ?? c.id,
     lastMessageLabel: c.lastMessageLabel ?? c.lastMessageGroup ?? null,
-    unread: c.unread ?? c.hasUnread ?? false,
+    // Canonical unread flag: map the server's `hasUnread` into `unread` here so
+    // every consumer reads one field. The raw `hasUnread` is intentionally not
+    // spread through — `unread` is the single source of truth.
+    unread: c.unread ?? hasUnread ?? false,
     started: c.started ?? (c.lastMessageGroup != null),
   }));
 }
@@ -215,6 +218,8 @@ export async function getConversations() {
   return {
     conversations: normaliseConversationList(arr),
     archivedCount: data?.archivedCount ?? 0,
+    // Server-authoritative active-conversation cap (falls back to 5 if absent).
+    activeCap: data?.activeCap ?? 5,
   };
 }
 
@@ -230,7 +235,7 @@ export async function unarchiveConversation(conversationId) {
 
 export async function getConversation(id, { limit, before } = {}) {
   const params = new URLSearchParams();
-  if (limit) params.set('limit', String(limit));
+  if (limit != null) params.set('limit', String(limit));
   if (before) params.set('before', before);
   const qs = params.toString();
   return apiFetch(`/messaging/conversations/${id}${qs ? `?${qs}` : ''}`);
@@ -268,10 +273,25 @@ export async function markConversationRead(conversationId) {
   return apiFetch(`/messaging/conversations/${conversationId}/read`, { method: 'PUT' });
 }
 
+// The block endpoint only accepts a fixed set of reasons
+// (harassment, spam, fake_profile, other). Report reasons are free-text and
+// include values the block endpoint rejects (e.g. "inappropriate"), which would
+// 400 and — historically — silently fail to block. Canonicalise here at the one
+// boundary so every caller's block succeeds regardless of the report reason.
+const VALID_BLOCK_REASONS = new Set(["harassment", "spam", "fake_profile", "other"]);
+export function canonicalBlockReason(reason) {
+  if (VALID_BLOCK_REASONS.has(reason)) return reason;
+  // Map known report-only reasons to the closest valid block reason.
+  if (reason === "fake") return "fake_profile";
+  // Everything else (including "inappropriate") falls back to "other" so the
+  // block still lands.
+  return "other";
+}
+
 export async function blockUser(blockedUserId, reason, details) {
   return apiFetch("/messaging/block", {
     method: "POST",
-    body: { blockedUserId, reason, details },
+    body: { blockedUserId, reason: canonicalBlockReason(reason), details },
   });
 }
 

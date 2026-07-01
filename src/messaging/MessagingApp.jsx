@@ -24,16 +24,19 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
   const [archivedConversations, setArchivedConversations] = useState([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
   const [archivedCount, setArchivedCount] = useState(0);
+  // Server-authoritative active-conversation cap (default 5 until first load).
+  const [activeCap, setActiveCap] = useState(5);
 
   useEffect(() => {
     setLoadingConvs(true);
     setConvsLoadFailed(false);
     getConversations()
-      .then(({ conversations: arr, archivedCount: count }) => {
+      .then(({ conversations: arr, archivedCount: count, activeCap: cap }) => {
         setConversations(arr);
         setArchivedCount(count);
+        if (cap != null) setActiveCap(cap);
         if (onUnreadCount) {
-          onUnreadCount(arr.filter(c => c.hasUnread).length);
+          onUnreadCount(arr.filter(c => c.unread).length);
         }
       })
       .catch(() => setConvsLoadFailed(true))
@@ -77,14 +80,14 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
       setArchivedLoading(true);
       getArchivedConversations()
         .then(arr => setArchivedConversations(arr))
-        .catch(() => {}) // non-fatal — show empty state
+        .catch((e) => console.warn("Load archived failed", e)) // non-fatal — show empty state
         .finally(() => setArchivedLoading(false));
     }
     setShowingArchived(prev => !prev);
   }
 
   async function handleUnarchive(conversationId) {
-    try { await unarchiveConversation(conversationId); } catch {}
+    try { await unarchiveConversation(conversationId); } catch (e) { console.warn("Unarchive failed", e); }
     // Remove from the archived list immediately
     setArchivedConversations(prev => prev.filter(c => c.id !== conversationId));
     setArchivedCount(prev => Math.max(0, prev - 1));
@@ -95,7 +98,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
   function handleSelectConversation(conversationId) {
     setSelectedConversationId(conversationId);
     setScreen("conversation");
-    markConversationRead(conversationId).catch(() => {});
+    markConversationRead(conversationId).catch((e) => console.warn("Mark-read failed", e));
   }
 
   function handleBackToList() {
@@ -117,7 +120,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
       // to archiving if matchId is somehow missing.
       if (matchId) await unmatchConversation(matchId);
       else await archiveConversation(selectedConversationId);
-    } catch {}
+    } catch (e) { console.warn("Unmatch failed", e); }
     setConversations(prev => prev.filter(c => c.id !== selectedConversationId));
     setMatchesStatusMessage(`You unmatched with ${name}.`);
     handleBackToList();
@@ -133,21 +136,40 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
 
   async function handleBlockReportSubmit({ reason, details }) {
     const name = currentConvo?.otherUser?.displayName || "this person";
-    const otherUserId = currentConvo.otherUser.userId;
+    // Optional-chain the id — the async handler can fire after currentConvo nulls.
+    const otherUserId = currentConvo?.otherUser?.userId;
+    const convId = selectedConversationId;
+    if (!otherUserId) {
+      // Nothing to act on — signal failure so the screen keeps them informed.
+      return { blocked: false };
+    }
+    let blocked = false;
     try {
       await blockUser(otherUserId, reason, details);
-    } catch {}
+      blocked = true;
+    } catch (e) {
+      console.warn("Block failed", e);
+    }
     // Also surface the report to moderators (best-effort, independent of block)
     try {
-      await reportUser(otherUserId, reason, details, currentConvo.id);
-    } catch {}
-    setConversations(prev => prev.filter(c => c.id !== selectedConversationId));
-    setMatchesStatusMessage(`You blocked and reported ${name}.`);
-    handleBackToList();
+      await reportUser(otherUserId, reason, details, convId);
+    } catch (e) {
+      console.warn("Report failed", e);
+    }
+    // Client-side fallback: whether or not the block landed server-side, drop
+    // the conversation from the list so the user isn't confronted with it again
+    // this session.
+    setConversations(prev => prev.filter(c => c.id !== convId));
+    if (blocked) {
+      setMatchesStatusMessage(`You blocked and reported ${name}.`);
+      handleBackToList();
+    }
+    // On failure, stay on the screen so it can show a calm retry message.
+    return { blocked };
   }
 
   async function handleArchive(conversationId) {
-    try { await archiveConversation(conversationId); } catch {}
+    try { await archiveConversation(conversationId); } catch (e) { console.warn("Archive failed", e); }
     setConversations(prev => prev.filter(c => c.id !== conversationId));
   }
 
@@ -165,6 +187,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
       statusMessage={matchesStatusMessage}
       onArchive={handleArchive}
       conversationCount={conversations.filter(c => c.started).length}
+      activeCap={activeCap}
       selectedConversationId={isDesktop ? selectedConversationId : null}
       plainLanguage={plainLanguage}
       showingArchived={showingArchived}

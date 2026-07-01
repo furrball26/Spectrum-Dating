@@ -684,12 +684,16 @@ export default function OnboardingScreen({ onComplete }) {
     setSaving(true);
     setError("");
     try {
+      // Canonicalise interest case at this one boundary — server-side
+      // shared-interest matching is case-sensitive, so "Hiking" and "hiking"
+      // must not drift. Lowercase + dedupe before persisting.
+      const canonicalInterests = [...new Set(interests.map((i) => i.trim().toLowerCase()).filter(Boolean))];
       await updateProfile({
         displayName: displayName.trim(),
         tagline,
         dateOfBirth,
         bio,
-        interests,
+        interests: canonicalInterests,
         commNote,
         relationshipGoal,
       });
