@@ -22,6 +22,7 @@ import adminRouter from './routes/admin.js';
 import feedbackRouter from './routes/feedback.js';
 import { configurePush } from './push/webpush.js';
 import { scheduleBackups } from './backup/scheduler.js';
+import { scheduleWeeklyDigest } from './email/digest-scheduler.js';
 import { maybeResetPassword } from './maintenance/reset-password.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -106,6 +107,7 @@ const io = setupSocketIO(httpServer, db);
 app.locals.io = io;
 configurePush();
 scheduleBackups(db);
+scheduleWeeklyDigest(db);
 maybeResetPassword(db);
 
 httpServer.listen(PORT, () => console.log(`Spectrum Dating server on :${PORT}`));

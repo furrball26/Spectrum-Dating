@@ -92,6 +92,7 @@ router.get('/me', requireAuth, (req, res) => {
     prefAgeMin: profile.pref_age_min ?? 18,
     prefAgeMax: profile.pref_age_max ?? 99,
     notificationTier: profile.notification_tier,
+    weeklyDigest: !!profile.weekly_digest,
     photoUrl: profile.photo_url || '',
     photos: listPhotos(db, userId),
     dateOfBirth: profile.date_of_birth || '',
@@ -338,6 +339,8 @@ router.put('/me', requireAuth, (req, res) => {
     dbMustBeLocal: 'db_must_be_local',
     // Pause/snooze: 1 hides the user from others' Discover; they keep full app access.
     paused: 'paused',
+    // F6 weekly digest opt-in (OFF by default). Only opted-in users are mailed.
+    weeklyDigest: 'weekly_digest',
   };
 
   const setClauses = [];
@@ -396,6 +399,7 @@ router.put('/me', requireAuth, (req, res) => {
     prefAgeMin: profile.pref_age_min ?? 18,
     prefAgeMax: profile.pref_age_max ?? 99,
     notificationTier: profile.notification_tier,
+    weeklyDigest: !!profile.weekly_digest,
     photoUrl: profile.photo_url || '',
     dateOfBirth: profile.date_of_birth || '',
     age: profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null,
