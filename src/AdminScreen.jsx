@@ -342,7 +342,8 @@ function ReportCard({ report, onRefresh, onStatus }) {
               border: `1px solid ${t.formBorder}`,
               background: t.surface,
               color: t.text,
-              fontSize: 14,
+              // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+              fontSize: 16,
               ...fSelect.style,
             }}
             onFocus={fSelect.onFocus}
@@ -370,7 +371,8 @@ function ReportCard({ report, onRefresh, onStatus }) {
             border: `1px solid ${t.formBorder}`,
             borderRadius: 10,
             padding: "10px 12px",
-            fontSize: 14,
+            // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+            fontSize: 16,
             color: t.text,
             background: t.bg,
             resize: "vertical",

@@ -508,7 +508,8 @@ export default function SafetyScreen({ onBack }) {
     boxSizing: "border-box",
     minHeight: 44,
     padding: "10px 12px",
-    fontSize: 15,
+    // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+    fontSize: 16,
     color: t.text,
     background: t.surface,
     border: `1px solid ${t.formBorder}`,

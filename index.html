@@ -141,6 +141,12 @@
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }
       html, body, #root { height: 100%; margin: 0; }
+      /* Remove the ~300ms double-tap-to-zoom gesture (a common source of
+         accidental zoom that then leaves the layout stuck mid-zoom) WITHOUT
+         disabling pinch-to-zoom. `manipulation` keeps panning + pinch-zoom and
+         only drops double-tap-zoom + tap-delay — so WCAG 1.4.4 zoom is intact
+         (no user-scalable=no / maximum-scale here — see the viewport meta). */
+      #root { touch-action: manipulation; }
       /* Lock the page to vertical scrolling only — no horizontal scrollbar and
          no left/right rubber-band / two-finger swipe-to-navigate pull. */
       html, body {

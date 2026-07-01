@@ -245,7 +245,8 @@ function FeedbackSection() {
           border: `1px solid ${t.formBorder}`,
           borderRadius: 11,
           padding: "12px 14px",
-          fontSize: 15,
+          // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+          fontSize: 16,
           color: t.text,
           background: t.bg,
           resize: "vertical",

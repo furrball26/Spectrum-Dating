@@ -150,7 +150,8 @@ function PrivateNote({ matchId, note, onSaved }) {
           width: "100%",
           boxSizing: "border-box",
           fontFamily: t.sans,
-          fontSize: 14,
+          // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+          fontSize: 16,
           color: t.text,
           background: t.surface,
           border: `1px solid ${t.border}`,

@@ -569,7 +569,8 @@ export default function MatchesListScreen({
                   width: "100%",
                   boxSizing: "border-box",
                   padding: query ? "10px 44px 10px 14px" : "10px 14px",
-                  fontSize: 15,
+                  // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+                  fontSize: 16,
                   fontFamily: t.sans,
                   color: t.text,
                   background: t.surface,

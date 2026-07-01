@@ -269,7 +269,8 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
     padding: "10px 12px",
     border: `1.5px solid ${t.formBorder}`,
     borderRadius: 10,
-    fontSize: 15,
+    // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+    fontSize: 16,
     color: t.text,
     background: t.surface,
     fontFamily: t.sans,

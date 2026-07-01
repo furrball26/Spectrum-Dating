@@ -501,7 +501,8 @@ function ReportModal({ candidate, onClose, onBlocked }) {
                   border: `1px solid ${t.border}`,
                   borderRadius: 10,
                   padding: "8px 12px",
-                  fontSize: 15,
+                  // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+                  fontSize: 16,
                   color: t.text,
                   fontFamily: t.sans,
                   resize: "none",
