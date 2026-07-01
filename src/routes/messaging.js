@@ -623,4 +623,41 @@ router.get('/my-reports', requireAuth, (req, res) => {
   res.json({ reports });
 });
 
+// ---------------------------------------------------------------------------
+// POST /messaging/reports/:id/withdraw — let the reporter take back a report
+// they filed in error. Only the reporter may withdraw, and only while the
+// report is still 'open' (not yet reviewed/actioned/dismissed). We soft-set
+// status = 'withdrawn' (keep the row for audit; never hard-delete). A
+// withdrawn report drops out of the admin OPEN queue automatically.
+// ---------------------------------------------------------------------------
+
+router.post('/reports/:id/withdraw', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+
+  const report = db.prepare(
+    'SELECT id, reporter_id, status FROM reports WHERE id = ?'
+  ).get(req.params.id);
+
+  // Same 404 for "not found" and "not yours" — don't disclose existence.
+  if (!report || report.reporter_id !== userId) {
+    return res.status(404).json({ error: 'Report not found' });
+  }
+  if (report.status !== 'open') {
+    return res.status(409).json({ error: 'This report has already been reviewed' });
+  }
+
+  db.prepare(`UPDATE reports SET status = 'withdrawn' WHERE id = ?`).run(req.params.id);
+
+  // Moderation audit trail — append-only, mirrors admin.js logMod().
+  try {
+    db.prepare(
+      'INSERT INTO moderation_log (id, actor_id, action, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(newId(), userId, 'withdraw_report', req.params.id, '', Date.now());
+  } catch {
+    // Never fail the withdraw just because the audit insert hiccuped.
+  }
+
+  res.json({ ok: true, status: 'withdrawn' });
+});
+
 export default router;
