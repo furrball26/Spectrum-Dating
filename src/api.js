@@ -330,11 +330,37 @@ export async function getAdminReports(status = 'open') {
     reportedName: r.reported?.displayName || r.reportedName || '',
     reportedEmail: r.reported?.email || r.reportedEmail || '',
     reportedSuspended: r.reported?.suspended ?? r.reportedSuspended ?? false,
+    reportedVerified: r.reported?.verified ?? r.reportedVerified ?? false,
   }));
 }
 
 export async function resolveReport(id, status, note) { return apiFetch(`/admin/reports/${id}/resolve`, { method: 'POST', body: { status, note } }); }
 export async function suspendUser(userId, suspended) { return apiFetch(`/admin/users/${userId}/suspend`, { method: 'POST', body: { suspended } }); }
+
+// F1 — identity-verification action on a member (from the report context).
+// POST /admin/users/:id/verify { verified } → { ok, verified }
+export async function verifyUser(userId, verified) {
+  return apiFetch(`/admin/users/${userId}/verify`, { method: 'POST', body: { verified } });
+}
+
+// F2 — moderation audit log. GET /admin/audit-log
+// → { log: [{ id, action, targetId, detail, createdAt, actor }] } (newest first).
+export async function getAuditLog() {
+  const d = await apiFetch('/admin/audit-log');
+  return Array.isArray(d?.log) ? d.log : [];
+}
+
+// F3 — feedback (member submit). POST /feedback { message } (≤2000 chars).
+export async function submitFeedback(message) {
+  return apiFetch('/feedback', { method: 'POST', body: { message } });
+}
+
+// F3 — feedback inbox (admin). GET /admin/feedback
+// → { feedback: [{ id, userEmail, message, createdAt }] } (newest first).
+export async function getAdminFeedback() {
+  const d = await apiFetch('/admin/feedback');
+  return Array.isArray(d?.feedback) ? d.feedback : [];
+}
 
 // Backend stats use total*/suspendedUsers keys; AdminScreen reads users/suspended/etc.
 export async function getAdminStats() {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment } from "./api.js";
+import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, verifyUser, getAuditLog, getAdminFeedback } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
@@ -194,6 +194,8 @@ function ReportCard({ report, onRefresh, onStatus }) {
   const [busy, setBusy] = useState(false);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
   const [localError, setLocalError] = useState("");
+  const [verified, setVerified] = useState(!!report.reportedVerified);
+  const [verifyBusy, setVerifyBusy] = useState(false);
   const fNote = useFocusable();
   const fSelect = useFocusable();
 
@@ -211,6 +213,25 @@ function ReportCard({ report, onRefresh, onStatus }) {
       setLocalError("Couldn't update this report. Please try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleVerifyToggle(nextVerified) {
+    setVerifyBusy(true);
+    setLocalError("");
+    try {
+      const res = await verifyUser(report.reportedId, nextVerified);
+      const applied = res?.verified ?? nextVerified;
+      setVerified(!!applied);
+      onStatus(
+        applied
+          ? `${report.reportedName || "This member"} is now verified.`
+          : `Verification removed from ${report.reportedName || "this member"}.`
+      );
+    } catch {
+      setLocalError("Couldn't update verification. Please try again.");
+    } finally {
+      setVerifyBusy(false);
     }
   }
 
@@ -268,8 +289,13 @@ function ReportCard({ report, onRefresh, onStatus }) {
         </span>
       </div>
 
-      {report.reportedEmail && (
-        <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>{report.reportedEmail}</div>
+      {(report.reportedEmail || verified) && (
+        <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {report.reportedEmail && <span>{report.reportedEmail}</span>}
+          {verified && (
+            <span style={{ color: t.accentStrong, fontWeight: 600 }}>✓ Verified</span>
+          )}
+        </div>
       )}
 
       {/* Reason + details */}
@@ -388,6 +414,19 @@ function ReportCard({ report, onRefresh, onStatus }) {
         ) : (
           <PlainButton kind="quiet" onClick={() => setConfirmSuspend(true)} disabled={busy}>
             Suspend {report.reportedName}
+          </PlainButton>
+        )}
+      </div>
+
+      {/* Identity verification (F1) — acts on the reported member in-context */}
+      <div style={{ marginTop: 12 }}>
+        {verified ? (
+          <PlainButton kind="quiet" onClick={() => handleVerifyToggle(false)} disabled={verifyBusy}>
+            Remove verification
+          </PlainButton>
+        ) : (
+          <PlainButton kind="neutral" onClick={() => handleVerifyToggle(true)} disabled={verifyBusy}>
+            Mark verified
           </PlainButton>
         )}
       </div>
@@ -551,9 +590,196 @@ function PhotoReviewQueue({ onStatus }) {
   );
 }
 
+// --- Activity log (F2) ---
+// Read-only moderation audit trail. Newest first. Calm rows: action · actor ·
+// target · time · detail. Reuses the shared skeleton / error / empty patterns.
+function AuditLogSkeleton() {
+  return (
+    <div aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 14,
+            padding: "16px 18px",
+            marginBottom: 10,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <Skeleton width="45%" height={15} />
+          <Skeleton width="70%" height={13} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AuditLogView() {
+  const [log, setLog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError("");
+    getAuditLog()
+      .then((data) => setLog(Array.isArray(data) ? data : []))
+      .catch(() => setError("Couldn't load the activity log. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <AuditLogSkeleton />;
+  if (error) {
+    return (
+      <ErrorState
+        title="Couldn't load the activity log"
+        message="Something went wrong on our end. Please try again."
+        onRetry={load}
+      />
+    );
+  }
+  if (log.length === 0) {
+    return (
+      <div
+        style={{
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 16,
+          padding: "28px 24px",
+          textAlign: "center",
+          color: t.textSoft,
+        }}
+      >
+        No moderation activity yet.
+      </div>
+    );
+  }
+  return (
+    <ul style={{ margin: 0, padding: 0 }}>
+      {log.map((entry) => (
+        <li
+          key={entry.id}
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 14,
+            padding: "16px 18px",
+            marginBottom: 10,
+            listStyle: "none",
+            boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: t.text, textTransform: "capitalize" }}>
+              {String(entry.action || "action").replace(/_/g, " ")}
+            </span>
+            <span style={{ fontSize: 12, color: t.textMuted }}>{formatTimestamp(entry.createdAt)}</span>
+          </div>
+          <div style={{ fontSize: 13, color: t.textSoft, marginTop: 6, lineHeight: 1.5 }}>
+            <span>{entry.actor || "Unknown admin"}</span>
+            {entry.targetId != null && entry.targetId !== "" && (
+              <>
+                <span aria-hidden="true" style={{ color: t.textMuted, margin: "0 8px" }}>·</span>
+                <span>target {entry.targetId}</span>
+              </>
+            )}
+          </div>
+          {entry.detail && (
+            <p style={{ margin: "8px 0 0", fontSize: 14, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {entry.detail}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// --- Feedback inbox (F3) ---
+// Read-only list of member feedback. Newest first. userEmail may be null.
+function FeedbackInbox() {
+  const [feedback, setFeedback] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError("");
+    getAdminFeedback()
+      .then((data) => setFeedback(Array.isArray(data) ? data : []))
+      .catch(() => setError("Couldn't load feedback. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <AuditLogSkeleton />;
+  if (error) {
+    return (
+      <ErrorState
+        title="Couldn't load feedback"
+        message="Something went wrong on our end. Please try again."
+        onRetry={load}
+      />
+    );
+  }
+  if (feedback.length === 0) {
+    return (
+      <div
+        style={{
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 16,
+          padding: "28px 24px",
+          textAlign: "center",
+          color: t.textSoft,
+        }}
+      >
+        No feedback yet.
+      </div>
+    );
+  }
+  return (
+    <ul style={{ margin: 0, padding: 0 }}>
+      {feedback.map((item) => (
+        <li
+          key={item.id}
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 16,
+            padding: "18px 20px",
+            marginBottom: 12,
+            listStyle: "none",
+            boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>
+              {item.userEmail || "Anonymous member"}
+            </span>
+            <span style={{ fontSize: 12, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</span>
+          </div>
+          <p style={{ margin: "10px 0 0", fontSize: 15, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+            {item.message}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "photos", label: "Photo review" },
+  { value: "feedback", label: "Feedback" },
+  { value: "activity", label: "Activity log" },
 ];
 
 function TabButton({ label, active, onClick }) {
@@ -694,6 +920,10 @@ export default function AdminScreen() {
 
         {activeTab === "photos" ? (
           <PhotoReviewQueue onStatus={setStatusMsg} />
+        ) : activeTab === "feedback" ? (
+          <FeedbackInbox />
+        ) : activeTab === "activity" ? (
+          <AuditLogView />
         ) : (
           <>
         {/* Filter */}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
+import { submitFeedback } from "./api.js";
 
 // Accessibility settings — frontend-only. Prefs persist in localStorage under
 // `spectrum_a11y` and are applied globally by App.jsx. This screen just lets the
@@ -211,6 +212,115 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
   );
 }
 
+const FEEDBACK_MAX = 2000;
+
+// F3 — member-facing feedback. A small, calm "tell us what felt wrong" surface.
+// No pressure: plain language, optional, gentle success + graceful error.
+function FeedbackSection() {
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [errorMsg, setErrorMsg] = useState("");
+  const f = useFocusable();
+
+  const trimmed = message.trim();
+  const canSend = trimmed.length > 0 && status !== "sending";
+
+  async function handleSend() {
+    if (!canSend) return;
+    setStatus("sending");
+    setErrorMsg("");
+    try {
+      await submitFeedback(trimmed);
+      setStatus("sent");
+      setMessage("");
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(
+        err?.status === 429
+          ? "You've sent feedback recently. Please try again a little later."
+          : "We couldn't send that just now. Please try again."
+      );
+    }
+  }
+
+  return (
+    <div style={{ ...cardStyle, padding: "18px 18px" }}>
+      <label
+        htmlFor="feedback-message"
+        style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}
+      >
+        Tell us what felt wrong
+      </label>
+      <p style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+        If something felt confusing, uncomfortable, or off, we'd like to know.
+        This goes straight to our team. No pressure — share as much or as little
+        as you like.
+      </p>
+      <textarea
+        id="feedback-message"
+        value={message}
+        onChange={(e) => {
+          setMessage(e.target.value.slice(0, FEEDBACK_MAX));
+          if (status !== "idle") setStatus("idle");
+        }}
+        maxLength={FEEDBACK_MAX}
+        rows={4}
+        placeholder="What's on your mind?"
+        {...f}
+        style={{
+          width: "100%",
+          border: `1px solid ${t.formBorder}`,
+          borderRadius: 11,
+          padding: "12px 14px",
+          fontSize: 15,
+          color: t.text,
+          background: t.bg,
+          resize: "vertical",
+          fontFamily: t.sans,
+          lineHeight: 1.5,
+          boxSizing: "border-box",
+          ...f.style,
+        }}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: t.textMuted }}>
+          {message.length}/{FEEDBACK_MAX}
+        </span>
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={!canSend}
+          style={{
+            minHeight: 44,
+            padding: "10px 20px",
+            borderRadius: 11,
+            border: `1px solid ${t.accent}`,
+            cursor: canSend ? "pointer" : "not-allowed",
+            opacity: canSend ? 1 : 0.6,
+            fontSize: 15,
+            fontWeight: 600,
+            background: t.accent,
+            color: "#fff",
+          }}
+        >
+          {status === "sending" ? "Sending…" : "Send feedback"}
+        </button>
+      </div>
+
+      {status === "sent" && (
+        <p role="status" style={{ margin: "12px 0 0", fontSize: 14, color: t.accentStrong, lineHeight: 1.5 }}>
+          Thank you — we've received your note. It really helps.
+        </p>
+      )}
+      {status === "error" && (
+        <p role="alert" style={{ margin: "12px 0 0", fontSize: 14, color: t.danger, lineHeight: 1.5 }}>
+          {errorMsg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsScreen({ onBack, onChange }) {
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
@@ -329,6 +439,11 @@ export default function SettingsScreen({ onBack, onChange }) {
           These settings only change how the app appears for you. If text still
           isn't large enough, your browser or device zoom can enlarge it further.
         </p>
+
+        <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
+          Send feedback
+        </h2>
+        <FeedbackSection />
       </div>
     </div>
   );
