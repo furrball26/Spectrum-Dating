@@ -46,7 +46,7 @@ This repo is configured for automated Claude Code runs. The pieces live under
 
 ```
 .claude/
-├── settings.json            # registers the SessionStart hook
+├── settings.json            # SessionStart hook + Agent Teams env flag
 ├── hooks/
 │   └── session-start.sh     # runs once at the start of every session
 ├── agents/
@@ -54,6 +54,12 @@ This repo is configured for automated Claude Code runs. The pieces live under
 └── routines/
     └── nightly-health-check.md  # sample cloud-routine spec (template, not executed)
 ```
+
+`settings.json` also enables experimental **Agent Teams** via
+`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`, letting a lead session spawn
+teammates that message each other for genuine parallel coordination. It's opt-in
+per task and off until you ask for a team; see `.claude/agents/README.md` for
+when to use it and its caveats (experimental, higher token cost).
 
 ### SessionStart hook
 

@@ -72,9 +72,20 @@ compliance record accumulate instead of being re-derived each time. Note that
 agents are stateless by design (they work per-task); add `memory` to one only if
 it genuinely needs to remember across sessions.
 
-## Want real inter-agent coordination?
+## Agent Teams (enabled)
 
-Enable experimental **Agent Teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`),
-where teammates message each other and a lead coordinates. It costs
-significantly more tokens and is experimental — prefer orchestrator-routed
-hand-offs for normal work.
+Experimental **Agent Teams** is enabled in `.claude/settings.json`
+(`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"`). In a team, a lead (the main
+session) spawns teammates that can **message each other directly** and share a
+task list — genuine parallel coordination, unlike ordinary subagents.
+
+Use it for parallel work that needs cross-talk — e.g. a feature build where
+`frontend-engineer`, `backend-engineer`, and `database-architect` align on a
+contract as they go, or competing-hypothesis reviews. Caveats: it's
+**experimental** (behavior may change), one team per session, no nested teams,
+the lead can't be transferred, and each teammate is a full session so **token
+cost is significantly higher**.
+
+Default to orchestrator-routed `## Hand-offs` for normal sequential work; reach
+for a team only when concurrent cross-talk genuinely helps. Enabling it changes
+nothing until you actually ask for a team.
