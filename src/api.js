@@ -174,6 +174,21 @@ export async function swipe(candidateId, decision) {
 
 export async function undoSkip() { return apiFetch('/matching/undo-skip', { method: 'POST' }); }
 
+// Undo the caller's most-recent "I'm interested" (like). Pass the specific
+// candidateId to reverse that exact card (recommended); omit it to undo the
+// most-recent pending like. Mirrors undoSkip's shape.
+// → 200 { ok: true, candidateId } — like removed; person returns to Discover.
+// → 200 { ok: false }            — nothing to undo (already undone / not owner).
+// → 409 { matched: true, error } — the like already became a mutual match;
+//   refused (match intact). Surfaced to callers via err.status === 409 /
+//   err.body.matched so they can show the "unmatch from the conversation" path.
+export async function undoLike(candidateId) {
+  return apiFetch('/matching/undo-like', {
+    method: 'POST',
+    body: candidateId ? { candidateId } : {},
+  });
+}
+
 // Activity inbox — incoming likes + recent matches.
 export async function getActivity() {
   const d = await apiFetch('/matching/activity');

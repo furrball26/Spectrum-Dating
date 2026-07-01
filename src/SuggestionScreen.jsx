@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getCandidates, swipe, blockUser, reportUser, getProfile, updateProfile, undoSkip, getUserId, createConversation } from "./api.js";
+import { getCandidates, swipe, blockUser, reportUser, getProfile, updateProfile, undoSkip, undoLike, getUserId, createConversation } from "./api.js";
 import { t } from "./tokens.js";
 import { SAFETY_REASONS } from "./safetyReasons.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
@@ -53,7 +53,7 @@ function useFocusable() {
   };
 }
 
-function ActionButton({ label, kind, onClick, icon }) {
+function ActionButton({ label, kind, onClick, icon, ariaLabel, disabled }) {
   const f = useFocusable();
   const base = {
     minHeight: kind === "skip" ? 44 : 52,
@@ -80,7 +80,9 @@ function ActionButton({ label, kind, onClick, icon }) {
     <button
       type="button"
       onClick={onClick}
-      style={{ ...base, ...kinds[kind], ...f.style }}
+      disabled={disabled}
+      aria-label={ariaLabel || undefined}
+      style={{ ...base, ...kinds[kind], ...f.style, ...(disabled ? { cursor: "not-allowed", opacity: 0.6 } : null) }}
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
@@ -625,6 +627,13 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const [matchId, setMatchId] = useState(null);
   const [reportingCandidate, setReportingCandidate] = useState(null);
   const [undoing, setUndoing] = useState(false);
+  // F16 — when an "I'm interested" undo is refused because the like already
+  // became a mutual match (409 matched:true), we hide the Undo and show a calm
+  // "you can unmatch from the conversation instead" message. `undoneLike` marks
+  // a like that was successfully undone so we hide the affordance (ok:false or
+  // ok:true both resolve to "nothing more to undo here").
+  const [undoLikeBlocked, setUndoLikeBlocked] = useState(false);
+  const [likeUndone, setLikeUndone] = useState(false);
   // In-flight guard against double-submit, and a calm retry surface for a
   // failed "I'm interested" swipe (the one choice we must not silently lose).
   const [submitting, setSubmitting] = useState(false);
@@ -860,6 +869,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     setLastChoice(null);
     setLastPerson(null);
     setSwipeFailed(null);
+    setUndoLikeBlocked(false);
+    setLikeUndone(false);
     setStage("viewing");
   }
 
@@ -882,6 +893,45 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     } finally {
       setUndoing(false);
       next();
+    }
+  }
+
+  // F16 — undo the last "I'm interested". Symmetrical with handleUndo (skip):
+  // in-flight guard, restore the specific candidate to the FRONT of the deck on
+  // success, and announce via the confirmation live region. Passes the exact
+  // candidateId so the server reverses that person, not just "the most recent".
+  //  • ok:true  → like removed; return them to the deck and resume viewing.
+  //  • ok:false → calm no-op; the like was already gone. Hide the Undo, stay put.
+  //  • 409 matched:true → the like already became a match. Never offer undo;
+  //    show the calm "you can unmatch from the conversation instead" line.
+  async function handleUndoLike() {
+    if (undoing) return;
+    const restored = lastPerson;
+    if (!restored) return;
+    setUndoing(true);
+    try {
+      const result = await undoLike(restored.memberId);
+      if (result && result.ok) {
+        // Restore this exact person to the front of the deck and resume viewing,
+        // mirroring how a skip-undo returns the card. next() clears the flags.
+        setQueue(q => (q.some(c => c.memberId === restored.memberId) ? q : [restored, ...q]));
+        setIndex(0);
+        next();
+      } else {
+        // ok:false — nothing to undo. Quietly hide the Undo; no scary error.
+        setLikeUndone(true);
+      }
+    } catch (err) {
+      // 409 matched:true — the like already became a mutual match. Refuse undo
+      // calmly and point to the unmatch-from-conversation path (never appear
+      // broken). Any other error resolves as a quiet no-op.
+      if (err && err.status === 409 && err.body && err.body.matched) {
+        setUndoLikeBlocked(true);
+      } else {
+        setLikeUndone(true);
+      }
+    } finally {
+      setUndoing(false);
     }
   }
 
@@ -1313,15 +1363,49 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   : <>If {lastPerson?.displayName} also says they're interested, you'll both be able to message each other. Until then, {lastPerson?.displayName} isn't told.</>}
               </p>
             )}
+            {/* F16 — the like already became a mutual match, so undo is refused.
+                Calm, non-alarming; points to the unmatch-from-conversation path.
+                Announced politely (no urgency cues). */}
+            {lastChoice === "interested" && undoLikeBlocked && (
+              <p
+                role="status"
+                style={{
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  marginBottom: 20,
+                  color: t.textSoft,
+                  fontSize: 15,
+                  lineHeight: 1.6,
+                }}
+              >
+                {plainLanguage
+                  ? <>You and {lastPerson?.displayName} already matched, so this can't be undone here. You can unmatch from the conversation instead.</>
+                  : <>You've already matched — you can unmatch from the conversation instead.</>}
+              </p>
+            )}
             {/* Next loads only on explicit press (3.2.5). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <ActionButton label="Next person" kind="interested" onClick={next} />
-              {/* Undo is offered after a skip-style choice; a no-op resolves quietly. */}
+              {/* Undo is offered after any reversible choice — mirroring the
+                  skip-undo affordance so the interaction language is symmetric.
+                  A no-op (ok:false) or a 409 (already matched) resolves quietly:
+                  we hide the control rather than show a scary error. */}
               {(lastChoice === "not_now" || lastChoice === "skip") && (
                 <ActionButton
                   label={undoing ? "Undoing…" : "Undo"}
                   kind="notnow"
                   onClick={handleUndo}
+                />
+              )}
+              {lastChoice === "interested" && !undoLikeBlocked && !likeUndone && (
+                <ActionButton
+                  label={undoing ? "Undoing…" : "Undo"}
+                  kind="notnow"
+                  onClick={handleUndoLike}
+                  disabled={undoing}
+                  ariaLabel={`Undo — you're no longer interested in ${lastPerson?.displayName}`}
                 />
               )}
             </div>
