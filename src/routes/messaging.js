@@ -306,7 +306,7 @@ router.post('/conversations', requireAuth, (req, res) => {
   // Enforce cap
   const count = activeConvoCount(db, userId);
   if (count >= 5) {
-    return res.status(422).json({ error: 'Conversation cap reached. Archive a conversation to start a new one.', code: 'CAP_REACHED' });
+    return res.status(422).json({ error: "You've reached your active conversations for now. Archive one from Messages to start a new one.", code: 'CAP_REACHED' });
   }
 
   const otherId = match.user_a_id === userId ? match.user_b_id : match.user_a_id;
@@ -379,8 +379,8 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
     }
   }
 
-  if (!body && !attachment) return res.status(400).json({ error: 'Message body cannot be empty' });
-  if (body.length > 2000) return res.status(400).json({ error: 'Message body exceeds 2000 characters' });
+  if (!body && !attachment) return res.status(400).json({ error: 'Please type a message before sending.' });
+  if (body.length > 2000) return res.status(400).json({ error: 'Your message is a little too long. Please shorten it to 2000 characters or fewer.' });
 
   const otherId = conv.user_a_id === userId ? conv.user_b_id : conv.user_a_id;
 
@@ -557,7 +557,7 @@ router.post('/block', requireAuth, safetyActionLimiter, (req, res) => {
   // self-target or nonexistent target lets the FK violation bubble as a generic
   // 500 (and burns the abuse limiter).
   if (blockedUserId === userId) {
-    return res.status(400).json({ error: 'You cannot block yourself' });
+    return res.status(400).json({ error: "That's your own profile — there's nothing to block." });
   }
   if (!VALID_REASONS.includes(reason)) {
     return res.status(400).json({ error: `reason must be one of: ${VALID_REASONS.join(', ')}` });
@@ -633,7 +633,7 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
     return res.status(400).json({ error: 'reportedUserId is required' });
   }
   if (reportedUserId === userId) {
-    return res.status(400).json({ error: 'You cannot report yourself' });
+    return res.status(400).json({ error: "That's your own profile — there's nothing to report." });
   }
 
   const reported = db.prepare('SELECT id FROM users WHERE id = ?').get(reportedUserId);

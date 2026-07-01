@@ -19,12 +19,12 @@ router.post('/change-password', requireAuth, accountSecurityLimiter, async (req,
     return res.status(400).json({ error: 'Current and new password are required.' });
   }
   if (newPassword.length < 8) {
-    return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+    return res.status(400).json({ error: 'Please choose a password with at least 8 characters.' });
   }
   const user = db.prepare('SELECT password_hash, token_version FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ error: 'Account not found.' });
   if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
-    return res.status(403).json({ error: 'Current password is incorrect.' });
+    return res.status(403).json({ error: "That current password doesn't match. Please check it and try again." });
   }
   const newHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
   const newTv = (user.token_version ?? 0) + 1;
@@ -41,13 +41,13 @@ router.post('/change-email', requireAuth, accountSecurityLimiter, async (req, re
     return res.status(400).json({ error: 'New email and current password are required.' });
   }
   const email = newEmail.trim().toLowerCase();
-  if (!emailRegex.test(email)) return res.status(400).json({ error: 'Invalid email address.' });
+  if (!emailRegex.test(email)) return res.status(400).json({ error: "That email address doesn't look complete. Please check it." });
   const user = db.prepare('SELECT password_hash, email, token_version FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ error: 'Account not found.' });
   if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
-    return res.status(403).json({ error: 'Current password is incorrect.' });
+    return res.status(403).json({ error: "That current password doesn't match. Please check it and try again." });
   }
-  if (email === user.email) return res.status(400).json({ error: 'That is already your email.' });
+  if (email === user.email) return res.status(400).json({ error: "That's already your email address — no change needed." });
   // E18: don't confirm that the target address belongs to another account — a
   // distinct "already in use" reply lets an authenticated attacker enumerate
   // registered emails. Return a generic message that doesn't reveal existence.

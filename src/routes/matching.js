@@ -85,7 +85,7 @@ router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
     return res.status(400).json({ error: 'decision must be "like" or "skip".' });
   }
   if (candidateId === userId) {
-    return res.status(400).json({ error: 'Cannot swipe on yourself.' });
+    return res.status(400).json({ error: "That's your own profile." });
   }
 
   // Check candidate exists
