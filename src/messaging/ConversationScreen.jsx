@@ -4,6 +4,7 @@ import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getCon
 import { io } from "socket.io-client";
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
+import { hasSafetySignal } from "./safetySignals.js";
 import ErrorState from "../ErrorState.jsx";
 import Avatar from "../Avatar.jsx";
 import MatchProfileModal from "../MatchProfileModal.jsx";
@@ -995,6 +996,116 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
   );
 }
 
+// F26 — one-time "staying safe in chat" reassurance card. Warm, plain-language,
+// dismissible. Shown near the top of a conversation the first time it's opened;
+// dismissal persists per-conversation (localStorage), so it appears once and
+// stays gone. This is reassurance, NOT a scary warning.
+function SafetyReassuranceCard({ onDismiss }) {
+  const f = useFocusable();
+  return (
+    <section
+      aria-label="Staying safe while you chat"
+      style={{
+        position: "relative",
+        margin: "0 0 16px",
+        padding: "16px 18px",
+        background: t.green50,
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 16,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span aria-hidden="true" style={{ fontSize: 18 }}>🌿</span>
+          <div style={{ fontFamily: t.serif, fontSize: 16, fontWeight: 700, color: t.text }}>
+            Staying safe while you chat
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss safety tips"
+          style={{
+            background: "transparent",
+            border: "none",
+            color: t.textSoft,
+            fontSize: 18,
+            cursor: "pointer",
+            padding: "4px 6px",
+            borderRadius: 8,
+            minHeight: 44,
+            minWidth: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            ...f.style,
+          }}
+          onFocus={f.onFocus}
+          onBlur={f.onBlur}
+        >
+          ✕
+        </button>
+      </div>
+      <ul
+        style={{
+          margin: 0,
+          padding: 0,
+          listStyle: "none",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {[
+          "There's no rush — it's okay to take your time getting to know someone.",
+          "We'll never ask you to move to another app or to send money. Anyone who does isn't playing fair.",
+          "You can block or report anytime — you don't owe anyone an explanation.",
+        ].map((line) => (
+          <li key={line} style={{ display: "flex", gap: 8, fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+            <span aria-hidden="true" style={{ color: t.accent, flexShrink: 0 }}>•</span>
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// F26 — gentle, non-blocking inline note shown ONCE per conversation the first
+// time a risk signal (off-platform contact or money/scam) appears in EITHER
+// person's message. It is a calm, system-style hint — never attributed
+// accusingly to either person, and it never hides or alters any message.
+function SafetyInlineNote() {
+  return (
+    <div
+      role="note"
+      aria-label="A gentle safety reminder"
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "flex-start",
+        margin: "8px auto 12px",
+        maxWidth: 520,
+        padding: "12px 14px",
+        background: t.surfaceAlt,
+        border: `1px solid ${t.border}`,
+        borderRadius: 14,
+        color: t.textSoft,
+        fontSize: 13.5,
+        lineHeight: 1.5,
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>🛟</span>
+      <span>
+        A gentle reminder: it's safest to keep chatting here for now. We'll never
+        ask you to move to another app or send money — please be careful sharing
+        contact details or money early on.
+      </span>
+    </div>
+  );
+}
+
 export default function ConversationScreen({
   conversationId,
   otherUser,
@@ -1038,6 +1149,24 @@ export default function ConversationScreen({
     try { return localStorage.getItem(`spectrum_expect_collapsed_${conversationId}`) === "1"; }
     catch { return false; }
   });
+
+  // F26 — one-time "staying safe in chat" reassurance card. Dismissal persists
+  // per-conversation, so it appears once and stays gone.
+  const safetyTipKey = `spectrum_safetytip_${conversationId}`;
+  const [safetyTipDismissed, setSafetyTipDismissed] = useState(() => {
+    try { return localStorage.getItem(`spectrum_safetytip_${conversationId}`) === "1"; }
+    catch { return false; }
+  });
+  const dismissSafetyTip = useCallback(() => {
+    setSafetyTipDismissed(true);
+    try { localStorage.setItem(safetyTipKey, "1"); }
+    catch { /* ignore storage failures */ }
+  }, [safetyTipKey]);
+
+  // F26 — gentle inline note shown once per conversation when a risk signal is
+  // detected in EITHER person's message. Informational only; never blocks/alters
+  // any message.
+  const [safetySignalSeen, setSafetySignalSeen] = useState(false);
 
   // Security Fix 2 — consent-gate state
   const [consentGateFailed, setConsentGateFailed] = useState(false);
@@ -1184,6 +1313,16 @@ export default function ConversationScreen({
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // F26 — best-effort scan for a grooming/scam risk signal. Once ANY message
+  // (from either person) trips a signal, flip a one-shot flag so a single calm
+  // note renders. Never blocks, hides, or alters a message — informational only.
+  useEffect(() => {
+    if (safetySignalSeen) return;
+    if (messages.some((m) => !m.deleted && hasSafetySignal(m.body))) {
+      setSafetySignalSeen(true);
+    }
+  }, [messages, safetySignalSeen]);
 
   // Clear send status after 2s (only for success statuses)
   useEffect(() => {
@@ -1549,6 +1688,11 @@ export default function ConversationScreen({
     />
   );
 
+  // F26 — one-time safety reassurance card (rendered once dismissal isn't set).
+  const safetyReassuranceCard = !safetyTipDismissed ? (
+    <SafetyReassuranceCard onDismiss={dismissSafetyTip} />
+  ) : null;
+
   // Security Fix 3 — character counter
   const charsRemaining = MAX_BODY - composeValue.length;
   const showCharCounter = charsRemaining < CHAR_WARN_THRESHOLD;
@@ -1682,7 +1826,10 @@ export default function ConversationScreen({
       {/* Message log or empty state */}
       {!hasMessages && !started ? (
         <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-          <div style={{ padding: "16px 16px 0" }}>{whatToExpectCard}</div>
+          <div style={{ padding: "16px 16px 0" }}>
+            {safetyReassuranceCard}
+            {whatToExpectCard}
+          </div>
           <EmptyConversationState
             displayName={otherUser.displayName}
             conversationId={conversationId}
@@ -1730,6 +1877,9 @@ export default function ConversationScreen({
               ...logFocus.style,
             }}
           >
+            {/* F26 — one-time "staying safe in chat" reassurance card */}
+            {safetyReassuranceCard}
+
             {/* F11 — "What to expect" card at the top of the thread */}
             {whatToExpectCard}
 
@@ -1824,6 +1974,11 @@ export default function ConversationScreen({
                 />
               );
             })}
+
+            {/* F26 — gentle, once-per-conversation safety note when a risk
+                signal is detected in either person's message. Never blocks or
+                alters any message. */}
+            {safetySignalSeen && <SafetyInlineNote />}
           </div>
         </>
       )}
