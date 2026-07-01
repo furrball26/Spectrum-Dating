@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMatches, createConversation, getActivity } from "./api.js";
+import { getMatches, createConversation, getActivity, saveMatchNote } from "./api.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
@@ -43,7 +43,141 @@ function MatchesSkeleton() {
   );
 }
 
-function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile }) {
+// ─── Private note to self ──────────────────────────────────────────────────
+// A small, clearly-PRIVATE memory aid on a match ("met at the book club").
+// Owner-only: only the viewer ever sees or saves it. Collapsed by default to
+// keep the card calm; expands to a small textarea saved on blur or Save.
+const NOTE_MAX = 500;
+function PrivateNote({ matchId, note, onSaved }) {
+  const initial = note || "";
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const taRef = useRef(null);
+
+  // Keep the field in sync if the underlying note changes (e.g. after reload).
+  useEffect(() => { setValue(note || ""); }, [note]);
+  // Focus the textarea when it opens.
+  useEffect(() => { if (open) taRef.current?.focus(); }, [open]);
+
+  const persist = useCallback(async () => {
+    const trimmed = value.trim().slice(0, NOTE_MAX);
+    if (trimmed === (note || "").trim()) return; // nothing changed
+    setSaving(true);
+    try {
+      const res = await saveMatchNote(matchId, trimmed);
+      const saved = typeof res?.note === "string" ? res.note : trimmed;
+      if (onSaved) onSaved(matchId, saved);
+      setValue(saved);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1800);
+    } catch {
+      /* leave the field as-is so the user doesn't lose their text */
+    } finally {
+      setSaving(false);
+    }
+  }, [value, note, matchId, onSaved]);
+
+  const hasNote = !!(note && note.trim());
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "none",
+          border: "none",
+          padding: "4px 0 0",
+          marginTop: 4,
+          cursor: "pointer",
+          fontSize: 12,
+          fontWeight: 600,
+          color: t.textMuted,
+          textAlign: "left",
+        }}
+        aria-label={hasNote ? "Edit your private note" : "Add a private note"}
+      >
+        <span aria-hidden="true">🔒</span>
+        {hasNote ? (
+          <span
+            style={{
+              fontWeight: 500,
+              fontStyle: "italic",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: 220,
+            }}
+          >
+            {note}
+          </span>
+        ) : (
+          <span>Add a private note</span>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: 11,
+          fontWeight: 700,
+          color: t.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          marginBottom: 4,
+        }}
+      >
+        Note to self
+      </label>
+      <textarea
+        ref={taRef}
+        value={value}
+        maxLength={NOTE_MAX}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={persist}
+        rows={2}
+        placeholder="e.g. met at the book club; dislikes loud bars"
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          fontFamily: t.sans,
+          fontSize: 14,
+          color: t.text,
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 10,
+          padding: "8px 10px",
+          resize: "vertical",
+          lineHeight: 1.5,
+        }}
+      />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 6 }}>
+        <span style={{ fontSize: 12, color: t.textMuted }}>
+          {savedFlash ? "Saved. Only you can see this." : "Only you can see this."}
+        </span>
+        <Button
+          variant="secondary"
+          onClick={async () => { await persist(); setOpen(false); }}
+          disabled={saving}
+          style={{ padding: "6px 14px", fontSize: 14, cursor: saving ? "wait" : undefined }}
+        >
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSaved }) {
   const { otherUser, hasConversation } = match;
   // Optional first-prompt preview — only if it has an answer and no tagline/context
   // already filling the row, to keep the card calm and uncluttered.
@@ -57,7 +191,7 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile }) {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 14,
           background: t.surface,
           border: `1px solid ${t.border}`,
@@ -146,6 +280,7 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile }) {
               </div>
             </div>
           )}
+          <PrivateNote matchId={match.matchId} note={match.note} onSaved={onNoteSaved} />
         </div>
         <Button
           variant={hasConversation ? "secondary" : "primary"}
@@ -278,6 +413,11 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
     loadMatches();
   }, [loadMatches]);
 
+  // Keep the viewer's own note in sync after a save (owner-only, local state).
+  const handleNoteSaved = useCallback((matchId, savedNote) => {
+    setMatches((prev) => prev.map((m) => (m.matchId === matchId ? { ...m, note: savedNote } : m)));
+  }, []);
+
   // Load activity inbox (incoming likes) — separate, best-effort
   useEffect(() => {
     let active = true;
@@ -405,6 +545,7 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
                   onOpen={handleOpen}
                   plainLanguage={plainLanguage}
                   onViewProfile={setViewingUserId}
+                  onNoteSaved={handleNoteSaved}
                 />
               ))}
             </ul>

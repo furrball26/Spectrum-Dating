@@ -194,6 +194,15 @@ export async function unmatchConversation(matchId) {
   return apiFetch(`/matching/matches/${matchId}`, { method: "DELETE" });
 }
 
+// Save (or clear, with "") the viewer's OWN private "note to self" on a match.
+// Owner-only — the other person never sees this. Returns { ok, note }.
+export async function saveMatchNote(matchId, note) {
+  return apiFetch(`/matching/matches/${matchId}/note`, {
+    method: "PUT",
+    body: { note },
+  });
+}
+
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
 function normaliseConversationList(arr) {
