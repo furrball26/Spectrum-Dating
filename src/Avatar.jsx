@@ -51,6 +51,8 @@ export default function Avatar({ name, userId, photoUrl, alt, size = 56, style }
         <img
           src={photoUrl}
           alt={imgAlt}
+          loading="lazy"
+          decoding="async"
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>

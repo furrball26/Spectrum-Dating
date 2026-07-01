@@ -501,6 +501,7 @@ function PhotoReviewCard({ item, onReviewed, onStatus }) {
         src={item.publicUrl}
         alt={`Photo submitted by ${item.uploaderEmail || "a member"}, awaiting review`}
         loading="lazy"
+        decoding="async"
         style={{
           display: "block",
           width: "100%",
@@ -820,6 +821,7 @@ function VerificationCard({ item, onReviewed, onStatus }) {
             src={item.photoUrl}
             alt=""
             loading="lazy"
+            decoding="async"
             style={{
               width: 56,
               height: 56,

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
 import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, getStarters, uploadAttachmentIntent, confirmAttachment } from "../api.js";
 import { io } from "socket.io-client";
@@ -24,6 +24,11 @@ function usePrefersReduced() {
 }
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
+
+// Shared frozen empty-reactions object. Passed to every bubble that has no
+// reactions so React.memo(MessageBubble) sees a STABLE reference (an inline `{}`
+// would be a fresh object each render and defeat the memo for those bubbles).
+const EMPTY_REACTIONS = Object.freeze({});
 
 // Small, muted match-name label shown above the FIRST bubble in an OTHER-person
 // run (and just after a day divider). Own messages get no label — right side +
@@ -592,7 +597,14 @@ function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
 
 // Message bubble — Security Fix 1: accept currentUserId prop
 // Feature 1: reactions wired in via props
-function MessageBubble({
+//
+// Perf: wrapped in React.memo so a keystroke in the composer (which lives on the
+// parent ConversationScreen) doesn't re-render every bubble in the thread. This
+// only holds if the callback props (onRequestDelete / onToggleReaction / onRetry)
+// are useCallback-stable and the object props (message / msgReactions) keep
+// referential identity between renders — both are true at the call site. Default
+// shallow prop comparison is correct here; no custom comparator needed.
+const MessageBubble = memo(function MessageBubble({
   message,
   onRequestDelete,
   currentUserId,
@@ -926,7 +938,7 @@ function MessageBubble({
       )}
     </div>
   );
-}
+});
 
 // Overflow (⋯) header menu — A11y Blocker 2: arrow-key navigation
 // Feature 3: added "Archive conversation" menu item
@@ -1884,7 +1896,9 @@ export default function ConversationScreen({
   }, []);
 
   // --- Feature 1: toggleReaction ---
-  async function toggleReaction(messageId, emoji) {
+  // useCallback-stable so React.memo on MessageBubble holds across composer
+  // keystrokes. Only uses setReactions (stable) + module-level helpers → deps [].
+  const toggleReaction = useCallback(async (messageId, emoji) => {
     if (!REACTION_EMOJIS.some(r => r.emoji === emoji)) return;
     // Optimistic update
     setReactions(prev => {
@@ -1924,7 +1938,7 @@ export default function ConversationScreen({
         };
       });
     }
-  }
+  }, []);
 
   // --- Feature 2: Photo attachment handlers ---
   function handleAttachClick() {
@@ -2102,7 +2116,9 @@ export default function ConversationScreen({
   }
 
   // Re-send a failed message: clear the flag and try again in place.
-  async function retrySend(failedMsg) {
+  // useCallback-stable (keeps React.memo on MessageBubble holding). Depends only
+  // on the stable conversationId prop; all setters are stable.
+  const retrySend = useCallback(async (failedMsg) => {
     if (!failedMsg?.body) return;
     setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: false } : m));
     try {
@@ -2119,7 +2135,7 @@ export default function ConversationScreen({
       setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: true } : m));
       setSendStatus("Still couldn't send. Check your connection.");
     }
-  }
+  }, [conversationId]);
 
   function handleComposeKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -2150,9 +2166,10 @@ export default function ConversationScreen({
     });
   }
 
-  function handleRequestDelete(messageId) {
+  // useCallback-stable (keeps React.memo on MessageBubble holding).
+  const handleRequestDelete = useCallback((messageId) => {
     setPendingDeleteId(messageId);
-  }
+  }, []);
 
   async function handleConfirmDelete() {
     const targetId = pendingDeleteId;
@@ -2263,20 +2280,25 @@ export default function ConversationScreen({
   // message of each consecutive same-sender run (and the first after any day
   // divider). It drives the turn-break gap on BOTH sides, and — for the OTHER
   // person only — the name label + avatar at the start of their run.
-  const grouped = [];
-  let lastLabel = null;
-  let lastSenderId = null;
-  messages.forEach((msg) => {
-    let dividerBefore = false;
-    if (msg.timeLabel !== lastLabel) {
-      grouped.push({ type: "header", label: msg.timeLabel });
-      lastLabel = msg.timeLabel;
-      dividerBefore = true;
-    }
-    const showSender = dividerBefore || msg.senderId !== lastSenderId;
-    grouped.push({ type: "message", msg, showSender });
-    lastSenderId = msg.senderId;
-  });
+  // Memoized on [messages] so a composer keystroke (which re-renders the parent
+  // but doesn't touch messages) doesn't rebuild the whole grouped list.
+  const grouped = useMemo(() => {
+    const out = [];
+    let lastLabel = null;
+    let lastSenderId = null;
+    messages.forEach((msg) => {
+      let dividerBefore = false;
+      if (msg.timeLabel !== lastLabel) {
+        out.push({ type: "header", label: msg.timeLabel });
+        lastLabel = msg.timeLabel;
+        dividerBefore = true;
+      }
+      const showSender = dividerBefore || msg.senderId !== lastSenderId;
+      out.push({ type: "message", msg, showSender });
+      lastSenderId = msg.senderId;
+    });
+    return out;
+  }, [messages]);
 
   const hasMessages = messages.length > 0;
 
@@ -2305,9 +2327,13 @@ export default function ConversationScreen({
   // message count" so a one-sided burst of openers still reads as new, and over a
   // server timestamp because the two-sided-exchange shape is the cleanest signal
   // already present in the loaded data.
-  const liveMessages = messages.filter((m) => !m.deleted);
-  const distinctSenders = new Set(liveMessages.map((m) => m.senderId)).size;
-  const newThread = liveMessages.length === 0 || distinctSenders < 2 || liveMessages.length <= 2;
+  // Memoized on [messages] — these counts feed the "new thread" framing and only
+  // change when messages change, not on every composer keystroke.
+  const newThread = useMemo(() => {
+    const liveMessages = messages.filter((m) => !m.deleted);
+    const distinctSenders = new Set(liveMessages.map((m) => m.senderId)).size;
+    return liveMessages.length === 0 || distinctSenders < 2 || liveMessages.length <= 2;
+  }, [messages]);
 
   const openSlowStartPrompts = () => {
     setHelperTrayOpen(true);
@@ -2649,7 +2675,7 @@ export default function ConversationScreen({
                   message={msg}
                   onRequestDelete={handleRequestDelete}
                   currentUserId={currentUserId}
-                  msgReactions={reactions[msg.id] || {}}
+                  msgReactions={reactions[msg.id] || EMPTY_REACTIONS}
                   onToggleReaction={toggleReaction}
                   onRetry={retrySend}
                   onEnlargeImage={setEnlargedImage}

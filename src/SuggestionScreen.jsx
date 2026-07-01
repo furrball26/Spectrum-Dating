@@ -765,6 +765,28 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const person = queue[index];
   const atEnd = index >= queue.length;
 
+  // Perceived-speed: warm the next 1–2 candidates' hero photos so the next card
+  // doesn't stall on a fresh fetch after a swipe. The deck advances by dropping
+  // the current person (queue.slice(1) + setIndex(0)), so the upcoming heroes are
+  // queue[index+1] / queue[index+2]. new Image().src kicks off a background fetch
+  // that the browser HTTP cache reuses when the <img> mounts. Cancel-safe: we
+  // detach handlers and drop refs on cleanup so nothing fires after unmount.
+  useEffect(() => {
+    const preloaders = [];
+    for (let ahead = 1; ahead <= 2; ahead++) {
+      const url = queue[index + ahead]?.photoUrl;
+      if (!url) continue;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+      preloaders.push(img);
+    }
+    return () => {
+      // Drop references; browsers keep any in-flight fetch warming the HTTP cache.
+      preloaders.forEach((img) => { img.onload = null; img.onerror = null; img.src = ""; });
+    };
+  }, [queue, index]);
+
   // Move focus to confirmation so screen-reader + keyboard users land on new state (4.1.3).
   useEffect(() => {
     if (stage === "confirmed" && liveRef.current) liveRef.current.focus();
@@ -1187,6 +1209,10 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                 <img
                   src={person.photoUrl}
                   alt={person.photoDescription || `Photo of ${person.displayName}`}
+                  width={640}
+                  height={380}
+                  fetchpriority="high"
+                  decoding="async"
                   style={{
                     width: "100%",
                     height: 380,
