@@ -77,7 +77,7 @@ app.use('/feedback', feedbackRouter);
 
 // /health includes the deployed git SHA so the deploy script can confirm the
 // NEW build is live (not the old replica still serving during rollover).
-app.get('/health', (_req, res) => res.json({ status: 'ok', sha: BUILD_SHA, source: 'github' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', sha: BUILD_SHA }));
 
 // 404 for unmatched routes (JSON API).
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
