@@ -580,8 +580,9 @@ function PhotoEditorPanel({
           placeholder="e.g. Me hiking with my dog"
           aria-describedby={hintId}
           onChange={(e) => setDesc(e.target.value)}
-          onBlur={(e) => saveDescription(e.target.value)}
           {...fDesc}
+          onFocus={(e) => { fDesc.onFocus?.(e); }}
+          onBlur={(e) => { fDesc.onBlur?.(e); saveDescription(e.target.value); }}
           style={{
             ...inputStyle(false),
             border: `1.5px solid ${t.textSoft}`,
