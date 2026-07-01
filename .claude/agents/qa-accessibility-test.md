@@ -1,7 +1,9 @@
 ---
 name: qa-accessibility-test
 description: >-
-  Owns the testing STRATEGY with deep accessibility focus — unit/integration/e2e
+  Use proactively after implementing a feature to design and author its test and
+  accessibility coverage. Owns the testing STRATEGY with deep accessibility focus
+  — unit/integration/e2e
   plus automated AND manual a11y testing (axe, Playwright, screen readers). Use
   to design test suites, add coverage, or verify WCAG conformance. Use this agent
   to design/author tests; the test-runner just executes an existing suite.

@@ -1,0 +1,94 @@
+name: SuberAgents Daily Consultation
+
+# Runs the SuberAgents subagent consultation every morning and opens a PR only
+# when it has changes or recommendations. This is the durable, repo-native
+# equivalent of a Cloud Routine — it runs on GitHub's schedule, independent of
+# any Claude Code session.
+#
+# Prerequisites (one-time, repo-admin) — same as the review workflow:
+#   1. Install the Claude GitHub App: https://github.com/apps/claude
+#      (or run `/install-github-app` from the Claude Code CLI).
+#   2. Add an `ANTHROPIC_API_KEY` repository secret
+#      (Settings → Secrets and variables → Actions).
+#
+# Until the secret is set, the job skips the run and stays green.
+# Docs: https://code.claude.com/docs/en/github-actions
+
+on:
+  schedule:
+    # 13:17 UTC daily (~9:17am US-Eastern / ~6:17am US-Pacific). Off-minute on
+    # purpose. Adjust to your morning; GitHub cron is always UTC.
+    - cron: "17 13 * * *"
+  # Allow running it by hand from the Actions tab to test or trigger on demand.
+  workflow_dispatch:
+
+# The audit writes a dated report and may apply low-risk fixes, so it needs to
+# push a branch and open a PR; id-token lets the v1 action mint its GitHub token.
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+# One consultation at a time.
+concurrency:
+  group: suberagents-daily-consult
+  cancel-in-progress: false
+
+jobs:
+  consult:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Check configuration
+        if: env.ANTHROPIC_API_KEY == ''
+        run: |
+          echo "::notice::ANTHROPIC_API_KEY secret not set — skipping the daily consultation."
+          echo "Configure it to enable the automated audit (see workflow header)."
+
+      - name: Checkout repository
+        if: env.ANTHROPIC_API_KEY != ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run SuberAgents consultation
+        if: env.ANTHROPIC_API_KEY != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 40"
+          # Self-contained audit prompt. Mirrors
+          # SuberAgents/routines/daily-subagent-consult.md — keep them in sync.
+          prompt: |
+            You are the SuberAgents subagent SME running the daily consultation
+            on this repo. Work autonomously and stop when done.
+
+            1. Read, in order: SuberAgents/knowledge-base/best-practices-checklist.md
+               (your rubric), SuberAgents/knowledge-base/memory-and-state.md (the
+               #57507 caveat), SuberAgents/knowledge-base/00-index.md, and the most
+               recent file in SuberAgents/audits/ (the last consultation).
+            2. Establish today's date and the Claude Code version. If the version
+               changed since the last audit, re-verify memory behavior per the
+               "Re-test procedure" in memory-and-state.md and note any change.
+            3. Audit the CURRENT state: every .claude/agents/*.md,
+               .claude/settings.json, and .claude/agent-memory/. Score each rubric
+               item pass/improve/fail. Check specifically for: memory agents missing
+               Read/Write/Edit or an explicit memory path; any stray MEMORY.md at the
+               repo ROOT (a bug symptom — flag it); doc drift in README/CLAUDE.md; new
+               agents added without documentation.
+            4. Write a dated report at SuberAgents/audits/YYYY-MM-DD-audit.md: verdict,
+               findings ranked by impact x confidence (each with an exact fix), what is
+               already good, and the top 3 actions. Do NOT overwrite prior audits.
+            5. Apply ONLY clearly-correct, low-risk fixes directly (e.g. a memory agent
+               missing its Edit tool, a wrong path in docs, a stray root MEMORY.md).
+               Leave anything subjective (description wording, model changes, scope
+               changes) as a recommendation in the report for owner approval.
+            6. If you made any change OR the report has actionable recommendations,
+               create a claude/-prefixed branch, commit, and open a pull request titled
+               "Daily subagent consultation: <date>". If everything is already optimal
+               with no recommendations, make NO commit and NO PR and end with a one-line
+               "No changes recommended" summary.
+
+            Never push to main. Do not add dependencies or run installers. Verify
+            claims against https://code.claude.com/docs before relying on them.

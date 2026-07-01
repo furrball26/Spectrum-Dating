@@ -36,7 +36,7 @@ When you read "hand this to X" or "spec from Y" inside an agent, that means
 | `devops-infra` | IaC, CI/CD, observability, deploy safety | sonnet |
 | `payments-subscriptions` | Ethical billing/entitlements | sonnet |
 | `qa-accessibility-test` | Test strategy + automated/manual a11y | sonnet |
-| `test-runner` | Executes an existing test suite, reports pass/fail | sonnet |
+| `test-runner` | Executes an existing test suite, reports pass/fail | haiku |
 
 ## Who does what (avoid overlap)
 
@@ -65,12 +65,27 @@ When you read "hand this to X" or "spec from Y" inside an agent, that means
 
 The six opus decision-making agents — `user-research`, `accessibility-ux`,
 `matchmaking`, `trust-safety`, `privacy-compliance`, `security-engineer` — have
-`memory: project` set. Each keeps a `MEMORY.md` (under `.claude/`) that persists
-across sessions, so durable decisions, research findings, threat models, and the
-compliance record accumulate instead of being re-derived each time. Note that
-`memory` auto-enables Read/Write/Edit for managing that file. The implementation
-agents are stateless by design (they work per-task); add `memory` to one only if
-it genuinely needs to remember across sessions.
+`memory: project` set. Each keeps its **own** memory directory at
+`.claude/agent-memory/<agent-name>/` with a `MEMORY.md` entrypoint (only the
+first ~200 lines / 25 KB are auto-injected; move detail into sibling topic files
+there). These persist across sessions so durable decisions, research findings,
+threat models, and the compliance record accumulate instead of being re-derived.
+
+> **Important (verified 2026-07-01, Claude Code v2.1.198):** the `memory:`
+> field's documented auto-enable of Read/Write/Edit does **not** engage reliably
+> when a `tools:` allowlist is present (see anthropics/claude-code#57507). In a
+> live test, a memory agent wrote its `MEMORY.md` to the **repo root** instead of
+> `.claude/agent-memory/<name>/`, because the memory wiring never injected the
+> correct path. So we make memory deterministic rather than relying on the
+> auto-wiring: (1) `Read, Write, Edit` are listed **explicitly** in each memory
+> agent's `tools`; (2) each agent's system prompt names the exact memory-file
+> path to read at task start and update before finishing; (3) seed `MEMORY.md`
+> files are committed at the correct path. Keep this belt-and-suspenders setup
+> until the upstream bug is confirmed fixed. See
+> `SuberAgents/knowledge-base/memory-and-state.md` for the full analysis.
+
+The implementation agents are stateless by design (they work per-task); add
+`memory` to one only if it genuinely needs to remember across sessions.
 
 ## Agent Teams (enabled)
 

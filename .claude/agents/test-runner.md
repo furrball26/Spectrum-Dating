@@ -5,7 +5,7 @@ description: >-
   code changes that could affect behavior, or when asked to verify the build.
   Returns a concise pass/fail summary plus the failing output — not the full log.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: haiku
 color: yellow
 ---
 

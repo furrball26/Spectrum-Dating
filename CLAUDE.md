@@ -112,7 +112,7 @@ to verify claims rather than rely on memory.
 | `devops-infra` | IaC, CI/CD, observability, safe degradation of safety features | sonnet |
 | `payments-subscriptions` | Ethical billing/entitlements, no dark patterns | sonnet |
 | `qa-accessibility-test` | Test strategy + automated/manual a11y (axe, Playwright, screen readers) | sonnet |
-| `test-runner` | Executes the suite and reports pass/fail (defers strategy to qa) | sonnet |
+| `test-runner` | Executes the suite and reports pass/fail (defers strategy to qa) | haiku |
 
 These are starting templates: refine them as real code, a chosen stack, and user
 research land. High-stakes design/judgment agents use `opus`; implementation
@@ -127,6 +127,23 @@ one. The file documents a self-contained prompt and the settings to paste into
 the routine creation form (web, Desktop, or `/schedule`), plus how to add API
 or GitHub triggers. The sample routine does a nightly check that this repo's
 docs match its actual state and opens a docs-sync PR only when it finds drift.
+
+### SuberAgents research silo & daily consultation
+
+`SuberAgents/` is a self-contained knowledge base and consulting workspace for
+Claude Code subagents, orchestration, agent memory, and Agent Teams. It holds a
+verified reference (`knowledge-base/`), a cited sources + live-test log
+(`research/`), dated consultation reports (`audits/`), and a Cloud Routine spec
+(`routines/daily-subagent-consult.md`) for a **daily** subagent audit. Start at
+`SuberAgents/README.md`. Re-verify KB claims against
+<https://code.claude.com/docs> after Claude Code updates.
+
+> **Memory note (verified v2.1.198):** the six `memory: project` agents point to
+> their own `.claude/agent-memory/<name>/MEMORY.md`, list `Read, Write, Edit`
+> explicitly, and name that path in their prompt — because the `memory:`
+> auto-enable does **not** engage reliably under a `tools:` allowlist
+> (anthropics/claude-code#57507; reproduced live). Seed memory files are
+> committed. Details: `SuberAgents/knowledge-base/memory-and-state.md`.
 
 ### GitHub Actions: auto-review on PRs
 
@@ -148,6 +165,18 @@ failing on every PR. Once the secret exists, the review runs automatically.
 
 The job is scoped to `contents: read` + `pull-requests: write` and uses a
 concurrency group so repeated pushes cancel stale review runs.
+
+### GitHub Actions: daily subagent consultation
+
+`.github/workflows/daily-subagent-consult.yml` runs the SuberAgents consultation
+on a **daily schedule** (`cron: "17 13 * * *"` UTC — adjust to your morning) plus
+`workflow_dispatch` for on-demand runs. It's the durable, repo-native equivalent
+of a Cloud Routine: it reads `SuberAgents/`, audits `.claude/agents/**`, writes a
+dated report to `SuberAgents/audits/`, applies only clearly-correct fixes, and
+opens a PR **only** when there's something to act on. Same gating as the review
+workflow — skips and stays green until `ANTHROPIC_API_KEY` is set — but scoped
+`contents: write` + `pull-requests: write` so it can open the audit PR. Keep its
+inline prompt in sync with `SuberAgents/routines/daily-subagent-consult.md`.
 
 ### Running Claude automatically
 

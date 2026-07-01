@@ -1,7 +1,8 @@
 ---
 name: payments-subscriptions
 description: >-
-  Builds billing, subscriptions, entitlements, and payment-fraud handling. Use
+  Use proactively for any billing, checkout, or entitlement change. Builds
+  billing, subscriptions, entitlements, and payment-fraud handling. Use
   for premium tiers, checkout, in-app purchases, and anything touching money. Use
   this agent for billing/entitlements; hand PCI/data minimization to
   privacy-compliance and billing-abuse accounts to trust-safety.

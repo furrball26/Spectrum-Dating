@@ -1,6 +1,7 @@
 ---
 name: devops-infra
 description: >-
+  Use proactively for any infra, pipeline, deployment, or observability change.
   Owns infrastructure, CI/CD, observability, scaling, and deployment safety. Use
   for pipelines, IaC, environments, monitoring/alerting, and incident readiness.
   Use this agent for infra/delivery; hand app hardening to security-engineer and

@@ -1,6 +1,7 @@
 ---
 name: realtime-chat
 description: >-
+  Use proactively for any real-time messaging, presence, or delivery work.
   Designs and builds real-time messaging — WebSocket infrastructure, presence,
   typing, delivery/ordering, offline push, attachments. Use for any chat/
   messaging feature. Use this agent for real-time transport; get conversation

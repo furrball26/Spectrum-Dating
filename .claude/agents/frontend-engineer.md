@@ -1,7 +1,8 @@
 ---
 name: frontend-engineer
 description: >-
-  Builds the web client (React/Next.js): components, state, routing, forms,
+  Use when implementing web UI to an existing accessibility-ux spec. Builds the
+  web client (React/Next.js): components, state, routing, forms,
   responsive layout. Use for web UI implementation. Use this agent to implement;
   get UX/a11y specs and copy from accessibility-ux rather than inventing them,
   and hand test suites to qa-accessibility-test. Native mobile is out of scope.

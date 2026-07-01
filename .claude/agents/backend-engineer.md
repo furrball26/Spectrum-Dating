@@ -1,7 +1,9 @@
 ---
 name: backend-engineer
 description: >-
-  Builds backend API services and business logic — profiles, onboarding, media
+  Use proactively when adding or changing server-side features, APIs, or
+  business logic. Builds backend API services and business logic — profiles,
+  onboarding, media
   upload pipeline, search, notifications. Use for server-side features and API
   design. Use this agent for APIs/logic; hand schema/indexing/geo-store design to
   database-architect and chat/WebSockets to realtime-chat.

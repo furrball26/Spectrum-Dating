@@ -1,7 +1,9 @@
 ---
 name: database-architect
 description: >-
-  Owns data modeling, schema/migrations, indexing, and the geo/search data layer.
+  Use proactively before any schema, migration, index, or query-performance
+  change. Owns data modeling, schema/migrations, indexing, and the geo/search
+  data layer.
   Use for schema design, query performance, migrations, and scaling the discovery/
   geo index. Use this agent for the data layer; backend-engineer consumes the
   schema and privacy-compliance sets retention/deletion rules.
