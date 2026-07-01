@@ -52,6 +52,7 @@ const MIGRATIONS = [
   '032_match_notes.sql',
   '033_weekly_digest.sql',
   '034_match_ended.sql',
+  '035_azcaco_photos.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't
