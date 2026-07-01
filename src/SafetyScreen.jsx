@@ -209,6 +209,18 @@ const REPORT_STATUS = {
   withdrawn: { label: "Withdrawn", color: t.textMuted },
 };
 
+// Plain-language, shame-free outcome under the pill. Never surfaces the
+// internal moderator_note — only reassuring copy keyed off status.
+const REPORT_OUTCOME = {
+  open: "Our team will take a look. There's nothing else you need to do.",
+  reviewed: "Our team has reviewed this.",
+  actioned: "Thanks for telling us — we reviewed this and took action.",
+  dismissed:
+    "We reviewed this and didn't find a policy violation this time. You did the right thing by telling us — and you can always block them.",
+  withdrawn:
+    "You withdrew this report. That's okay — you can report again anytime if you need to.",
+};
+
 function StatusPill({ status }) {
   const meta = REPORT_STATUS[status] || REPORT_STATUS.open;
   return (
@@ -703,41 +715,51 @@ export default function SafetyScreen({ onBack }) {
                   <li
                     key={r.id ?? i}
                     style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: 12,
                       padding: "12px 0",
                       borderTop: i === 0 ? "none" : `1px solid ${t.borderLight}`,
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
-                        {r.reportedName || "Someone"}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
+                          {r.reportedName || "Someone"}
+                        </div>
+                        {r.reason && (
+                          <div style={{ fontSize: 14, color: t.textSoft, marginTop: 2 }}>
+                            {r.reason}
+                          </div>
+                        )}
+                        {formatReportDate(r.createdAt) && (
+                          <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+                            Reported {formatReportDate(r.createdAt)}
+                          </div>
+                        )}
                       </div>
-                      {r.reason && (
-                        <div style={{ fontSize: 14, color: t.textSoft, marginTop: 2 }}>
-                          {r.reason}
-                        </div>
-                      )}
-                      {formatReportDate(r.createdAt) && (
-                        <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
-                          Reported {formatReportDate(r.createdAt)}
-                        </div>
-                      )}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+                        <StatusPill status={r.status} />
+                        {r.status === "open" && (
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleWithdraw(r.id, r.reportedName || "this person")}
+                            disabled={withdrawing === r.id}
+                          >
+                            {withdrawing === r.id ? "Withdrawing…" : "Withdraw"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-                      <StatusPill status={r.status} />
-                      {r.status === "open" && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => handleWithdraw(r.id, r.reportedName || "this person")}
-                          disabled={withdrawing === r.id}
-                        >
-                          {withdrawing === r.id ? "Withdrawing…" : "Withdraw"}
-                        </Button>
-                      )}
-                    </div>
+                    {(REPORT_OUTCOME[r.status] || REPORT_OUTCOME.open) && (
+                      <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                        {REPORT_OUTCOME[r.status] || REPORT_OUTCOME.open}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
