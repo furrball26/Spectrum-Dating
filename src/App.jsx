@@ -1070,41 +1070,50 @@ export default function App() {
                     {a11y.reducedSensory
                       ? <SpectrumMark height={14} />
                       : <AnimatedSpectrumMark height={14} />}
-                    <div
-                      style={{
-                        fontFamily: t.serif,
-                        fontWeight: 700,
-                        fontSize: 19,
-                        letterSpacing: "-0.01em",
-                        color: t.text,
-                      }}
-                    >
-                      Spectrum
+                    {/* Wordmark is desktop-only. On mobile the top bar shows only
+                        the 6-tile glyph — the utility nav lives in the Profile hub
+                        (avoids the WCAG 1.4.10 reflow overlap at ≤360px). */}
+                    {!isMobile && (
+                      <div
+                        style={{
+                          fontFamily: t.serif,
+                          fontWeight: 700,
+                          fontSize: 19,
+                          letterSpacing: "-0.01em",
+                          color: t.text,
+                        }}
+                      >
+                        Spectrum
+                      </div>
+                    )}
+                  </div>
+                  {/* Utility cluster is desktop-only; on mobile it moves into the
+                      Profile account hub (see ProfileScreen). */}
+                  {!isMobile && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <SafetyLink
+                        active={activeTab === "safety"}
+                        onClick={() => {
+                          if (activeTab !== "safety") setPrevTab(activeTab);
+                          setActiveTab("safety");
+                        }}
+                      />
+                      <SettingsLink
+                        active={activeTab === "settings"}
+                        onClick={() => {
+                          if (activeTab !== "settings") setPrevTab(activeTab);
+                          setActiveTab("settings");
+                        }}
+                      />
+                      <SecurityLink
+                        active={activeTab === "account"}
+                        onClick={() => {
+                          if (activeTab !== "account") setPrevTab(activeTab);
+                          setActiveTab("account");
+                        }}
+                      />
                     </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <SafetyLink
-                      active={activeTab === "safety"}
-                      onClick={() => {
-                        if (activeTab !== "safety") setPrevTab(activeTab);
-                        setActiveTab("safety");
-                      }}
-                    />
-                    <SettingsLink
-                      active={activeTab === "settings"}
-                      onClick={() => {
-                        if (activeTab !== "settings") setPrevTab(activeTab);
-                        setActiveTab("settings");
-                      }}
-                    />
-                    <SecurityLink
-                      active={activeTab === "account"}
-                      onClick={() => {
-                        if (activeTab !== "account") setPrevTab(activeTab);
-                        setActiveTab("account");
-                      }}
-                    />
-                  </div>
+                  )}
                 </div>
 
                 {/* Primary nav is a single FIXED BOTTOM bar on every viewport
@@ -1194,6 +1203,8 @@ export default function App() {
                   onDone={() => { refreshMyProfile(); setActiveTab(prevTab || "suggestions"); }}
                   onSignOut={handleSignOut}
                   onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
+                  onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
+                  onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
                   pushEnabled={pushEnabled}
                   pushSupported={pushSupported}
                   onEnablePush={enablePush}

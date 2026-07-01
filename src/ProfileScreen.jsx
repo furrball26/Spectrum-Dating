@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription } from "./api.js";
 import { t } from "./tokens.js";
+import { ShieldIcon, GearIcon, LockIcon } from "./icons.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 
@@ -2015,7 +2016,7 @@ function ProfilePreviewModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
+export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -4024,17 +4025,55 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
           {/* Moderation moved to the primary nav (top tab on desktop / bottom
               bar item on mobile) for admins — no longer a Profile button. */}
 
+          {/* ── Account & settings hub ──
+              On mobile the top bar is stripped to the logo, so the utility nav
+              (Safety / Settings / Account & security) lives here. Rendered on all
+              viewports for consistency with the always-shown Sign-out section.
+              Distinct labelled landmark from the bottom <nav aria-label="Primary">. */}
+          {(onOpenSafety || onOpenSettings || onOpenAccount) && (
+            <nav
+              aria-label="Account and settings"
+              style={{
+                marginTop: 24,
+                paddingTop: 24,
+                borderTop: `1px solid ${t.borderLight}`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              {/* Safety first — a vulnerable audience shouldn't dig for safety tools. */}
+              {onOpenSafety && (
+                <HubRow
+                  icon={<ShieldIcon size={20} />}
+                  title="Safety"
+                  description="Report, block, and safety tools."
+                  onClick={onOpenSafety}
+                />
+              )}
+              {onOpenSettings && (
+                <HubRow
+                  icon={<GearIcon size={20} />}
+                  title="Settings"
+                  description="Appearance, accessibility, feedback."
+                  onClick={onOpenSettings}
+                />
+              )}
+              {onOpenAccount && (
+                <HubRow
+                  icon={<LockIcon size={20} />}
+                  title="Account & security"
+                  description="Change your password or email, or delete your account."
+                  onClick={onOpenAccount}
+                />
+              )}
+            </nav>
+          )}
+
           {/* ── Sign out ── */}
           {onSignOut && (
             <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
               <SignOutButton onSignOut={onSignOut} />
-            </div>
-          )}
-
-          {/* ── Account & security ── moved to its own screen; this links to it. */}
-          {onOpenAccount && (
-            <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}` }}>
-              <AccountSecurityLink onClick={onOpenAccount} />
             </div>
           )}
 
@@ -4075,7 +4114,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, pushEn
 // ── Account & security link ───────────────────────────────────────────────────
 // The change-password / change-email / delete-account controls now live on the
 // dedicated AccountSecurityScreen; this row navigates there.
-function AccountSecurityLink({ onClick }) {
+// A calm navigation row: leading icon + title/description + trailing chevron.
+// Navigates to a full screen (no popup/disclosure). The text label carries the
+// accessible name; the leading icon is aria-hidden decorative (from icons.jsx).
+function HubRow({ icon, title, description, onClick }) {
   const f = useFocusable();
   return (
     <button
@@ -4085,26 +4127,24 @@ function AccountSecurityLink({ onClick }) {
       style={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
         gap: 12,
         width: "100%",
         minHeight: 56,
         padding: "14px 18px",
         background: t.surface,
         border: `1px solid ${t.border}`,
-        borderRadius: 12,
+        borderRadius: 16,
         cursor: "pointer",
         textAlign: "left",
         ...f.style,
       }}
     >
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text }}>
-          Account &amp; security
-        </span>
-        <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 2 }}>
-          Change your password or email, or delete your account.
-        </span>
+      <span aria-hidden="true" style={{ display: "inline-flex", color: t.accentStrong, flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text }}>{title}</span>
+        <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 2 }}>{description}</span>
       </span>
       <span aria-hidden="true" style={{ fontSize: 20, color: t.accentStrong, flexShrink: 0 }}>→</span>
     </button>
