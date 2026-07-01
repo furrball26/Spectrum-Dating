@@ -135,6 +135,191 @@ function InlineError({ id, children }) {
   );
 }
 
+// ─── Calm labelled dropdown (mirrors ProfileScreen's LifestyleSelect) ──────────
+function LabelledSelect({ id, label, helper, value, options, onChange }) {
+  const f = useFocusable();
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <select
+        id={id}
+        value={value}
+        aria-describedby={helper ? `${id}-hint` : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        {...f}
+        style={{
+          ...inputStyle(false),
+          minHeight: 44,
+          appearance: "auto",
+          cursor: "pointer",
+          ...f.style,
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      {helper && <HelperText id={`${id}-hint`}>{helper}</HelperText>}
+    </div>
+  );
+}
+
+// ─── Dual-handle age-range slider (mirrors ProfileScreen's AgeRangeSlider) ──────
+const AGE_SLIDER_MIN = 18;
+const AGE_SLIDER_MAX = 99;
+
+function AgeRangeSlider({ low, high, onChange }) {
+  const trackRef = useRef(null);
+  const [dragging, setDragging] = useState(null); // "low" | "high" | null
+  const [focusedThumb, setFocusedThumb] = useState(null);
+  const focusRingStyle = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
+
+  function pct(v) {
+    return ((v - AGE_SLIDER_MIN) / (AGE_SLIDER_MAX - AGE_SLIDER_MIN)) * 100;
+  }
+
+  function valueFromClientX(clientX) {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return AGE_SLIDER_MIN;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(AGE_SLIDER_MIN + ratio * (AGE_SLIDER_MAX - AGE_SLIDER_MIN));
+  }
+
+  function handlePointerDown(e, which) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(which);
+  }
+
+  function handlePointerMove(e) {
+    if (!dragging) return;
+    const v = valueFromClientX(e.clientX);
+    if (dragging === "low") {
+      onChange(Math.max(AGE_SLIDER_MIN, Math.min(v, high - 1)), high);
+    } else {
+      onChange(low, Math.min(AGE_SLIDER_MAX, Math.max(v, low + 1)));
+    }
+  }
+
+  function handlePointerUp() { setDragging(null); }
+
+  function handleKeyDown(e, which) {
+    let delta = 0;
+    if (e.key === "ArrowLeft"  || e.key === "ArrowDown") delta = -1;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp")   delta =  1;
+    if (!delta) return;
+    e.preventDefault();
+    if (which === "low") {
+      onChange(Math.max(AGE_SLIDER_MIN, Math.min(low + delta, high - 1)), high);
+    } else {
+      onChange(low, Math.min(AGE_SLIDER_MAX, Math.max(high + delta, low + 1)));
+    }
+  }
+
+  const THUMB = 26;
+  function thumbStyle(which) {
+    return {
+      position: "absolute",
+      top: "50%",
+      left: `${pct(which === "low" ? low : high)}%`,
+      transform: "translate(-50%, -50%)",
+      width: THUMB,
+      height: THUMB,
+      borderRadius: "50%",
+      background: t.accentFill,
+      border: "3px solid #fff",
+      boxShadow: "0 1px 5px rgba(36,51,45,0.28)",
+      cursor: dragging === which ? "grabbing" : "grab",
+      touchAction: "none",
+      zIndex: which === dragging ? 3 : 2,
+    };
+  }
+
+  return (
+    <div style={{ padding: "4px 0 2px" }}>
+      <div style={{
+        textAlign: "center",
+        fontFamily: t.serif,
+        fontSize: 22,
+        fontWeight: 700,
+        color: t.text,
+        marginBottom: 14,
+        letterSpacing: "-0.3px",
+      }}>
+        {low}
+        <span style={{ color: t.textSoft, fontWeight: 400, margin: "0 6px" }}>–</span>
+        {high === AGE_SLIDER_MAX ? `${AGE_SLIDER_MAX}+` : high}
+      </div>
+
+      <div
+        ref={trackRef}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ position: "relative", height: THUMB + 16, userSelect: "none", padding: "0 2px" }}
+      >
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: 0,
+          right: 0,
+          height: 6,
+          borderRadius: 3,
+          background: t.surfaceAlt,
+          border: `1px solid ${t.border}`,
+          transform: "translateY(-50%)",
+        }} />
+
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: `${pct(low)}%`,
+          width: `${pct(high) - pct(low)}%`,
+          height: 6,
+          borderRadius: 3,
+          background: t.accentFill,
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }} />
+
+        <div
+          role="slider"
+          aria-label="Minimum age"
+          aria-valuemin={AGE_SLIDER_MIN}
+          aria-valuemax={high - 1}
+          aria-valuenow={low}
+          aria-valuetext={`${low} years`}
+          tabIndex={0}
+          onPointerDown={(e) => handlePointerDown(e, "low")}
+          onKeyDown={(e) => handleKeyDown(e, "low")}
+          onFocus={() => setFocusedThumb("low")}
+          onBlur={() => setFocusedThumb(null)}
+          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRingStyle : {}) }}
+        />
+
+        <div
+          role="slider"
+          aria-label="Maximum age"
+          aria-valuemin={low + 1}
+          aria-valuemax={AGE_SLIDER_MAX}
+          aria-valuenow={high}
+          aria-valuetext={high === AGE_SLIDER_MAX ? `${AGE_SLIDER_MAX} and over` : `${high} years`}
+          tabIndex={0}
+          onPointerDown={(e) => handlePointerDown(e, "high")}
+          onKeyDown={(e) => handleKeyDown(e, "high")}
+          onFocus={() => setFocusedThumb("high")}
+          onBlur={() => setFocusedThumb(null)}
+          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRingStyle : {}) }}
+        />
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+        <span>{AGE_SLIDER_MIN}</span>
+        <span>{AGE_SLIDER_MAX}+</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Interest chip components ──────────────────────────────────────────────────
 
 function SuggestionChip({ tag, selected, onToggle, prefersReduced }) {
@@ -597,6 +782,160 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
   );
 }
 
+// ─── Step 4: Who you'd like to meet (optional) ─────────────────────────────────
+
+function Step4({
+  gender, setGender,
+  pronouns, setPronouns,
+  seeking, setSeeking,
+  prefAgeMin, prefAgeMax, setPrefAgeMin, setPrefAgeMax,
+}) {
+  const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
+
+  return (
+    <>
+      <p style={{ margin: "0 0 22px", fontSize: 15, color: t.textSoft, lineHeight: 1.55 }}>
+        This helps us shape your Discover deck. All of it is optional — you can
+        skip and adjust anytime in your profile.
+      </p>
+
+      <LabelledSelect
+        id="ob-gender"
+        label="Your gender"
+        value={gender}
+        onChange={setGender}
+        options={[
+          { value: "", label: "Prefer not to say" },
+          { value: "woman", label: "Woman" },
+          { value: "man", label: "Man" },
+          { value: "nonbinary", label: "Nonbinary" },
+          { value: "other", label: "Other" },
+        ]}
+      />
+
+      <div style={{ marginBottom: 20 }}>
+        <FieldLabel htmlFor="ob-pronouns">Pronouns</FieldLabel>
+        <input
+          id="ob-pronouns"
+          type="text"
+          maxLength={40}
+          aria-describedby="ob-pronouns-hint"
+          value={pronouns}
+          onChange={(e) => setPronouns(e.target.value)}
+          onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+          onBlur={(e) => { e.target.style.outline = "none"; }}
+          style={inputStyle(false)}
+          placeholder="e.g. she/her, they/them"
+        />
+        <HelperText id="ob-pronouns-hint">Shown on your profile so people address you correctly.</HelperText>
+      </div>
+
+      <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+        <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
+          Who do you want to meet?
+        </legend>
+        <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginBottom: 10, clear: "both" }}>
+          Choose any. Leave all unchecked to be open to everyone.
+        </span>
+        {[
+          { value: "woman", label: "Women" },
+          { value: "man", label: "Men" },
+          { value: "nonbinary", label: "Nonbinary people" },
+        ].map(({ value, label }) => {
+          const checked = seekingSet.includes(value);
+          return (
+            <label key={value} htmlFor={`ob-seek-${value}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer" }}>
+              <input
+                id={`ob-seek-${value}`}
+                type="checkbox"
+                checked={checked}
+                onChange={() => {
+                  const next = checked ? seekingSet.filter((x) => x !== value) : [...seekingSet, value];
+                  setSeeking(next.join(","));
+                }}
+                style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+              />
+              <span style={{ fontSize: 15, color: t.text }}>{label}</span>
+            </label>
+          );
+        })}
+      </fieldset>
+
+      <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+        <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 2 }}>
+          Age range
+        </legend>
+        <AgeRangeSlider
+          low={prefAgeMin}
+          high={prefAgeMax}
+          onChange={(newLow, newHigh) => { setPrefAgeMin(newLow); setPrefAgeMax(newHigh); }}
+        />
+        <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}>
+          Only show people in this age range.
+        </span>
+      </fieldset>
+    </>
+  );
+}
+
+// ─── Step 5: How you communicate — the "moat" (optional) ───────────────────────
+
+function Step5({
+  commDirectness, setCommDirectness,
+  commCadence, setCommCadence,
+  sensoryEnvironment, setSensoryEnvironment,
+}) {
+  return (
+    <>
+      <p style={{ margin: "0 0 22px", fontSize: 15, color: t.textSoft, lineHeight: 1.55 }}>
+        A couple of taps that help matches know how to talk with you. Totally
+        optional — skip if you'd rather add this later.
+      </p>
+
+      <LabelledSelect
+        id="ob-comm-directness"
+        label="Directness"
+        helper="Optional — shown on your profile."
+        value={commDirectness}
+        onChange={setCommDirectness}
+        options={[
+          { value: "", label: "Prefer not to say" },
+          { value: "direct", label: "I prefer direct" },
+          { value: "softened", label: "I prefer softened" },
+        ]}
+      />
+
+      <LabelledSelect
+        id="ob-comm-cadence"
+        label="Reply pace"
+        helper="Optional — shown on your profile."
+        value={commCadence}
+        onChange={setCommCadence}
+        options={[
+          { value: "", label: "Prefer not to say" },
+          { value: "instant", label: "I like quick replies" },
+          { value: "daily", label: "Once a day is great" },
+          { value: "whenever", label: "Whenever works" },
+        ]}
+      />
+
+      <LabelledSelect
+        id="ob-sensory-environment"
+        label="Preferred setting"
+        helper="Optional — shown on your profile."
+        value={sensoryEnvironment}
+        onChange={setSensoryEnvironment}
+        options={[
+          { value: "", label: "Prefer not to say" },
+          { value: "quiet", label: "Quiet" },
+          { value: "lively", label: "Lively" },
+          { value: "either", label: "Either is fine" },
+        ]}
+      />
+    </>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen({ onComplete }) {
@@ -616,6 +955,18 @@ export default function OnboardingScreen({ onComplete }) {
   // Step 3 fields
   const [commNote, setCommNote] = useState("");
   const [relationshipGoal, setRelationshipGoal] = useState("");
+
+  // Step 4 fields — who you'd like to meet (optional)
+  const [gender, setGender] = useState("");
+  const [pronouns, setPronouns] = useState("");
+  const [seeking, setSeeking] = useState(""); // comma-joined: "woman,man,nonbinary"
+  const [prefAgeMin, setPrefAgeMin] = useState(18);
+  const [prefAgeMax, setPrefAgeMax] = useState(99);
+
+  // Step 5 fields — how you communicate, the "moat" (optional)
+  const [commDirectness, setCommDirectness] = useState("");
+  const [commCadence, setCommCadence] = useState("");
+  const [sensoryEnvironment, setSensoryEnvironment] = useState("");
 
   // Validation
   const [attempted, setAttempted] = useState(false);
@@ -696,6 +1047,16 @@ export default function OnboardingScreen({ onComplete }) {
         interests: canonicalInterests,
         commNote,
         relationshipGoal,
+        // Step 4 — who you'd like to meet (optional)
+        gender,
+        pronouns,
+        seeking,
+        prefAgeMin,
+        prefAgeMax,
+        // Step 5 — how you communicate, the "moat" (optional)
+        commDirectness,
+        commCadence,
+        sensoryEnvironment,
       });
       onComplete();
     } catch (e) {
@@ -735,13 +1096,31 @@ export default function OnboardingScreen({ onComplete }) {
     "Let's start with the basics",
     "Tell people about you",
     "How you communicate",
+    "Who you'd like to meet",
+    "How you communicate best",
   ];
+  const TOTAL_STEPS = stepHeadings.length;
 
   // ── Continue / Save button ────────────────────────────────────────────────────
   const fContinue = useFocusable();
   const fBack = useFocusable();
+  const fSkip = useFocusable();
 
-  const isLastStep = step === 3;
+  // Skip an optional step (4 & 5). On the last step this saves with whatever
+  // has (or hasn't) been filled in — the skipped fields simply stay at their
+  // calm defaults. Never forced (calm-by-design).
+  function handleSkip() {
+    setAttempted(false);
+    setError("");
+    if (isLastStep) {
+      handleSave();
+    } else {
+      setStep((s) => s + 1);
+    }
+  }
+
+  const isLastStep = step === TOTAL_STEPS;
+  const isOptionalStep = step >= 4; // steps 4 & 5 are optional / skippable
 
   return (
     <div style={page}>
@@ -751,7 +1130,7 @@ export default function OnboardingScreen({ onComplete }) {
         aria-atomic="true"
         style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}
       >
-        {`Step ${step} of 3: ${stepHeadings[step - 1]}`}
+        {`Step ${step} of ${TOTAL_STEPS}: ${stepHeadings[step - 1]}`}
       </div>
 
       <div style={card}>
@@ -766,9 +1145,9 @@ export default function OnboardingScreen({ onComplete }) {
           }}
           aria-hidden="true"
         >
-          <Spectrum variant="progress" value={step} count={3} size={9} gap={5} />
+          <Spectrum variant="progress" value={step} count={TOTAL_STEPS} size={9} gap={5} />
           <span style={{ fontSize: 13, color: t.textMuted, letterSpacing: "0.02em" }}>
-            Step {step} of 3
+            Step {step} of {TOTAL_STEPS}
           </span>
         </div>
 
@@ -823,6 +1202,30 @@ export default function OnboardingScreen({ onComplete }) {
             attempted={attempted}
           />
         )}
+        {step === 4 && (
+          <Step4
+            gender={gender}
+            setGender={setGender}
+            pronouns={pronouns}
+            setPronouns={setPronouns}
+            seeking={seeking}
+            setSeeking={setSeeking}
+            prefAgeMin={prefAgeMin}
+            prefAgeMax={prefAgeMax}
+            setPrefAgeMin={setPrefAgeMin}
+            setPrefAgeMax={setPrefAgeMax}
+          />
+        )}
+        {step === 5 && (
+          <Step5
+            commDirectness={commDirectness}
+            setCommDirectness={setCommDirectness}
+            commCadence={commCadence}
+            setCommCadence={setCommCadence}
+            sensoryEnvironment={sensoryEnvironment}
+            setSensoryEnvironment={setSensoryEnvironment}
+          />
+        )}
 
         {/* Save error */}
         {error && (
@@ -866,6 +1269,33 @@ export default function OnboardingScreen({ onComplete }) {
           >
             {isLastStep ? (saving ? "Saving…" : "Save & start exploring") : "Continue"}
           </button>
+
+          {/* Skip — only on the optional steps (4 & 5). Calm-by-design: these
+              steps are never forced. On the last step, Skip saves with the
+              fields left at their defaults. */}
+          {isOptionalStep && (
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={saving}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: t.textSoft,
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: saving ? "wait" : "pointer",
+                padding: "8px 0",
+                minHeight: 44,
+                textAlign: "center",
+                ...fSkip.style,
+              }}
+              onFocus={fSkip.onFocus}
+              onBlur={fSkip.onBlur}
+            >
+              {isLastStep ? "Skip for now" : "Skip this step"}
+            </button>
+          )}
 
           {step > 1 && (
             <button
