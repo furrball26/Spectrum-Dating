@@ -187,13 +187,18 @@ router.post('/undo-skip', requireAuth, (req, res) => {
 // person's profile and whether a conversation has been started yet.
 router.get('/matches', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
+  // Join the requester's OWN private note (match_notes keyed by user_id +
+  // match_id). Because we key on n.user_id = ?, this can only ever surface the
+  // viewer's own note — never the other member's.
   const rows = db.prepare(`
-    SELECT m.id, m.user_a_id, m.user_b_id, m.matched_at, c.id AS conversation_id
+    SELECT m.id, m.user_a_id, m.user_b_id, m.matched_at, c.id AS conversation_id,
+           n.note AS note
     FROM matches m
     LEFT JOIN conversations c ON c.match_id = m.id
+    LEFT JOIN match_notes n ON n.match_id = m.id AND n.user_id = ?
     WHERE m.user_a_id = ? OR m.user_b_id = ?
     ORDER BY m.matched_at DESC
-  `).all(userId, userId);
+  `).all(userId, userId, userId);
 
   const matches = rows.map((row) => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
@@ -208,6 +213,9 @@ router.get('/matches', requireAuth, (req, res) => {
       matchedAt: row.matched_at,
       conversationId: row.conversation_id || null,
       hasConversation: !!row.conversation_id,
+      // The viewer's OWN private note for this match ("" if none). Owner-only —
+      // the other person's note is never joined or returned.
+      note: row.note || '',
       otherUser: {
         userId: otherId,
         displayName: p?.display_name || '',
@@ -247,6 +255,36 @@ router.delete('/matches/:id', requireAuth, (req, res) => {
   });
   unmatch();
   res.json({ ok: true, unmatched: true });
+});
+
+// PUT /matching/matches/:id/note — set/clear the requester's OWN private note
+// on a match ("note to self"). Owner-only: verify the requester is a member of
+// the match (else 404 — don't reveal the match exists), then UPSERT. An empty
+// string clears the note. Cap at 500 chars.
+router.put('/matches/:id/note', requireAuth, mutationLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+  const matchId = req.params.id;
+
+  let note = req.body?.note;
+  if (note == null) note = '';
+  if (typeof note !== 'string') {
+    return res.status(400).json({ error: 'note must be a string.' });
+  }
+  note = note.trim().slice(0, 500);
+
+  const match = db.prepare('SELECT user_a_id, user_b_id FROM matches WHERE id = ?').get(matchId);
+  // 404 (not 403) when the requester isn't a member — don't confirm the match exists.
+  if (!match || (match.user_a_id !== userId && match.user_b_id !== userId)) {
+    return res.status(404).json({ error: 'Match not found' });
+  }
+
+  db.prepare(
+    `INSERT INTO match_notes (user_id, match_id, note, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, match_id) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at`
+  ).run(userId, matchId, note, Date.now());
+
+  return res.json({ ok: true, note });
 });
 
 // GET /matching/activity — activity inbox:
