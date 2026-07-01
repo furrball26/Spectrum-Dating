@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getCandidates, swipe, blockUser, reportUser, getProfile, updateProfile, undoSkip, getUserId, createConversation } from "./api.js";
 import { t } from "./tokens.js";
+import { SAFETY_REASONS } from "./safetyReasons.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import MatchMoment from "./MatchMoment.jsx";
@@ -235,11 +236,18 @@ function PromptCards({ prompts }) {
 }
 
 function ReportModal({ candidate, onClose, onBlocked }) {
-  const [reason, setReason] = useState("inappropriate");
+  const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
+  // Block and report are independent choices. Default: report on (this is the
+  // "Report" entry point), block on too since it's pre-match — but each is
+  // optional and can be turned off. At least one is required.
+  const [doReport, setDoReport] = useState(true);
+  const [doBlock, setDoBlock] = useState(true);
   const [submitted, setSubmitted] = useState(false);
+  const [confirmMsg, setConfirmMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [blockFailed, setBlockFailed] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [failMsg, setFailMsg] = useState("");
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -254,37 +262,60 @@ function ReportModal({ candidate, onClose, onBlocked }) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
+  const canSubmit = (doBlock || doReport) && !!reason && !submitting;
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (submitting) return;
+    if (!canSubmit) return;
     setSubmitting(true);
-    setBlockFailed(false);
-    // Send the report to moderators (primary action)
-    try {
-      await reportUser(candidate.memberId, reason, details || undefined);
-    } catch (err) {
-      console.warn("Report failed", err);
+    setFailed(false);
+
+    // Report to moderators (independent of block).
+    let reported = false;
+    if (doReport) {
+      try {
+        await reportUser(candidate.memberId, reason, details || undefined);
+        reported = true;
+      } catch (err) {
+        console.warn("Report failed", err);
+      }
     }
-    // Also block so the reporter won't see this candidate again. blockUser
-    // canonicalises the reason to a valid block reason server-side.
+    // Block. blockUser canonicalises the reason to a valid block reason.
     let blocked = false;
-    try {
-      await blockUser(candidate.memberId, reason, details || undefined);
-      blocked = true;
-    } catch (err) {
-      console.warn("Block failed", err);
+    if (doBlock) {
+      try {
+        await blockUser(candidate.memberId, reason, details || undefined);
+        blocked = true;
+      } catch (err) {
+        console.warn("Block failed", err);
+      }
     }
     setSubmitting(false);
-    // Client-side fallback: keep the reported person out of the deck regardless
-    // of whether the block landed server-side.
-    if (onBlocked) onBlocked(candidate);
-    if (!blocked) {
-      // Don't promise they're gone if the block failed — offer a calm retry.
-      setBlockFailed(true);
+
+    // E27: only drop them from the deck / promise "gone" when the block landed.
+    if (doBlock) {
+      if (!blocked) {
+        setFailMsg(`We couldn't block ${candidate.displayName}. Please try again.`);
+        setFailed(true);
+        return;
+      }
+      if (onBlocked) onBlocked(candidate);
+    }
+    if (!doBlock && doReport && !reported) {
+      setFailMsg("We couldn't send your report. Please try again.");
+      setFailed(true);
       return;
     }
+
+    setConfirmMsg(
+      blocked && reported
+        ? `Blocked and reported. You won't see ${candidate.displayName} again, and our team will take a look.`
+        : blocked
+        ? `Blocked. You won't see ${candidate.displayName} again.`
+        : "Report submitted. Thank you — our team will take a look."
+    );
     setSubmitted(true);
-    setTimeout(onClose, 1200);
+    setTimeout(onClose, 1600);
   }
 
   return (
@@ -319,8 +350,11 @@ function ReportModal({ candidate, onClose, onBlocked }) {
         }}
       >
         {submitted ? (
-          <p style={{ color: t.textSoft, textAlign: "center", margin: 0 }}>
-            Report submitted. Thank you.
+          <p
+            role="status"
+            style={{ color: t.textSoft, textAlign: "center", margin: 0, lineHeight: 1.6 }}
+          >
+            {confirmMsg}
           </p>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -332,14 +366,17 @@ function ReportModal({ candidate, onClose, onBlocked }) {
                 fontFamily: t.serif,
                 fontSize: 20,
                 fontWeight: 700,
-                margin: "0 0 20px",
+                margin: "0 0 8px",
                 color: t.text,
                 outline: "none",
               }}
             >
-              Report {candidate.displayName}
+              Block or report {candidate.displayName}
             </h2>
-            {blockFailed && (
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.55 }}>
+              Choose what you'd like to do — you can block, report, or both. Neither is required.
+            </p>
+            {failed && (
               <div
                 role="alert"
                 style={{
@@ -353,35 +390,67 @@ function ReportModal({ candidate, onClose, onBlocked }) {
                   lineHeight: 1.5,
                 }}
               >
-                We couldn't block them — please try again.
+                {failMsg}
               </div>
             )}
             <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
               <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
-                Reason
+                What would you like to do?
               </legend>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 15, color: t.text, cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, fontSize: 15, color: t.text, cursor: "pointer" }}>
                 <input
-                  type="radio"
-                  name="report-reason"
-                  value="inappropriate"
-                  checked={reason === "inappropriate"}
-                  onChange={() => setReason("inappropriate")}
-                  style={{ minWidth: 18, minHeight: 18 }}
+                  type="checkbox"
+                  checked={doBlock}
+                  onChange={() => setDoBlock((v) => !v)}
+                  style={{ minWidth: 18, minHeight: 18, marginTop: 2, accentColor: t.accent }}
                 />
-                Inappropriate content
+                <span>
+                  <span style={{ display: "block", fontWeight: 600 }}>Block them</span>
+                  <span style={{ display: "block", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                    You won't see {candidate.displayName} again.
+                  </span>
+                </span>
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, color: t.text, cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 15, color: t.text, cursor: "pointer" }}>
                 <input
-                  type="radio"
-                  name="report-reason"
-                  value="spam"
-                  checked={reason === "spam"}
-                  onChange={() => setReason("spam")}
-                  style={{ minWidth: 18, minHeight: 18 }}
+                  type="checkbox"
+                  checked={doReport}
+                  onChange={() => setDoReport((v) => !v)}
+                  style={{ minWidth: 18, minHeight: 18, marginTop: 2, accentColor: t.accent }}
                 />
-                Spam or fake profile
+                <span>
+                  <span style={{ display: "block", fontWeight: 600 }}>Report to our team</span>
+                  <span style={{ display: "block", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                    Flag this for our team — you don't have to block them. It's private and low-stakes.
+                  </span>
+                </span>
               </label>
+              {!doBlock && !doReport && (
+                <p style={{ fontSize: 13, color: t.textMuted, margin: "10px 0 0" }}>
+                  Pick at least one to continue.
+                </p>
+              )}
+            </fieldset>
+            <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
+              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
+                What's going on?
+              </legend>
+              {SAFETY_REASONS.map((r) => (
+                <label
+                  key={r.value}
+                  style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 15, color: t.text, cursor: "pointer" }}
+                >
+                  <input
+                    type="radio"
+                    name="report-reason"
+                    value={r.value}
+                    checked={reason === r.value}
+                    onChange={() => setReason(r.value)}
+                    style={{ minWidth: 18, minHeight: 18, accentColor: t.accent }}
+                  />
+                  {r.label}
+                </label>
+              ))}
             </fieldset>
             <label style={{ display: "block", marginBottom: 16 }}>
               <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 6 }}>
@@ -427,21 +496,28 @@ function ReportModal({ candidate, onClose, onBlocked }) {
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={!canSubmit}
                 style={{
                   flex: 1,
                   minHeight: 48,
                   borderRadius: 12,
                   fontSize: 16,
                   fontWeight: 600,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  background: "#B94040",
-                  color: "#fff",
+                  cursor: canSubmit ? "pointer" : "not-allowed",
+                  background: canSubmit ? t.danger : t.borderLight,
+                  color: canSubmit ? "#fff" : t.textMuted,
                   border: "none",
-                  opacity: submitting ? 0.7 : 1,
                 }}
               >
-                {submitting ? "Submitting…" : blockFailed ? "Try again" : "Submit report"}
+                {submitting
+                  ? "Submitting…"
+                  : failed
+                  ? "Try again"
+                  : doBlock && doReport
+                  ? "Block and report"
+                  : doReport
+                  ? "Send report"
+                  : "Block"}
               </button>
             </div>
           </form>

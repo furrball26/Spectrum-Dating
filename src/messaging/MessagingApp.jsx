@@ -134,38 +134,48 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
     setScreen("block-report");
   }
 
-  async function handleBlockReportSubmit({ reason, details }) {
+  // Block and report are independent. The caller passes which actions were
+  // chosen ({ doBlock, doReport }); we only perform (and only confirm) the ones
+  // requested. E27 is preserved: we never claim a block landed unless it did.
+  async function handleBlockReportSubmit({ reason, details, doBlock, doReport }) {
     const name = currentConvo?.otherUser?.displayName || "this person";
     // Optional-chain the id — the async handler can fire after currentConvo nulls.
     const otherUserId = currentConvo?.otherUser?.userId;
     const convId = selectedConversationId;
     if (!otherUserId) {
       // Nothing to act on — signal failure so the screen keeps them informed.
-      return { blocked: false };
+      return { blocked: false, reported: false };
     }
     let blocked = false;
-    try {
-      await blockUser(otherUserId, reason, details);
-      blocked = true;
-    } catch (e) {
-      console.warn("Block failed", e);
+    if (doBlock) {
+      try {
+        await blockUser(otherUserId, reason, details);
+        blocked = true;
+      } catch (e) {
+        console.warn("Block failed", e);
+      }
     }
-    // Also surface the report to moderators (best-effort, independent of block)
-    try {
-      await reportUser(otherUserId, reason, details, convId);
-    } catch (e) {
-      console.warn("Report failed", e);
+    let reported = false;
+    if (doReport) {
+      try {
+        await reportUser(otherUserId, reason, details, convId);
+        reported = true;
+      } catch (e) {
+        console.warn("Report failed", e);
+      }
     }
-    // Client-side fallback: whether or not the block landed server-side, drop
-    // the conversation from the list so the user isn't confronted with it again
-    // this session.
-    setConversations(prev => prev.filter(c => c.id !== convId));
     if (blocked) {
-      setMatchesStatusMessage(`You blocked and reported ${name}.`);
+      // Client-side fallback: once blocked, drop the conversation from the list
+      // so the user isn't confronted with it again this session.
+      setConversations(prev => prev.filter(c => c.id !== convId));
+      setMatchesStatusMessage(
+        reported ? `You blocked and reported ${name}.` : `You blocked ${name}.`
+      );
       handleBackToList();
     }
-    // On failure, stay on the screen so it can show a calm retry message.
-    return { blocked };
+    // If only reporting (no block), the screen shows its own calm confirmation
+    // and the conversation stays. On block failure, stay so it can retry.
+    return { blocked, reported };
   }
 
   async function handleArchive(conversationId) {

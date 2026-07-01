@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
+import { SAFETY_REASONS } from "../safetyReasons.js";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
@@ -26,25 +27,24 @@ function usePrefersReduced() {
   return prefersReduced;
 }
 
-const REASONS = [
-  { value: "harassment", label: "Harassment" },
-  { value: "spam", label: "Spam" },
-  { value: "inappropriate", label: "Inappropriate content" },
-  { value: "other", label: "Other" },
-];
-
 const MAX_DETAILS = 500;
 
 export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
   const headingRef = useRef(null);
   const confirmRef = useRef(null);
-  const statusRef = useRef(null);
 
+  // Block and report are independent, optional choices. Default: block on
+  // (this flow is reached from a conversation the user wants to leave), report
+  // off (reporting is a separate, deliberate choice). At least one is required.
+  const [doBlock, setDoBlock] = useState(true);
+  const [doReport, setDoReport] = useState(false);
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [confirmMsg, setConfirmMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [failMsg, setFailMsg] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
 
   const fBack = useFocusable();
@@ -61,29 +61,76 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
     }
   }, [submitted]);
 
+  const canSubmit = (doBlock || doReport) && !!reason && !submitting;
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!reason || submitting) return;
+    if (!canSubmit) return;
     setFailed(false);
     setSubmitting(true);
-    // Only confirm "you will not see them again" once the block actually lands.
+
     let result;
     try {
-      result = onSubmit ? await onSubmit({ reason, details }) : { blocked: true };
+      result = onSubmit
+        ? await onSubmit({ reason, details, doBlock, doReport })
+        : { blocked: doBlock, reported: doReport };
     } catch {
-      result = { blocked: false };
+      result = { blocked: false, reported: false };
     }
     setSubmitting(false);
+
     // Treat a missing/undefined result as success for backward-compatibility
     // with callers that don't return a status.
-    if (result && result.blocked === false) {
+    const blocked = result ? result.blocked !== false : true;
+    const reported = result ? result.reported !== false : true;
+
+    // E27: only ever claim the actions that actually landed. If a requested
+    // block failed, surface a calm retry and don't confirm anything.
+    if (doBlock && !blocked) {
       setFailed(true);
+      setFailMsg(`We couldn't block ${displayName}. Please try again.`);
       setStatusMsg(`We couldn't block ${displayName}. Please try again.`);
       return;
     }
+    // A block-free report that failed also gets a calm retry.
+    if (!doBlock && doReport && !reported) {
+      setFailed(true);
+      setFailMsg(`We couldn't send your report. Please try again.`);
+      setStatusMsg(`We couldn't send your report. Please try again.`);
+      return;
+    }
+
+    // Build an honest confirmation from what actually happened.
+    let msg;
+    if (blocked && reported) {
+      msg = `You have blocked and reported ${displayName}. You won't see them again, and our team will take a look.`;
+    } else if (blocked) {
+      msg = `You have blocked ${displayName}. You won't see them again.`;
+    } else {
+      msg = `Thank you. You've flagged ${displayName} for our team — we'll take a look. You haven't blocked them.`;
+    }
+    setConfirmMsg(msg);
+    setStatusMsg(msg);
     setSubmitted(true);
-    setStatusMsg(`You have blocked and reported ${displayName}. You will not see them again.`);
   }
+
+  // Dynamic labels reflect the chosen actions so nothing overpromises.
+  const heading =
+    doBlock && doReport
+      ? `Block or report ${displayName}`
+      : doReport && !doBlock
+      ? `Report ${displayName}`
+      : `Block ${displayName}`;
+
+  const actionLabel =
+    doBlock && doReport
+      ? "Block and report"
+      : doReport
+      ? "Send report"
+      : "Block";
+
+  const submittingLabel =
+    doBlock && doReport ? "Submitting…" : doReport ? "Sending…" : "Blocking…";
 
   return (
     <div
@@ -133,14 +180,20 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
             fontFamily: t.serif,
             fontSize: 26,
             fontWeight: 700,
-            margin: "0 0 24px",
+            margin: "0 0 8px",
             color: t.text,
             lineHeight: 1.25,
             outline: "none",
           }}
         >
-          Block and report {displayName}
+          {heading}
         </h1>
+        {!submitted && (
+          <p style={{ fontSize: 15, color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}>
+            Choose what you'd like to do. You can block, report, or both — whatever feels
+            right. Neither is required.
+          </p>
+        )}
 
         {/* Status/confirmation region */}
         <div
@@ -177,7 +230,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                 outline: "none",
               }}
             >
-              You have blocked and reported {displayName}. You will not see them again.
+              {confirmMsg}
             </p>
           </div>
         ) : (
@@ -205,9 +258,50 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                   lineHeight: 1.5,
                 }}
               >
-                We couldn't block {displayName} — please try again.
+                {failMsg}
               </div>
             )}
+
+            {/* Two independent choices */}
+            <fieldset style={{ border: "none", margin: "0 0 24px", padding: 0 }}>
+              <legend
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: t.text,
+                  marginBottom: 14,
+                  display: "block",
+                  float: "none",
+                  width: "100%",
+                  padding: 0,
+                }}
+              >
+                What would you like to do?
+              </legend>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <ActionOption
+                  checked={doBlock}
+                  onChange={() => setDoBlock((v) => !v)}
+                  title="Block them"
+                  description={`${displayName} won't be able to message you, and you won't see each other again.`}
+                />
+                <ActionOption
+                  checked={doReport}
+                  onChange={() => setDoReport((v) => !v)}
+                  title="Report to our team"
+                  description="Flag this for our team — you don't have to block them. It's private, low-stakes, and there's no wrong reason to reach out."
+                />
+              </div>
+
+              {!doBlock && !doReport && (
+                <p style={{ fontSize: 14, color: t.textMuted, margin: "12px 0 0" }}>
+                  Pick at least one to continue.
+                </p>
+              )}
+            </fieldset>
+
+            {/* Reason — needed for whichever action is chosen */}
             <fieldset
               style={{
                 border: "none",
@@ -227,11 +321,11 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                   padding: 0,
                 }}
               >
-                Why are you reporting {displayName}?
+                What's going on? {doReport && !doBlock ? "This helps our team." : ""}
               </legend>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {REASONS.map((r) => (
+                {SAFETY_REASONS.map((r) => (
                   <RadioOption
                     key={r.value}
                     name="reason"
@@ -287,28 +381,76 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
 
             <button
               type="submit"
-              disabled={!reason || submitting}
+              disabled={!canSubmit}
               style={{
                 width: "100%",
                 minHeight: 52,
                 borderRadius: 14,
                 fontSize: 17,
                 fontWeight: 600,
-                cursor: reason && !submitting ? "pointer" : "not-allowed",
-                background: reason ? t.danger : t.borderLight,
-                color: reason ? "#fff" : t.textMuted,
+                cursor: canSubmit ? "pointer" : "not-allowed",
+                background: canSubmit ? t.danger : t.borderLight,
+                color: canSubmit ? "#fff" : t.textMuted,
                 border: "none",
                 ...fSubmit.style,
               }}
               onFocus={fSubmit.onFocus}
               onBlur={fSubmit.onBlur}
             >
-              {submitting ? "Blocking…" : failed ? "Try again" : "Block and report"}
+              {submitting ? submittingLabel : failed ? "Try again" : actionLabel}
             </button>
           </form>
         )}
       </div>
     </div>
+  );
+}
+
+// A single independent action toggle (Block / Report), presented as a checkbox
+// with a plain-language description. Reuses the app's calm radio-card styling.
+function ActionOption({ checked, onChange, title, description }) {
+  const [focused, setFocused] = useState(false);
+  const prefersReduced = usePrefersReduced();
+
+  return (
+    <label
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        cursor: "pointer",
+        fontSize: 16,
+        color: t.text,
+        padding: "14px 16px",
+        borderRadius: 12,
+        background: checked ? t.surfaceAlt : "transparent",
+        border: `1px solid ${checked ? t.formBorder : t.borderLight}`,
+        transition: prefersReduced ? "none" : "background 120ms",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          accentColor: t.accent,
+          width: 20,
+          height: 20,
+          flexShrink: 0,
+          marginTop: 2,
+          outline: focused ? `2px solid ${t.focus}` : "none",
+          outlineOffset: "2px",
+        }}
+      />
+      <span>
+        <span style={{ display: "block", fontWeight: 600 }}>{title}</span>
+        <span style={{ display: "block", fontSize: 14, color: t.textSoft, lineHeight: 1.5, marginTop: 4 }}>
+          {description}
+        </span>
+      </span>
+    </label>
   );
 }
 
