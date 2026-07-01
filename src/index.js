@@ -86,7 +86,8 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', sha: BUILD_SHA }));
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Central error handler — log it, never leak stack traces to clients.
-// eslint-disable-next-line no-unused-vars
+// NOTE: Express identifies error handlers by their 4-arg arity, so `_next`
+// must stay in the signature even though it's unused (lint ignores `_`-prefix).
 app.use((err, req, res, _next) => {
   console.error('[error]', req.method, req.originalUrl, '-', err?.message, '\n', err?.stack);
   if (res.headersSent) return;

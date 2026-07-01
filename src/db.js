@@ -96,7 +96,7 @@ const GUARDED_MIGRATIONS = {
 // `public_url`) would never actually apply on a re-migrated DB, surfacing later
 // as `no such column`. Per-statement exec/catch guarantees each independent
 // statement is attempted regardless of earlier already-applied ones.
-function runMigrations(db) {
+export function runMigrations(db) {
   for (const file of MIGRATIONS) {
     const guard = GUARDED_MIGRATIONS[file];
     if (guard) {

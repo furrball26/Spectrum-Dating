@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: lint + test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches package.json engines (>=20).
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Lint is non-blocking: it surfaces the tech-debt baseline (unused vars,
+      # etc.) without failing the build while that backlog is worked down.
+      # Flip `continue-on-error` to false to make lint gating.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      # Tests ARE blocking — a red test fails CI.
+      - name: Test
+        run: npm test
