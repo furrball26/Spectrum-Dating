@@ -31,16 +31,25 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // D13 — split errors: field-level validation renders INLINE under the offending
+  // field (calm, associated via aria-describedby); form-level errors (server
+  // failures not tied to one field) render as a soft, non-alarming notice.
+  const [fieldErrors, setFieldErrors] = useState({}); // { email?, password? }
+  const [error, setError] = useState(""); // form-level only (server / generic)
   const [forgotSent, setForgotSent] = useState(false);
   const [pendingAuth, setPendingAuth] = useState(null); // auth data held while on check-email screen
   const [resendStatus, setResendStatus] = useState("idle"); // 'idle' | 'sending' | 'sent' | 'error'
   const headingRef = useRef(null);
   const errorRef = useRef(null);
-  // Move focus to the error when one appears so it's announced and reachable (M2).
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  // Move focus to the offending field (inline error) or the form-level notice so
+  // the problem is announced and reachable (M2 / D13).
   useEffect(() => {
-    if (error && errorRef.current) errorRef.current.focus();
-  }, [error]);
+    if (fieldErrors.email && emailRef.current) emailRef.current.focus();
+    else if (fieldErrors.password && passwordRef.current) passwordRef.current.focus();
+    else if (error && errorRef.current) errorRef.current.focus();
+  }, [error, fieldErrors]);
   const fEmail = useFocusable();
   const fPassword = useFocusable();
   const fSubmit = useFocusable();
@@ -66,7 +75,8 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!email.trim()) { setError("Email is required."); return; }
+    setFieldErrors({});
+    if (!email.trim()) { setFieldErrors({ email: "Please enter your email." }); return; }
 
     // Forgot-password: request a reset link. Always show the same confirmation
     // (success or not) so we never reveal whether an email is registered.
@@ -78,7 +88,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
       return;
     }
 
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password.length < 8) { setFieldErrors({ password: "Password must be at least 8 characters." }); return; }
     setLoading(true);
     try {
       let data;
@@ -117,6 +127,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   function switchMode(next) {
     setMode(next);
     setError("");
+    setFieldErrors({});
     setForgotSent(false);
   }
 
@@ -300,7 +311,8 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 Enter your email and we'll send you a link to set a new password.
               </p>
             )}
-            {/* Error */}
+            {/* Form-level error (server failures not tied to one field). Kept
+                calm — a soft left rule, not a full alarming red banner. D13. */}
             {error && (
               <div
                 role="alert"
@@ -308,12 +320,13 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 tabIndex={-1}
                 style={{
                   background: t.surfaceAlt,
-                  border: `1px solid ${t.danger}`,
+                  borderLeft: `3px solid ${t.danger}`,
                   borderRadius: 8,
                   padding: "10px 14px",
                   fontSize: 14,
                   color: t.text,
                   marginBottom: 16,
+                  outline: "none",
                 }}
               >
                 {error}
@@ -330,16 +343,27 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               </label>
               <input
                 id="auth-email"
+                ref={emailRef}
                 type="email"
                 autoComplete="email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
-                style={{ ...inputStyle(false), ...fEmail.style }}
+                onChange={e => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined })); }}
+                style={{ ...inputStyle(!!fieldErrors.email), ...fEmail.style }}
                 onFocus={fEmail.onFocus}
                 onBlur={fEmail.onBlur}
                 aria-required="true"
-                aria-invalid={error ? "true" : undefined}
+                aria-invalid={fieldErrors.email ? "true" : undefined}
+                aria-describedby={fieldErrors.email ? "auth-email-error" : undefined}
               />
+              {fieldErrors.email && (
+                <span
+                  id="auth-email-error"
+                  role="alert"
+                  style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 6 }}
+                >
+                  {fieldErrors.email}
+                </span>
+              )}
             </div>
 
             {/* Password */}
@@ -353,17 +377,30 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               </label>
               <input
                 id="auth-password"
+                ref={passwordRef}
                 type="password"
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
-                style={{ ...inputStyle(false), ...fPassword.style }}
+                onChange={e => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined })); }}
+                style={{ ...inputStyle(!!fieldErrors.password), ...fPassword.style }}
                 onFocus={fPassword.onFocus}
                 onBlur={fPassword.onBlur}
                 aria-required="true"
-                aria-invalid={error ? "true" : undefined}
-                aria-describedby={mode === "register" ? "pw-hint" : undefined}
+                aria-invalid={fieldErrors.password ? "true" : undefined}
+                aria-describedby={[
+                  mode === "register" ? "pw-hint" : null,
+                  fieldErrors.password ? "auth-password-error" : null,
+                ].filter(Boolean).join(" ") || undefined}
               />
+              {fieldErrors.password && (
+                <span
+                  id="auth-password-error"
+                  role="alert"
+                  style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 6 }}
+                >
+                  {fieldErrors.password}
+                </span>
+              )}
               {mode === "register" && (
                 <span
                   id="pw-hint"

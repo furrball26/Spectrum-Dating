@@ -2054,6 +2054,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [verified, setVerified] = useState(false);
   // Self-serve verification request state: null | 'pending' | 'rejected'
   const [verificationRequested, setVerificationRequested] = useState(null);
+  // D34 — optional human-readable rejection reason from the backend, if present.
+  // Surfaced verbatim when rejected; otherwise the copy stays neutral (never
+  // asserts the photo is the problem, which is wrong-but-confident for this audience).
+  const [verificationRejectionReason, setVerificationRejectionReason] = useState(null);
   const [verifRequestBusy, setVerifRequestBusy] = useState(false);
   const [verifRequestError, setVerifRequestError] = useState("");
 
@@ -2083,6 +2087,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [dbMustBeLocal, setDbMustBeLocal]     = useState(DEFAULT_PROFILE.dbMustBeLocal);
   // Pause / snooze (backlog #8) — declared with the other hooks, before early returns.
   const [paused, setPaused]                   = useState(DEFAULT_PROFILE.paused);
+  // F17/D19 — instant pause toggle: persists on its own via PUT /profile/me
+  // (optimistic, reverts on failure) without needing the full-form Save.
+  const [pauseBusy, setPauseBusy]             = useState(false);
 
   // Communication-style & sensory "moat" dimensions (optional) — declared here
   // with the other hooks, BEFORE the loading/error early returns, so the hook
@@ -2235,6 +2242,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setHasEverSaved(!!merged.displayName);
         setVerified(!!data.verified);
         setVerificationRequested(data.verificationRequested || null);
+        setVerificationRejectionReason(
+          (data.verificationRejectionReason || data.verificationReason || "").trim() || null
+        );
         // Prompts — map server shape ({ promptKey, promptText, answer }) to the
         // editable shape ({ promptKey, answer }); cap at MAX_PROMPTS defensively.
         if (Array.isArray(data.prompts)) {
@@ -2424,6 +2434,37 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   function announce(msg) {
     setTagAnnouncement(msg);
     setTimeout(() => setTagAnnouncement(""), 300);
+  }
+
+  // ── F17/D19 — instant, discoverable pause toggle.
+  // Persists ONLY the `paused` field immediately (optimistic; reverts on
+  // failure), mirroring how Archive works — no full-form Save required. Keeps
+  // savedProfile + cache in sync so the dirty-compare doesn't flag the change,
+  // and the in-form PauseToggle stays consistent.
+  async function handleInstantPauseToggle() {
+    if (pauseBusy) return;
+    const next = !paused;
+    setPauseBusy(true);
+    setPaused(next); // optimistic
+    setTagAnnouncement(
+      next
+        ? "Your profile is paused. You won't appear in Discover. You can turn it back on anytime."
+        : "Your profile is active again. You're back in Discover."
+    );
+    setTimeout(() => setTagAnnouncement(""), 1500);
+    try {
+      await updateProfile({ paused: next });
+      // Sync the saved snapshot + cache so this stand-alone change isn't seen
+      // as unsaved dirty state by the form.
+      setSavedProfile((prev) => (prev ? { ...prev, paused: next } : prev));
+      cacheProfile({ ...(savedProfile || {}), paused: next });
+    } catch {
+      setPaused(!next); // revert
+      setTagAnnouncement("Couldn't update your pause setting. Please try again.");
+      setTimeout(() => setTagAnnouncement(""), 1500);
+    } finally {
+      setPauseBusy(false);
+    }
   }
 
   // ── Friendly message for storage-unavailable (503) / generic errors
@@ -3051,6 +3092,57 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             });
             return <ProfileCompletenessNudge score={score} total={total} missing={missing} onAnswerPrompt={jumpToPrompts} />;
           })()}
+
+          {/* F17/D19 — discoverable, one-tap "Take a break" control near the top
+              of Profile. Persists instantly (optimistic) via PUT /profile/me on
+              its own — no full-form Save needed. Mirrors the calm card style. */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              background: paused ? t.green50 : t.surfaceAlt,
+              border: `1px solid ${paused ? t.accentStrong : t.border}`,
+              borderRadius: 14,
+              padding: "14px 16px",
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ minWidth: 200, flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: t.text }}>
+                {paused ? "Your profile is paused" : "Take a break"}
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>
+                {paused
+                  ? "You won't appear in Discover. Your matches and messages stay. Turn it back on whenever you're ready."
+                  : "Pause your profile anytime. You'll disappear from Discover, but keep your matches and messages."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleInstantPauseToggle}
+              disabled={pauseBusy}
+              aria-pressed={paused}
+              style={{
+                flexShrink: 0,
+                background: paused ? "transparent" : t.accentStrong,
+                color: paused ? t.accentStrong : "#fff",
+                border: paused ? `1px solid ${t.accentStrong}` : "none",
+                borderRadius: 10,
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: t.sans,
+                cursor: pauseBusy ? "default" : "pointer",
+                opacity: pauseBusy ? 0.6 : 1,
+                padding: "10px 18px",
+                minHeight: 44,
+              }}
+            >
+              {pauseBusy ? "Saving…" : paused ? "Turn profile back on" : "Pause my profile"}
+            </button>
+          </div>
 
           {/* Expand all / Collapse all — controls every collapsible section at
               once. Persisted. Label reflects current state. */}
@@ -4018,7 +4110,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <>
                 <p style={{ margin: "0 0 14px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
                   {verificationRequested === "rejected"
-                    ? "Your previous request wasn't approved. You can submit a new one — make sure your profile photo clearly shows your face."
+                    ? (verificationRejectionReason
+                        ? `Your verification wasn't approved this time. ${verificationRejectionReason} You can review your details and try again.`
+                        : "Your verification wasn't approved this time. You can review your details and try again.")
                     : "Get a verified badge to show other members you're a real person. We'll review your profile and confirm your identity."}
                 </p>
                 {verifRequestError && (

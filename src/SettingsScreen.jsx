@@ -18,25 +18,48 @@ export const DEFAULT_A11Y = {
   reducedSensory: false,  // hide decorative illustrations + flatten header mark
 };
 
+// D14 — when the visitor has never set a preference (e.g. logged-out Landing /
+// Auth), seed the initial theme from the OS `prefers-color-scheme: dark` query
+// so dim-preferring users get a calm first impression instead of a bright one.
+// An explicit saved choice always wins over this (see readA11y below).
+function osPrefersDim() {
+  try {
+    return typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch {
+    return false;
+  }
+}
+
+// The defaults for a first-time visitor, with the theme seeded from the OS.
+function seededDefaults() {
+  return { ...DEFAULT_A11Y, theme: osPrefersDim() ? "dim" : "light" };
+}
+
 // Read + normalise the saved prefs. Always returns a full, well-typed object so
-// callers never have to guard for missing/garbage values.
+// callers never have to guard for missing/garbage values. When nothing is saved
+// yet, the theme follows the OS preference (D14) — but any explicitly saved
+// theme is honored verbatim and never overridden.
 export function readA11y() {
   try {
     const raw = localStorage.getItem(A11Y_KEY);
-    if (!raw) return { ...DEFAULT_A11Y };
+    if (!raw) return seededDefaults();
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return { ...DEFAULT_A11Y };
+    if (!parsed || typeof parsed !== "object") return seededDefaults();
     return {
       reduceMotion: !!parsed.reduceMotion,
       highContrast: !!parsed.highContrast,
       largerText: !!parsed.largerText,
-      theme: parsed.theme === "dim" ? "dim" : "light",
+      // Explicit saved choice wins; if the stored blob predates the theme field,
+      // fall back to the OS preference rather than forcing light.
+      theme: parsed.theme === "dim" ? "dim" : parsed.theme === "light" ? "light" : (osPrefersDim() ? "dim" : "light"),
       plainLanguage: !!parsed.plainLanguage,
       // Low Stimulation absorbed the former "Calm mode" — migrate any legacy calmMode=true.
       reducedSensory: !!(parsed.reducedSensory || parsed.calmMode),
     };
   } catch {
-    return { ...DEFAULT_A11Y };
+    return seededDefaults();
   }
 }
 

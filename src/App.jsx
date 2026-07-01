@@ -967,10 +967,13 @@ export default function App() {
         {authMessage}
       </div>
       {isOffline && (
+        // D29 — the offline banner sits BELOW the inactivity "Still here?" dialog
+        // (zIndex 200) so it can never cover the "I'm still here" button. Two
+        // top:0 fixed overlays must not trap the user; the dialog always wins.
         <div
           role="status"
           style={{
-            position: "fixed", top: 0, left: 0, right: 0, zIndex: 300,
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 150,
             background: t.surfaceAlt, borderBottom: `2px solid ${t.warning}`,
             color: t.text, textAlign: "center", padding: "8px 16px",
             fontSize: 14, fontWeight: 600,
