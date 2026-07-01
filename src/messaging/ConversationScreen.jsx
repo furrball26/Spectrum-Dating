@@ -1106,6 +1106,214 @@ function SafetyInlineNote() {
   );
 }
 
+// F27 — "Conversation helpers": a calm tray of short, reusable phrases that
+// reduce blank-page anxiety and the pressure to improvise a social script.
+// Tapping a phrase INSERTS it into the composer (never clipboard — the app has a
+// known unguarded-clipboard bug), so the user can edit and send in their own
+// words. Grouped by intent, plain-language, low-pressure.
+const HELPER_CATEGORIES = [
+  {
+    id: "clarity",
+    label: "Ask for clarity",
+    phrases: [
+      "Could you say that more directly? I understand plain wording best.",
+      "I'm not totally sure what you mean — could you rephrase that?",
+    ],
+  },
+  {
+    id: "pace",
+    label: "Set your pace",
+    phrases: [
+      "I need a little time to reply — that's normal for me.",
+      "I like to take my time; I'll get back to you soon.",
+    ],
+  },
+  {
+    id: "plan",
+    label: "Suggest a low-key plan",
+    phrases: [
+      "Would a quiet café or a short walk work for you?",
+      "Could we do a short video call first?",
+    ],
+  },
+  {
+    id: "wrapup",
+    label: "Gentle wrap-up",
+    phrases: [
+      "I've really enjoyed chatting — I need a break for now, but I'll be in touch.",
+    ],
+  },
+];
+
+// F27 — the helpers tray/sheet. A calm, dismissible modal that lists reusable
+// phrases grouped by intent. Focus is trapped while open, Escape closes it, and
+// focus returns to the trigger on close. Reduced-motion respected.
+function HelperTray({ onInsert, onClose, triggerRef }) {
+  const prefersReduced = usePrefersReduced();
+  const panelRef = useRef(null);
+  const headingRef = useRef(null);
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+        triggerRef.current?.focus();
+        return;
+      }
+      if (e.key === "Tab") {
+        const focusables = panelRef.current
+          ? Array.from(
+              panelRef.current.querySelectorAll(
+                'button, [href], [tabindex]:not([tabindex="-1"])'
+              )
+            ).filter((el) => !el.disabled)
+          : [];
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKey, true);
+    return () => document.removeEventListener("keydown", handleKey, true);
+  }, [onClose, triggerRef]);
+
+  const fClose = useFocusable();
+
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(36,51,45,0.35)",
+          zIndex: 1150,
+        }}
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="helper-tray-heading"
+        aria-describedby="helper-tray-desc"
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: 0,
+          transform: "translateX(-50%)",
+          width: "min(100vw, 520px)",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          background: t.surface,
+          borderRadius: "20px 20px 0 0",
+          boxShadow: "0 -8px 40px rgba(36,51,45,0.18)",
+          zIndex: 1151,
+          boxSizing: "border-box",
+          padding: "20px 20px 24px",
+          animation: prefersReduced ? "none" : "helperTraySlideUp 180ms ease",
+        }}
+      >
+        <style>{`@keyframes helperTraySlideUp { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }`}</style>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
+          <h2
+            id="helper-tray-heading"
+            ref={headingRef}
+            tabIndex={-1}
+            style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 700, margin: 0, color: t.text, outline: "none" }}
+          >
+            Conversation helpers
+          </h2>
+          <button
+            type="button"
+            aria-label="Close conversation helpers"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: t.textSoft,
+              fontSize: 18,
+              cursor: "pointer",
+              padding: "4px 6px",
+              borderRadius: 8,
+              minHeight: 44,
+              minWidth: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              ...fClose.style,
+            }}
+            onFocus={fClose.onFocus}
+            onBlur={fClose.onBlur}
+          >
+            ✕
+          </button>
+        </div>
+
+        <p id="helper-tray-desc" style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5, margin: "0 0 16px" }}>
+          Tap a phrase to drop it into your message — you can edit it before you send. No pressure to use them.
+        </p>
+
+        {HELPER_CATEGORIES.map((cat) => (
+          <div key={cat.id} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+              {cat.label}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {cat.phrases.map((phrase) => (
+                <HelperPhraseButton key={phrase} phrase={phrase} onInsert={onInsert} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// F27 — a single tappable phrase. Extracted so useFocusable() stays hook-safe.
+function HelperPhraseButton({ phrase, onInsert }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={() => onInsert(phrase)}
+      aria-label={`Add to message: ${phrase}`}
+      style={{
+        textAlign: "left",
+        background: t.green50,
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 12,
+        padding: "12px 14px",
+        fontSize: 15,
+        color: t.text,
+        lineHeight: 1.5,
+        cursor: "pointer",
+        fontFamily: t.sans,
+        minHeight: 44,
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      {phrase}
+    </button>
+  );
+}
+
 export default function ConversationScreen({
   conversationId,
   otherUser,
@@ -1140,6 +1348,10 @@ export default function ConversationScreen({
   const [viewingProfile, setViewingProfile] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const headerMenuAnchorRef = useRef(null);
+
+  // F27 — conversation helpers tray (reusable calm phrases).
+  const [helperTrayOpen, setHelperTrayOpen] = useState(false);
+  const helperButtonRef = useRef(null);
 
   // F11 — "What to expect" card. Reuses the same match-gated profile fetch as
   // MatchProfileModal (getUserProfile), so no redundant/extra data plumbing.
@@ -1205,6 +1417,7 @@ export default function ConversationScreen({
   const fSend = useFocusable();
   const fCompose = useFocusable();
   const fAttach = useFocusable();
+  const fHelper = useFocusable();
   // A11y Blocker 1 — focus ring on log div
   const logFocus = useFocusable();
 
@@ -1570,6 +1783,28 @@ export default function ConversationScreen({
       e.preventDefault();
       handleSend();
     }
+  }
+
+  // F27 — insert a helper phrase into the composer. If the composer already has
+  // text we append (with a single space) rather than clobbering what they wrote;
+  // if it's empty we set it. Then close the tray and return focus to the
+  // composer so they can edit and send. Never touches the clipboard.
+  function handleInsertHelper(phrase) {
+    setComposeValue((prev) => {
+      const trimmed = prev.replace(/\s+$/, "");
+      return trimmed ? `${trimmed} ${phrase}` : phrase;
+    });
+    setHelperTrayOpen(false);
+    // Focus the composer after the tray unmounts and value updates.
+    requestAnimationFrame(() => {
+      const el = composeRef.current;
+      if (el) {
+        el.focus();
+        // Place the caret at the end so they can keep typing/editing.
+        const len = el.value.length;
+        try { el.setSelectionRange(len, len); } catch { /* ignore */ }
+      }
+    });
   }
 
   function handleRequestDelete(messageId) {
@@ -2123,6 +2358,39 @@ export default function ConversationScreen({
         </button>
         )}
 
+        {/* F27 — Conversation helpers. Opens a calm tray of reusable phrases;
+            tapping one inserts it into the composer (never clipboard). Disabled
+            alongside compose when the conversation is gated/rate-limited. */}
+        <button
+          ref={helperButtonRef}
+          type="button"
+          aria-label="Conversation helpers"
+          aria-haspopup="dialog"
+          aria-expanded={helperTrayOpen}
+          onClick={() => setHelperTrayOpen(true)}
+          disabled={composingDisabled}
+          title="Ready-made phrases you can send"
+          style={{
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            color: composingDisabled ? t.textMuted : t.accent,
+            fontSize: 20,
+            cursor: composingDisabled ? "not-allowed" : "pointer",
+            minHeight: 44,
+            minWidth: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            ...fHelper.style,
+          }}
+          onFocus={fHelper.onFocus}
+          onBlur={fHelper.onBlur}
+        >
+          💬
+        </button>
+
         {/* Hidden file input — Feature 2 */}
         <input
           ref={fileInputRef}
@@ -2251,6 +2519,18 @@ export default function ConversationScreen({
           ↑
         </button>
       </div>
+
+      {/* F27 — conversation helpers tray */}
+      {helperTrayOpen && (
+        <HelperTray
+          onInsert={handleInsertHelper}
+          onClose={() => {
+            setHelperTrayOpen(false);
+            helperButtonRef.current?.focus();
+          }}
+          triggerRef={helperButtonRef}
+        />
+      )}
 
       {/* Click-to-enlarge photo lightbox */}
       {enlargedImage && (
