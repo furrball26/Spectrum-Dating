@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 function getR2Client() {
@@ -19,6 +19,25 @@ const PUBLIC_URL = () => (process.env.R2_PUBLIC_URL || '').replace(/\/$/, '');
 
 export function r2Configured() {
   return !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_PUBLIC_URL);
+}
+
+// Set the photos bucket's CORS policy so browsers can PUT to presigned upload
+// URLs from the app origin (required for in-browser photo uploads).
+export async function putPhotosBucketCors(origins) {
+  const client = getR2Client();
+  if (!client) throw new Error('R2 not configured');
+  await client.send(new PutBucketCorsCommand({
+    Bucket: BUCKET(),
+    CORSConfiguration: {
+      CORSRules: [{
+        AllowedOrigins: origins,
+        AllowedMethods: ['GET', 'PUT', 'HEAD'],
+        AllowedHeaders: ['*'],
+        ExposeHeaders: ['ETag'],
+        MaxAgeSeconds: 3600,
+      }],
+    },
+  }));
 }
 
 export async function getPresignedUploadUrl(key, contentType, expiresInSeconds = 300) {

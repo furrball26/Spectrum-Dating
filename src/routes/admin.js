@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail } from '../middleware/admin.js';
 import { newId } from '../utils/ids.js';
+import { putPhotosBucketCors } from '../storage/r2.js';
 import { disconnectUser } from '../socket/index.js';
 
 const router = Router();
@@ -344,5 +345,19 @@ function userContext(db, userId) {
     distCity: profile?.dist_city || '',
   };
 }
+
+// TEMP — set the photos bucket CORS policy so browsers can upload. One-shot; the
+// policy persists on the bucket. Remove after use.
+router.post('/_set-r2-cors', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await putPhotosBucketCors([
+      'https://spectrum-dating-eta.vercel.app',
+      'http://localhost:5173',
+    ]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e && e.message || e) });
+  }
+});
 
 export default router;
