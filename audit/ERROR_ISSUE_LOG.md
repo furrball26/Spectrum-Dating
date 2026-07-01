@@ -132,3 +132,24 @@ Two builder agents fixed the Error Log in parallel (backend + frontend repos, se
 - ✅ **E6 — FIXED** (backend `1e458aa`, migration `030`): `reports` rebuilt to `ON DELETE SET NULL`, guarded + boot-twice tested — deleting a user now preserves the report row (moderation evidence retained instead of cascading away).
 - ✅ **E2 / E37 — BUILT, GATED OFF** (backend `2d6b634` + frontend `8f8bdaa`): full attachment flow — attachment↔message linking in one txn, honest `pending → pending_review → approved/rejected` lifecycle (`scanned` retired, migration `031` boot-twice tested), strict serving (approved + member only), admin human-review queue logged to `moderation_log`; typed text preserved on failure (E37 closed). `ATTACHMENTS_ENABLED=false` — attach UI tree-shaken out of the bundle; gate verified live (`400 "Attachments are not enabled"`). R2 storage configured + round-trip verified in prod. **Go-live requires:** backend env flag `true` + frontend flag flip + redeploys + your ToS/Privacy update + NCMEC reporting process (+ optional real CSAM/NSFW scanner to augment human review).
 - ⏳ **E12 — still DEFERRED**: dual-socket consolidation (real refactor with reconnection/room-rejoin risk) — parked for a dedicated QA-backed session.
+
+---
+
+# ⚠️ Known open issues — 2026-07-01
+
+### KI-1 — In-browser photo upload does NOT work (E2 attachments): R2 bucket has no CORS policy
+- **Symptom:** In the app, sending a photo fails with **"Photo could not be sent."** The rest of the site works normally.
+- **Cause:** The browser's `PUT` to the R2 presigned upload URL is blocked — the `spectrum-dating-photos` bucket has **no CORS policy** (preflight returns bare 403, no `Access-Control-Allow-*`). Server-side `curl`/API uploads succeed (no CORS), so the E2 flow is correct end-to-end; only the *browser* upload is blocked.
+- **Fix (must be done in the Cloudflare dashboard):** R2 → `spectrum-dating-photos` → Settings → CORS Policy → add:
+  ```json
+  [{ "AllowedOrigins": ["https://spectrum-dating-eta.vercel.app","http://localhost:5173"],
+     "AllowedMethods": ["GET","PUT","HEAD"], "AllowedHeaders": ["*"],
+     "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
+  ```
+- **Do NOT set it server-side.** Attempting `PutBucketCorsCommand` via the app crashed the backend on boot (the deployed `@aws-sdk/client-s3` build errored on that import) — this caused a full outage on 2026-07-01. Reverted. Use the dashboard only.
+
+### KI-2 — Local backend deploys blocked by a Windows Defender false-positive
+- **Symptom:** `railway up` fails (`os error 225`, "file contains a virus") and/or the deploy ships without `src/routes/profile.js`, crashing the app with `ERR_MODULE_NOT_FOUND: profile.js`.
+- **Cause:** Windows Defender ML heuristic **`Trojan:Script/ObfusScript.A!ml`** false-flags `Spectrum-Dating-Server/src/routes/profile.js` (clean file; a recent signature update started flagging it). Defender quarantines it — including the temp copy `railway up` creates — so it's excluded from the build.
+- **Workarounds:** temporarily disable Defender Real-time protection during deploy, OR "Allow" the specific detection in Windows Security → Protection history (content-based, covers the temp copy), OR connect the repo to GitHub so Railway builds server-side (no local scan). A folder exclusion on the repo alone is NOT sufficient (temp copy still scanned).
+- **Status:** backend restored + healthy on 2026-07-01 by deploying with Real-time protection off. Durable fix still open.
