@@ -13,7 +13,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
     `SELECT relationship_goal, dist_city, wants_children, gender, seeking,
             db_wants_children, db_non_smoker, db_must_be_local, search_radius_miles,
             pref_age_min, pref_age_max,
-            sensory_environment, comm_cadence
+            sensory_environment, comm_cadence,
+            comm_directness, comm_literal, sensory_lighting, social_duration
      FROM profiles WHERE user_id = ?`
   ).get(viewerId);
   const viewer = {
@@ -31,6 +32,10 @@ export function getCandidates(db, viewerId, viewerInterests) {
     pref_age_max: viewerProfile?.pref_age_max ?? 99,
     sensory_environment: viewerProfile?.sensory_environment ?? '',
     comm_cadence: viewerProfile?.comm_cadence ?? '',
+    comm_directness: viewerProfile?.comm_directness ?? '',
+    comm_literal: viewerProfile?.comm_literal ?? '',
+    sensory_lighting: viewerProfile?.sensory_lighting ?? '',
+    social_duration: viewerProfile?.social_duration ?? '',
   };
 
   // Get IDs already swiped on

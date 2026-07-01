@@ -13,6 +13,10 @@ export function scoreCandidate(viewer, candidate) {
   const viewerCity = Array.isArray(viewer) ? '' : (viewer?.dist_city ?? '');
   const viewerSensory = Array.isArray(viewer) ? '' : (viewer?.sensory_environment ?? '');
   const viewerCadence = Array.isArray(viewer) ? '' : (viewer?.comm_cadence ?? '');
+  const viewerDirectness = Array.isArray(viewer) ? '' : (viewer?.comm_directness ?? '');
+  const viewerLiteral = Array.isArray(viewer) ? '' : (viewer?.comm_literal ?? '');
+  const viewerLighting = Array.isArray(viewer) ? '' : (viewer?.sensory_lighting ?? '');
+  const viewerSocialDuration = Array.isArray(viewer) ? '' : (viewer?.social_duration ?? '');
 
   const viewerSet = new Set(viewerInterests);
   const sharedInterests = candidate.interests.filter(i => viewerSet.has(i));
@@ -28,15 +32,34 @@ export function scoreCandidate(viewer, candidate) {
   const sameCadence =
     viewerCadence !== '' && viewerCadence !== 'either' &&
     viewerCadence === candidate.comm_cadence;
+  const sameDirectness =
+    viewerDirectness !== '' && viewerDirectness !== 'either' &&
+    viewerDirectness === candidate.comm_directness;
+  const sameLiteral =
+    viewerLiteral !== '' && viewerLiteral !== 'either' &&
+    viewerLiteral === candidate.comm_literal;
+  const sameLighting =
+    viewerLighting !== '' && viewerLighting !== 'either' &&
+    viewerLighting === candidate.sensory_lighting;
+  const sameSocialDuration =
+    viewerSocialDuration !== '' && viewerSocialDuration !== 'either' &&
+    viewerSocialDuration === candidate.social_duration;
 
   const score =
     sharedInterests.length * 2 +
     (sameRelationshipGoal ? 3 : 0) +
     (sameCity ? 2 : 0) +
     (sameSensory ? 2 : 0) +
-    (sameCadence ? 2 : 0);
+    (sameCadence ? 2 : 0) +
+    (sameDirectness ? 2 : 0) +
+    (sameLiteral ? 2 : 0) +
+    (sameLighting ? 2 : 0) +
+    (sameSocialDuration ? 2 : 0);
 
-  const whyReasons = buildWhyReasons(sharedInterests, candidate, { sameRelationshipGoal, sameCity, sameSensory, sameCadence });
+  const whyReasons = buildWhyReasons(sharedInterests, candidate, {
+    sameRelationshipGoal, sameCity, sameSensory, sameCadence,
+    sameDirectness, sameLiteral, sameLighting, sameSocialDuration,
+  });
 
   return { score, sharedInterests, whyReasons };
 }
@@ -62,6 +85,38 @@ function buildWhyReasons(sharedInterests, candidate, opts = {}) {
     };
     const c = cadenceMap[candidate.comm_cadence];
     if (c) reasons.push(c);
+  }
+  if (opts.sameDirectness) {
+    const directnessMap = {
+      direct: 'You both prefer direct communication',
+      softened: 'You both prefer a gentler, softened tone',
+    };
+    const d = directnessMap[candidate.comm_directness];
+    if (d) reasons.push(d);
+  }
+  if (opts.sameLiteral) {
+    const literalMap = {
+      literal: 'You both take language literally',
+      playful: 'You both enjoy playful, figurative language',
+    };
+    const l = literalMap[candidate.comm_literal];
+    if (l) reasons.push(l);
+  }
+  if (opts.sameLighting) {
+    const lightingMap = {
+      dim: 'You both like dim lighting',
+      bright: 'You both like bright lighting',
+    };
+    const lg = lightingMap[candidate.sensory_lighting];
+    if (lg) reasons.push(lg);
+  }
+  if (opts.sameSocialDuration) {
+    const durationMap = {
+      short: 'You both prefer shorter get-togethers',
+      long: 'You both enjoy longer get-togethers',
+    };
+    const sd = durationMap[candidate.social_duration];
+    if (sd) reasons.push(sd);
   }
   if (candidate.comm_note) {
     reasons.push(`About talking: "${candidate.comm_note}"`);
