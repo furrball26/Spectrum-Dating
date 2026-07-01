@@ -12,6 +12,19 @@ import Avatar from "./Avatar.jsx";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
+// Visually hidden but exposed to assistive tech (mirrors App.jsx / .sr-only).
+const srOnly = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0,0,0,0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+
 function useFocusable() {
   const [focused, setFocused] = useState(false);
   return {
@@ -412,15 +425,91 @@ const MAX_PHOTOS = 6;
 // Single existing-photo cell
 const DESC_MAX = 200;
 
-function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onRemove, onDescriptionSaved }) {
+// The alt text shown to assistive tech on the tile image itself. Reflects the
+// saved description and the photo's position/primary status.
+function photoImgAlt(photo, index) {
+  const suffix = photo.isPrimary ? ", your main photo" : "";
+  if (photo.description && photo.description.trim()) {
+    return `Photo ${index}: ${photo.description.trim()}${suffix}`;
+  }
+  return `Photo ${index}, no description yet${suffix}`;
+}
+
+// A single selectable photo tile — image + "Main" badge only. Tapping it
+// selects the photo and reveals the shared editor panel below the grid. All
+// editing controls live in that panel, never overlaid on the image.
+function PhotoCell({ photo, index, selected, onSelect, tileStyle, cellRef }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      ref={cellRef}
+      onClick={() => onSelect(photo.id)}
+      aria-pressed={selected}
+      aria-label={`${photoImgAlt(photo, index)}. ${selected ? "Selected — editing below." : "Edit."}`}
+      {...f}
+      style={{
+        position: "relative",
+        display: "block",
+        width: "100%",
+        padding: 0,
+        border: selected ? `2px solid ${t.accentStrong}` : `1px solid ${t.border}`,
+        borderRadius: tileStyle.borderRadius,
+        overflow: "hidden",
+        background: t.surfaceAlt,
+        cursor: "pointer",
+        aspectRatio: tileStyle.aspectRatio,
+        ...f.style,
+      }}
+    >
+      <img
+        src={photo.url}
+        alt={photoImgAlt(photo, index)}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
+      {photo.isPrimary && (
+        <span
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            background: t.accentFill,
+            color: "#fff",
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "3px 8px",
+            borderRadius: 999,
+            letterSpacing: "0.02em",
+          }}
+        >
+          Main
+        </span>
+      )}
+    </button>
+  );
+}
+
+// The single per-photo editor panel — full-width, below the grid. Shows a
+// thumbnail + heading, the alt-text field, and a horizontal action row.
+// Re-mounted (via key) whenever the selected photo changes, so `desc` state
+// resets cleanly to the newly selected photo's description.
+function PhotoEditorPanel({
+  photo, index, isOnlyPhoto, uploading, onReplace, onSetPrimary, onRemove, onDescriptionSaved, replaceBtnRef,
+}) {
+  const fDesc = useFocusable();
   const fPrimary = useFocusable();
-  const fRemove = useFocusable();
   const fReplace = useFocusable();
+  const fRemove = useFocusable();
+  const fCancel = useFocusable();
   const replaceRef = useRef(null);
   const [confirming, setConfirming] = useState(false);
   const [desc, setDesc] = useState(photo.description || "");
   const [descSaving, setDescSaving] = useState(false);
   const [descError, setDescError] = useState("");
+
+  const descId = `photo-desc-${photo.id}`;
+  const hintId = `photo-desc-hint-${photo.id}`;
+  const heading = photo.isPrimary ? "Editing: your main photo" : `Editing: photo ${index}`;
 
   async function saveDescription(value) {
     const trimmed = value.trim();
@@ -437,140 +526,111 @@ function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onR
     }
   }
 
+  const outlineBtn = {
+    minHeight: 44,
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: `1.5px solid ${t.formBorder}`,
+    background: t.surface,
+    color: t.accentStrong,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+
   return (
     <div
       style={{
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
+        background: t.surfaceAlt,
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 14,
       }}
     >
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          aspectRatio: "1 / 1",
-          borderRadius: 12,
-          overflow: "hidden",
-          border: `1px solid ${t.border}`,
-          background: t.surfaceAlt,
-        }}
-      >
+      {/* Thumbnail + heading */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <img
           src={photo.url}
-          alt={photo.isPrimary ? "Your main profile photo" : "Profile photo"}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          alt=""
+          aria-hidden="true"
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 10,
+            objectFit: "cover",
+            display: "block",
+            flexShrink: 0,
+            border: `1px solid ${t.border}`,
+          }}
         />
-        {photo.isPrimary && (
-          <span
-            style={{
-              position: "absolute",
-              top: 6,
-              left: 6,
-              background: t.accentStrong,
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 700,
-              padding: "3px 8px",
-              borderRadius: 999,
-              letterSpacing: "0.02em",
-            }}
-          >
-            Main
-          </span>
-        )}
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: t.text }}>{heading}</h3>
       </div>
 
       {/* Alt-text description */}
-      <div style={{ marginTop: 6 }}>
-        <label
-          htmlFor={`photo-desc-${photo.id}`}
-          style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.02em", display: "block", marginBottom: 3 }}
-        >
+      <div>
+        <label htmlFor={descId} style={{ display: "block", fontWeight: 600, fontSize: 13, color: t.textSoft, marginBottom: 4 }}>
           Describe this photo
+          <span className="sr-only"> — photo {index}{photo.isPrimary ? ", your main photo" : ""}</span>
         </label>
         <textarea
-          id={`photo-desc-${photo.id}`}
+          id={descId}
           value={desc}
           maxLength={DESC_MAX}
           rows={2}
           placeholder="e.g. Me hiking with my dog"
-          aria-describedby={`photo-desc-hint-${photo.id}`}
+          aria-describedby={hintId}
           onChange={(e) => setDesc(e.target.value)}
           onBlur={(e) => saveDescription(e.target.value)}
+          {...fDesc}
           style={{
-            width: "100%",
-            boxSizing: "border-box",
-            resize: "none",
-            border: `1px solid ${t.formBorder}`,
-            borderRadius: 8,
-            padding: "6px 8px",
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: t.text,
-            background: t.surface,
-            fontFamily: t.sans,
+            ...inputStyle(false),
+            border: `1.5px solid ${t.textSoft}`,
+            resize: "vertical",
+            minHeight: 72,
+            lineHeight: 1.55,
             opacity: descSaving ? 0.6 : 1,
+            ...fDesc.style,
           }}
         />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
-          <span id={`photo-desc-hint-${photo.id}`} style={{ fontSize: 11, color: t.textMuted }}>
-            Helps screen-reader users.
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+          <span id={hintId} style={{ fontSize: 13, color: t.textSoft }}>
+            Helps people who use screen readers. Optional.
           </span>
-          <span aria-live="polite" style={{ fontSize: 11, color: desc.length >= DESC_MAX ? t.danger : t.textMuted }}>
+          <span aria-live="polite" style={{ fontSize: 13, color: desc.length >= DESC_MAX ? t.danger : t.textSoft, flexShrink: 0 }}>
             {desc.length}/{DESC_MAX}
           </span>
         </div>
         {descError && (
-          <p role="alert" style={{ margin: "3px 0 0", fontSize: 11, color: t.danger }}>{descError}</p>
+          <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: t.danger }}>{descError}</p>
         )}
       </div>
 
-      {/* Controls */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {!photo.isPrimary && (
+      {/* Action row */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        {!photo.isPrimary && !confirming && (
           <button
             type="button"
             onClick={() => onSetPrimary(photo.id)}
-            aria-label="Set as main photo"
+            aria-label={`Set photo ${index} as main`}
             {...fPrimary}
-            style={{
-              minHeight: 44,
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: `1px solid ${t.formBorder}`,
-              background: t.surface,
-              color: t.accentStrong,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              ...fPrimary.style,
-            }}
+            style={{ ...outlineBtn, ...fPrimary.style }}
           >
             Set as main
           </button>
         )}
 
-        {/* Replace — swaps this slot's photo using the normal upload flow */}
         {!confirming && (
           <>
             <button
               type="button"
+              ref={replaceBtnRef}
               onClick={() => replaceRef.current?.click()}
               disabled={uploading}
-              aria-label="Replace this photo"
+              aria-label={`Replace photo ${index}`}
               aria-busy={uploading}
               {...fReplace}
               style={{
-                minHeight: 44,
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: `1px solid ${t.formBorder}`,
-                background: t.surface,
-                color: t.accentStrong,
-                fontSize: 13,
-                fontWeight: 600,
+                ...outlineBtn,
                 cursor: uploading ? "wait" : "pointer",
                 opacity: uploading ? 0.7 : 1,
                 ...fReplace.style,
@@ -591,38 +651,44 @@ function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onR
                 e.target.value = ""; // reset so same file can be re-selected
               }}
             />
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              aria-label={`Remove photo ${index}`}
+              {...fRemove}
+              style={{
+                ...outlineBtn,
+                border: `1.5px solid ${t.danger}`,
+                background: "transparent",
+                color: t.danger,
+                ...fRemove.style,
+              }}
+            >
+              Remove
+            </button>
           </>
         )}
 
-        {confirming ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {confirming && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
             {isOnlyPhoto && (
-              <p
-                role="alert"
-                style={{ margin: 0, fontSize: 12, color: t.text, lineHeight: 1.5 }}
-              >
+              <p role="alert" style={{ margin: 0, fontSize: 14, color: t.text, lineHeight: 1.5 }}>
                 You'll have no photo, and you won't appear in Discover until you add
                 one. Remove anyway?
               </p>
             )}
-            <div style={{ display: "flex", gap: 4 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={() => { onRemove(photo.id); setConfirming(false); }}
-                aria-label={isOnlyPhoto ? "Remove anyway" : "Confirm remove photo"}
-                {...fRemove}
+                aria-label={isOnlyPhoto ? "Remove anyway" : `Confirm removing photo ${index}`}
+                {...fPrimary}
                 style={{
-                  flex: 1,
-                  minHeight: 44,
-                  padding: "8px 6px",
-                  borderRadius: 8,
-                  border: `1px solid ${t.danger}`,
+                  ...outlineBtn,
+                  border: `1.5px solid ${t.danger}`,
                   background: t.danger,
                   color: "#fff",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  ...fRemove.style,
+                  ...fPrimary.style,
                 }}
               >
                 {isOnlyPhoto ? "Remove anyway" : "Remove"}
@@ -630,43 +696,19 @@ function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onR
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                aria-label="Cancel removing photo"
+                aria-label={`Cancel removing photo ${index}`}
+                {...fCancel}
                 style={{
-                  flex: 1,
-                  minHeight: 44,
-                  padding: "8px 6px",
-                  borderRadius: 8,
-                  border: `1px solid ${t.border}`,
-                  background: t.surface,
+                  ...outlineBtn,
+                  border: `1.5px solid ${t.border}`,
                   color: t.text,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
+                  ...fCancel.style,
                 }}
               >
                 Cancel
               </button>
             </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            aria-label="Remove photo"
-            style={{
-              minHeight: 44,
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: `1px solid ${t.danger}`,
-              background: "transparent",
-              color: t.danger,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Remove
-          </button>
         )}
       </div>
     </div>
@@ -674,7 +716,7 @@ function PhotoCell({ photo, isOnlyPhoto, uploading, onReplace, onSetPrimary, onR
 }
 
 // Add-photo tile (button that opens hidden file input)
-function AddPhotoTile({ onAdd, uploading, disabled }) {
+function AddPhotoTile({ onAdd, uploading, disabled, addBtnRef }) {
   const fileRef = useRef(null);
   const f = useFocusable();
 
@@ -682,6 +724,7 @@ function AddPhotoTile({ onAdd, uploading, disabled }) {
     <div style={{ display: "flex", flexDirection: "column" }}>
       <button
         type="button"
+        ref={addBtnRef}
         onClick={() => fileRef.current?.click()}
         disabled={uploading || disabled}
         aria-label="Add photo"
@@ -691,7 +734,7 @@ function AddPhotoTile({ onAdd, uploading, disabled }) {
           width: "100%",
           aspectRatio: "1 / 1",
           borderRadius: 12,
-          border: `2px dashed ${t.formBorder}`,
+          border: `2px dashed ${t.accentStrong}`,
           background: t.surfaceAlt,
           color: t.accentStrong,
           fontSize: 14,
@@ -735,9 +778,91 @@ function AddPhotoTile({ onAdd, uploading, disabled }) {
 function PhotoGallery({ photos, uploading, error, onAdd, onReplace, onSetPrimary, onRemove, onDescriptionSaved, name }) {
   const atMax = photos.length >= MAX_PHOTOS;
   const isEmpty = photos.length === 0;
+  const [selectedId, setSelectedId] = useState(null);
+  const [status, setStatus] = useState("");
+
+  // Focus-restoration refs, keyed by photo id, for the tile buttons + Add tile.
+  const tileRefs = useRef(new Map());
+  const addBtnRef = useRef(null);
+  const replaceBtnRef = useRef(null);
+  const prevUploading = useRef(uploading);
+  // Tracks an in-flight Replace so we can re-select the new photo + restore
+  // focus once the upload completes (Replace assigns a new photo id).
+  const replacingRef = useRef(null); // { wasPrimary, prevIds:Set }
+
+  // Assign every photo a stable 1-based index by position order. The array is
+  // already ordered by position; the primary photo is not necessarily first.
+  const indexed = photos.map((p, i) => ({ photo: p, index: i + 1 }));
+  const primaryEntry = indexed.find((e) => e.photo.isPrimary);
+  const secondary = indexed.filter((e) => !e.photo.isPrimary);
+
+  // Drop selection if the selected photo no longer exists (e.g. removed).
+  // Skip while a Replace is in flight — the completion effect re-selects the
+  // new photo, since Replace deletes the old id and adds a new one.
+  useEffect(() => {
+    if (replacingRef.current || uploading) return;
+    if (selectedId && !photos.some((p) => p.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [photos, selectedId, uploading]);
+
+  // Announce upload start / finish via the live region, and — when the finished
+  // upload was a Replace — re-select the new photo occupying that slot and
+  // restore focus to its Replace button.
+  useEffect(() => {
+    if (uploading && !prevUploading.current) {
+      setStatus(replacingRef.current ? "Replacing photo…" : "Uploading photo…");
+    }
+    if (!uploading && prevUploading.current) {
+      setStatus(replacingRef.current ? "Photo replaced." : "Photo added.");
+      const info = replacingRef.current;
+      replacingRef.current = null;
+      if (info) {
+        const added = photos.find((p) => !info.prevIds.has(p.id));
+        if (added) {
+          setSelectedId(added.id);
+          requestAnimationFrame(() => replaceBtnRef.current?.focus());
+        }
+      }
+    }
+    prevUploading.current = uploading;
+  }, [uploading, photos]);
+
+  const setTileRef = (id) => (el) => {
+    if (el) tileRefs.current.set(id, el);
+    else tileRefs.current.delete(id);
+  };
+
+  // Remove with focus restoration: move focus to another tile or the Add tile,
+  // and announce the removal, before the selected photo unmounts.
+  const handleRemoveWithFocus = (id) => {
+    const removedIdx = indexed.find((e) => e.photo.id === id)?.index;
+    const remaining = photos.filter((p) => p.id !== id);
+    onRemove(id);
+    setSelectedId(null);
+    setStatus(removedIdx ? `Photo ${removedIdx} removed.` : "Photo removed.");
+    // Move focus off the unmounting panel to the first remaining tile / Add tile.
+    requestAnimationFrame(() => {
+      const nextId = remaining[0]?.id;
+      const target = (nextId && tileRefs.current.get(nextId)) || addBtnRef.current;
+      target?.focus();
+    });
+  };
+
+  // Kick off a Replace: snapshot the current photo ids so the completion
+  // effect can identify the newly added photo and restore focus/selection.
+  const handleReplaceWithFocus = (id, file) => {
+    replacingRef.current = { prevIds: new Set(photos.map((p) => p.id)) };
+    onReplace(id, file);
+  };
+
+  const selectedEntry = indexed.find((e) => e.photo.id === selectedId) || null;
 
   return (
     <div style={{ marginBottom: 20 }}>
+      {/* Live region announcing photo actions to assistive tech. */}
+      <div role="status" aria-live="polite" style={srOnly}>{status}</div>
+
       {/* Empty state — show the member's own default gradient avatar so the
           gallery never reads as "broken/missing photo" before they upload. */}
       {isEmpty && (
@@ -749,36 +874,67 @@ function PhotoGallery({ photos, uploading, error, onAdd, onReplace, onSetPrimary
           </p>
         </div>
       )}
-      <div
-        role="list"
-        aria-label="Your profile photos"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 12,
-        }}
-      >
-        {photos.map((photo) => (
-          <div role="listitem" key={photo.id}>
+
+      <div role="list" aria-label="Your profile photos">
+        {/* Tier A — main photo, full-width portrait */}
+        {primaryEntry && (
+          <div role="listitem" style={{ marginBottom: 10 }}>
             <PhotoCell
-              photo={photo}
-              isOnlyPhoto={photos.length === 1}
-              uploading={uploading}
-              onReplace={onReplace}
-              onSetPrimary={onSetPrimary}
-              onRemove={onRemove}
-              onDescriptionSaved={onDescriptionSaved}
+              photo={primaryEntry.photo}
+              index={primaryEntry.index}
+              selected={selectedId === primaryEntry.photo.id}
+              onSelect={setSelectedId}
+              cellRef={setTileRef(primaryEntry.photo.id)}
+              tileStyle={{ aspectRatio: "4 / 5", borderRadius: 16 }}
             />
           </div>
-        ))}
-        {!atMax && (
-          <div role="listitem">
-            <AddPhotoTile onAdd={onAdd} uploading={uploading} disabled={atMax} />
-          </div>
         )}
+
+        {/* Tier B — secondary photos + Add tile */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 10,
+          }}
+        >
+          {secondary.map((e) => (
+            <div role="listitem" key={e.photo.id}>
+              <PhotoCell
+                photo={e.photo}
+                index={e.index}
+                selected={selectedId === e.photo.id}
+                onSelect={setSelectedId}
+                cellRef={setTileRef(e.photo.id)}
+                tileStyle={{ aspectRatio: "1 / 1", borderRadius: 12 }}
+              />
+            </div>
+          ))}
+          {!atMax && (
+            <div role="listitem">
+              <AddPhotoTile onAdd={onAdd} uploading={uploading} disabled={atMax} addBtnRef={addBtnRef} />
+            </div>
+          )}
+        </div>
       </div>
 
-      <p style={{ fontSize: 13, color: t.textSoft, margin: "10px 0 0" }}>
+      {/* Per-photo editor panel — one at a time, below the grid. */}
+      {selectedEntry && (
+        <PhotoEditorPanel
+          key={selectedEntry.photo.id}
+          photo={selectedEntry.photo}
+          index={selectedEntry.index}
+          isOnlyPhoto={photos.length === 1}
+          uploading={uploading}
+          onReplace={handleReplaceWithFocus}
+          onSetPrimary={onSetPrimary}
+          onRemove={handleRemoveWithFocus}
+          onDescriptionSaved={onDescriptionSaved}
+          replaceBtnRef={replaceBtnRef}
+        />
+      )}
+
+      <p style={{ fontSize: 13, color: t.textSoft, margin: "12px 0 0" }}>
         Add up to {MAX_PHOTOS} photos. Your main photo is what people see first.
       </p>
 
