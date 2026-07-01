@@ -32,8 +32,16 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
   const confirmRef = useRef(null);
   const prefersReduced = usePrefersReduced();
 
+  // Move focus into the dialog on open (heading), and restore focus to whatever
+  // triggered the sheet (the ⋯ "Conversation options" button — the HeaderMenu
+  // focuses it before this sheet mounts) on close. Mirrors ProfileScreen's
+  // modal focus-restore discipline. WCAG 2.4.3.
   useEffect(() => {
+    const prevFocus = document.activeElement;
     headingRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
   }, []);
 
   // Escape to cancel
