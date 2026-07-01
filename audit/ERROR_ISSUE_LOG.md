@@ -137,7 +137,7 @@ Two builder agents fixed the Error Log in parallel (backend + frontend repos, se
 
 # ⚠️ Known open issues — 2026-07-01
 
-### KI-1 — In-browser photo upload does NOT work (E2 attachments): R2 bucket has no CORS policy
+### KI-1 — ✅ RESOLVED 2026-07-01 — R2 CORS policy added via Cloudflare dashboard; in-browser upload verified working end-to-end (browser PUT → 200, no CORS error, photo persists). Historical detail below.
 - **Symptom:** In the app, sending a photo fails with **"Photo could not be sent."** The rest of the site works normally.
 - **Cause:** The browser's `PUT` to the R2 presigned upload URL is blocked — the `spectrum-dating-photos` bucket has **no CORS policy** (preflight returns bare 403, no `Access-Control-Allow-*`). Server-side `curl`/API uploads succeed (no CORS), so the E2 flow is correct end-to-end; only the *browser* upload is blocked.
 - **Fix (must be done in the Cloudflare dashboard):** R2 → `spectrum-dating-photos` → Settings → CORS Policy → add:
@@ -148,7 +148,7 @@ Two builder agents fixed the Error Log in parallel (backend + frontend repos, se
   ```
 - **Do NOT set it server-side.** Attempting `PutBucketCorsCommand` via the app crashed the backend on boot (the deployed `@aws-sdk/client-s3` build errored on that import) — this caused a full outage on 2026-07-01. Reverted. Use the dashboard only.
 
-### KI-2 — Local backend deploys blocked by a Windows Defender false-positive
+### KI-2 — ✅ RESOLVED 2026-07-01 — bypassed via GitHub→Railway pipeline (furrball26/spectrum-dating-server); backend now deploys server-side on `git push`, no local scan. Historical detail below.
 - **Symptom:** `railway up` fails (`os error 225`, "file contains a virus") and/or the deploy ships without `src/routes/profile.js`, crashing the app with `ERR_MODULE_NOT_FOUND: profile.js`.
 - **Cause:** Windows Defender ML heuristic **`Trojan:Script/ObfusScript.A!ml`** false-flags `Spectrum-Dating-Server/src/routes/profile.js` (clean file; a recent signature update started flagging it). Defender quarantines it — including the temp copy `railway up` creates — so it's excluded from the build.
 - **Workarounds:** temporarily disable Defender Real-time protection during deploy, OR "Allow" the specific detection in Windows Security → Protection history (content-based, covers the temp copy), OR connect the repo to GitHub so Railway builds server-side (no local scan). A folder exclusion on the repo alone is NOT sufficient (temp copy still scanned).
