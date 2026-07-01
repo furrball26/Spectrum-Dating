@@ -61,6 +61,17 @@ When you read "hand this to X" or "spec from Y" inside an agent, that means
 - **Messaging:** `accessibility-ux` + `trust-safety` (specs) → `realtime-chat`
   (build) → `security-engineer` (review) → `qa-accessibility-test`.
 
+## Persistent memory
+
+The six opus decision-making agents — `user-research`, `accessibility-ux`,
+`matchmaking`, `trust-safety`, `privacy-compliance`, `security-engineer` — have
+`memory: project` set. Each keeps a `MEMORY.md` (under `.claude/`) that persists
+across sessions, so durable decisions, research findings, threat models, and the
+compliance record accumulate instead of being re-derived each time. Note that
+`memory` auto-enables Read/Write/Edit for managing that file. The implementation
+agents are stateless by design (they work per-task); add `memory` to one only if
+it genuinely needs to remember across sessions.
+
 ## Want real inter-agent coordination?
 
 Enable experimental **Agent Teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`),
