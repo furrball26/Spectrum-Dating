@@ -11,6 +11,19 @@ const MIME_TO_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'we
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_PHOTOS = 6;
 
+// TEMP diagnostic — presence-only (no secret VALUES ever returned) to debug R2
+// env wiring on Railway. Remove once storage is confirmed configured.
+router.get('/_config-check', requireAuth, (req, res) => {
+  res.json({
+    R2_ACCOUNT_ID: !!process.env.R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID: !!process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: !!process.env.R2_SECRET_ACCESS_KEY,
+    R2_PUBLIC_URL: !!process.env.R2_PUBLIC_URL,
+    R2_BUCKET_NAME: !!process.env.R2_BUCKET_NAME,
+    r2Configured: r2Configured(),
+  });
+});
+
 // Serialize a user's gallery, ordered by position.
 export function listPhotos(db, userId) {
   const rows = db.prepare('SELECT id, url, description, is_primary, position FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC').all(userId);
