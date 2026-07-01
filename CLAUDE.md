@@ -84,10 +84,12 @@ real test suite exists.
 
 `.claude/agents/` also contains a roster of specialist subagents for building a
 state-of-the-art dating website for adults on the autism spectrum. They are
-designed to **auto-delegate** by description and to hand cross-cutting concerns
-to each other (e.g. every user-facing feature involves `accessibility-ux`; any
-data collection involves `privacy-compliance`). Each was informed by current
-(2025–2026) research and is told to verify claims rather than rely on memory.
+designed to **auto-delegate** by description. Subagents cannot call each other —
+the **main conversation orchestrates**, and each agent surfaces cross-cutting
+concerns in a trailing `## Hand-offs` section for the orchestrator to route. See
+**`.claude/agents/README.md`** for the orchestration model, role boundaries, and
+typical sequences. Each was informed by current (2025–2026) research and is told
+to verify claims rather than rely on memory.
 
 | Subagent | Focus | Model |
 | --- | --- | --- |
