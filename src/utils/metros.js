@@ -119,7 +119,25 @@ export function coordsFor(distCity) {
   return METRO_COORDS[metroKey(distCity)] || null;
 }
 
+// True iff we can place this location on the map (so distanceMiles() from it can
+// return a real number). Cities outside the ~7 hardcoded US metros are NOT
+// geocodable — see the E34 limitation note on distanceMiles below.
+export function isGeocodable(distCity) {
+  return coordsFor(distCity) !== null;
+}
+
 // Great-circle distance in miles. Returns null if either location is unknown.
+//
+// E34 LIMITATION: geocoding is a hardcoded lookup of ~7 US metros (Phoenix,
+// Seattle, Portland, Austin, Chicago, Boston, Denver) plus a metro-centroid
+// fallback. Any location outside those metros returns null here, so a true
+// distance can't be computed for most of the world. A real fix needs a
+// geocoding service (out of scope). Until then, callers MUST treat a null as
+// "distance unknown" and decide explicitly whether to include or exclude —
+// getCandidates() now uses isGeocodable() to only apply the radius filter when
+// the VIEWER's location is geocodable, and in that case excludes candidates
+// whose location isn't (so the radius no longer silently no-ops). See
+// candidates.js.
 export function distanceMiles(distCityA, distCityB) {
   const a = coordsFor(distCityA);
   const b = coordsFor(distCityB);

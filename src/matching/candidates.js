@@ -1,6 +1,6 @@
 ﻿import { scoreCandidate } from './score.js';
 import { ageFromDob } from '../utils/time.js';
-import { metroKey, distanceMiles } from '../utils/metros.js';
+import { metroKey, distanceMiles, isGeocodable } from '../utils/metros.js';
 
 // Returns an array of candidate profiles the viewer hasn't swiped on yet,
 // ordered by score (shared interests) descending.
@@ -52,8 +52,14 @@ export function getCandidates(db, viewerId, viewerInterests) {
 
   const excludeIds = new Set([viewerId, ...swipedIds, ...matchedIds]);
 
-  // Get all profiles except excluded
-  const placeholders = Array(excludeIds.size).fill('?').join(',');
+  // Get all eligible profiles, then exclude in JS. We DO NOT inline the exclude
+  // set as `NOT IN (?,?,…)`: a heavy swiper's swiped+matched list grows without
+  // bound and would eventually exceed SQLite's compiled parameter limit
+  // (SQLITE_MAX_VARIABLE_NUMBER, ~999 on older builds), throwing "too many SQL
+  // variables" → a permanent 500 on Discover. The eligibility predicates below
+  // (name/bio/photo present, not paused, has interests) already bound the result
+  // set to browsable profiles; filtering the exclude Set in JS is O(N) over that
+  // same set and behaves identically to the old NOT IN.
   const allProfiles = db.prepare(`
     SELECT p.user_id, p.display_name, p.tagline, p.bio, p.comm_note,
            p.relationship_goal, p.dist_city, p.updated_at, p.photo_url,
@@ -66,13 +72,12 @@ export function getCandidates(db, viewerId, viewerInterests) {
            (SELECT pp.description FROM profile_photos pp
             WHERE pp.user_id = p.user_id AND pp.is_primary = 1 LIMIT 1) AS primary_photo_description
     FROM profiles p
-    WHERE p.user_id NOT IN (${placeholders})
-      AND p.display_name != ''
+    WHERE p.display_name != ''
       AND p.bio != ''
       AND p.photo_url != ''
       AND p.paused = 0
       AND (SELECT COUNT(*) FROM user_interests WHERE user_id = p.user_id) > 0
-  `).all(...excludeIds);
+  `).all().filter(p => !excludeIds.has(p.user_id));
 
   if (allProfiles.length === 0) return [];
 
@@ -99,11 +104,17 @@ export function getCandidates(db, viewerId, viewerInterests) {
         }
       }
       // Search radius (miles): exclude candidates farther than the viewer's
-      // chosen radius. Only when the radius is set AND both locations are known
-      // (unknown distance always passes — never exclude on missing data).
-      if (viewer.search_radius_miles > 0) {
+      // chosen radius. E34: only meaningful when the VIEWER's location is
+      // geocodable (one of the ~7 supported metros). If it isn't, we can't
+      // measure distance at all, so we DON'T apply the filter (rather than
+      // silently including everyone as if filtered). When the viewer IS
+      // geocodable, a candidate whose distance can't be computed (unknown
+      // location) is EXCLUDED — we can't confirm they're within radius, and the
+      // viewer explicitly asked to limit by distance. This makes the filter's
+      // effect explicit instead of a silent no-op.
+      if (viewer.search_radius_miles > 0 && isGeocodable(viewer.dist_city)) {
         const miles = distanceMiles(viewer.dist_city, profile.dist_city);
-        if (miles !== null && miles > viewer.search_radius_miles) {
+        if (miles === null || miles > viewer.search_radius_miles) {
           return false;
         }
       }

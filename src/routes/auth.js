@@ -59,10 +59,14 @@ router.post('/register', authLimiter, async (req, res) => {
 
   const { db } = req.ctx;
 
-  // Check for duplicate email
+  // Check for duplicate email. E18: don't confirm WHICH email is taken — a
+  // distinct "account with this email already exists" reply lets an attacker
+  // enumerate registered addresses. Use a generic message (mirrors how login
+  // returns the same "Invalid email or password" for unknown vs. wrong-password)
+  // and point the user at sign-in / reset instead of confirming registration.
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
   if (existing) {
-    return res.status(409).json({ error: 'An account with this email already exists.' });
+    return res.status(409).json({ error: 'We couldn’t create an account with those details. If you already have an account, try signing in or resetting your password.' });
   }
 
   const userId = newId();

@@ -21,6 +21,8 @@ import accountRouter from './routes/account.js';
 import adminRouter from './routes/admin.js';
 import feedbackRouter from './routes/feedback.js';
 import { configurePush } from './push/webpush.js';
+import { r2Configured, backupConfigured } from './storage/r2.js';
+import { emailConfigured } from './email/resend.js';
 import { scheduleBackups } from './backup/scheduler.js';
 import { scheduleWeeklyDigest } from './email/digest-scheduler.js';
 import { maybeResetPassword } from './maintenance/reset-password.js';
@@ -105,7 +107,36 @@ const io = setupSocketIO(httpServer, db);
 
 // Make io available to route handlers via app.locals
 app.locals.io = io;
-configurePush();
+const pushConfigured = configurePush();
+
+// E21: fail LOUD, not silent, on missing production config. Previously an unset
+// ALLOWED_ORIGIN / VAPID / R2 env just produced a silent CORS fallback, a no-op
+// push, or a runtime 503 with no boot-time signal — so a misconfigured deploy
+// looked healthy. We warn (never crash) so the outage-shaped symptom is
+// traceable to config in the logs. In production (NODE_ENV=production) a missing
+// value is a real problem; in dev the localhost fallbacks are expected, so we
+// only note them at info level there.
+(function warnMissingProdEnv() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const level = isProd ? 'warn' : 'log';
+  const say = (msg) => console[level](msg);
+  if (!process.env.ALLOWED_ORIGIN) {
+    say(`[boot] ${isProd ? 'WARNING: ' : ''}ALLOWED_ORIGIN is not set — CORS is falling back to http://localhost:5173. The deployed frontend will be blocked in production.`);
+  }
+  if (!pushConfigured) {
+    say(`[boot] ${isProd ? 'WARNING: ' : ''}Web Push is not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY unset) — push notifications will be silently skipped and /push/vapid-public-key returns 503.`);
+  }
+  if (!r2Configured()) {
+    say(`[boot] ${isProd ? 'WARNING: ' : ''}R2 object storage is not configured (R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_PUBLIC_URL unset) — photo upload presign returns 503 and uploads will fail.`);
+  }
+  if (!backupConfigured()) {
+    say(`[boot] ${isProd ? 'WARNING: ' : ''}Database backups are not configured (R2_BACKUP_BUCKET unset) — scheduled DB backups will be skipped.`);
+  }
+  if (!emailConfigured()) {
+    say(`[boot] ${isProd ? 'WARNING: ' : ''}Email sending is not configured — verification / reset / digest emails will be skipped.`);
+  }
+})();
+
 scheduleBackups(db);
 scheduleWeeklyDigest(db);
 maybeResetPassword(db);

@@ -123,9 +123,9 @@ router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
     return res.json({ matched: false });
   }
 
-  // Mutual like — create match (canonical order: smaller id first)
+  // Mutual like — create match (canonical order: smaller id first).
   const [userA, userB] = userId < candidateId ? [userId, candidateId] : [candidateId, userId];
-  const matchId = newId();
+  let matchId = newId();
 
   try {
     db.prepare(
@@ -133,13 +133,20 @@ router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
     ).run(matchId, userA, userB, now);
   } catch (err) {
     if (err.message?.includes('UNIQUE constraint failed')) {
-      // Match already exists (race condition) — look it up
+      // E11: swipe→match race — the other user's concurrent mutual-like won the
+      // INSERT (UNIQUE prevents a dup row). Previously we returned {matched:true}
+      // here WITHOUT emitting/pushing, so THIS user could silently miss the
+      // realtime `new_match` + push. Now we fall through to the shared
+      // emit/push below using the winning row's id, so both users are notified
+      // regardless of which insert won.
       const existing = db.prepare(
         'SELECT id FROM matches WHERE user_a_id = ? AND user_b_id = ?'
       ).get(userA, userB);
-      return res.json({ matched: true, matchId: existing.id });
+      if (!existing) throw err; // shouldn't happen; don't swallow a real error
+      matchId = existing.id;
+    } else {
+      throw err;
     }
-    throw err;
   }
 
   const { io } = req.app.locals;
@@ -165,7 +172,7 @@ router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
 // POST /matching/undo-skip — undo the viewer's MOST RECENT 'skip' swipe.
 // Deleting the skip lets that person resurface in candidates. Never touches
 // 'like' swipes. Returns { ok: false } when there's no skip to undo.
-router.post('/undo-skip', requireAuth, (req, res) => {
+router.post('/undo-skip', requireAuth, mutationLimiter, (req, res) => {
   const { db, userId } = req.ctx;
 
   const lastSkip = db.prepare(

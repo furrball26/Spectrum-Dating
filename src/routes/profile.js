@@ -69,13 +69,20 @@ router.get('/me', requireAuth, (req, res) => {
 
   const userRow = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(userId);
 
-  // Check if the user has an open verification request (pending / rejected).
-  // 'approved' means identity_verified is already set; we surface that via the
-  // `verified` flag rather than duplicating the state.
-  const verifRow = db.prepare(
-    "SELECT status FROM verification_requests WHERE user_id = ? AND status != 'approved'"
-  ).get(userId);
-  const verificationRequested = verifRow?.status || null; // 'pending' | 'rejected' | null
+  // E19: profiles.identity_verified is the SINGLE SOURCE OF TRUTH for whether a
+  // user is verified. verification_requests only tracks the QUEUE state
+  // (pending / rejected) for a user who is NOT yet verified. To prevent the two
+  // tables from drifting into a contradictory display (e.g. a verified user who
+  // still shows a stale 'pending' request, or a 'rejected' row lingering after a
+  // later approval), we short-circuit: if identity_verified is set, there is no
+  // open request, full stop — we never even read verification_requests. The
+  // `verified` flag below is the authoritative signal; verificationRequested is
+  // only meaningful when NOT verified.
+  const verificationRequested = profile.identity_verified
+    ? null
+    : (db.prepare(
+        "SELECT status FROM verification_requests WHERE user_id = ? AND status != 'approved'"
+      ).get(userId)?.status || null); // 'pending' | 'rejected' | null
 
   return res.json({
     userId: profile.user_id,

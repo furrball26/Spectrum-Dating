@@ -49,6 +49,25 @@ export const abuseReportLimiter = rateLimit({
   skipSuccessfulRequests: false,
 });
 
+// ── Account-security limiter (change-password / change-email) ────────────────
+// Guards the credential-change endpoints. Each request runs bcrypt.compare on
+// the supplied current password (rounds=12, deliberately CPU-heavy), so an
+// attacker holding a stolen session token could both brute-force the current
+// password AND exhaust CPU by hammering these routes. A tight ceiling —
+// 10 attempts per user per 15 minutes — is plenty for a real person changing
+// their own credentials. DELIBERATELY a SEPARATE bucket from the safety-action
+// and abuse-report limiters so credential-change spam can never rate-starve a
+// user's ability to file a report or block a bad actor.
+export const accountSecurityLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: { error: 'Too many security changes. Please wait a few minutes before trying again.' },
+  skipSuccessfulRequests: false,
+});
+
 // ── Safety-action limiter (report / block) ───────────────────────────────────
 // SEPARATE bucket from feedback/verification so non-safety spam can never
 // exhaust a user's ability to report or block a bad actor. A more generous

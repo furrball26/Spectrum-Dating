@@ -160,8 +160,13 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
   }
   logMod(db, req.ctx.userId, verified ? 'verify' : 'unverify', req.params.id);
 
-  // Keep verification_requests in sync: mark the request approved/rejected so
-  // the user sees the correct status in their profile.
+  // E19: profiles.identity_verified (set above) is the SINGLE SOURCE OF TRUTH.
+  // We still advance the verification_requests row so the moderation QUEUE
+  // reflects the decision (approved/rejected) and stops re-surfacing this user,
+  // but profile.js no longer trusts this column to decide "verified" — it reads
+  // identity_verified directly and only consults verification_requests for the
+  // queue state of NOT-yet-verified users. So even if this UPDATE were to no-op
+  // (e.g. the user never filed a request), the user's verified state is correct.
   const newStatus = verified ? 'approved' : 'rejected';
   db.prepare(`
     UPDATE verification_requests SET status = ?, reviewed_at = ?

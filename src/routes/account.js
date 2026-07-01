@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { requireAuth, signToken } from '../middleware/auth.js';
+import { accountSecurityLimiter } from '../middleware/rateLimits.js';
 import { emailConfigured, sendVerificationEmail } from '../email/resend.js';
 import { deleteObject } from '../storage/r2.js';
 
@@ -11,7 +12,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // POST /account/change-password — verify current, set new, keep this session
 // logged in (fresh token) while invalidating other sessions (token_version bump).
-router.post('/change-password', requireAuth, async (req, res) => {
+router.post('/change-password', requireAuth, accountSecurityLimiter, async (req, res) => {
   const { db, userId } = req.ctx;
   const { currentPassword, newPassword } = req.body ?? {};
   if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
@@ -33,7 +34,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
 
 // POST /account/change-email — verify password, ensure not taken, update; if
 // email verification is configured, mark unverified + send a new link.
-router.post('/change-email', requireAuth, async (req, res) => {
+router.post('/change-email', requireAuth, accountSecurityLimiter, async (req, res) => {
   const { db, userId } = req.ctx;
   const { newEmail, currentPassword } = req.body ?? {};
   if (typeof newEmail !== 'string' || typeof currentPassword !== 'string') {
@@ -47,8 +48,11 @@ router.post('/change-email', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Current password is incorrect.' });
   }
   if (email === user.email) return res.status(400).json({ error: 'That is already your email.' });
+  // E18: don't confirm that the target address belongs to another account — a
+  // distinct "already in use" reply lets an authenticated attacker enumerate
+  // registered emails. Return a generic message that doesn't reveal existence.
   if (db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').get(email, userId)) {
-    return res.status(409).json({ error: 'That email is already in use.' });
+    return res.status(409).json({ error: 'We couldn’t change your email to that address. Please try a different one.' });
   }
   const verifyOn = emailConfigured();
   // Bump token_version to invalidate OTHER sessions on an email change — matches
