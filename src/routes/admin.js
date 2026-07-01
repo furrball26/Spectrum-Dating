@@ -345,4 +345,16 @@ function userContext(db, userId) {
   };
 }
 
+// TEMP maintenance — hard-remove a specific message (and any attachment it
+// references) with no tombstone, for tidying demo/test artifacts. Remove after use.
+router.post('/_hard-delete-message/:messageId', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const id = req.params.messageId;
+  db.transaction(() => {
+    db.prepare('DELETE FROM message_attachments WHERE message_id = ?').run(id);
+    db.prepare('DELETE FROM messages WHERE id = ?').run(id);
+  })();
+  res.json({ deleted: id });
+});
+
 export default router;
