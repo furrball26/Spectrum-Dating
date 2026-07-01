@@ -32,12 +32,12 @@ const RAMP = [
 const TILE_STAGGER = 60; // ms between each tile drawing in
 const TILE_BASE_DELAY = 220; // ms before the first tile starts (avatars mostly met)
 
-// Reads the in-app "Reduce motion" / "Calm mode" preference (localStorage),
+// Reads the in-app "Reduce motion" / "Low stimulation" preference (localStorage),
 // so motion is suppressed even when the OS setting is off but the user opted in.
 function readInAppReduceMotion() {
   try {
     const p = JSON.parse(localStorage.getItem("spectrum_a11y") || "{}");
-    return !!(p.reduceMotion || p.calmMode);
+    return !!(p.reduceMotion || p.reducedSensory);
   } catch { return false; }
 }
 

@@ -269,7 +269,7 @@ const REDUCE_MOTION_CSS = `*, *::before, *::after {
 
 function applyA11yStylesheet(prefs) {
   if (typeof document === "undefined") return;
-  const wantReduceMotion = !!(prefs.reduceMotion || prefs.calmMode);
+  const wantReduceMotion = !!(prefs.reduceMotion || prefs.reducedSensory);
   let el = document.getElementById(A11Y_STYLE_ID);
   if (!wantReduceMotion) {
     if (el) el.remove();
@@ -302,7 +302,7 @@ function a11yWrapperStyle(prefs) {
   const style = {};
   if (prefs.highContrast) style.filter = "contrast(1.15)";
   if (prefs.largerText) style.zoom = 1.15;
-  if (prefs.calmMode || prefs.reducedSensory) style.background = t.bg;
+  if (prefs.reducedSensory) style.background = t.bg;
   return style;
 }
 

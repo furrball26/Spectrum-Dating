@@ -56,11 +56,11 @@ function ensureStyle() {
   document.head.appendChild(el);
 }
 
-// Reads the in-app "Reduce motion" / "Calm mode" preference (localStorage).
+// Reads the in-app "Reduce motion" / "Low stimulation" preference (localStorage).
 function readInAppReduceMotion() {
   try {
     const p = JSON.parse(localStorage.getItem("spectrum_a11y") || "{}");
-    return !!(p.reduceMotion || p.calmMode);
+    return !!(p.reduceMotion || p.reducedSensory);
   } catch { return false; }
 }
 

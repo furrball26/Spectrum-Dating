@@ -13,7 +13,6 @@ export const DEFAULT_A11Y = {
   reduceMotion: false,
   highContrast: false,
   largerText: false,
-  calmMode: false,
   theme: "light", // 'light' | 'dim'
   plainLanguage: false,   // shorter, more literal copy throughout the app
   reducedSensory: false,  // hide decorative illustrations + flatten header mark
@@ -31,10 +30,10 @@ export function readA11y() {
       reduceMotion: !!parsed.reduceMotion,
       highContrast: !!parsed.highContrast,
       largerText: !!parsed.largerText,
-      calmMode: !!parsed.calmMode,
       theme: parsed.theme === "dim" ? "dim" : "light",
       plainLanguage: !!parsed.plainLanguage,
-      reducedSensory: !!parsed.reducedSensory,
+      // Low Stimulation absorbed the former "Calm mode" — migrate any legacy calmMode=true.
+      reducedSensory: !!(parsed.reducedSensory || parsed.calmMode),
     };
   } catch {
     return { ...DEFAULT_A11Y };
@@ -333,9 +332,9 @@ export default function SettingsScreen({ onBack, onChange }) {
     (key, value) => {
       setPrefs((prev) => {
         const next = { ...prev, [key]: value };
-        // Calm mode implies reduce-motion (calm enables it). Keep them coherent
-        // so the switches reflect what's actually applied.
-        if (key === "calmMode" && value) next.reduceMotion = true;
+        // Low Stimulation implies reduce-motion (it absorbed Calm mode). Keep them
+        // coherent so the switches reflect what's actually applied.
+        if (key === "reducedSensory" && value) next.reduceMotion = true;
         try {
           localStorage.setItem(A11Y_KEY, JSON.stringify(next));
         } catch {
@@ -394,7 +393,7 @@ export default function SettingsScreen({ onBack, onChange }) {
             id="a11y-reduced-sensory"
             first
             label="Low stimulation"
-            description="Hide decorative illustrations and use a quieter, flatter visual style."
+            description="Hide decorative visuals and backgrounds, calm animations, and use a quieter, flatter style."
             checked={prefs.reducedSensory}
             onChange={(v) => update("reducedSensory", v)}
           />
@@ -425,13 +424,6 @@ export default function SettingsScreen({ onBack, onChange }) {
             description="Enlarge everything by about 15% for easier reading."
             checked={prefs.largerText}
             onChange={(v) => update("largerText", v)}
-          />
-          <ToggleRow
-            id="a11y-calm-mode"
-            label="Calm mode"
-            description="Reduce motion and hide decorative backgrounds for a quieter, flatter look."
-            checked={prefs.calmMode}
-            onChange={(v) => update("calmMode", v)}
           />
         </div>
 
