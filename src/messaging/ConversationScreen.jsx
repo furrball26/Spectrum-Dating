@@ -25,6 +25,17 @@ function usePrefersReduced() {
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
+// Small, muted "You" / match-name label shown above the first bubble in a run
+// of consecutive same-sender messages. Since every bubble now left-aligns, this
+// (plus bubble color) is how you tell at a glance who said what.
+const senderLabelStyle = {
+  fontSize: 12,
+  color: t.textMuted,
+  fontWeight: 600,
+  margin: "2px 2px 3px",
+  lineHeight: 1.2,
+};
+
 function useFocusable() {
   const [focused, setFocused] = useState(false);
   return {
@@ -586,6 +597,10 @@ function MessageBubble({
   onRetry,
   onEnlargeImage,
   showSent = false,
+  // All bubbles now left-align; sender is signalled by bubble color + a small
+  // muted name label shown above the first message in a same-sender run.
+  senderName = "",
+  showSender = false,
 }) {
   const prefersReduced = usePrefersReduced();
   const isOwn = message.senderId === currentUserId;
@@ -608,10 +623,14 @@ function MessageBubble({
       <div
         style={{
           display: "flex",
-          justifyContent: isOwn ? "flex-end" : "flex-start",
+          flexDirection: "column",
+          alignItems: "flex-start",
           marginBottom: 8,
         }}
       >
+        {showSender && (
+          <div style={senderLabelStyle}>{isOwn ? "You" : senderName}</div>
+        )}
         <div
           aria-label="Message deleted."
           style={{
@@ -635,19 +654,28 @@ function MessageBubble({
       style={{
         display: "flex",
         flexDirection: "column",
-        alignItems: isOwn ? "flex-end" : "flex-start",
+        alignItems: "flex-start",
         marginBottom: 8,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Sender name label — shown above the first message in a same-sender run.
+          Left-aligned like the bubble; color still carries the primary signal. */}
+      {showSender && (
+        <div style={senderLabelStyle}>{isOwn ? "You" : senderName}</div>
+      )}
       <div
         ref={menuAnchorRef}
         style={{
           position: "relative",
-          maxWidth: "84%",
+          // Full-width bubbles: use nearly the whole thread column (minus a small
+          // margin for the trailing hover controls) instead of the old 84%.
+          maxWidth: "98%",
           display: "flex",
-          flexDirection: isOwn ? "row" : "row-reverse",
+          // Every bubble left-aligns now; bubble hugs the left, the ⋯/＋ controls
+          // trail to its right (row-reverse over the DOM order buttons→bubble).
+          flexDirection: "row-reverse",
           alignItems: "flex-end",
           gap: 6,
         }}
@@ -737,11 +765,12 @@ function MessageBubble({
 
         <div
           style={{
+            // Sender is signalled by COLOR now (position no longer differs):
+            // own = green-tinted bubble, other = white/surface bubble.
             background: isOwn ? t.bubbleOwn : t.bubbleOther,
             border: isOwn ? `1px solid ${t.bubbleOwnBorder}` : `1px solid ${t.border}`,
-            borderRadius: isOwn
-              ? "18px 18px 4px 18px"
-              : "18px 18px 18px 4px",
+            // All bubbles left-align, so all get the left-tail corner treatment.
+            borderRadius: "18px 18px 18px 4px",
             padding: "10px 14px",
             fontSize: 16,
             color: t.text,
@@ -789,7 +818,7 @@ function MessageBubble({
 
       {/* Reaction pills — in tab order after the bubble */}
       {msgReactions && (
-        <div style={{ maxWidth: "84%" }}>
+        <div style={{ maxWidth: "98%" }}>
           <ReactionPills
             messageId={message.id}
             msgReactions={msgReactions}
@@ -802,7 +831,7 @@ function MessageBubble({
       {/* F4 — calm "Sent" micro-state. Only ever shown on the user's own most
           recent, server-confirmed message (the parent computes this). It means
           the message reached the server — NOT that the other person saw it.
-          Quiet, muted, right-aligned; announced once via role="status". */}
+          Quiet, muted, left-aligned; announced once via role="status". */}
       {isOwn && showSent && !message.failed && (
         <div
           role="status"
@@ -1988,15 +2017,23 @@ export default function ConversationScreen({
       ? lastMsg.id
       : null;
 
-  // Group messages by timeLabel for group headers
+  // Group messages by timeLabel for group headers. Also flag `showSender` on the
+  // first message of each consecutive same-sender run (and after any day divider)
+  // so a small "You"/name label renders above it — since bubbles no longer differ
+  // by side, this + color is how you tell who said what.
   const grouped = [];
   let lastLabel = null;
+  let lastSenderId = null;
   messages.forEach((msg) => {
+    let dividerBefore = false;
     if (msg.timeLabel !== lastLabel) {
       grouped.push({ type: "header", label: msg.timeLabel });
       lastLabel = msg.timeLabel;
+      dividerBefore = true;
     }
-    grouped.push({ type: "message", msg });
+    const showSender = dividerBefore || msg.senderId !== lastSenderId;
+    grouped.push({ type: "message", msg, showSender });
+    lastSenderId = msg.senderId;
   });
 
   const hasMessages = messages.length > 0;
@@ -2256,16 +2293,23 @@ export default function ConversationScreen({
                 );
               }
               const msg = item.msg;
+              const isOwnMsg = msg.senderId === currentUserId;
               if (msg.deleted) {
                 return (
                   <div
                     key={msg.id}
                     style={{
                       display: "flex",
-                      justifyContent: msg.senderId === currentUserId ? "flex-end" : "flex-start",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
                       marginBottom: 8,
                     }}
                   >
+                    {item.showSender && (
+                      <div style={senderLabelStyle}>
+                        {isOwnMsg ? "You" : otherUser.displayName}
+                      </div>
+                    )}
                     <div
                       id={`tombstone-${msg.id}`}
                       tabIndex={-1}
@@ -2297,6 +2341,8 @@ export default function ConversationScreen({
                   onRetry={retrySend}
                   onEnlargeImage={setEnlargedImage}
                   showSent={msg.id === sentMessageId}
+                  senderName={otherUser.displayName}
+                  showSender={item.showSender}
                 />
               );
             })}

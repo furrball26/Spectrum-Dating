@@ -18,7 +18,7 @@ import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
-import { ShieldIcon, GearIcon, HeartIcon } from "./icons.jsx";
+import { ShieldIcon, GearIcon, HeartIcon, LockIcon } from "./icons.jsx";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -251,6 +251,37 @@ function SettingsLink({ active, onClick }) {
       onBlur={f.onBlur}
     >
       <GearIcon size={16} /> Settings
+    </button>
+  );
+}
+
+function SecurityLink({ active, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Account & security"
+      aria-current={active ? "page" : undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        minHeight: 44,
+        padding: "6px 12px",
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        fontSize: 14,
+        fontWeight: 600,
+        color: active ? t.accent : t.textSoft,
+        borderRadius: 8,
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      <LockIcon size={16} /> Security
     </button>
   );
 }
@@ -1064,6 +1095,13 @@ export default function App() {
                       onClick={() => {
                         if (activeTab !== "settings") setPrevTab(activeTab);
                         setActiveTab("settings");
+                      }}
+                    />
+                    <SecurityLink
+                      active={activeTab === "account"}
+                      onClick={() => {
+                        if (activeTab !== "account") setPrevTab(activeTab);
+                        setActiveTab("account");
                       }}
                     />
                   </div>

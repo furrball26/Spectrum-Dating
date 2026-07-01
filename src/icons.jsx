@@ -39,6 +39,17 @@ export function ShieldIcon({ size = 18, ...rest }) {
   );
 }
 
+export function LockIcon({ size = 18, ...rest }) {
+  return (
+    <Svg size={size} {...rest}>
+      <rect x="5" y="10.5" width="14" height="10" rx="2.2" fill="currentColor" fillOpacity={0.12} />
+      <rect x="5" y="10.5" width="14" height="10" rx="2.2" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+      <circle cx="12" cy="15" r="1.3" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
 export function GearIcon({ size = 18, ...rest }) {
   return (
     <Svg size={size} {...rest}>
