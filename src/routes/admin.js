@@ -172,6 +172,39 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /admin/verification-requests?status=pending — self-serve identity
+// verification queue. Joins verification_requests → users (email) → profiles
+// (display_name, photo_url). Newest first by requested_at. Default status
+// filter is 'pending'. Admins act on each via POST /admin/users/:id/verify.
+// ---------------------------------------------------------------------------
+router.get('/verification-requests', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const status = req.query.status || 'pending';
+
+  const rows = db.prepare(`
+    SELECT vr.user_id, vr.status, vr.requested_at,
+           u.email AS email,
+           p.display_name AS display_name, p.photo_url AS photo_url
+    FROM verification_requests vr
+    LEFT JOIN users u ON u.id = vr.user_id
+    LEFT JOIN profiles p ON p.user_id = vr.user_id
+    WHERE vr.status = ?
+    ORDER BY vr.requested_at DESC
+  `).all(status);
+
+  const requests = rows.map(r => ({
+    userId: r.user_id,
+    email: r.email || null,
+    displayName: r.display_name || '',
+    photoUrl: r.photo_url || null,
+    requestedAt: r.requested_at,
+    status: r.status,
+  }));
+
+  res.json({ requests });
+});
+
+// ---------------------------------------------------------------------------
 // GET /admin/audit-log — recent moderation actions (newest first)
 // ---------------------------------------------------------------------------
 router.get('/audit-log', requireAuth, requireAdmin, (req, res) => {
