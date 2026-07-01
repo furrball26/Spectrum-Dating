@@ -56,7 +56,8 @@ export const t = {
   green800: "var(--c-green800, #314E49)",
   green900: "var(--c-green900, #24332D)",
   formBorder: "var(--c-formBorder, #8A9E96)",
-  bubbleOwn: "var(--c-bubbleOwn, #EEF1ED)",
+  bubbleOwn: "var(--c-bubbleOwn, #E2EAE4)",
+  bubbleOwnBorder: "var(--c-bubbleOwnBorder, #C3D4CB)",
   bubbleOther: "var(--c-bubbleOther, #FFFFFF)",
   tombstone: "var(--c-tombstone, #7A8C85)",
   // ── Motion language ──

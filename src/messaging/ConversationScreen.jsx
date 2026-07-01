@@ -57,12 +57,42 @@ const REACTION_EMOJIS = [
 const MAX_REACTION_TYPES = 5;
 
 // --- Feature 1: ReactionPicker ---
-function ReactionPicker({ onSelect, onClose, reactButtonRef }) {
+// Viewport-safe: after mount (and on resize) we measure the popover against the
+// window and shift it horizontally so it never clips off either edge. For
+// own/right-aligned messages it opens toward the left; for others toward the
+// right. It may wrap to a second row on very narrow screens.
+const PICKER_VIEWPORT_MARGIN = 8;
+function ReactionPicker({ onSelect, onClose, reactButtonRef, isOwn = false }) {
   const containerRef = useRef(null);
   const firstButtonRef = useRef(null);
+  // Horizontal offset (px) applied to keep the popover inside the viewport.
+  const [shiftX, setShiftX] = useState(0);
 
   useEffect(() => {
     firstButtonRef.current?.focus();
+  }, []);
+
+  // Clamp into the viewport once laid out, and again on resize/orientation.
+  useEffect(() => {
+    function clamp() {
+      const el = containerRef.current;
+      if (!el) return;
+      // Reset any prior shift before measuring so we read the natural position.
+      el.style.transform = "translateX(0px)";
+      const rect = el.getBoundingClientRect();
+      const vw = window.innerWidth;
+      let dx = 0;
+      if (rect.right > vw - PICKER_VIEWPORT_MARGIN) {
+        dx = vw - PICKER_VIEWPORT_MARGIN - rect.right;
+      }
+      if (rect.left + dx < PICKER_VIEWPORT_MARGIN) {
+        dx = PICKER_VIEWPORT_MARGIN - rect.left;
+      }
+      setShiftX(dx);
+    }
+    clamp();
+    window.addEventListener("resize", clamp);
+    return () => window.removeEventListener("resize", clamp);
   }, []);
 
   useEffect(() => {
@@ -83,6 +113,8 @@ function ReactionPicker({ onSelect, onClose, reactButtonRef }) {
       aria-label="Add reaction"
       style={{
         display: "flex",
+        flexWrap: "wrap",
+        justifyContent: "center",
         gap: 4,
         padding: "6px 8px",
         background: t.surface,
@@ -91,9 +123,12 @@ function ReactionPicker({ onSelect, onClose, reactButtonRef }) {
         boxShadow: "0 4px 16px rgba(36,51,45,0.14)",
         position: "absolute",
         bottom: "calc(100% + 6px)",
-        left: 0,
+        // Anchor toward the side that keeps it on-screen, then fine-clamp via
+        // transform. Own (right-aligned) messages open leftward.
+        ...(isOwn ? { right: 0 } : { left: 0 }),
+        transform: `translateX(${shiftX}px)`,
+        maxWidth: `calc(100vw - ${PICKER_VIEWPORT_MARGIN * 2}px)`,
         zIndex: 250,
-        whiteSpace: "nowrap",
       }}
     >
       {REACTION_EMOJIS.map(({ emoji, name }, idx) => (
@@ -610,7 +645,7 @@ function MessageBubble({
         ref={menuAnchorRef}
         style={{
           position: "relative",
-          maxWidth: "72%",
+          maxWidth: "84%",
           display: "flex",
           flexDirection: isOwn ? "row" : "row-reverse",
           alignItems: "flex-end",
@@ -694,6 +729,7 @@ function MessageBubble({
                   reactButtonRef.current?.focus();
                 }}
                 reactButtonRef={reactButtonRef}
+                isOwn={isOwn}
               />
             )}
           </div>
@@ -702,7 +738,7 @@ function MessageBubble({
         <div
           style={{
             background: isOwn ? t.bubbleOwn : t.bubbleOther,
-            border: isOwn ? "none" : `1px solid ${t.border}`,
+            border: isOwn ? `1px solid ${t.bubbleOwnBorder}` : `1px solid ${t.border}`,
             borderRadius: isOwn
               ? "18px 18px 4px 18px"
               : "18px 18px 18px 4px",
@@ -710,6 +746,7 @@ function MessageBubble({
             fontSize: 16,
             color: t.text,
             lineHeight: 1.55,
+            overflowWrap: "anywhere",
             wordBreak: "break-word",
           }}
         >
@@ -752,7 +789,7 @@ function MessageBubble({
 
       {/* Reaction pills — in tab order after the bubble */}
       {msgReactions && (
-        <div style={{ maxWidth: "72%" }}>
+        <div style={{ maxWidth: "84%" }}>
           <ReactionPills
             messageId={message.id}
             msgReactions={msgReactions}
