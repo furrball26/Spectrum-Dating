@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMyReports, getBlockedUsers, unblockUser } from "./api.js";
+import { getMyReports, getBlockedUsers, unblockUser, withdrawReport } from "./api.js";
 import Button from "./Button.jsx";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
@@ -206,6 +206,7 @@ const REPORT_STATUS = {
   reviewed:  { label: "Reviewed",  color: t.accent },
   actioned:  { label: "Actioned",  color: t.accentStrong },
   dismissed: { label: "Dismissed", color: t.textMuted },
+  withdrawn: { label: "Withdrawn", color: t.textMuted },
 };
 
 function StatusPill({ status }) {
@@ -271,6 +272,7 @@ export default function SafetyScreen({ onBack }) {
   const [reports, setReports] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
   const [reportsError, setReportsError] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(null);
 
   // Blocked people — fetched on mount; supports unblock.
   const [blocked, setBlocked] = useState([]);
@@ -308,6 +310,26 @@ export default function SafetyScreen({ onBack }) {
       setLiveMessage(`Couldn't unblock ${name}. Please try again.`);
     } finally {
       setUnblocking(null);
+    }
+  }, []);
+
+  const handleWithdraw = useCallback(async (reportId, name) => {
+    // Gentle, shame-free confirm — it's okay to change your mind.
+    const ok = window.confirm(
+      "Withdraw this report? Our team won't review it.\n\nIt's okay to change your mind."
+    );
+    if (!ok) return;
+    setWithdrawing(reportId);
+    try {
+      await withdrawReport(reportId);
+      setReports((prev) =>
+        prev.map((r) => (r.id === reportId ? { ...r, status: "withdrawn" } : r))
+      );
+      setLiveMessage(`Report about ${name} withdrawn.`);
+    } catch {
+      setLiveMessage("Couldn't withdraw that report. Please try again.");
+    } finally {
+      setWithdrawing(null);
     }
   }, []);
 
@@ -704,7 +726,18 @@ export default function SafetyScreen({ onBack }) {
                         </div>
                       )}
                     </div>
-                    <StatusPill status={r.status} />
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+                      <StatusPill status={r.status} />
+                      {r.status === "open" && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => handleWithdraw(r.id, r.reportedName || "this person")}
+                          disabled={withdrawing === r.id}
+                        >
+                          {withdrawing === r.id ? "Withdrawing…" : "Withdraw"}
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

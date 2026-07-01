@@ -384,6 +384,12 @@ export async function getMyReports() {
   return Array.isArray(d?.reports) ? d.reports : (Array.isArray(d) ? d : []);
 }
 
+// Withdraw a report you filed. Only works while the report is still 'open';
+// the server 409s if it's already been reviewed. → { ok, status: 'withdrawn' }
+export async function withdrawReport(reportId) {
+  return apiFetch(`/messaging/reports/${reportId}/withdraw`, { method: 'POST' });
+}
+
 // ─── Reactions ────────────────────────────────────────────────────────────────
 
 export async function toggleReaction(messageId, emoji) {
