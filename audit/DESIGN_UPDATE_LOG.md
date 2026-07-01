@@ -45,3 +45,47 @@ Severity: 🔴 blocker · 🟠 real problem · 🟡 minor / polish · ⚪ nit
 
 ## Strong points (keep)
 Exemplary motion/reduced-motion (OS + in-app toggle, dynamic `matchMedia`, end-state-immediate, no confetti/sound); uniform focus ring (13.2:1 light / 11.6:1 dim); bulletproof skip link; correct dialog semantics + traps everywhere except D3; thorough form a11y (labels, `aria-describedby`, `role=alert`, gated `aria-invalid`, per-photo alt text); good live regions; status-not-by-color-alone for unread; 20-min inactivity warning with grace countdown; calm, plain-language empty/error/rate-limit/offline states; warm on-brand microcopy; the landing "what you won't find here" manifesto. Dim-theme contrast is clean throughout — light-theme accent/tombstone are the only color regressions.
+
+---
+
+# Round 2 — 2026-06-30 (8-agent re-audit)
+
+> **Meta:** none of R1's fixes shipped — every R1 `D#` item is **still open in source** (builder paused). Accessibility + Design ran **source-verified** (browser approval landed after they'd started; contrast computed from token hex). The owed ≤430px live visual pass still stands. Full detail in `audit/round2-accessibility.md` + `round2-design-ux.md` + `round2-functional-qa.md`.
+
+## 🔴 NEW — contrast on primary/interactive surfaces
+
+| # | Issue | WCAG | Location |
+|---|---|---|---|
+| D21 | **Profile "Save changes" (and "Save and leave") fill white text on `t.positive` → fails AA in BOTH themes** (3.59:1 light / 2.32:1 dim). The most-used primary action on Profile. Use `accentFill` or a new `positiveFill`. | 1.4.3 | `ProfileScreen.jsx:3868,238` |
+| D22 | **`t.accentStrong` as a white-text FILL = 2.10:1 in dim** across selected chips, photo "Main" badge, "Add prompt", Admin/Safety "Actioned" pills. `accentStrong` is safe as *text*, not as a fill — use `accentFill`. | 1.4.3 | Onboarding, Profile, `AdminScreen.jsx:77`, `SafetyScreen.jsx:207` |
+| D23 | **Moderation + Safety status pills** (white on `warning`/`accent`/`accentStrong`/`muted` fills) fail AA in light (3 of 4) and badly in dim (all 4); the Admin "Apply" button too. | 1.4.3 | `AdminScreen.jsx:72-80,163`, `SafetyScreen.jsx:204-209` |
+
+## 🟠 NEW — theming & focus
+
+| # | Issue | Location |
+|---|---|---|
+| D24 | **Admin "confirm suspend" panel hardcodes `#FBF1F1`** → in dim the destructive warning is `t.text` on light pink = **1.10:1 (invisible)** exactly when an admin is about to suspend someone. | `AdminScreen.jsx:370` |
+| D25 | **Safety "Time to check in" banner hardcodes `#FBF6E9`/`#6E5206`** → a bright cream slab with brown text floating on the dark surface in dim, on the one screen built around calm. Needs themed warning-surface tokens. | `SafetyScreen.jsx:512,522` |
+| D26 | **Two more modals lack a Tab focus-trap + focus-restore** (SuggestionScreen ReportModal, ProfilePreviewModal) — same class as R1 D3 (MatchProfileModal, still open). Focus escapes behind the open dialog and is lost to `<body>` on close. | `SuggestionScreen.jsx:272-415`, `ProfileScreen.jsx:1299-1631` |
+| D27 | **Account & security: "New password" and change-email "Current password" inputs have no programmatic label** (placeholder only) — a security-critical form announces an unlabelled field. | `ProfileScreen.jsx:3447,3459` |
+
+## 🟡 NEW — polish & per-screen
+
+| # | Issue | Location |
+|---|---|---|
+| D28 | Account-security result uses `role="status"` + muted gray for **errors** (should be `role="alert"` + `t.danger`) — errors neither read nor sound like errors. | `ProfileScreen.jsx:3452,3464` |
+| D29 | Offline banner is `fixed;top:0` with no reserved padding → overlaps the header; and (higher-z) can cover the inactivity "I'm still here" dialog — a genuine trap if both fire. | `App.jsx:898-910,488-490` |
+| D30 | Profile photo-tile placeholder hardcodes `#EEF1ED` → light-gray flash on the dark profile surface in dim. | `ProfileScreen.jsx:324` |
+| D31 | ReportModal "Submit report" hardcodes `#B94040` (light danger) → stays lighter red in dim; use `t.dangerFill`. | `SuggestionScreen.jsx:402` |
+| D32 | VerifyEmail "Resend" + offline-banner **borders < 3:1** non-text contrast (2.34:1 / 2.86:1 light). | 1.4.11 · `App.jsx:428,903` |
+| D33 | Onboarding completion has no "you're all set" arrival moment — jumps straight into a populated Discover feed; a brief optional welcome beat would reassure an anxious new user. | `OnboardingScreen.jsx:683-701` |
+| D34 | Verification "rejected" copy assumes the reason is always the photo ("make sure your photo shows your face") — a wrong-but-confident instruction for a vulnerable audience. Surface the real reason or soften. | `ProfileScreen.jsx:3274-3276` |
+| D35 | Unsent-message delete shows the scary "This can't be undone" dialog for a purely local discard — should read "Discard unsent message?" | `ConversationScreen.jsx:1161-1181` |
+| D36 | Empty active-conversation copy says "No matches yet" when the only match is merely **archived** (user does have a match). | `MatchesListScreen.jsx`/`MessagingApp.jsx` |
+| D19▲ | **Pause toggle is discoverable now but still applies only on the global Save** — a "take a break" action should apply immediately (optimistic PATCH). (Extends R1 D19; also F17/F24.) | `ProfileScreen.jsx:3223,2050` |
+
+## ⚪ NEW nits
+"Restore" label clipped in the archived-conversation card (2-pane width) · consent-gate (403) disables the send button but the textarea still accepts typing (`ConversationScreen.jsx:1026`) · "why you're seeing X" checkmark uses faint `t.accent` (3.41:1) · age-range slider supports Arrow keys only (no Home/End/PageUp-Down).
+
+## Confirms R1 (re-verified still open in source)
+D1 (accent-as-text, +new instance `ConversationScreen.jsx:1649`), D2 (clipboard try/catch), D3 (MatchProfileModal trap), D4 (larger-text `zoom`), D5 (tombstone), D6 (form-field borders), D7 (banner ×), D10 (own-bubble invisible in light), D14 (dim unreachable logged-out), D17 (narrow desktop strip) — **all unchanged**. The token system is strong; the color regressions are precisely the spots that reached for `accent`/`accentStrong`/`positive` instead of the AA-safe `*Fill` tokens.

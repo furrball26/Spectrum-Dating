@@ -50,3 +50,42 @@ Priority: 🔴 launch-blocking / trust / safety · 🟠 high value · 🟡 nice-
 | F14 🟠 | **Add tests + lint + CI baseline** | Zero automated tests, no ESLint (the `eslint-disable` comments are no-ops), no CI in either repo — for an app handling auth/JWT/blocking/migrations. | M |
 |  |  | Suggested: ESLint + `eslint-plugin-react-hooks` (auto-enforces the hooks-before-early-return + exhaustive-deps house rules); Vitest for matching/scoring + coarse-location helpers; a **boot-DB-twice migration-idempotency test** (would catch E1); a minimal GitHub Actions lint+test-on-PR. | |
 | F15 🟡 | **Extract shared helpers** | `useFocusable`/`focusRing` duplicated ~12×; comms-sensory chip mapping 3×; coarse-location regex 5× (privacy-critical — see E17). DRY these into shared modules. | S |
+
+---
+
+# Round 2 — 2026-06-30 (8-agent re-audit)
+
+> **Corrections:** (1) R1's **F10** ("comms/sensory never scored") is now **partly shipped** — `score.js:25-37` scores `sensory_environment` + `comm_cadence` with why-reasons; re-scoped to **F10b** below. (2) gender/seeking capture + mutual filtering **confirmed working** — the real gaps are onboarding + a Discover filter surface (F16). All other R1 features (F1–F15) **re-confirmed still open** (builder paused). Full detail in `audit/round2-feature-gaps.md` + `round2-trust-safety.md` + `round2-user-testing.md`.
+
+## New — table-stakes & discovery
+
+| # | Feature | Why | State | Size |
+|---|---|---|---|---|
+| F18 🔴 | **Discover-side filter surface** | The engine honours age/radius/gender/seeking/deal-breakers (`candidates.js:96-120`) but the **only** way to change them is buried in the profile-edit form behind a global Save. Discover offers no in-context filter — when the deck empties it just *tells* you to edit your profile. A clear "who am I seeing & why" panel is more important than average for an autistic audience. | Missing UI (backend + editor fields exist). | M |
+| F19 🟠 | **Withdraw a filed report** | No withdraw UI and no backend endpoint — a user who reports in error (plausible when overwhelmed) is stuck forever and the mod queue keeps un-retractable false reports. Agency/trust gap. | Missing (create + read only). `messaging.js`, `SafetyScreen.jsx:662` | S–M |
+| F20 🟠 | **Replace-photo + last-photo guard** | No "Replace" (must Remove→Add); removing your only photo gives no warning and leaves you photoless-but-still-in-Discover. | Missing. `photos.js:153-183`, `ProfileScreen.jsx:284-488` | S |
+| F21 🟠 | **Unmatch acknowledgement (no silent vanish)** | When the other person unmatches, the match + conversation hard-delete on both sides with no notice/tombstone — a returning user just finds the thread gone. Poor predictability for this audience. | Missing. `matching.js:235-249` | S |
+| F22 🟡 | **Distinguish "no candidates" from "seen everyone"** | Discover shows the same exhausted-state whether you saw everyone or had zero candidates (`atEnd = 0 >= 0`), misleading a too-tight-filter user. Name the active filter that's excluding people. | Partial. `SuggestionScreen.jsx:491,690` | S |
+| F23 🟡 | **Conversation-list wayfinding** | Rows show only name + "Today" — no last-message snippet or who-replied-last cue (NOT an unread count — that stays excluded), so multi-thread users can't tell where they left off. | Missing. `MessagingApp.jsx` list rows | S |
+| F24 🟡 | **Paused-profile Discover reminder/gate** | A paused user can still browse + like in Discover with no "you're paused" indication. | Missing. `ProfileScreen` pause + `SuggestionScreen` | S |
+
+## New — trust & safety capabilities
+
+| # | Feature | Why | Size |
+|---|---|---|---|
+| F25 🟠 | **Make identity verification real (or relabel it)** | The "Verified" badge has **no identity check** behind it — `verification-request` collects no artifact; admin just toggles a boolean. A vulnerable audience over-trusts a literal "Verified." Either collect a selfie/liveness/ID artifact, or relabel to what it asserts ("Reviewed by our team") + microcopy. | M |
+| F26 🟠 | **Calm in-chat anti-grooming / anti-scam friction** | Romance-scam/grooming playbooks (rapid intimacy, "move to WhatsApp", money requests) are disproportionately effective against this cohort, and there's zero in-chat friction. Add a one-time "staying safe in chat" card + gentle non-blocking notes on external-contact/money keywords (informational, shame-free, never auto-removing). | M |
+
+## New — differentiators & richness
+
+| # | Feature | Why | Size |
+|---|---|---|---|
+| F10b 🟠 | **Score the 4 still-inert moat fields + compatibility framing** | `comm_directness`, `comm_literal`, `sensory_lighting`, `social_duration` are collected + shown on cards but never scored (`score.js` only reads sensory+cadence). These are exactly where mismatch causes the most friction. Add alignment bonuses + why-reasons; optional user-set "what matters most to me" weight + a plain-language fit summary. | M |
+| F27 🟠 | **Richer conversation tooling for literal/structured communicators** | Extend starters into a "conversation helpers" tray: reusable copy-able "clarity" phrases ("I need a little time to reply — that's normal for me") and an optional structured "suggest a low-key plan" composer built on both people's sensory prefs. Reduces blank-page anxiety — the product's reason for being. | M |
+| F28 🟡 | **Structured "about me" facets** | Profiles are strong on the moat but thin on ordinary scannable facets (occupation/study, languages, "things that help me / things that are hard for me") that give predictable context instead of forcing inference from free-text bio. 2–3 optional structured facets. | M |
+
+## New — platform / cleanup
+- **F29 🟠 — Orphaned `notification_preferences` table** (`003_messaging.sql:31-34`) read by zero code; the live tier is `profiles.notification_tier`. Either delete it or repurpose it as the multi-channel prefs store F6 needs. (Pairs with F6 email digest.)
+
+## Still open from R1 (re-confirmed, builder paused)
+F1 (admin verify UI), F2 (audit-log UI), F3 (feedback channel), F4 (Sent micro-state), F5 (decouple report/block), F6 (email digest / notif prefs), F7 (onboarding captures discovery + moat fields — **expanded**: onboarding omits gender/seeking/age/radius AND all 7 moat fields), F8 (real photo moderation), F9 (report outcome), F11 (pre-chat "what to expect" card — data already on the payload), F12 (opt-in slow start), F13 (private note-to-self), F14 (tests/lint/CI), F15 (shared helpers), F16 (un-like undo), F17 (instant pause — reconfirmed: toggle applies only on global Save).
