@@ -1,24 +1,67 @@
-﻿import { Router } from 'express';
-import { verifyToken } from '../middleware/auth.js';
+import { Router } from 'express';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { requireAuth, verifyToken, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
 import { coarseLabel } from '../utils/time.js';
 
 const router = Router();
 
-router.get('/conversations', (req, res) => {
-  // Accept token from Authorization header OR ?token= query param (needed for
-  // browser download links that cannot send custom headers). The ?token= path
-  // MUST run the same version/suspension check as requireAuth — otherwise a
-  // signed-out, suspended, or deleted user's 30-day token could still export.
+// Low-ceiling limiter — exports are rare and expensive (O(convos×msgs) scan of
+// the full corpus). Keeps this from becoming a cheap PII-scrape / DoS amplifier.
+// Keyed per-user (req.ctx.userId is set by optionalAuth/contextMiddleware);
+// falls back to IP for the ?token= path before ctx is resolved.
+const exportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.ctx?.userId ? `u:${req.ctx.userId}` : ipKeyGenerator(req.ip)),
+  message: { error: 'Too many export requests. Please wait a few minutes and try again.' },
+});
+
+// POST /export/token — mint a short-lived (5-minute), purpose-scoped export
+// token. The browser download link then carries THIS token in the query string
+// instead of the 30-day session JWT — so a leaked URL (proxy/CDN log, history,
+// Referer) exposes at most a 5-minute, export-only credential, not a full
+// account-takeover session token. Requires a normal Authorization header.
+router.post('/token', requireAuth, exportLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+  const user = db.prepare('SELECT token_version FROM users WHERE id = ?').get(userId);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  const token = signPurposeToken(userId, 'export', user.token_version ?? 0, '5m');
+  res.json({ token });
+});
+
+router.get('/conversations', exportLimiter, (req, res) => {
+  // Resolve the requester. Accept, in order of preference:
+  //   1. An Authorization header (already resolved into req.ctx.userId).
+  //   2. A short-lived, purpose-scoped export token in ?token= (preferred for
+  //      browser download links that can't send custom headers).
+  //   3. (Legacy) a full session JWT in ?token= — still honored for backward
+  //      compatibility during the frontend transition, but the export token
+  //      path above is the intended, low-blast-radius mechanism.
   let userId = req.ctx?.userId ?? null;
 
   if (!userId && req.query.token) {
-    userId = verifyToken(req.query.token);
+    const purpose = verifyPurposeToken(req.query.token, 'export');
+    if (purpose) {
+      userId = purpose.sub;
+    } else {
+      // Legacy session-JWT fallback. verifyToken runs the same
+      // version/suspension/existence check as requireAuth.
+      userId = verifyToken(req.query.token);
+    }
     if (!userId) {
       return res.status(401).json({ error: 'Invalid token.' });
     }
   }
 
   if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+
+  // The export URL is sensitive (carries a bearer token in the query string).
+  // Prevent it from being cached by any proxy/CDN and strip the Referer so the
+  // token can't leak to third parties via a follow-on navigation.
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Referrer-Policy', 'no-referrer');
 
   const { db } = req.ctx;
 
@@ -35,6 +78,9 @@ router.get('/conversations', (req, res) => {
   `).all(userId, userId);
 
   const exportData = {
+    // Timestamps are coarsened per the no-raw-time product rule; display names
+    // and message bodies are the requester's OWN conversation data and are
+    // intentionally exported at full fidelity.
     exportedAt: coarseLabel(Date.now()),
     userId,
     conversations: conversations.map((conv) => {
@@ -84,5 +130,3 @@ router.get('/conversations', (req, res) => {
 });
 
 export default router;
-
-

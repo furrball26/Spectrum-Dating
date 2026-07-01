@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth.js';
-import { abuseReportLimiter } from '../middleware/rateLimits.js';
+import { safetyActionLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
 import { emitNewMessage, emitMessageDeleted, emitConversationArchived } from '../socket/emitters.js';
@@ -397,19 +397,31 @@ router.post('/conversations/:id/unarchive', requireAuth, (req, res) => {
 // POST /messaging/block
 // ---------------------------------------------------------------------------
 
-const VALID_REASONS = ['harassment', 'spam', 'fake_profile', 'other'];
+// 'inappropriate' is included because Discover's report sheet defaults to it —
+// omitting it made a valid client reason 400, and the swallowed client error
+// meant the reported person was silently never blocked (safety promise broken).
+const VALID_REASONS = ['harassment', 'spam', 'fake_profile', 'inappropriate', 'other'];
 
-router.post('/block', requireAuth, abuseReportLimiter, (req, res) => {
+router.post('/block', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { blockedUserId, reason, details } = req.body;
 
   if (!blockedUserId) return res.status(400).json({ error: 'blockedUserId is required' });
+  // Self-block guard + existence check, mirroring /report — otherwise a
+  // self-target or nonexistent target lets the FK violation bubble as a generic
+  // 500 (and burns the abuse limiter).
+  if (blockedUserId === userId) {
+    return res.status(400).json({ error: 'You cannot block yourself' });
+  }
   if (!VALID_REASONS.includes(reason)) {
     return res.status(400).json({ error: `reason must be one of: ${VALID_REASONS.join(', ')}` });
   }
   if (details && details.length > 500) {
     return res.status(400).json({ error: 'details exceeds 500 characters' });
   }
+
+  const blocked = db.prepare('SELECT id FROM users WHERE id = ?').get(blockedUserId);
+  if (!blocked) return res.status(404).json({ error: 'User not found' });
 
   const id = newId();
   const now = Date.now();
@@ -457,9 +469,9 @@ router.get('/blocked', requireAuth, (req, res) => {
 // ---------------------------------------------------------------------------
 router.delete('/blocked/:userId', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
-  db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?')
+  const info = db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?')
     .run(userId, req.params.userId);
-  res.json({ unblocked: true });
+  res.json({ unblocked: info.changes > 0 });
 });
 
 // ---------------------------------------------------------------------------
@@ -467,7 +479,7 @@ router.delete('/blocked/:userId', requireAuth, (req, res) => {
 // SEPARATE from /block: a user can report without blocking and vice versa.
 // ---------------------------------------------------------------------------
 
-router.post('/report', requireAuth, abuseReportLimiter, (req, res) => {
+router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { reportedUserId, reason, details, conversationId } = req.body ?? {};
 

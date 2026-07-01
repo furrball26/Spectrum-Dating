@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { emailConfigured, sendVerificationEmail } from '../email/resend.js';
+import { deleteObject } from '../storage/r2.js';
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
@@ -40,7 +41,7 @@ router.post('/change-email', requireAuth, async (req, res) => {
   }
   const email = newEmail.trim().toLowerCase();
   if (!emailRegex.test(email)) return res.status(400).json({ error: 'Invalid email address.' });
-  const user = db.prepare('SELECT password_hash, email FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT password_hash, email, token_version FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ error: 'Account not found.' });
   if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
     return res.status(403).json({ error: 'Current password is incorrect.' });
@@ -50,19 +51,44 @@ router.post('/change-email', requireAuth, async (req, res) => {
     return res.status(409).json({ error: 'That email is already in use.' });
   }
   const verifyOn = emailConfigured();
-  db.prepare('UPDATE users SET email = ?, email_verified = ? WHERE id = ?').run(email, verifyOn ? 0 : 1, userId);
+  // Bump token_version to invalidate OTHER sessions on an email change — matches
+  // change-password's behavior (an email change is a security-sensitive event;
+  // stale sessions on other devices should not survive it). Re-issue a fresh
+  // token for THIS session so the caller stays signed in.
+  const newTv = (user.token_version ?? 0) + 1;
+  db.prepare('UPDATE users SET email = ?, email_verified = ?, token_version = ? WHERE id = ?')
+    .run(email, verifyOn ? 0 : 1, newTv, userId);
   if (verifyOn) {
     const vt = randomBytes(32).toString('hex');
     db.prepare('INSERT INTO email_verifications (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
       .run(vt, userId, Date.now() + 24 * 60 * 60 * 1000, Date.now());
     sendVerificationEmail(email, vt).catch(() => {});
   }
-  return res.json({ ok: true, email, emailVerified: !verifyOn });
+  return res.json({ ok: true, email, emailVerified: !verifyOn, token: signToken(userId, newTv) });
 });
 
 // DELETE /account/me — permanently delete the user and all their data
 router.delete('/me', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
+
+  // Right-to-erasure: collect the user's object-storage keys BEFORE the DB
+  // cascade removes the rows. Otherwise the FK cascade drops the DB records but
+  // the actual photo/attachment objects stay world-fetchable in the public R2
+  // bucket forever. We delete the objects AFTER the DB transaction commits, so a
+  // storage error can never roll back (or block) the account deletion itself.
+  const photoKeys = db.prepare(
+    'SELECT storage_key FROM profile_photos WHERE user_id = ? AND storage_key IS NOT NULL AND storage_key != ?'
+  ).all(userId, '').map(r => r.storage_key);
+  let attachmentKeys = [];
+  try {
+    attachmentKeys = db.prepare(
+      'SELECT storage_key FROM message_attachments WHERE uploader_id = ? AND storage_key IS NOT NULL AND storage_key != ?'
+    ).all(userId, '').map(r => r.storage_key);
+  } catch {
+    // message_attachments may not exist / be relevant in all deployments.
+    attachmentKeys = [];
+  }
+  const storageKeys = [...new Set([...photoKeys, ...attachmentKeys])];
 
   // Foreign keys with ON DELETE CASCADE handle profiles, interests, swipes,
   // matches, conversations, messages, reactions, blocks, push_subscriptions.
@@ -82,11 +108,20 @@ router.delete('/me', requireAuth, (req, res) => {
 
   try {
     deleteUser(userId);
-    res.json({ ok: true, deleted: true });
   } catch (e) {
     console.error('Account deletion error:', e);
-    res.status(500).json({ error: 'Could not delete account. Please try again.' });
+    return res.status(500).json({ error: 'Could not delete account. Please try again.' });
   }
+
+  // Best-effort object cleanup — after the commit, never awaited/blocking, and
+  // never able to fail the request (the account is already gone from the DB).
+  for (const key of storageKeys) {
+    deleteObject(key).catch((err) => {
+      console.error('[account-delete] failed to delete R2 object', key, '-', err?.message);
+    });
+  }
+
+  res.json({ ok: true, deleted: true });
 });
 
 export default router;

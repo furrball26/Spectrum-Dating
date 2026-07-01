@@ -19,6 +19,10 @@ export function signToken(userId, tv = 0) {
 export function verifyToken(token) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    // Reject purpose-scoped tokens (reset/export/etc.) here: they must never be
+    // accepted as a full session credential. A leaked short-lived reset or
+    // export token could otherwise be replayed against any session-authed route.
+    if (payload.purpose) return null;
     if (!checkTokenVersion(payload)) return null;
     return payload.sub;
   } catch {

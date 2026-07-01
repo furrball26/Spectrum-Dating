@@ -57,3 +57,23 @@ export function setupSocketIO(httpServer, db) {
 
   return io;
 }
+
+// Force-disconnect every live socket belonging to a user. Called when a user is
+// suspended or their token_version is bumped (sign-out / password reset), so an
+// ALREADY-OPEN connection can't keep live-receiving room events until it happens
+// to reconnect. The per-connection io.use() auth only runs at connect time, so
+// without this a suspended user keeps receiving new_message/new_match events on
+// their existing socket. Best-effort and defensive — never throws.
+export function disconnectUser(io, userId) {
+  if (!io || !userId) return;
+  try {
+    const room = io.sockets.adapter.rooms.get(`user:${userId}`);
+    if (!room) return;
+    for (const socketId of [...room]) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) socket.disconnect(true);
+    }
+  } catch (e) {
+    console.error('[socket] disconnectUser failed:', e?.message);
+  }
+}

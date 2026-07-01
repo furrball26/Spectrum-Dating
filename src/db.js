@@ -52,19 +52,79 @@ const MIGRATIONS = [
 // SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so re-running a
 // migration that adds a column throws "duplicate column name" on every boot
 // after the first. Migrations are idempotent by design here (CREATE TABLE IF
-// NOT EXISTS, etc.), so we tolerate that specific, safe-to-ignore error and
-// keep going. Any other SQL error is a real problem and is re-thrown.
+// NOT EXISTS, etc.), so we tolerate that specific, safe-to-ignore error.
+//
+// CRITICAL: we execute each file STATEMENT-BY-STATEMENT (not as one `db.exec`
+// batch). If we ran the whole file as one batch, the first "duplicate column
+// name" would abort the batch and silently skip every later statement in the
+// same file — so a column ADDed *after* an already-applied ADD (e.g. 005's
+// `public_url`) would never actually apply on a re-migrated DB, surfacing later
+// as `no such column`. Per-statement exec/catch guarantees each independent
+// statement is attempted regardless of earlier already-applied ones.
 function runMigrations(db) {
   for (const file of MIGRATIONS) {
     const sql = readFileSync(join(__dirname, 'migrations', file), 'utf8');
-    try {
-      db.exec(sql);
-    } catch (err) {
-      if (/duplicate column name/i.test(err.message)) {
-        // Column already added on a prior boot — migration already applied.
-        continue;
+    for (const statement of splitStatements(sql)) {
+      try {
+        db.exec(statement);
+      } catch (err) {
+        if (/duplicate column name/i.test(err.message)) {
+          // Column already added on a prior boot — this statement is a no-op.
+          continue;
+        }
+        throw err;
       }
-      throw err;
     }
   }
+}
+
+// Split a .sql file into individual statements on semicolons, while respecting
+// single/double-quoted string literals and `--` line comments (so a `;` inside
+// a quoted string or comment never splits a statement). Our migrations don't
+// use triggers/BEGIN...END blocks, so a simple top-level split is sufficient.
+function splitStatements(sql) {
+  const statements = [];
+  let current = '';
+  let inSingle = false;
+  let inDouble = false;
+  let inLineComment = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    if (inLineComment) {
+      current += ch;
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+    if (inSingle) {
+      current += ch;
+      if (ch === "'") inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      current += ch;
+      if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (ch === '-' && next === '-') {
+      inLineComment = true;
+      current += ch;
+      continue;
+    }
+    if (ch === "'") { inSingle = true; current += ch; continue; }
+    if (ch === '"') { inDouble = true; current += ch; continue; }
+    if (ch === ';') {
+      const trimmed = current.trim();
+      if (trimmed) statements.push(trimmed);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+
+  const tail = current.trim();
+  if (tail) statements.push(tail);
+  return statements;
 }

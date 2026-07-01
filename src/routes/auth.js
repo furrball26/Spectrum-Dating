@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { newId } from '../utils/ids.js';
 import { signToken, requireAuth, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
 import { isAdminEmail } from '../middleware/admin.js';
+import { disconnectUser } from '../socket/index.js';
 import { emailConfigured, sendVerificationEmail, sendPasswordResetEmail } from '../email/resend.js';
 
 const router = Router();
@@ -22,6 +23,20 @@ const authLimiter = rateLimit({
   // client IP and NOT attacker-spoofable. Reading raw x-real-ip/x-forwarded-for
   // headers directly would let an attacker rotate their rate-limit key per
   // request and bypass the limit entirely. ipKeyGenerator normalises IPv6.
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+});
+
+// Tighter, dedicated limiter for /forgot-password. It sits in front of an email
+// send, so it's an email-bomb + enumeration-at-volume vector — a stricter
+// ceiling than the shared authLimiter (which is generous for interactive
+// login/register). Keyed on the real client IP (trust proxy = 1 hop).
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset requests. Please try again in 15 minutes.' },
+  skipSuccessfulRequests: false,
   keyGenerator: (req) => ipKeyGenerator(req.ip),
 });
 
@@ -128,6 +143,9 @@ router.post('/sign-out', requireAuth, (req, res) => {
   const { db } = req.ctx;
   const userId = req.user.id;
   db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
+  // Tear down any live sockets — the bumped token_version now makes them stale,
+  // but the socket auth check only runs at connect time.
+  disconnectUser(req.app.locals.io, userId);
   res.json({ ok: true });
 });
 
@@ -136,13 +154,14 @@ router.post('/sign-out-all', requireAuth, (req, res) => {
   const { db } = req.ctx;
   const userId = req.user.id;
   db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
+  disconnectUser(req.app.locals.io, userId);
   res.json({ ok: true });
 });
 
 // POST /auth/forgot-password — start a password reset.
 // Always returns 200 (never reveals whether an email is registered). If the
 // account exists, emails a 1-hour, single-use reset link.
-router.post('/forgot-password', authLimiter, (req, res) => {
+router.post('/forgot-password', forgotPasswordLimiter, (req, res) => {
   const { db } = req.ctx;
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (!emailRegex.test(email)) {

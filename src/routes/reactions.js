@@ -51,8 +51,12 @@ router.post('/messages/:messageId/reactions', requireAuth, (req, res) => {
   const message = getMessageConversation(db, req.params.messageId);
   if (!message) return res.status(404).json({ error: 'Message not found' });
 
+  // Return 404 (not 403) for a message the user can't access, so a non-member
+  // can't distinguish "message doesn't exist" from "exists but not yours" — the
+  // 404-vs-403 split is an existence oracle. Matches the "not found" response
+  // above for a truly nonexistent message id.
   const conv = isConversationMember(db, message.conversation_id, userId);
-  if (!conv) return res.status(403).json({ error: 'Forbidden' });
+  if (!conv) return res.status(404).json({ error: 'Message not found' });
 
   // Toggle: check if reaction already exists
   const existing = db.prepare(
@@ -88,8 +92,12 @@ router.get('/messages/:messageId/reactions', requireAuth, (req, res) => {
   const message = getMessageConversation(db, req.params.messageId);
   if (!message) return res.status(404).json({ error: 'Message not found' });
 
+  // Return 404 (not 403) for a message the user can't access, so a non-member
+  // can't distinguish "message doesn't exist" from "exists but not yours" — the
+  // 404-vs-403 split is an existence oracle. Matches the "not found" response
+  // above for a truly nonexistent message id.
   const conv = isConversationMember(db, message.conversation_id, userId);
-  if (!conv) return res.status(403).json({ error: 'Forbidden' });
+  if (!conv) return res.status(404).json({ error: 'Message not found' });
 
   res.json({ reactions: getReactionSummary(db, req.params.messageId, userId) });
 });

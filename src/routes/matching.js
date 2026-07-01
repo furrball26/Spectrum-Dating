@@ -4,6 +4,7 @@ import { mutationLimiter } from '../middleware/rateLimits.js';
 import { getCandidates } from '../matching/candidates.js';
 import { listPrompts } from './profile.js';
 import { ageFromDob } from '../utils/time.js';
+import { coarseCity } from '../utils/metros.js';
 import { newId } from '../utils/ids.js';
 import { emitNewMatch } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
@@ -26,8 +27,8 @@ router.get('/candidates', requireAuth, (req, res) => {
     return res.json([]); // empty — frontend will redirect to onboarding
   }
 
-  const offset = Math.max(0, parseInt(req.query.offset) || 0);
-  const limit = Math.min(20, Math.max(1, parseInt(req.query.limit) || 10));
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
 
   const scored = getCandidates(db, userId, viewerInterests);
   const candidates = scored.slice(offset, offset + limit);
@@ -57,7 +58,7 @@ router.get('/candidates', requireAuth, (req, res) => {
     // Coarse location for the "Near …" label — the ZIP/postal code is STRIPPED
     // so strangers browsing Discover see "Phoenix, AZ", never a precise ZIP
     // (privacy/safety; the full value stays on the owner's own profile).
-    distCity: (c.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
+    distCity: coarseCity(c.dist_city),
     interests: c.interests,
     sharedInterests: c.sharedInterests,
     whyReasons: c.whyReasons,
@@ -215,7 +216,7 @@ router.get('/matches', requireAuth, (req, res) => {
         verified: !!p?.identity_verified,
         pronouns: p?.pronouns || '',
         // Coarse city (ZIP stripped) for the "city on matches" display.
-        distCity: (p?.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
+        distCity: coarseCity(p?.dist_city),
         commDirectness: p?.comm_directness || '',
         commLiteral: p?.comm_literal || '',
         commCadence: p?.comm_cadence || '',
@@ -287,7 +288,7 @@ router.get('/activity', requireAuth, (req, res) => {
     age: r.date_of_birth ? ageFromDob(r.date_of_birth) : null,
     photoUrl: r.photo_url || null,
     pronouns: r.pronouns || '',
-    distCity: (r.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
+    distCity: coarseCity(r.dist_city),
     verified: !!r.identity_verified,
     likedAt: r.liked_at,
   }));
@@ -318,7 +319,7 @@ router.get('/activity', requireAuth, (req, res) => {
       age: p?.date_of_birth ? ageFromDob(p.date_of_birth) : null,
       photoUrl: p?.photo_url || null,
       pronouns: p?.pronouns || '',
-      distCity: (p?.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim(),
+      distCity: coarseCity(p?.dist_city),
       verified: !!p?.identity_verified,
     };
   });

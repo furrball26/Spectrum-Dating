@@ -5,6 +5,7 @@ import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
+import { coarseCity } from '../utils/metros.js';
 import { newId } from '../utils/ids.js';
 import { PROMPTS, PROMPT_KEYS, PROMPT_TEXT_BY_KEY } from '../data/prompts.js';
 
@@ -487,7 +488,7 @@ router.get('/:userId', requireAuth, (req, res) => {
 
   const interests = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?').all(targetId).map(r => r.interest);
   const age = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null;
-  const distCity = (profile.dist_city || '').replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim();
+  const distCity = coarseCity(profile.dist_city);
 
   return res.json({
     userId: profile.user_id,

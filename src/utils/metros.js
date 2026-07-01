@@ -55,6 +55,29 @@ function parse(distCity) {
   return { city, state };
 }
 
+// ── Coarse public location label ─────────────────────────────────────────────
+// Strip any ZIP/postal code from a stored "City, ST 12345" value so strangers
+// browsing Discover/matches see "Phoenix, AZ" but NEVER a precise ZIP (privacy
+// rule: coarse location only).
+//
+// This is the ONE canonical implementation — every public surface must route
+// through it rather than inlining its own regex (previously duplicated 5×, and
+// each copy only stripped a *trailing* digit run, so "85004 Phoenix" leaked the
+// ZIP). Here we remove ANY run of 4+ digits (with an optional ZIP+4 suffix)
+// wherever it appears — leading, embedded, or trailing — then tidy up stray
+// separators. 4+ digits (not 5) also catches partial/foreign postal codes while
+// leaving normal city/state text (which has no long digit runs) untouched.
+export function coarseCity(distCity) {
+  return String(distCity || '')
+    .replace(/\b\d{4,}(-\d+)?\b/g, ' ')   // drop any 4+ digit run anywhere
+    .replace(/\s{2,}/g, ' ')               // collapse doubled spaces
+    .replace(/\s+,/g, ',')                 // "Phoenix , AZ" -> "Phoenix, AZ"
+    .replace(/,\s*(?=,|$)/g, '')           // drop empty ", ," / trailing comma
+    .replace(/[\s,]+$/, '')                // strip trailing separators
+    .replace(/^[\s,]+/, '')                // strip leading separators
+    .trim();
+}
+
 export function metroKey(distCity) {
   const { city, state } = parse(distCity);
   if (!city) return '';

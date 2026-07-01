@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail } from '../middleware/admin.js';
 import { newId } from '../utils/ids.js';
+import { disconnectUser } from '../socket/index.js';
 
 const router = Router();
 
@@ -125,6 +126,9 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
     db.prepare(
       'UPDATE users SET suspended = 1, token_version = token_version + 1 WHERE id = ?'
     ).run(req.params.id);
+    // Kill any already-open sockets so the suspended user stops live-receiving
+    // room events immediately (the socket auth check only runs at connect time).
+    disconnectUser(req.app.locals.io, req.params.id);
   } else {
     db.prepare('UPDATE users SET suspended = 0 WHERE id = ?').run(req.params.id);
   }

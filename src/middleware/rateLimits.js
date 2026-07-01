@@ -34,10 +34,11 @@ export const mutationLimiter = rateLimit({
   skipSuccessfulRequests: false,
 });
 
-// ── Abuse-report limiter ─────────────────────────────────────────────────────
-// Covers endpoints that reach the moderation queue: /report, /block, /feedback.
+// ── Abuse-report limiter (feedback / verification) ───────────────────────────
+// Covers non-safety moderation-queue endpoints: /feedback, verification-request.
 // 10 requests per user per 15 minutes — enough for genuine use, prevents queue
-// flooding or targeted harassment via repeated reports.
+// flooding. Deliberately does NOT cover /report + /block (see safetyActionLimiter
+// below): feedback spam must never rate-starve a safety report or block.
 export const abuseReportLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutes
   max: 10,
@@ -45,5 +46,20 @@ export const abuseReportLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
   message: { error: 'Too many reports or feedback submissions. Please wait 15 minutes before trying again.' },
+  skipSuccessfulRequests: false,
+});
+
+// ── Safety-action limiter (report / block) ───────────────────────────────────
+// SEPARATE bucket from feedback/verification so non-safety spam can never
+// exhaust a user's ability to report or block a bad actor. A more generous
+// ceiling than the abuse-report limiter: a user should be able to block/report
+// several people in a session (e.g. a spam wave) without being throttled.
+export const safetyActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: { error: 'Too many report or block actions. Please wait a few minutes before trying again.' },
   skipSuccessfulRequests: false,
 });

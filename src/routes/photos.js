@@ -185,7 +185,7 @@ router.delete('/profile-photos/:id', requireAuth, (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /photos/upload-intent  — message attachment presigned upload
 // ---------------------------------------------------------------------------
-router.post('/upload-intent', requireAuth, async (req, res) => {
+router.post('/upload-intent', requireAuth, mutationLimiter, async (req, res) => {
   const { db, userId } = req.ctx;
   const { mimeType, fileSizeBytes } = req.body;
 
