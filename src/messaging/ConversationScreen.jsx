@@ -1090,7 +1090,7 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
         background: "transparent",
         border: `1px solid ${t.border}`,
         borderRadius: 20,
-        color: t.accent,
+        color: t.accentStrong,
         padding: "6px 14px",
         fontSize: 13,
         fontFamily: t.sans,
@@ -1259,7 +1259,7 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
             background: "transparent",
             border: `1px solid ${t.border}`,
             borderRadius: 20,
-            color: t.accent,
+            color: t.accentStrong,
             padding: "0 16px",
             fontSize: 13.5,
             fontWeight: 500,
@@ -1346,7 +1346,7 @@ function SafetyReassuranceCard({ onDismiss }) {
           "You can block or report anytime — you don't owe anyone an explanation.",
         ].map((line) => (
           <li key={line} style={{ display: "flex", gap: 8, fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-            <span aria-hidden="true" style={{ color: t.accent, flexShrink: 0 }}>•</span>
+            <span aria-hidden="true" style={{ color: t.accentStrong, flexShrink: 0 }}>•</span>
             <span>{line}</span>
           </li>
         ))}
@@ -2374,7 +2374,7 @@ export default function ConversationScreen({
             style={{
               background: "transparent",
               border: "none",
-              color: t.accent,
+              color: t.accentStrong,
               fontSize: 15,
               fontWeight: 600,
               cursor: "pointer",
@@ -2544,7 +2544,7 @@ export default function ConversationScreen({
                     background: "transparent",
                     border: `1px solid ${t.border}`,
                     borderRadius: 20,
-                    color: t.accent,
+                    color: t.accentStrong,
                     padding: "6px 18px",
                     fontSize: 14,
                     cursor: isLoadingEarlier ? "default" : "pointer",
@@ -2820,7 +2820,7 @@ export default function ConversationScreen({
               background: "transparent",
               border: `1px solid ${t.border}`,
               borderRadius: 12,
-              color: composingDisabled ? t.textMuted : t.accent,
+              color: composingDisabled ? t.textMuted : t.accentStrong,
               fontSize: 18,
               cursor: composingDisabled ? "not-allowed" : "pointer",
               minHeight: 44,
@@ -2857,7 +2857,7 @@ export default function ConversationScreen({
               background: "transparent",
               border: `1px solid ${t.border}`,
               borderRadius: 12,
-              color: composingDisabled ? t.textMuted : t.accent,
+              color: composingDisabled ? t.textMuted : t.accentStrong,
               fontSize: 14,
               fontWeight: 500,
               fontFamily: t.sans,

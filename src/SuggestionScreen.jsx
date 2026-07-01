@@ -504,7 +504,7 @@ function ReportModal({ candidate, onClose, onBlocked }) {
                   fontSize: 16,
                   fontWeight: 600,
                   cursor: canSubmit ? "pointer" : "not-allowed",
-                  background: canSubmit ? t.danger : t.borderLight,
+                  background: canSubmit ? t.dangerFill : t.borderLight,
                   color: canSubmit ? "#fff" : t.textMuted,
                   border: "none",
                 }}

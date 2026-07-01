@@ -71,11 +71,11 @@ function formatTimestamp(value) {
 
 function statusColor(status) {
   switch (status) {
-    case "open": return t.warning;
-    case "reviewed": return t.accent;
-    case "actioned": return t.accentStrong;
-    case "dismissed": return t.textMuted;
-    default: return t.textMuted;
+    case "open": return t.warningFill;
+    case "reviewed": return t.accentFill;
+    case "actioned": return t.accentFill;
+    case "dismissed": return t.mutedFill;
+    default: return t.mutedFill;
   }
 }
 
@@ -160,8 +160,8 @@ function PlainButton({ children, onClick, kind = "neutral", disabled }) {
   const f = useFocusable();
   const kinds = {
     neutral: { background: t.surface, color: t.text, border: `1px solid ${t.border}` },
-    accent: { background: t.accent, color: "#fff", border: `1px solid ${t.accent}` },
-    danger: { background: t.danger, color: "#fff", border: `1px solid ${t.danger}` },
+    accent: { background: t.accentFill, color: "#fff", border: `1px solid ${t.accentFill}` },
+    danger: { background: t.dangerFill, color: "#fff", border: `1px solid ${t.dangerFill}` },
     quiet: { background: "transparent", color: t.textSoft, border: `1px solid ${t.border}` },
   };
   return (
@@ -393,7 +393,7 @@ function ReportCard({ report, onRefresh, onStatus }) {
         ) : confirmSuspend ? (
           <div
             style={{
-              background: "#FBF1F1",
+              background: t.dangerSurface,
               border: `1px solid ${t.danger}`,
               borderRadius: 12,
               padding: "14px 16px",

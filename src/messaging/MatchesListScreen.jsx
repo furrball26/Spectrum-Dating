@@ -178,7 +178,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
             style={{
               background: "transparent",
               border: "none",
-              color: t.accent,
+              color: t.accentStrong,
               fontSize: 14,
               fontWeight: 500,
               cursor: "pointer",
@@ -300,7 +300,7 @@ export default function MatchesListScreen({
             style={{
               background: "none",
               border: "none",
-              color: t.accent,
+              color: t.accentStrong,
               fontSize: 15,
               fontWeight: 500,
               cursor: "pointer",

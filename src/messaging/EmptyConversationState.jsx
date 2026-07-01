@@ -119,7 +119,7 @@ export default function EmptyConversationState({ displayName, conversationId, on
             borderRadius: 10,
             padding: "10px 20px",
             fontSize: 15,
-            color: t.accent,
+            color: t.accentStrong,
             fontWeight: 600,
             cursor: "pointer",
             ...fButton.style,

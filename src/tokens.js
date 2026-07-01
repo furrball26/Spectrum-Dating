@@ -23,6 +23,10 @@ export const t = {
   // Green for TEXT that must pass AA (darker in light than `positive`, which is
   // tuned as a fill/border color). Verified badge, success text.
   positiveText: "var(--c-positiveText, #4C7A47)",
+  // Dark green fill for positive/primary controls carrying WHITE text (Profile
+  // "Save changes"/"Save and leave"). Passes ≥4.5:1 in BOTH themes — `positive`
+  // is a border/tint color where white-on-fill fails AA.
+  positiveFill: "var(--c-positiveFill, #3F7A38)",
   border: "var(--c-border, #D3DBD5)",
   borderLight: "var(--c-borderLight, #E8EDE7)",
   focus: "var(--c-focus, #24332D)",
@@ -31,6 +35,18 @@ export const t = {
   // Passes ≥4.5:1 in both themes — `danger` is a light tint in dim where white fails.
   dangerFill: "var(--c-dangerFill, #B94040)",
   warning: "var(--c-warning, #B8860B)",
+  // Dark amber fill for status pills carrying WHITE text ("Open"). Passes
+  // ≥4.5:1 in both themes — `warning` is a lighter amber where white fails.
+  warningFill: "var(--c-warningFill, #8A6508)",
+  // Neutral gray fill for status pills carrying WHITE text ("Dismissed"/
+  // "Withdrawn"). Passes ≥4.5:1 in both themes — `textMuted` fails as a fill in dim.
+  mutedFill: "var(--c-mutedFill, #566860)",
+  // Tinted danger surface for destructive confirm panels (t.text on it, not white).
+  // ≥4.5:1 for t.text in both themes.
+  dangerSurface: "var(--c-dangerSurface, #FBF1F1)",
+  // Tinted warning surface + matching text for check-in / warning banners.
+  warningSurface: "var(--c-warningSurface, #FBF6E9)",
+  warningSurfaceText: "var(--c-warningSurfaceText, #6E5206)",
   serif: "'Newsreader', Georgia, 'Times New Roman', serif",
   sans: "'Atkinson Hyperlegible', -apple-system, Segoe UI, Roboto, sans-serif",
   // ── Layout ──

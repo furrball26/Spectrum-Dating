@@ -212,7 +212,7 @@ function SafetyLink({ active, onClick }) {
         cursor: "pointer",
         fontSize: 14,
         fontWeight: 600,
-        color: active ? t.accent : t.textSoft,
+        color: active ? t.accentStrong : t.textSoft,
         borderRadius: 8,
         ...f.style,
       }}
@@ -243,7 +243,7 @@ function SettingsLink({ active, onClick }) {
         cursor: "pointer",
         fontSize: 14,
         fontWeight: 600,
-        color: active ? t.accent : t.textSoft,
+        color: active ? t.accentStrong : t.textSoft,
         borderRadius: 8,
         ...f.style,
       }}
@@ -274,7 +274,7 @@ function SecurityLink({ active, onClick }) {
         cursor: "pointer",
         fontSize: 14,
         fontWeight: 600,
-        color: active ? t.accent : t.textSoft,
+        color: active ? t.accentStrong : t.textSoft,
         borderRadius: 8,
         ...f.style,
       }}

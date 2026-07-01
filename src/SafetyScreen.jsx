@@ -70,7 +70,7 @@ function PrimaryButton({ children, onClick, disabled, full }) {
         cursor: disabled ? "not-allowed" : "pointer",
         fontSize: 15,
         fontWeight: 600,
-        background: t.accentStrong,
+        background: t.accentFill,
         color: "#fff",
         opacity: disabled ? 0.6 : 1,
         width: full ? "100%" : "auto",
@@ -202,11 +202,11 @@ function formatDuration(ms) {
 
 // Map backend status → calm label + token colour.
 const REPORT_STATUS = {
-  open:      { label: "Open",      color: t.warning },
-  reviewed:  { label: "Reviewed",  color: t.accent },
-  actioned:  { label: "Actioned",  color: t.accentStrong },
-  dismissed: { label: "Dismissed", color: t.textMuted },
-  withdrawn: { label: "Withdrawn", color: t.textMuted },
+  open:      { label: "Open",      color: t.warningFill },
+  reviewed:  { label: "Reviewed",  color: t.accentFill },
+  actioned:  { label: "Actioned",  color: t.accentFill },
+  dismissed: { label: "Dismissed", color: t.mutedFill },
+  withdrawn: { label: "Withdrawn", color: t.mutedFill },
 };
 
 // Plain-language, shame-free outcome under the pill. Never surfaces the
@@ -543,7 +543,7 @@ export default function SafetyScreen({ onBack }) {
           <div
             role="alert"
             style={{
-              background: "#FBF6E9",
+              background: t.warningSurface,
               border: `1px solid ${t.warning}`,
               borderRadius: 14,
               padding: "16px 18px",
@@ -553,7 +553,7 @@ export default function SafetyScreen({ onBack }) {
               gap: 14,
             }}
           >
-            <span style={{ flex: 1, fontSize: 16, color: "#6E5206", fontWeight: 600 }}>
+            <span style={{ flex: 1, fontSize: 16, color: t.warningSurfaceText, fontWeight: 600 }}>
               Time to check in — are you safe? Tap to dismiss.
             </span>
             <Button variant="secondary" onClick={dismissBanner}>Dismiss</Button>

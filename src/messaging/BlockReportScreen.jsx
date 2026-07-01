@@ -153,7 +153,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
           style={{
             background: "transparent",
             border: "none",
-            color: t.accent,
+            color: t.accentStrong,
             fontSize: 16,
             fontWeight: 600,
             cursor: "pointer",
