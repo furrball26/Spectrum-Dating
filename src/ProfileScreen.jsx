@@ -1311,13 +1311,48 @@ function ProfilePreviewModal({
   contextCard, photos, prompts, promptTextFor, verified, onClose,
 }) {
   const headingRef = useRef(null);
+  const panelRef = useRef(null);
 
-  // Focus the dialog heading on open so screen-reader users hear the context.
-  useEffect(() => { headingRef.current?.focus(); }, []);
-
-  // Escape key closes (consistent with other modals in this file).
+  // Focus the dialog heading on open so screen-reader users hear the context,
+  // and restore focus to whatever triggered the modal on close (D26).
   useEffect(() => {
-    function handleKey(e) { if (e.key === "Escape") onClose(); }
+    const prevFocus = document.activeElement;
+    headingRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
+  }, []);
+
+  // Escape closes; Tab is trapped inside the dialog (D26) — consistent with the
+  // app's other modals.
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Tab") {
+        const focusables = panelRef.current
+          ? Array.from(
+              panelRef.current.querySelectorAll(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+              )
+            ).filter((el) => !el.disabled)
+          : [];
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        // The heading (tabindex -1) is initially focused but isn't in the list;
+        // treat that as "before first" so Shift+Tab wraps to the last control.
+        if (e.shiftKey) {
+          if (active === first || !panelRef.current?.contains(active) || active === headingRef.current) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
@@ -1356,20 +1391,23 @@ function ProfilePreviewModal({
 
   return (
     <>
-      {/* Dim backdrop — clicking it closes */}
+      {/* Fully opaque backdrop — nothing behind the modal bleeds through */}
       <div
         aria-hidden="true"
         onClick={onClose}
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(36,51,45,0.52)",
+          background: t.bg,
           zIndex: 1200,
         }}
       />
 
-      {/* Scrollable modal sheet */}
+      {/* Scrollable modal sheet — solid theme background so the edit form behind
+          is fully obscured (previously transparent, letting ghost text bleed
+          through on mobile). */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="preview-modal-heading"
@@ -1378,6 +1416,7 @@ function ProfilePreviewModal({
           inset: 0,
           overflowY: "auto",
           zIndex: 1201,
+          background: t.bg,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -1395,10 +1434,9 @@ function ProfilePreviewModal({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: "12px 4px",
-            background: "rgba(28,36,34,0.88)",
-            backdropFilter: "blur(6px)",
-            WebkitBackdropFilter: "blur(6px)",
+            padding: "12px 8px",
+            background: t.surface,
+            borderBottom: `1px solid ${t.border}`,
             borderRadius: "0 0 12px 12px",
             zIndex: 2,
             marginBottom: 16,
@@ -1413,10 +1451,10 @@ function ProfilePreviewModal({
               fontFamily: t.serif,
               fontSize: 17,
               fontWeight: 700,
-              color: "#fff",
+              color: t.text,
               margin: 0,
               outline: "none",
-              padding: "2px 8px",
+              padding: "2px 4px",
             }}
           >
             How others see you
@@ -1426,7 +1464,7 @@ function ProfilePreviewModal({
             onClick={onClose}
             aria-label="Close preview"
             style={{
-              background: "rgba(255,255,255,0.15)",
+              background: t.accentFill,
               border: "none",
               color: "#fff",
               fontSize: 15,

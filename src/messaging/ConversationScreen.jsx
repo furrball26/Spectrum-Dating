@@ -42,6 +42,9 @@ const ATTACHMENTS_ENABLED = true;
 const MAX_BODY = 2000;
 const CHAR_WARN_THRESHOLD = 200;
 const RATE_LIMIT_SECONDS = 60;
+// Composer textarea auto-grow ceiling (~6 lines at 16px/1.5 + padding); scrolls
+// beyond this so a long message stays readable without pushing the log offscreen.
+const COMPOSE_MAX_HEIGHT = 160;
 
 // --- Feature 1: Reaction constants ---
 const REACTION_EMOJIS = [
@@ -1572,6 +1575,17 @@ export default function ConversationScreen({
     };
   }, []);
 
+  // Mobile composer — auto-grow the textarea to fit its content (starts ~1 line,
+  // grows up to ~6 lines then scrolls). Runs whenever the value changes, so text
+  // inserted from the helpers tray (F27) is fully readable, and shrinks back
+  // after a send clears the field.
+  useEffect(() => {
+    const el = composeRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSE_MAX_HEIGHT)}px`;
+  }, [composeValue]);
+
   // Cleanup attachment preview URL on unmount
   useEffect(() => {
     return () => {
@@ -2354,82 +2368,91 @@ export default function ConversationScreen({
         </div>
       )}
 
-      {/* Compose area */}
+      {/* Compose area — two-row layout so the message field is full-width and
+          readable on mobile. Row 1: attach + helpers actions. Row 2: the
+          auto-growing textarea beside the send button. */}
       <div
         style={{
-          padding: "12px 16px",
+          padding: "10px 16px 12px",
           background: t.surface,
           borderTop: `1px solid ${t.border}`,
           flexShrink: 0,
+          position: "relative",
           display: "flex",
-          gap: 10,
-          alignItems: "flex-end",
+          flexDirection: "column",
+          gap: 8,
         }}
       >
-        {/* Feature 2 — Attach photo button. Hidden until the backend supports
-            linking an uploaded photo to a message (needs R2 configured + the
-            sendMessage attachmentId path). Flip ATTACHMENTS_ENABLED to restore. */}
-        {ATTACHMENTS_ENABLED && (
-        <button
-          ref={attachButtonRef}
-          type="button"
-          aria-label="Attach photo"
-          onClick={handleAttachClick}
-          disabled={composingDisabled}
-          style={{
-            background: "transparent",
-            border: `1px solid ${t.border}`,
-            borderRadius: 12,
-            color: composingDisabled ? t.textMuted : t.accent,
-            fontSize: 20,
-            cursor: composingDisabled ? "not-allowed" : "pointer",
-            minHeight: 44,
-            minWidth: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            ...fAttach.style,
-          }}
-          onFocus={fAttach.onFocus}
-          onBlur={fAttach.onBlur}
-        >
-          📎
-        </button>
-        )}
+        {/* Row 1 — attach + helpers actions */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Feature 2 — Attach photo button. Hidden until the backend supports
+              linking an uploaded photo to a message (needs R2 configured + the
+              sendMessage attachmentId path). Flip ATTACHMENTS_ENABLED to restore. */}
+          {ATTACHMENTS_ENABLED && (
+          <button
+            ref={attachButtonRef}
+            type="button"
+            aria-label="Attach photo"
+            onClick={handleAttachClick}
+            disabled={composingDisabled}
+            style={{
+              background: "transparent",
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              color: composingDisabled ? t.textMuted : t.accent,
+              fontSize: 18,
+              cursor: composingDisabled ? "not-allowed" : "pointer",
+              minHeight: 44,
+              minWidth: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              ...fAttach.style,
+            }}
+            onFocus={fAttach.onFocus}
+            onBlur={fAttach.onBlur}
+          >
+            📎
+          </button>
+          )}
 
-        {/* F27 — Conversation helpers. Opens a calm tray of reusable phrases;
-            tapping one inserts it into the composer (never clipboard). Disabled
-            alongside compose when the conversation is gated/rate-limited. */}
-        <button
-          ref={helperButtonRef}
-          type="button"
-          aria-label="Conversation helpers"
-          aria-haspopup="dialog"
-          aria-expanded={helperTrayOpen}
-          onClick={() => setHelperTrayOpen(true)}
-          disabled={composingDisabled}
-          title="Ready-made phrases you can send"
-          style={{
-            background: "transparent",
-            border: `1px solid ${t.border}`,
-            borderRadius: 12,
-            color: composingDisabled ? t.textMuted : t.accent,
-            fontSize: 20,
-            cursor: composingDisabled ? "not-allowed" : "pointer",
-            minHeight: 44,
-            minWidth: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            ...fHelper.style,
-          }}
-          onFocus={fHelper.onFocus}
-          onBlur={fHelper.onBlur}
-        >
-          💬
-        </button>
+          {/* F27 — Conversation helpers ("word prompts"). Opens a calm tray of
+              reusable phrases; tapping one inserts it into the composer (never
+              clipboard). Disabled alongside compose when gated/rate-limited. */}
+          <button
+            ref={helperButtonRef}
+            type="button"
+            aria-label="Conversation helpers"
+            aria-haspopup="dialog"
+            aria-expanded={helperTrayOpen}
+            onClick={() => setHelperTrayOpen(true)}
+            disabled={composingDisabled}
+            title="Ready-made phrases you can send"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "transparent",
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              color: composingDisabled ? t.textMuted : t.accent,
+              fontSize: 14,
+              fontWeight: 500,
+              fontFamily: t.sans,
+              cursor: composingDisabled ? "not-allowed" : "pointer",
+              minHeight: 44,
+              padding: "0 14px",
+              flexShrink: 0,
+              ...fHelper.style,
+            }}
+            onFocus={fHelper.onFocus}
+            onBlur={fHelper.onBlur}
+          >
+            <span aria-hidden="true" style={{ fontSize: 18 }}>💬</span>
+            <span>Word prompts</span>
+          </button>
+        </div>
 
         {/* Hidden file input — Feature 2 */}
         <input
@@ -2442,122 +2465,125 @@ export default function ConversationScreen({
           style={{ display: "none" }}
         />
 
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-          <textarea
-            ref={composeRef}
-            aria-label={`Message ${otherUser.displayName}`}
-            placeholder="Write a message…"
-            value={composeValue}
-            onChange={(e) => setComposeValue(e.target.value)}
-            onKeyDown={handleComposeKeyDown}
-            rows={1}
-            maxLength={MAX_BODY}
-            disabled={composingDisabled}
-            style={{
-              border: `1px solid ${t.formBorder}`,
-              borderRadius: 18,
-              padding: "10px 14px",
-              fontSize: 16,
-              color: t.text,
-              background: composingDisabled ? t.surfaceAlt : t.bg,
-              resize: "none",
-              fontFamily: t.sans,
-              lineHeight: 1.5,
-              boxSizing: "border-box",
-              maxHeight: 120,
-              overflow: "auto",
-              width: "100%",
-              ...fCompose.style,
-            }}
-            onFocus={fCompose.onFocus}
-            onBlur={fCompose.onBlur}
-          />
-          {/* Security Fix 3 — character counter (shown when < 200 chars remaining) */}
-          {showCharCounter && (
-            <div
-              role="status"
-              aria-live="polite"
+        {/* Row 2 — full-width auto-growing textarea + send button */}
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <textarea
+              ref={composeRef}
+              aria-label={`Message ${otherUser.displayName}`}
+              placeholder="Write a message…"
+              value={composeValue}
+              onChange={(e) => setComposeValue(e.target.value)}
+              onKeyDown={handleComposeKeyDown}
+              rows={1}
+              maxLength={MAX_BODY}
+              disabled={composingDisabled}
               style={{
-                fontSize: 12,
-                color: charsRemaining < 0 ? t.danger : t.textMuted,
-                textAlign: "right",
-                paddingRight: 4,
+                border: `1px solid ${t.formBorder}`,
+                borderRadius: 18,
+                padding: "11px 14px",
+                fontSize: 16,
+                color: t.text,
+                background: composingDisabled ? t.surfaceAlt : t.bg,
+                resize: "none",
+                fontFamily: t.sans,
+                lineHeight: 1.5,
+                boxSizing: "border-box",
+                maxHeight: COMPOSE_MAX_HEIGHT,
+                overflowY: "auto",
+                width: "100%",
+                ...fCompose.style,
               }}
-            >
-              {charsRemaining >= 0
-                ? `${charsRemaining} characters remaining`
-                : `${Math.abs(charsRemaining)} characters over limit`}
-            </div>
-          )}
-        </div>
+              onFocus={fCompose.onFocus}
+              onBlur={fCompose.onBlur}
+            />
+            {/* Security Fix 3 — character counter (shown when < 200 chars remaining) */}
+            {showCharCounter && (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  fontSize: 12,
+                  color: charsRemaining < 0 ? t.danger : t.textMuted,
+                  textAlign: "right",
+                  paddingRight: 4,
+                }}
+              >
+                {charsRemaining >= 0
+                  ? `${charsRemaining} characters remaining`
+                  : `${Math.abs(charsRemaining)} characters over limit`}
+              </div>
+            )}
+          </div>
 
-        {/* Send status region — covers success, consent-gate failure, rate-limit */}
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            position: "absolute",
-            left: "-9999px",
-            width: 1,
-            height: 1,
-            overflow: "hidden",
-          }}
-        >
-          {consentGateFailed
-            ? "Unable to send. This conversation is no longer available."
-            : rateLimitStatus || sendStatus}
-        </div>
-
-        {/* Security Fix 4 — rate-limit visible status (not hidden) */}
-        {rateLimited && (
+          {/* Send status region — covers success, consent-gate failure, rate-limit */}
           <div
             role="status"
             aria-live="polite"
             style={{
               position: "absolute",
-              bottom: "100%",
-              left: 0,
-              right: 0,
-              padding: "8px 16px",
-              background: t.surfaceAlt,
-              borderTop: `1px solid ${t.border}`,
-              fontSize: 14,
-              color: t.textSoft,
-              textAlign: "center",
+              left: "-9999px",
+              width: 1,
+              height: 1,
+              overflow: "hidden",
             }}
           >
-            You're sending messages quickly. Please wait a moment before sending again.
+            {consentGateFailed
+              ? "Unable to send. This conversation is no longer available."
+              : rateLimitStatus || sendStatus}
           </div>
-        )}
 
-        {/* Send button — touch target fix: 48×48 */}
-        <button
-          type="button"
-          aria-label="Send"
-          onClick={handleSend}
-          disabled={sendDisabled}
-          style={{
-            width: 48,
-            height: 48,
-            minWidth: 48,
-            minHeight: 48,
-            borderRadius: "50%",
-            background: !sendDisabled ? t.accentFill : t.borderLight,
-            border: "none",
-            color: !sendDisabled ? "#fff" : t.textMuted,
-            fontSize: 18,
-            cursor: !sendDisabled ? "pointer" : "not-allowed",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            ...fSend.style,
-          }}
-          onFocus={fSend.onFocus}
-          onBlur={fSend.onBlur}
-        >
-          ↑
-        </button>
+          {/* Security Fix 4 — rate-limit visible status (not hidden) */}
+          {rateLimited && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: "absolute",
+                bottom: "100%",
+                left: 0,
+                right: 0,
+                padding: "8px 16px",
+                background: t.surfaceAlt,
+                borderTop: `1px solid ${t.border}`,
+                fontSize: 14,
+                color: t.textSoft,
+                textAlign: "center",
+              }}
+            >
+              You're sending messages quickly. Please wait a moment before sending again.
+            </div>
+          )}
+
+          {/* Send button — touch target fix: 48×48 */}
+          <button
+            type="button"
+            aria-label="Send"
+            onClick={handleSend}
+            disabled={sendDisabled}
+            style={{
+              width: 48,
+              height: 48,
+              minWidth: 48,
+              minHeight: 48,
+              borderRadius: "50%",
+              background: !sendDisabled ? t.accentFill : t.borderLight,
+              border: "none",
+              color: !sendDisabled ? "#fff" : t.textMuted,
+              fontSize: 18,
+              cursor: !sendDisabled ? "pointer" : "not-allowed",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              ...fSend.style,
+            }}
+            onFocus={fSend.onFocus}
+            onBlur={fSend.onBlur}
+          >
+            ↑
+          </button>
+        </div>
       </div>
 
       {/* F27 — conversation helpers tray */}
