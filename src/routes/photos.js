@@ -235,10 +235,13 @@ router.post('/confirm/:attachmentId', requireAuth, (req, res) => {
     return res.status(409).json({ error: `Cannot confirm: status is already '${attachment.upload_status}'` });
   }
 
-  db.prepare(`UPDATE message_attachments SET upload_status = 'scanned', scanned_at = ? WHERE id = ?`)
-    .run(Date.now(), req.params.attachmentId);
+  // The upload landed in R2. Move it into the human-review queue. It is NOT
+  // scanned (no automated scan exists) and NOT yet servable — a moderator must
+  // approve it before GET /:attachmentId/url will return a URL.
+  db.prepare(`UPDATE message_attachments SET upload_status = 'pending_review' WHERE id = ?`)
+    .run(req.params.attachmentId);
 
-  res.json({ attachmentId: req.params.attachmentId, status: 'scanned' });
+  res.json({ attachmentId: req.params.attachmentId, status: 'pending_review' });
 });
 
 // ---------------------------------------------------------------------------
@@ -250,23 +253,23 @@ router.get('/:attachmentId/url', requireAuth, (req, res) => {
     'SELECT id, message_id, uploader_id, upload_status, public_url FROM message_attachments WHERE id = ?'
   ).get(req.params.attachmentId);
 
-  if (!attachment) return res.status(404).json({ error: 'Photo not available' });
+  // Uniform 404 "Photo not available." for every not-servable case (missing,
+  // not yet approved, not linked to a message, or requester not a member) so the
+  // endpoint never leaks the existence/state of an attachment to a non-member.
+  const notAvailable = () => res.status(404).json({ error: 'Photo not available.' });
 
-  if (attachment.message_id) {
-    const message = db.prepare('SELECT conversation_id FROM messages WHERE id = ?').get(attachment.message_id);
-    if (message) {
-      const conv = db.prepare('SELECT user_a_id, user_b_id FROM conversations WHERE id = ?').get(message.conversation_id);
-      if (conv && conv.user_a_id !== userId && conv.user_b_id !== userId) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-    }
-  } else if (attachment.uploader_id !== userId) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  if (!attachment) return notAvailable();
 
-  if (attachment.upload_status === 'pending' || attachment.upload_status === 'rejected') {
-    return res.status(404).json({ error: 'Photo not available' });
-  }
+  // Only approved attachments are ever served (no more serving pending_review).
+  if (attachment.upload_status !== 'approved') return notAvailable();
+
+  // Must be linked to a message, and the requester must be a member of that
+  // message's conversation.
+  if (!attachment.message_id) return notAvailable();
+  const message = db.prepare('SELECT conversation_id FROM messages WHERE id = ?').get(attachment.message_id);
+  if (!message) return notAvailable();
+  const conv = db.prepare('SELECT user_a_id, user_b_id FROM conversations WHERE id = ?').get(message.conversation_id);
+  if (!conv || (conv.user_a_id !== userId && conv.user_b_id !== userId)) return notAvailable();
 
   res.json({ url: attachment.public_url || 'https://placehold.co/400x300?text=Photo' });
 });

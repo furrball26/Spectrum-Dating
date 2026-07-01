@@ -176,6 +176,15 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
   if (hasMore) msgs.pop();
   msgs.reverse(); // restore chronological (ASC) order for the client
 
+  // Hydrate any APPROVED attachment per message so photos survive reload/reopen
+  // (only approved ones are ever surfaced; pending_review/rejected stay hidden).
+  const attachmentFor = (messageId) => {
+    const a = db.prepare(
+      `SELECT id, public_url, mime_type, upload_status FROM message_attachments WHERE message_id = ? AND upload_status = 'approved'`
+    ).get(messageId);
+    return a ? { id: a.id, publicUrl: a.public_url, mimeType: a.mime_type, status: a.upload_status } : null;
+  };
+
   const messages = msgs.map(m => ({
     id: m.id,
     senderId: m.sender_id,
@@ -185,6 +194,7 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
     // Attach reaction summary so reactions survive reload/reopen (the client
     // hydrates msg.reactions). Deleted messages carry no reactions.
     reactions: m.deleted ? [] : getReactionSummary(db, m.id, userId),
+    attachment: m.deleted ? null : attachmentFor(m.id),
   }));
 
   res.json({
@@ -269,7 +279,39 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
   if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
   const body = (req.body.body || '').trim();
-  if (!body) return res.status(400).json({ error: 'Message body cannot be empty' });
+
+  // Optional photo attachment. The ENTIRE attachment-accepting branch is gated
+  // behind ATTACHMENTS_ENABLED so nothing goes live until the flag is flipped.
+  const attachmentsEnabled = process.env.ATTACHMENTS_ENABLED === 'true';
+  const rawAttachmentId = req.body.attachmentId;
+  const wantsAttachment = rawAttachmentId !== undefined && rawAttachmentId !== null && rawAttachmentId !== '';
+
+  if (wantsAttachment && !attachmentsEnabled) {
+    return res.status(400).json({ error: 'Attachments are not enabled' });
+  }
+
+  // Body is REQUIRED unless a (gated) attachment is present — an attachment-only
+  // message is allowed. This is the E37 fix: text + attachment persist together
+  // in ONE call, so the failure-path can never lose the typed text.
+  let attachment = null;
+  if (wantsAttachment) {
+    if (typeof rawAttachmentId !== 'string') {
+      return res.status(400).json({ error: 'attachmentId must be a string' });
+    }
+    attachment = db.prepare(
+      'SELECT id, uploader_id, upload_status, message_id, public_url, mime_type FROM message_attachments WHERE id = ?'
+    ).get(rawAttachmentId);
+    if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
+    if (attachment.uploader_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (attachment.upload_status !== 'pending_review' && attachment.upload_status !== 'approved') {
+      return res.status(409).json({ error: `Attachment is not ready (status '${attachment.upload_status}')` });
+    }
+    if (attachment.message_id) {
+      return res.status(409).json({ error: 'Attachment is already attached to a message' });
+    }
+  }
+
+  if (!body && !attachment) return res.status(400).json({ error: 'Message body cannot be empty' });
   if (body.length > 2000) return res.status(400).json({ error: 'Message body exceeds 2000 characters' });
 
   const otherId = conv.user_a_id === userId ? conv.user_b_id : conv.user_a_id;
@@ -282,16 +324,43 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
   const messageId = newId();
   const now = Date.now();
 
-  db.prepare(`
-    INSERT INTO messages (id, conversation_id, sender_id, body, sent_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(messageId, req.params.id, userId, body, now);
+  // Insert the message and link the attachment in ONE transaction so text +
+  // attachment can never end up split-brain (E37).
+  try {
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO messages (id, conversation_id, sender_id, body, sent_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(messageId, req.params.id, userId, body, now);
+
+      if (attachment) {
+        const linked = db.prepare(
+          `UPDATE message_attachments SET message_id = ? WHERE id = ? AND message_id IS NULL`
+        ).run(messageId, attachment.id);
+        // Guard against a concurrent link (TOCTOU): if some other request linked
+        // it between our check and here, 0 rows change → abort the whole txn.
+        if (linked.changes !== 1) {
+          throw new Error('ATTACHMENT_ALREADY_LINKED');
+        }
+      }
+    })();
+  } catch (e) {
+    if (e.message === 'ATTACHMENT_ALREADY_LINKED') {
+      return res.status(409).json({ error: 'Attachment is already attached to a message' });
+    }
+    throw e;
+  }
 
   const timeLabel = coarseLabel(now);
 
+  // Serialized attachment for the response + realtime emit (only when linked).
+  const attachmentPayload = attachment
+    ? { id: attachment.id, publicUrl: attachment.public_url, mimeType: attachment.mime_type, status: attachment.upload_status }
+    : null;
+
   const { io } = req.app.locals;
   if (io) {
-    emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeLabel });
+    emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeLabel, attachment: attachmentPayload });
   }
 
   // Async push to recipient — tier-aware, don't await
@@ -334,7 +403,9 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
     notifyUser(db, otherId, pushPayload).catch(() => {});
   }
 
-  res.status(201).json({ messageId, timeLabel });
+  const response = { messageId, timeLabel };
+  if (attachmentPayload) response.attachment = attachmentPayload;
+  res.status(201).json(response);
 });
 
 // ---------------------------------------------------------------------------

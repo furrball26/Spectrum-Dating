@@ -244,6 +244,63 @@ router.get('/feedback', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /admin/attachments?status=pending_review — message photo-attachment
+// review queue (newest first). Default status is 'pending_review'.
+// ---------------------------------------------------------------------------
+router.get('/attachments', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const status = req.query.status || 'pending_review';
+
+  const rows = db.prepare(`
+    SELECT a.id, a.uploader_id, a.public_url, a.mime_type, a.created_at,
+           u.email AS uploader_email
+    FROM message_attachments a
+    LEFT JOIN users u ON u.id = a.uploader_id
+    WHERE a.upload_status = ?
+    ORDER BY a.created_at DESC
+  `).all(status);
+
+  const attachments = rows.map(r => ({
+    id: r.id,
+    uploaderId: r.uploader_id,
+    uploaderEmail: r.uploader_email || null,
+    publicUrl: r.public_url,
+    mimeType: r.mime_type,
+    createdAt: r.created_at,
+  }));
+
+  res.json({ attachments });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/attachments/:id/review — body { decision: 'approved'|'rejected' }
+// Sets upload_status + reviewed_at + reviewed_by and writes a moderation_log row.
+// ---------------------------------------------------------------------------
+router.post('/attachments/:id/review', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  const { decision } = req.body ?? {};
+
+  if (decision !== 'approved' && decision !== 'rejected') {
+    return res.status(400).json({ error: "decision must be 'approved' or 'rejected'." });
+  }
+
+  const attachment = db.prepare(
+    'SELECT id, upload_status FROM message_attachments WHERE id = ?'
+  ).get(req.params.id);
+  if (!attachment) return res.status(404).json({ error: 'Attachment not found.' });
+  if (attachment.upload_status !== 'pending_review') {
+    return res.status(409).json({ error: `Cannot review: status is '${attachment.upload_status}'.` });
+  }
+
+  db.prepare(
+    'UPDATE message_attachments SET upload_status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
+  ).run(decision, Date.now(), userId, req.params.id);
+  logMod(db, userId, decision === 'approved' ? 'approve_attachment' : 'reject_attachment', req.params.id);
+
+  res.json({ ok: true, status: decision });
+});
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

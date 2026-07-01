@@ -48,6 +48,7 @@ const MIGRATIONS = [
   '028_verification_requests.sql',
   '029_photo_alt_text.sql',
   '030_reports_preserve_evidence.sql',
+  '031_attachment_review.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't
@@ -66,6 +67,17 @@ const GUARDED_MIGRATIONS = {
     return fks.some(
       (fk) => (fk.from === 'reporter_id' || fk.from === 'reported_id') && fk.on_delete !== 'SET NULL'
     );
+  },
+  // E2: skip once message_attachments already accepts 'pending_review'. The 004
+  // CHECK constraint hardcodes the allowed status set in the table's DDL, so we
+  // inspect the stored CREATE TABLE sql. Run the rebuild only while the DDL does
+  // NOT yet mention 'pending_review' (i.e. still the old 004/030 shape).
+  '031_attachment_review.sql': (db) => {
+    const row = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'message_attachments'")
+      .get();
+    if (!row || !row.sql) return false; // table missing (004 always creates it) → nothing to rebuild
+    return !/pending_review/.test(row.sql);
   },
 };
 
