@@ -169,8 +169,8 @@ concurrency group so repeated pushes cancel stale review runs.
 ### GitHub Actions: daily subagent consultation
 
 `.github/workflows/daily-subagent-consult.yml` runs the SuberAgents consultation
-on a **daily schedule** (`cron: "17 13 * * *"` UTC — adjust to your morning) plus
-`workflow_dispatch` for on-demand runs. It's the durable, repo-native equivalent
+on a **daily schedule** (`cron: "7 16 * * *"` UTC = 9:07am America/Phoenix, which
+has no DST so it never drifts) plus `workflow_dispatch` for on-demand runs. It's the durable, repo-native equivalent
 of a Cloud Routine: it reads `SuberAgents/`, audits `.claude/agents/**`, writes a
 dated report to `SuberAgents/audits/`, applies only clearly-correct fixes, and
 opens a PR **only** when there's something to act on. Same gating as the review

@@ -46,8 +46,9 @@ each item ✅ pass / ⚠️ improve / ❌ fail, then rank findings by
   container; `user`/`local` do not).
 - [ ] **E4** Prompt tells it to **read at start / update at end**.
 - [ ] **E5** No stray `MEMORY.md` at repo root (symptom of the wiring bug).
-- [ ] **E6** Sensitive memory (threat models) — is committing to `project` scope
-  acceptable, or should it be `local`?
+- [ ] **E6** Sensitive memory scope matches the recorded decision in
+  `decisions.md` (currently: stays `project`/committed while the repo is
+  private). Do **not** re-raise unless that condition changes.
 
 ## F. Orchestration & fit
 - [ ] **F1** Roster has no gaps/overlaps vs the product's actual work.

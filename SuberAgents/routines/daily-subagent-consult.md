@@ -45,6 +45,7 @@ subagenttesting repo. Work autonomously and stop when done.
 
 1. Read, in order:
    - SuberAgents/knowledge-base/best-practices-checklist.md  (your rubric)
+   - SuberAgents/knowledge-base/decisions.md                 (settled — do NOT re-raise)
    - SuberAgents/knowledge-base/memory-and-state.md          (the #57507 caveat)
    - SuberAgents/knowledge-base/00-index.md                  (context)
    - the most recent file in SuberAgents/audits/             (yesterday's findings)

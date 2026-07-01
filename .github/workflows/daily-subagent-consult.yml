@@ -16,9 +16,9 @@ name: SuberAgents Daily Consultation
 
 on:
   schedule:
-    # 13:17 UTC daily (~9:17am US-Eastern / ~6:17am US-Pacific). Off-minute on
-    # purpose. Adjust to your morning; GitHub cron is always UTC.
-    - cron: "17 13 * * *"
+    # 16:07 UTC daily = 9:07am America/Phoenix (Arizona is UTC-7 year-round with
+    # no DST, so this fixed UTC time never drifts). Off-minute on purpose.
+    - cron: "7 16 * * *"
   # Allow running it by hand from the Actions tab to test or trigger on demand.
   workflow_dispatch:
 
@@ -65,9 +65,10 @@ jobs:
             on this repo. Work autonomously and stop when done.
 
             1. Read, in order: SuberAgents/knowledge-base/best-practices-checklist.md
-               (your rubric), SuberAgents/knowledge-base/memory-and-state.md (the
-               #57507 caveat), SuberAgents/knowledge-base/00-index.md, and the most
-               recent file in SuberAgents/audits/ (the last consultation).
+               (your rubric), SuberAgents/knowledge-base/decisions.md (settled
+               decisions — do NOT re-raise these), SuberAgents/knowledge-base/memory-and-state.md
+               (the #57507 caveat), SuberAgents/knowledge-base/00-index.md, and the
+               most recent file in SuberAgents/audits/ (the last consultation).
             2. Establish today's date and the Claude Code version. If the version
                changed since the last audit, re-verify memory behavior per the
                "Re-test procedure" in memory-and-state.md and note any change.
