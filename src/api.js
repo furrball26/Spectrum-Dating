@@ -248,12 +248,23 @@ export async function createConversation(matchId) {
   });
 }
 
-export async function sendMessage(conversationId, body) {
+// sendMessage accepts either a plain string body (legacy callers) or an options
+// object { body, attachmentId }. The backend permits an empty body only when a
+// valid attachmentId is present.
+export async function sendMessage(conversationId, bodyOrOptions) {
+  const opts =
+    typeof bodyOrOptions === "string" || bodyOrOptions == null
+      ? { body: bodyOrOptions }
+      : bodyOrOptions;
+  const payload = {};
+  if (opts.body != null && opts.body !== "") payload.body = opts.body;
+  if (opts.attachmentId) payload.attachmentId = opts.attachmentId;
   const res = await apiFetch(`/messaging/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: { body },
+    body: payload,
   });
-  // Server returns { messageId, timeLabel }; expose `id` so callers can adopt it.
+  // Server returns { messageId, timeLabel, attachment? }; expose `id` so callers
+  // can adopt it, and pass the hydrated attachment through untouched.
   return { ...res, id: res.id ?? res.messageId };
 }
 
@@ -391,13 +402,34 @@ export async function updatePhotoDescription(id, description) {
   return apiFetch(`/photos/profile-photos/${id}/description`, { method: 'PUT', body: { description } });
 }
 
-// Message attachment upload flow (backlog #9)
-export async function uploadIntent(mimeType, fileSizeBytes) {
+// Message attachment upload flow (backlog #9 / Error Log E2).
+// upload-intent → { attachmentId, storageKey, uploadUrl, publicUrl } (status pending).
+export async function uploadAttachmentIntent({ mimeType, fileSizeBytes }) {
   return apiFetch('/photos/upload-intent', { method: 'POST', body: { mimeType, fileSizeBytes } });
 }
 
+// confirm/:attachmentId → { attachmentId, status: 'pending_review' }.
 export async function confirmAttachment(attachmentId) {
   return apiFetch(`/photos/confirm/${attachmentId}`, { method: 'POST' });
+}
+
+// Back-compat alias for the existing positional call signature.
+export async function uploadIntent(mimeType, fileSizeBytes) {
+  return uploadAttachmentIntent({ mimeType, fileSizeBytes });
+}
+
+// ─── Admin: photo attachment review ─────────────────────────────────────────────
+
+// GET /admin/attachments?status=pending_review
+// → { attachments: [{ id, uploaderId, uploaderEmail, publicUrl, mimeType, createdAt }] }
+export async function getPendingAttachments(status = 'pending_review') {
+  const d = await apiFetch(`/admin/attachments?status=${encodeURIComponent(status)}`);
+  return Array.isArray(d?.attachments) ? d.attachments : [];
+}
+
+// POST /admin/attachments/:id/review { decision: 'approved'|'rejected' } → { ok, status }
+export async function reviewAttachment(id, decision) {
+  return apiFetch(`/admin/attachments/${id}/review`, { method: 'POST', body: { decision } });
 }
 
 // ─── Account ───────────────────────────────────────────────────────────────────

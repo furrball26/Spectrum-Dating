@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAdminStats, getAdminReports, resolveReport, suspendUser } from "./api.js";
+import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
@@ -395,6 +395,196 @@ function ReportCard({ report, onRefresh, onStatus }) {
   );
 }
 
+// --- Photo review queue (Error Log E2) ---
+// Lists photo attachments awaiting moderation and lets a moderator approve or
+// reject each. Reuses the calm skeleton / empty / error states above.
+function PhotoReviewSkeleton() {
+  return (
+    <div aria-hidden="true" style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 16,
+            padding: 12,
+            width: 220,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <Skeleton width="100%" height={140} />
+          <Skeleton width="70%" height={13} />
+          <Skeleton width="40%" height={13} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PhotoReviewCard({ item, onReviewed, onStatus }) {
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  async function decide(decision) {
+    setBusy(true);
+    setLocalError("");
+    try {
+      await reviewAttachment(item.id, decision);
+      onStatus(decision === "approved" ? "Photo approved." : "Photo rejected.");
+      onReviewed(item.id);
+    } catch {
+      setLocalError("Couldn't update this photo. Please try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li
+      style={{
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 16,
+        padding: 12,
+        width: 240,
+        listStyle: "none",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+      }}
+    >
+      <img
+        src={item.publicUrl}
+        alt={`Photo submitted by ${item.uploaderEmail || "a member"}, awaiting review`}
+        loading="lazy"
+        style={{
+          display: "block",
+          width: "100%",
+          height: 180,
+          objectFit: "cover",
+          borderRadius: 10,
+          border: `1px solid ${t.borderLight}`,
+          background: t.surfaceAlt,
+        }}
+      />
+      <div style={{ fontSize: 14, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>
+        {item.uploaderEmail || "Unknown member"}
+      </div>
+      <div style={{ fontSize: 12, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</div>
+
+      {localError && (
+        <p role="alert" style={{ color: t.danger, fontSize: 13, margin: 0 }}>{localError}</p>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+        <PlainButton kind="accent" onClick={() => decide("approved")} disabled={busy}>
+          Approve
+        </PlainButton>
+        <PlainButton kind="quiet" onClick={() => decide("rejected")} disabled={busy}>
+          Reject
+        </PlainButton>
+      </div>
+    </li>
+  );
+}
+
+function PhotoReviewQueue({ onStatus }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError("");
+    getPendingAttachments("pending_review")
+      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .catch(() => setError("Couldn't load photos. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleReviewed = useCallback((id) => {
+    setItems((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  if (loading) return <PhotoReviewSkeleton />;
+  if (error) {
+    return (
+      <ErrorState
+        title="Couldn't load photos"
+        message="Something went wrong on our end. Please try again."
+        onRetry={load}
+      />
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div
+        style={{
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 16,
+          padding: "28px 24px",
+          textAlign: "center",
+          color: t.textSoft,
+        }}
+      >
+        No photos awaiting review.
+      </div>
+    );
+  }
+  return (
+    <ul style={{ margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 14 }}>
+      {items.map((item) => (
+        <PhotoReviewCard
+          key={item.id}
+          item={item}
+          onReviewed={handleReviewed}
+          onStatus={onStatus}
+        />
+      ))}
+    </ul>
+  );
+}
+
+const ADMIN_TABS = [
+  { value: "reports", label: "Reports" },
+  { value: "photos", label: "Photo review" },
+];
+
+function TabButton({ label, active, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      style={{
+        minHeight: 44,
+        padding: "8px 16px",
+        borderRadius: 9,
+        border: "none",
+        cursor: "pointer",
+        fontSize: 14,
+        fontWeight: active ? 600 : 500,
+        background: active ? t.surface : "transparent",
+        color: active ? t.text : t.textSoft,
+        boxShadow: active ? "0 1px 3px rgba(36,51,45,0.12)" : "none",
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function AdminScreen() {
   const [stats, setStats] = useState(null);
   const [reports, setReports] = useState([]);
@@ -402,6 +592,7 @@ export default function AdminScreen() {
   const [loadingReports, setLoadingReports] = useState(true);
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [activeTab, setActiveTab] = useState("reports");
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -477,6 +668,34 @@ export default function AdminScreen() {
           </div>
         )}
 
+        {/* Tabs: Reports / Photo review */}
+        <div
+          role="tablist"
+          aria-label="Moderation sections"
+          style={{
+            display: "flex",
+            gap: 6,
+            background: t.surfaceAlt,
+            border: `1px solid ${t.borderLight}`,
+            borderRadius: 12,
+            padding: 4,
+            marginBottom: 20,
+          }}
+        >
+          {ADMIN_TABS.map((tab) => (
+            <TabButton
+              key={tab.value}
+              label={tab.label}
+              active={activeTab === tab.value}
+              onClick={() => setActiveTab(tab.value)}
+            />
+          ))}
+        </div>
+
+        {activeTab === "photos" ? (
+          <PhotoReviewQueue onStatus={setStatusMsg} />
+        ) : (
+          <>
         {/* Filter */}
         <div style={{ marginBottom: 20 }}>
           <SegmentedControl value={statusFilter} onChange={setStatusFilter} />
@@ -517,6 +736,8 @@ export default function AdminScreen() {
               />
             ))}
           </ul>
+        )}
+          </>
         )}
       </div>
     </div>

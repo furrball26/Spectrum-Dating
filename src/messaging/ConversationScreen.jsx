@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
-import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, uploadIntent, confirmAttachment } from "../api.js";
+import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, uploadAttachmentIntent, confirmAttachment } from "../api.js";
 import { io } from "socket.io-client";
 import { t } from "../tokens.js";
 import ErrorState from "../ErrorState.jsx";
@@ -32,8 +32,10 @@ function useFocusable() {
   };
 }
 
-// Photo attachments are not yet end-to-end (needs R2 configured + a backend
-// path to link an uploaded photo to a message). Hidden until then.
+// Photo message attachments are built end-to-end (upload-intent → R2 PUT →
+// confirm → sendMessage with attachmentId → moderator review). Kept gated OFF
+// so no user can upload until product flips this on. Flip to true to enable the
+// compose/attach UI. The admin Photo-review queue ships regardless.
 const ATTACHMENTS_ENABLED = false;
 const MAX_BODY = 2000;
 const CHAR_WARN_THRESHOLD = 200;
@@ -183,6 +185,143 @@ function ReactionPills({ messageId, msgReactions, currentUserId, onToggle }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+// --- Feature 2: message photo attachment (in-bubble) ---
+// Renders an approved image, or a calm "pending review" placeholder for the
+// sender's own just-uploaded photo. Non-approved photos are NEVER rendered to
+// the other party (the server already withholds their publicUrl on hydration).
+function MessageAttachment({ attachment, isOwn, hasBody, onEnlarge }) {
+  const approved = attachment.status === "approved" && attachment.publicUrl;
+  const pending = isOwn && attachment.status === "pending_review";
+
+  if (pending) {
+    return (
+      <div
+        style={{
+          marginTop: hasBody ? 8 : 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: `1px dashed ${t.border}`,
+          background: t.surfaceAlt,
+          color: t.textSoft,
+          fontSize: 13,
+          lineHeight: 1.4,
+        }}
+      >
+        <span aria-hidden="true" style={{ fontSize: 16 }}>🕓</span>
+        <span>Photo pending review. It’ll appear here once a moderator approves it.</span>
+      </div>
+    );
+  }
+
+  if (!approved) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onEnlarge && onEnlarge(attachment.publicUrl)}
+      aria-label="Shared photo. Open larger view."
+      style={{
+        display: "block",
+        marginTop: hasBody ? 8 : 0,
+        padding: 0,
+        border: "none",
+        background: "transparent",
+        cursor: onEnlarge ? "zoom-in" : "default",
+        borderRadius: 12,
+        lineHeight: 0,
+      }}
+    >
+      <img
+        src={attachment.publicUrl}
+        alt="Shared photo"
+        loading="lazy"
+        style={{
+          display: "block",
+          maxWidth: "100%",
+          maxHeight: 240,
+          borderRadius: 12,
+          objectFit: "cover",
+        }}
+      />
+    </button>
+  );
+}
+
+// Click-to-enlarge lightbox for shared photos.
+function ImageLightbox({ src, onClose }) {
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo preview"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(36,51,45,0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1200,
+        padding: 24,
+      }}
+    >
+      <button
+        ref={closeRef}
+        type="button"
+        aria-label="Close photo preview"
+        onClick={onClose}
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          minHeight: 44,
+          minWidth: 44,
+          borderRadius: 22,
+          border: "none",
+          background: t.surface,
+          color: t.text,
+          fontSize: 18,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        ✕
+      </button>
+      <img
+        src={src}
+        alt="Shared photo, enlarged"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: "100%",
+          maxHeight: "100%",
+          borderRadius: 12,
+          boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
+        }}
+      />
     </div>
   );
 }
@@ -405,6 +544,7 @@ function MessageBubble({
   msgReactions,
   onToggleReaction,
   onRetry,
+  onEnlargeImage,
 }) {
   const prefersReduced = usePrefersReduced();
   const isOwn = message.senderId === currentUserId;
@@ -568,18 +708,15 @@ function MessageBubble({
           }}
         >
           {message.body}
-          {/* Photo attachment display in bubble */}
-          {message.photoUrl && (
-            <img
-              src={message.photoUrl}
-              alt="Shared photo"
-              style={{
-                display: "block",
-                maxWidth: "100%",
-                maxHeight: 200,
-                borderRadius: 10,
-                marginTop: message.body ? 8 : 0,
-              }}
+          {/* Photo attachment — only ever render an approved image with a
+              publicUrl. The sender sees a gentle pending-review state for their
+              own just-sent photo; the other party never sees non-approved ones. */}
+          {message.attachment && (
+            <MessageAttachment
+              attachment={message.attachment}
+              isOwn={isOwn}
+              hasBody={!!message.body}
+              onEnlarge={onEnlargeImage}
             />
           )}
         </div>
@@ -824,6 +961,8 @@ export default function ConversationScreen({
   });
   const [attachStatusMsg, setAttachStatusMsg] = useState("");
   const attachScanTimerRef = useRef(null);
+  // Click-to-enlarge lightbox for an approved shared photo.
+  const [enlargedImage, setEnlargedImage] = useState(null);
 
   const fBack = useFocusable();
   const fOverflow = useFocusable();
@@ -1029,7 +1168,7 @@ export default function ConversationScreen({
     composingDisabled ||
     (!composeValue.trim() && !hasAttachment) ||
     composeValue.length > MAX_BODY ||
-    attachment.status === "rejected";
+    attachment.status === "uploading";
 
   async function handleSend() {
     if (sendDisabled) return;
@@ -1037,41 +1176,48 @@ export default function ConversationScreen({
 
     if (!body && !hasAttachment) return;
 
-    // Feature 2 — real R2 upload if attachment present (backlog #9)
+    // Feature 2 — real R2 upload if attachment present (Error Log E2).
+    // Flow: upload-intent → PUT bytes to R2 → confirm → sendMessage({ body,
+    // attachmentId }) in ONE send. The server returns the real messageId and the
+    // hydrated attachment; we never fabricate a temp-/client-only id here. On
+    // ANY failure the composer text is preserved (E37) so the user loses nothing.
     if (hasAttachment) {
       const file = attachment.file;
       const capturedBody = body;
       setAttachment((prev) => ({ ...prev, status: "uploading" }));
       setAttachStatusMsg("Uploading photo…");
       try {
-        // 1. Get a presigned upload intent
-        const { attachmentId, uploadUrl, publicUrl } = await uploadIntent(file.type, file.size);
-        // 2. Upload the file directly to R2
+        // 1. Get a presigned upload intent (status: pending).
+        const { attachmentId, uploadUrl } = await uploadAttachmentIntent({
+          mimeType: file.type,
+          fileSizeBytes: file.size,
+        });
+        // 2. Upload the raw bytes directly to R2.
         const upload = await fetch(uploadUrl, {
           method: "PUT",
           headers: { "Content-Type": file.type },
           body: file,
         });
         if (!upload.ok) throw new Error("Upload failed");
-        // 3. Confirm the attachment with the backend
+        // 3. Confirm the attachment (status → pending_review).
         await confirmAttachment(attachmentId);
-        // 4. Send the message.
-        // TODO: backend message-attachment linking — sendMessage does not yet
-        // accept an attachmentId, so the photo is shown optimistically via
-        // publicUrl and the text body (if any) is persisted on its own.
-        let savedId = `msg-${Date.now()}`;
-        let savedTimeLabel = "Today";
-        if (capturedBody) {
-          const saved = await sendMessage(conversationId, capturedBody);
-          savedId = saved.id || savedId;
-          savedTimeLabel = saved.timeLabel || savedTimeLabel;
-        }
+        // 4. Send the message linking the attachment. Body is optional here
+        //    because a valid attachment is present.
+        const saved = await sendMessage(conversationId, {
+          body: capturedBody || undefined,
+          attachmentId,
+        });
+        // Use the server's authoritative id + hydrated attachment shape.
         const newMsg = {
-          id: savedId,
+          id: saved.id,
           senderId: currentUserId,
           body: capturedBody || null,
-          photoUrl: publicUrl,
-          timeLabel: savedTimeLabel,
+          attachment: saved.attachment || {
+            id: attachmentId,
+            status: "pending_review",
+            mimeType: file.type,
+          },
+          timeLabel: saved.timeLabel || "Today",
           deleted: false,
         };
         setMessages((prev) => [...prev, newMsg]);
@@ -1079,18 +1225,26 @@ export default function ConversationScreen({
         setAttachment({ file: null, previewUrl: null, status: null });
         setAttachStatusMsg("");
         setComposeValue("");
-        setSendStatus("Message sent.");
+        setSendStatus("Photo sent — pending review.");
         composeRef.current?.focus();
       } catch (err) {
-        // Graceful degradation: 503 = R2 not configured; surface via the
-        // existing rejected-attachment error UI.
-        setAttachment((prev) => ({ ...prev, status: "rejected" }));
-        if (err.status === 503) {
-          setAttachStatusMsg("Photo uploads are temporarily unavailable. Please try again later.");
-        } else if (err.status === 403) {
+        // PRESERVE the user's typed text (E37): we never cleared composeValue on
+        // this path, so it's still intact. Keep the selected photo too so they
+        // can retry. Surface a calm, specific message.
+        setAttachment((prev) => ({ ...prev, status: "selected" }));
+        if (err.status === 403) {
           setConsentGateFailed(true);
           setAttachStatusMsg("");
           setSendStatus("Unable to send. This conversation is no longer available.");
+        } else if (
+          err.status === 400 &&
+          /attachments are not enabled/i.test(err.message || "")
+        ) {
+          setAttachStatusMsg("Photo sharing isn’t available right now.");
+        } else if (err.status === 429) {
+          setRateLimited(true);
+          setAttachStatusMsg("");
+          setSendStatus("You're sending messages quickly. Please wait a moment.");
         } else {
           setAttachStatusMsg("Photo could not be sent. Please try again.");
         }
@@ -1525,6 +1679,7 @@ export default function ConversationScreen({
                   msgReactions={reactions[msg.id] || {}}
                   onToggleReaction={toggleReaction}
                   onRetry={retrySend}
+                  onEnlargeImage={setEnlargedImage}
                 />
               );
             })}
@@ -1800,6 +1955,11 @@ export default function ConversationScreen({
           ↑
         </button>
       </div>
+
+      {/* Click-to-enlarge photo lightbox */}
+      {enlargedImage && (
+        <ImageLightbox src={enlargedImage} onClose={() => setEnlargedImage(null)} />
+      )}
 
       {/* Delete confirmation dialog */}
       {pendingDeleteId && (
