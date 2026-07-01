@@ -343,6 +343,15 @@ export async function verifyUser(userId, verified) {
   return apiFetch(`/admin/users/${userId}/verify`, { method: 'POST', body: { verified } });
 }
 
+// F1 — pending identity-verification queue (admin).
+// GET /admin/verification-requests?status=pending
+// → { requests: [{ userId, email, displayName, photoUrl, requestedAt, status }] }
+// (newest first). Admins grant/deny each via verifyUser(userId, true|false).
+export async function getVerificationRequests(status = 'pending') {
+  const d = await apiFetch(`/admin/verification-requests?status=${encodeURIComponent(status)}`);
+  return Array.isArray(d?.requests) ? d.requests : [];
+}
+
 // F2 — moderation audit log. GET /admin/audit-log
 // → { log: [{ id, action, targetId, detail, createdAt, actor }] } (newest first).
 export async function getAuditLog() {

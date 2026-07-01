@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, verifyUser, getAuditLog, getAdminFeedback } from "./api.js";
+import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, verifyUser, getAuditLog, getAdminFeedback, getVerificationRequests } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
@@ -775,8 +775,166 @@ function FeedbackInbox() {
   );
 }
 
+// --- Verification queue (F1) ---
+// Lists members who requested identity verification (status 'pending'). Each row
+// shows avatar/name/email/requested time with Approve / Reject actions that call
+// the existing verifyUser endpoint. On success the row is removed from the list.
+function VerificationCard({ item, onReviewed, onStatus }) {
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  async function decide(approved) {
+    setBusy(true);
+    setLocalError("");
+    try {
+      await verifyUser(item.userId, approved);
+      onStatus(
+        approved
+          ? `${item.displayName || "This member"} is now verified.`
+          : `Verification declined for ${item.displayName || "this member"}.`
+      );
+      onReviewed(item.userId);
+    } catch {
+      setLocalError("Couldn't update this request. Please try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li
+      style={{
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 16,
+        padding: "18px 20px",
+        marginBottom: 12,
+        listStyle: "none",
+        boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+      }}
+    >
+      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        {item.photoUrl ? (
+          <img
+            src={item.photoUrl}
+            alt=""
+            loading="lazy"
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              objectFit: "cover",
+              border: `1px solid ${t.borderLight}`,
+              background: t.surfaceAlt,
+              flexShrink: 0,
+            }}
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              background: t.surfaceAlt,
+              border: `1px solid ${t.borderLight}`,
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>
+            {item.displayName || "Unnamed member"}
+          </div>
+          {item.email && (
+            <div style={{ fontSize: 13, color: t.textMuted, wordBreak: "break-word" }}>
+              {item.email}
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 4 }}>
+            Requested {formatTimestamp(item.requestedAt)}
+          </div>
+        </div>
+      </div>
+
+      {localError && (
+        <p role="alert" style={{ color: t.danger, fontSize: 13, margin: "12px 0 0" }}>{localError}</p>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+        <PlainButton kind="accent" onClick={() => decide(true)} disabled={busy}>
+          Approve
+        </PlainButton>
+        <PlainButton kind="quiet" onClick={() => decide(false)} disabled={busy}>
+          Reject
+        </PlainButton>
+      </div>
+    </li>
+  );
+}
+
+function VerificationQueue({ onStatus }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError("");
+    getVerificationRequests("pending")
+      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .catch(() => setError("Couldn't load verification requests. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleReviewed = useCallback((userId) => {
+    setItems((prev) => prev.filter((p) => p.userId !== userId));
+  }, []);
+
+  if (loading) return <ReportsSkeleton />;
+  if (error) {
+    return (
+      <ErrorState
+        title="Couldn't load verification requests"
+        message="Something went wrong on our end. Please try again."
+        onRetry={load}
+      />
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div
+        style={{
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 16,
+          padding: "28px 24px",
+          textAlign: "center",
+          color: t.textSoft,
+        }}
+      >
+        No pending verification requests.
+      </div>
+    );
+  }
+  return (
+    <ul style={{ margin: 0, padding: 0 }}>
+      {items.map((item) => (
+        <VerificationCard
+          key={item.userId}
+          item={item}
+          onReviewed={handleReviewed}
+          onStatus={onStatus}
+        />
+      ))}
+    </ul>
+  );
+}
+
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
+  { value: "verification", label: "Verification" },
   { value: "photos", label: "Photo review" },
   { value: "feedback", label: "Feedback" },
   { value: "activity", label: "Activity log" },
@@ -918,7 +1076,9 @@ export default function AdminScreen() {
           ))}
         </div>
 
-        {activeTab === "photos" ? (
+        {activeTab === "verification" ? (
+          <VerificationQueue onStatus={setStatusMsg} />
+        ) : activeTab === "photos" ? (
           <PhotoReviewQueue onStatus={setStatusMsg} />
         ) : activeTab === "feedback" ? (
           <FeedbackInbox />
