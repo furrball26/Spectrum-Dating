@@ -527,6 +527,58 @@ function ReportModal({ candidate, onClose, onBlocked }) {
   );
 }
 
+// F24 — a calm, persistent reminder that the viewer's own profile is paused.
+// Browsing still works; this just surfaces the otherwise-invisible fact that
+// they won't appear to others, with a gentle route to unpause. Low-key styling
+// (neutral surface, no red/alarm), matching the app's other soft banners.
+function PausedBanner({ onGoToProfile, plainLanguage = false }) {
+  return (
+    <div
+      role="status"
+      style={{
+        background: t.surfaceAlt,
+        border: `1px solid ${t.border}`,
+        borderRadius: 14,
+        padding: "14px 16px",
+        marginBottom: 16,
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 12,
+        justifyContent: "space-between",
+      }}
+    >
+      <p style={{ margin: 0, color: t.textSoft, fontSize: 15, lineHeight: 1.55, flex: "1 1 220px" }}>
+        {plainLanguage ? (
+          <>Your profile is <strong style={{ color: t.text, fontWeight: 600 }}>paused</strong>. Other people can't see you and you don't appear in Discover. You can still look around. You can turn it back on anytime.</>
+        ) : (
+          <>Your profile is <strong style={{ color: t.text, fontWeight: 600 }}>paused</strong> — you won't appear in Discover, and others can't see you. You can still look around. Unpause anytime.</>
+        )}
+      </p>
+      {onGoToProfile && (
+        <button
+          type="button"
+          onClick={onGoToProfile}
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 999,
+            color: t.accentStrong,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "8px 16px",
+            minHeight: 44,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {plainLanguage ? "Go to profile" : "Unpause in Profile"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, plainLanguage = false, reducedSensory = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
   const [queue, setQueue] = useState([]);
@@ -550,6 +602,14 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // state while we persist + re-fetch the deck.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [applyingFilters, setApplyingFilters] = useState(false);
+  // F22 — distinguish "zero candidates from the start" from "exhausted after
+  // viewing people". A fresh load that returns 0 sets this true; any load with
+  // results (or once the user has advanced) leaves it false so the exhausted
+  // state shows the friendlier "all caught up" copy.
+  const [deckEmptyFromStart, setDeckEmptyFromStart] = useState(false);
+  // F24 — the viewer's own paused flag, seeded from the profile fetch. When
+  // true we show a calm, persistent banner atop Discover (browsing still works).
+  const [paused, setPaused] = useState(false);
   const [filterInitial, setFilterInitial] = useState({
     prefAgeMin: 18,
     prefAgeMax: 99,
@@ -568,6 +628,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
         if (Array.isArray(profile.interests) && profile.interests.length > 0) {
           setViewerInterests(profile.interests);
         }
+        // F24 — reflect the paused flag so Discover can show the reminder banner.
+        setPaused(!!profile.paused);
         // Seed the Filters sheet from the live profile. The GET returns the
         // coarse city as `distCity`; the filter fields keep their profile keys.
         setFilterInitial({
@@ -589,6 +651,10 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
       .then(candidates => {
         // Backend returns array directly (not {candidates: [...]})
         const arr = Array.isArray(candidates) ? candidates : [];
+        // F22 — remember when a fresh deck comes back completely empty, so the
+        // exhausted view can tell "nobody matches your filters" apart from
+        // "you've now seen everyone". Any load with results clears the flag.
+        setDeckEmptyFromStart(arr.length === 0);
         // Map to the shape the component expects
         setQueue(arr.map(c => ({
           memberId: c.memberId,
@@ -875,6 +941,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
       <div style={page}>
         <Header />
         <div style={shell}>
+          {paused && <PausedBanner onGoToProfile={onGoToProfile} plainLanguage={plainLanguage} />}
           <div style={card}>
             <h1 ref={doneHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>You're done for now.</h1>
             <p style={{ color: t.textSoft, marginBottom: 24 }}>
@@ -898,40 +965,84 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   }
 
   if (atEnd) {
+    // F22 — a deck that came back empty on load is a different situation from
+    // one the user has worked all the way through. The zero case names the
+    // likely filter culprits and uses a calmer, neutral treatment (no
+    // "all caught up" illustration or copy, which would misdescribe it).
+    const noSeeking = !filterInitial.seeking || String(filterInitial.seeking).trim() === "";
+    const tightRadius =
+      typeof filterInitial.searchRadiusMiles === "number" &&
+      filterInitial.searchRadiusMiles > 0 &&
+      filterInitial.searchRadiusMiles <= 10;
     return (
       <div style={page}>
         <Header />
         <div style={shell}>
-          <div style={card}>
-            {!reducedSensory && (
-              <div style={{ marginBottom: 12 }}>
-                <AllCaughtUp size={110} />
+          {paused && <PausedBanner onGoToProfile={onGoToProfile} plainLanguage={plainLanguage} />}
+          {deckEmptyFromStart ? (
+            <div style={card}>
+              <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
+                {plainLanguage ? "No one to show right now." : "No matches with your current filters"}
+              </h1>
+              <p style={{ color: t.textSoft, marginBottom: 16 }}>
+                {plainLanguage
+                  ? "We couldn't find anyone who matches your filters right now. Try changing your filters to see more people."
+                  : "We couldn't find anyone matching your current filters right now. That's not a problem on your end — it just means the filters are narrow at the moment."}
+              </p>
+              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
+                {noSeeking ? (
+                  <>You haven't set <strong>who you want to meet</strong> yet — choosing that, or widening your <strong>age range</strong> or <strong>search radius</strong>, will usually bring people in.</>
+                ) : tightRadius ? (
+                  <>Your <strong>search radius</strong> is quite tight right now. Widening it, or your <strong>age range</strong>, will usually bring more people in.</>
+                ) : (
+                  <>Try widening your <strong>age range</strong> or <strong>search radius</strong>, or check <strong>who you want to meet</strong>.</>
+                )}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <ActionButton
+                  label="Adjust your search"
+                  kind="interested"
+                  onClick={() => setFiltersOpen(true)}
+                />
+                <ActionButton
+                  label="Check again"
+                  kind="notnow"
+                  onClick={() => loadCandidates()}
+                />
               </div>
-            )}
-            <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
-              {plainLanguage ? "You've seen everyone." : "You're all caught up."}
-            </h1>
-            <p style={{ color: t.textSoft, marginBottom: 20 }}>
-              {plainLanguage
-                ? "You've seen everyone in your search for now. We will show more people as they join."
-                : "You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join."}
-            </p>
-            <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
-              Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or <strong>who you want to meet</strong> can help — you can adjust all three here.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <ActionButton
-                label="Check again"
-                kind="interested"
-                onClick={() => loadCandidates()}
-              />
-              <ActionButton
-                label="Adjust your search"
-                kind="notnow"
-                onClick={() => setFiltersOpen(true)}
-              />
             </div>
-          </div>
+          ) : (
+            <div style={card}>
+              {!reducedSensory && (
+                <div style={{ marginBottom: 12 }}>
+                  <AllCaughtUp size={110} />
+                </div>
+              )}
+              <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
+                {plainLanguage ? "You've seen everyone." : "You're all caught up."}
+              </h1>
+              <p style={{ color: t.textSoft, marginBottom: 20 }}>
+                {plainLanguage
+                  ? "You've seen everyone in your search for now. We will show more people as they join."
+                  : "You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join."}
+              </p>
+              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
+                Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or <strong>who you want to meet</strong> can help — you can adjust all three here.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <ActionButton
+                  label="Check again"
+                  kind="interested"
+                  onClick={() => loadCandidates()}
+                />
+                <ActionButton
+                  label="Adjust your search"
+                  kind="notnow"
+                  onClick={() => setFiltersOpen(true)}
+                />
+              </div>
+            </div>
+          )}
         </div>
         {filtersOpen && (
           <DiscoverFilters
@@ -950,6 +1061,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     <div style={page}>
       <Header />
       <div style={shell}>
+        {paused && <PausedBanner onGoToProfile={onGoToProfile} plainLanguage={plainLanguage} />}
 
         {stage === "viewing" && (
           <>
