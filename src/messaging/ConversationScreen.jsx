@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
-import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, uploadAttachmentIntent, confirmAttachment } from "../api.js";
+import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, getStarters, uploadAttachmentIntent, confirmAttachment } from "../api.js";
 import { io } from "socket.io-client";
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
@@ -1161,6 +1161,120 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
   );
 }
 
+// F12 (light) — a single tappable suggested opener. Extracted so useFocusable()
+// stays hook-safe. Tapping inserts the line into the composer (never sends, never
+// clipboard) so the user edits and sends in their own words — no pressure.
+function OpenerButton({ text, onSelect }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(text)}
+      aria-label={`Add to message: ${text}`}
+      style={{
+        textAlign: "left",
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 12,
+        padding: "10px 14px",
+        fontSize: 14.5,
+        color: t.text,
+        lineHeight: 1.5,
+        cursor: "pointer",
+        fontFamily: t.sans,
+        minHeight: 44,
+        ...f.style,
+      }}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+    >
+      {text}
+    </button>
+  );
+}
+
+// F12 (light) — "slow-start" framing for a BRAND-NEW thread. This is purely a
+// presentation change: it NEVER gates, times, drips, or restricts messaging —
+// the composer is always fully available. It gathers the guidance that already
+// exists (the F11 "what to expect" card, plus a calm inline row of suggested
+// openers and a pointer to the word-prompts tray) so the first exchange feels
+// supported and unpressured. Once the conversation is genuinely underway this
+// whole region is not rendered (the parent decides via `newThread`).
+function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, whatToExpectCard }) {
+  const f = useFocusable();
+  return (
+    <section
+      aria-labelledby="slow-start-heading"
+      style={{
+        margin: "0 0 16px",
+        padding: "16px 18px",
+        background: t.green50,
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 16,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span aria-hidden="true" style={{ fontSize: 18 }}>🌱</span>
+        <h3
+          id="slow-start-heading"
+          style={{ fontFamily: t.serif, fontSize: 17, fontWeight: 700, margin: 0, color: t.text }}
+        >
+          A gentle start with {firstName}
+        </h3>
+      </div>
+      <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.55, margin: "0 0 12px" }}>
+        There's no rush and no right way to begin. When you're ready, you can write your
+        own message, use one of these openers as a starting point, or open Word prompts for more.
+      </p>
+
+      {/* The F11 "what to expect" guidance, elevated here for a new thread. */}
+      {whatToExpectCard}
+
+      {openers.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+            Openers you can use
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {openers.map((text, i) => (
+              <OpenerButton key={i} text={text} onSelect={onSelectOpener} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        <button
+          type="button"
+          onClick={onOpenPrompts}
+          aria-haspopup="dialog"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 20,
+            color: t.accent,
+            padding: "0 16px",
+            fontSize: 13.5,
+            fontWeight: 500,
+            fontFamily: t.sans,
+            cursor: "pointer",
+            minHeight: 44,
+            ...f.style,
+          }}
+          onFocus={f.onFocus}
+          onBlur={f.onBlur}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16 }}>💬</span>
+          <span>More Word prompts</span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 // F26 — one-time "staying safe in chat" reassurance card. Warm, plain-language,
 // dismissible. Shown near the top of a conversation the first time it's opened;
 // dismissal persists per-conversation (localStorage), so it appears once and
@@ -1527,6 +1641,13 @@ export default function ConversationScreen({
     catch { return false; }
   });
 
+  // F12 (light) — suggested openers for a brand-new thread. Reuses the SAME
+  // personalised starters route the empty-state uses (getStarters), so the
+  // opener language is consistent everywhere and no extra plumbing is needed.
+  // Non-blocking: on any failure we simply show no openers (the rest of the
+  // slow-start framing still renders).
+  const [openers, setOpeners] = useState([]);
+
   // F26 — one-time "staying safe in chat" reassurance card. Dismissal persists
   // per-conversation, so it appears once and stays gone.
   const safetyTipKey = `spectrum_safetytip_${conversationId}`;
@@ -1633,6 +1754,22 @@ export default function ConversationScreen({
     try { localStorage.setItem(expectStorageKey, expectCollapsed ? "1" : "0"); }
     catch { /* ignore storage failures */ }
   }, [expectStorageKey, expectCollapsed]);
+
+  // F12 (light) — fetch a few personalised openers for the new-thread framing.
+  // Same route the empty-state uses, so language stays consistent. Non-blocking.
+  useEffect(() => {
+    if (!conversationId) return;
+    let cancelled = false;
+    getStarters(conversationId)
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.starters;
+        if (!cancelled && Array.isArray(list) && list.length > 0) {
+          setOpeners(list.slice(0, 3));
+        }
+      })
+      .catch(() => { /* no openers on failure — the rest of the framing stays */ });
+    return () => { cancelled = true; };
+  }, [conversationId]);
 
   // socket.io real-time updates
   useEffect(() => {
@@ -2125,6 +2262,43 @@ export default function ConversationScreen({
     />
   );
 
+  // F12 (light) — "new thread" signal for the slow-start framing.
+  // Definition: a thread is NEW until it becomes a real two-sided exchange.
+  // We derive it from the message data already loaded (no new field/plumbing):
+  //   - count only non-deleted messages (deletions shouldn't "un-new" a thread);
+  //   - count distinct senders among them.
+  // A thread is NEW when there are zero real messages, OR only one person has
+  // spoken so far (distinctSenders < 2), OR both have spoken but neither has gone
+  // past their first message (total real messages <= 2). It recedes naturally
+  // once both people have exchanged at least once AND there are messages beyond
+  // the opening turn (3+ real messages across 2 senders). Chosen over "raw
+  // message count" so a one-sided burst of openers still reads as new, and over a
+  // server timestamp because the two-sided-exchange shape is the cleanest signal
+  // already present in the loaded data.
+  const liveMessages = messages.filter((m) => !m.deleted);
+  const distinctSenders = new Set(liveMessages.map((m) => m.senderId)).size;
+  const newThread = liveMessages.length === 0 || distinctSenders < 2 || liveMessages.length <= 2;
+
+  const openSlowStartPrompts = () => {
+    setHelperTrayOpen(true);
+    requestAnimationFrame(() => helperButtonRef.current?.focus());
+  };
+
+  // F12 (light) — the elevated slow-start region for a brand-new thread. It wraps
+  // (and thereby elevates) the F11 card, plus a calm inline row of suggested
+  // openers and a pointer to the word-prompts tray. Rendered only while newThread
+  // is true; once the conversation is underway it disappears and the F11 card is
+  // shown in its normal (recessed) position instead.
+  const slowStartRegion = newThread ? (
+    <NewThreadStart
+      firstName={expectFirstName}
+      openers={openers}
+      onSelectOpener={(text) => setComposeValue(text)}
+      onOpenPrompts={openSlowStartPrompts}
+      whatToExpectCard={whatToExpectCard}
+    />
+  ) : null;
+
   // F26 — one-time safety reassurance card (rendered once dismissal isn't set).
   const safetyReassuranceCard = !safetyTipDismissed ? (
     <SafetyReassuranceCard onDismiss={dismissSafetyTip} />
@@ -2265,7 +2439,9 @@ export default function ConversationScreen({
         <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
           <div style={{ padding: "16px 16px 0" }}>
             {safetyReassuranceCard}
-            {whatToExpectCard}
+            {/* F12 (light) — a brand-new thread with no messages is the clearest
+                "slow-start" case; elevate the guidance here too. */}
+            {slowStartRegion || whatToExpectCard}
           </div>
           <EmptyConversationState
             displayName={otherUser.displayName}
@@ -2320,8 +2496,12 @@ export default function ConversationScreen({
             {/* F26 — one-time "staying safe in chat" reassurance card */}
             {safetyReassuranceCard}
 
-            {/* F11 — "What to expect" card at the top of the thread */}
-            {whatToExpectCard}
+            {/* F12 (light) — slow-start framing at the top of a brand-new thread
+                (elevates the F11 card + inline openers + word-prompts pointer).
+                Once the conversation is underway this recedes to the plain F11
+                "What to expect" card in its normal position. Messaging is never
+                gated — this is presentation only. */}
+            {slowStartRegion || whatToExpectCard}
 
             {/* Load-earlier button — only shown when the server reports more pages */}
             {hasMore && (
