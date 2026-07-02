@@ -149,7 +149,11 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
         justifyContent: "center",
         padding: "24px",
         boxSizing: "border-box",
-        background: "rgba(36,51,45,0.55)",
+        // Opaque backdrop: the 55% ink scrim layered over an opaque copy of the
+        // theme gradient. A bare rgba here only LOOKED solid on Discover because
+        // that screen unmounts its card while the moment shows — on Matches the
+        // list kept rendering underneath and bled through (bug IMG_3117).
+        background: `linear-gradient(rgba(36,51,45,0.55), rgba(36,51,45,0.55)), ${t.bgGradient}`,
         opacity: entered ? 1 : 0,
         transition: `opacity ${slow} ${gentle}`,
         fontFamily: t.sans,

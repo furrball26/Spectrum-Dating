@@ -98,12 +98,14 @@ function SegmentedControl({ value, onChange }) {
       aria-label="Filter reports by status"
       style={{
         display: "flex",
-        flexWrap: "wrap",
-        gap: 6,
+        gap: 4,
         background: t.surfaceAlt,
         border: `1px solid ${t.borderLight}`,
         borderRadius: 12,
         padding: 4,
+        overflowX: "auto",
+        WebkitOverflowScrolling: "touch",
+        scrollbarWidth: "thin",
       }}
     >
       {STATUS_FILTERS.map((f) => (
@@ -126,9 +128,10 @@ function SegmentButton({ label, active, onClick }) {
       aria-pressed={active}
       onClick={onClick}
       style={{
-        flex: "1 1 auto",
+        flex: "1 0 auto",
+        whiteSpace: "nowrap",
         minHeight: 44,
-        padding: "8px 14px",
+        padding: "8px 10px",
         borderRadius: 9,
         border: "none",
         cursor: "pointer",
@@ -930,9 +933,9 @@ function VerificationQueue({ onStatus }) {
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "verification", label: "Verification" },
-  { value: "photos", label: "Photo review" },
+  { value: "photos", label: "Photos" },
   { value: "feedback", label: "Feedback" },
-  { value: "activity", label: "Activity log" },
+  { value: "activity", label: "Activity" },
 ];
 
 function TabButton({ label, active, onClick }) {
@@ -945,11 +948,13 @@ function TabButton({ label, active, onClick }) {
       onClick={onClick}
       style={{
         minHeight: 44,
-        padding: "8px 16px",
+        padding: "8px 12px",
         borderRadius: 9,
         border: "none",
         cursor: "pointer",
         fontSize: 14,
+        whiteSpace: "nowrap",
+        flex: "0 0 auto",
         fontWeight: active ? 600 : 500,
         background: active ? t.surface : "transparent",
         color: active ? t.text : t.textSoft,
@@ -1038,7 +1043,7 @@ export default function AdminScreen() {
 
         {/* Stats row */}
         {stats && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginBottom: 24 }}>
             <StatCard label="Members" value={stats.users ?? 0} />
             <StatCard label="Suspended" value={stats.suspended ?? 0} />
             <StatCard label="Matches" value={stats.matches ?? 0} />
@@ -1059,6 +1064,9 @@ export default function AdminScreen() {
             borderRadius: 12,
             padding: 4,
             marginBottom: 20,
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "thin",
           }}
         >
           {ADMIN_TABS.map((tab) => (
