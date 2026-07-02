@@ -13,7 +13,11 @@ window.addEventListener("vite:preloadError", (event) => {
   if (Date.now() - last < 30000) return; // recently tried — don't loop
   sessionStorage.setItem("spectrum_chunk_reload", String(Date.now()));
   event.preventDefault();
-  window.location.reload();
+  // Cache-busting navigation (not location.reload()): iOS Safari can serve the
+  // stale cached HTML on a programmatic reload, which would just 404 again.
+  const url = new URL(window.location.href);
+  url.searchParams.set("v", String(Date.now()));
+  window.location.replace(url.toString());
 });
 
 ReactDOM.createRoot(document.getElementById("root")).render(
