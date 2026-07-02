@@ -15,12 +15,14 @@ import { SealCheckIcon } from "./icons.jsx";
 // `interactive={false}` renders a plain (non-button) pill — required when the
 // badge sits inside another interactive element (e.g. the Messages row button),
 // where nesting a <button> would be invalid HTML.
-export default function VerifiedBadge({ style, interactive = true }) {
+// `compact` renders the seal icon alone (no pill, no text) for dense list rows;
+// it is aria-hidden, so the host row's aria-label must carry "Reviewed profile."
+export default function VerifiedBadge({ style, interactive = true, compact = false }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
-  // NOTE: this hook stays ABOVE the `!interactive` early return — Rules of
-  // Hooks (and our own eslint gate) forbid hooks after a conditional return.
+  // NOTE: this hook stays ABOVE the conditional returns — Rules of Hooks
+  // (and our own eslint gate) forbid hooks after a conditional return.
   useEffect(() => {
     if (!open) return;
     function onKey(e) {
@@ -36,6 +38,24 @@ export default function VerifiedBadge({ style, interactive = true }) {
       document.removeEventListener("mousedown", onClick);
     };
   }, [open]);
+
+  if (compact) {
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          color: t.positiveText,
+          flexShrink: 0,
+          verticalAlign: "middle",
+          ...style,
+        }}
+      >
+        <SealCheckIcon size={16} />
+      </span>
+    );
+  }
 
   if (!interactive) {
     return (

@@ -1097,11 +1097,12 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
         border: `1px solid ${t.border}`,
         borderRadius: 20,
         color: t.accentStrong,
-        padding: "6px 14px",
-        fontSize: 13,
+        padding: collapsed ? "8px 18px" : "6px 14px",
+        fontSize: collapsed ? 14 : 13,
         fontFamily: t.sans,
         cursor: "pointer",
-        minHeight: 36,
+        minHeight: 44,
+        flexShrink: 0,
         ...f.style,
       }}
       onFocus={f.onFocus}
@@ -1210,10 +1211,51 @@ function OpenerButton({ text, onSelect }) {
 // openers and a pointer to the word-prompts tray) so the first exchange feels
 // supported and unpressured. Once the conversation is genuinely underway this
 // whole region is not rendered (the parent decides via `newThread`).
-function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, whatToExpectCard }) {
+//
+// Collapsible: after the first message exists the parent collapses it by
+// default (a stored manual choice always wins), and the toggle stays in the
+// same DOM position both ways so focus never teleports.
+function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, whatToExpectCard, collapsed, onToggle }) {
   const f = useFocusable();
+  const fToggle = useFocusable();
+
+  const toggleButton = (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      aria-controls="slow-start-region"
+      style={{
+        background: "transparent",
+        border: `1px solid ${t.border}`,
+        borderRadius: 20,
+        color: t.accentStrong,
+        padding: "8px 18px",
+        fontSize: collapsed ? 14 : 13,
+        fontFamily: t.sans,
+        cursor: "pointer",
+        minHeight: 44,
+        flexShrink: 0,
+        ...fToggle.style,
+      }}
+      onFocus={fToggle.onFocus}
+      onBlur={fToggle.onBlur}
+    >
+      {collapsed ? "Show openers and tips" : "Hide"}
+    </button>
+  );
+
+  if (collapsed) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", margin: "0 0 12px" }}>
+        {toggleButton}
+      </div>
+    );
+  }
+
   return (
     <section
+      id="slow-start-region"
       aria-labelledby="slow-start-heading"
       style={{
         margin: "0 0 16px",
@@ -1227,10 +1269,11 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
         <span aria-hidden="true" style={{ fontSize: 18 }}>🌱</span>
         <h3
           id="slow-start-heading"
-          style={{ fontFamily: t.serif, fontSize: 17, fontWeight: 700, margin: 0, color: t.text }}
+          style={{ fontFamily: t.serif, fontSize: 17, fontWeight: 700, margin: 0, color: t.text, flex: 1, minWidth: 0 }}
         >
           A gentle start with {firstName}
         </h3>
+        {toggleButton}
       </div>
       <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.55, margin: "0 0 12px" }}>
         There's no rush and no right way to begin. When you're ready, you can write your
@@ -1661,6 +1704,17 @@ export default function ConversationScreen({
   // Non-blocking: on any failure we simply show no openers (the rest of the
   // slow-start framing still renders).
   const [openers, setOpeners] = useState([]);
+
+  // Slow-start region collapse. null = no explicit choice yet (the region then
+  // auto-collapses once the thread has any live message); a manual toggle is
+  // stored per conversation and always wins — predictable over clever.
+  const slowStartKey = `spectrum_slowstart_collapsed_${conversationId}`;
+  const [slowStartChoice, setSlowStartChoice] = useState(() => {
+    try {
+      const v = localStorage.getItem(`spectrum_slowstart_collapsed_${conversationId}`);
+      return v === null ? null : v === "1";
+    } catch { return null; }
+  });
 
   // F26 — one-time "staying safe in chat" reassurance card. Dismissal persists
   // per-conversation, so it appears once and stays gone.
@@ -2375,6 +2429,17 @@ export default function ConversationScreen({
   // openers and a pointer to the word-prompts tray. Rendered only while newThread
   // is true; once the conversation is underway it disappears and the F11 card is
   // shown in its normal (recessed) position instead.
+  //
+  // Collapse: expanded only while the thread has zero live messages (or when
+  // the user explicitly reopened it) — after the first message it recedes to a
+  // single "Show openers and tips" pill instead of towering over real bubbles.
+  const liveMessageCount = messages.filter((m) => !m.deleted).length;
+  const slowStartCollapsed = slowStartChoice !== null ? slowStartChoice : liveMessageCount > 0;
+  const toggleSlowStart = () => {
+    const next = !slowStartCollapsed;
+    setSlowStartChoice(next);
+    try { localStorage.setItem(slowStartKey, next ? "1" : "0"); } catch { /* ignore storage failures */ }
+  };
   const slowStartRegion = newThread ? (
     <NewThreadStart
       firstName={expectFirstName}
@@ -2382,6 +2447,8 @@ export default function ConversationScreen({
       onSelectOpener={(text) => setComposeValue(text)}
       onOpenPrompts={openSlowStartPrompts}
       whatToExpectCard={whatToExpectCard}
+      collapsed={slowStartCollapsed}
+      onToggle={toggleSlowStart}
     />
   ) : null;
 

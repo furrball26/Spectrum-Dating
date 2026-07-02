@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
-import { getUserId } from "../api.js";
 import VerifiedBadge from "../VerifiedBadge.jsx";
 import Avatar from "../Avatar.jsx";
 import Skeleton from "../Skeleton.jsx";
@@ -9,7 +8,7 @@ import ErrorState from "../ErrorState.jsx";
 import { useFocusable } from "../useFocusable.js";
 
 const CONVERSATION_CAP = 5;
-const AVATAR_SIZE = 44;
+const AVATAR_SIZE = 56;
 
 
 // Calm placeholder rows shown while conversations load.
@@ -22,14 +21,13 @@ function MatchesListSkeleton() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 14,
+            gap: 16,
             padding: "10px 0",
           }}
         >
           <Skeleton width={AVATAR_SIZE} height={AVATAR_SIZE} radius="50%" />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-            <Skeleton width="40%" height={15} />
-            <Skeleton width="60%" height={12} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Skeleton width="45%" height={16} />
           </div>
         </div>
       ))}
@@ -37,48 +35,43 @@ function MatchesListSkeleton() {
   );
 }
 
-// MatchRow accepts showArchive/onArchive for active rows and
-// showUnarchive/onUnarchive for archived rows.
-function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUnarchive, onUnarchive, selected, currentUserId , onStartConversation, startingMatchId, rowMenuProps }) {
+// When the last message is recent, relative words read calmer ("Today",
+// "Yesterday", "Tue"); past a week they stop meaning anything, so switch to a
+// real date ("Jun 24", with the year when it isn't this year). Falls back to
+// the server's group label when no timestamp came through.
+function formatRowDate(iso, fallback) {
+  if (!iso) return fallback || null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return fallback || null;
+  const now = new Date();
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return d.toLocaleDateString(undefined, { weekday: "short" });
+  const opts = { month: "short", day: "numeric" };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString(undefined, opts);
+}
+
+// MatchRow: archiving lives in the per-row ⋯ menu (rowMenuProps.onArchive);
+// archived rows keep their visible Restore button (showUnarchive/onUnarchive).
+// No message preview — the row is just who + when (calm, glanceable), with the
+// full name always shown whole (wrapping instead of truncating).
+function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, selected, onStartConversation, startingMatchId, rowMenuProps }) {
   const f = useFocusable();
-  const fArchive = useFocusable();
   const fRestore = useFocusable(); // for the unarchive / "Restore" button
-  const {
-    otherUser, lastMessageLabel, unread, started, ended,
-    lastMessageSnippet, lastMessageSenderId, lastMessageDeleted,
-  } = match;
+  const { otherUser, lastMessageLabel, lastMessageAt, unread, started, ended } = match;
 
-  // F23 — who-replied-last cue. Prefix the snippet with "You: " when the last
-  // sender is the current user, otherwise the other person's short (first-word)
-  // name. Snippet itself is already ≤80 chars + "…"-truncated server-side; we
-  // add single-line ellipsis so long snippets never break row height.
-  const otherShortName = (otherUser.displayName || "").trim().split(/\s+/)[0] || otherUser.displayName;
-  const sentByMe = lastMessageSenderId != null && lastMessageSenderId === currentUserId;
-  const snippetPrefix = sentByMe ? "You: " : `${otherShortName}: `;
-
-  // The wayfinding line under the name: removed marker, snippet, or a calm
-  // placeholder when the thread has started but has no messages yet.
-  let wayfindingText = null;
-  let wayfindingMuted = false;
-  if (started && !ended) {
-    if (lastMessageDeleted) {
-      wayfindingText = "Message removed";
-      wayfindingMuted = true;
-    } else if (lastMessageSnippet) {
-      wayfindingText = `${snippetPrefix}${lastMessageSnippet}`;
-    } else {
-      wayfindingText = "No messages yet — say hello";
-      wayfindingMuted = true;
-    }
-  }
+  const dateLabel = ended ? null : formatRowDate(lastMessageAt, lastMessageLabel);
 
   const ariaLabel = [
     `${otherUser.displayName}.`,
+    // The list badge is icon-only (aria-hidden), so the row label carries it.
+    otherUser.verified ? "Reviewed profile." : "",
     // F21 — an ended (read-only) thread never carries an unread nudge.
     ended ? "This conversation has ended." : (unread ? "Unread: New messages." : ""),
-    // F23 — announce the last-message cue (or removed/empty state) for SR users.
-    !ended && wayfindingText ? `${wayfindingText}.` : "",
-    ended ? "" : `Last message group: ${lastMessageLabel || "Not started"}.`,
+    ended ? "" : `Last message: ${dateLabel || "Not started"}.`,
   ].filter(Boolean).join(" ");
 
   return (
@@ -108,14 +101,14 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 14,
+            gap: 16,
             flex: 1,
             // Allow the button to shrink below its content width — the implicit
             // min-width:auto let long snippets push the row past the viewport
-            // and shove the Archive button into an overlap.
+            // and collide with the trailing controls.
             minWidth: 0,
-            minHeight: 56,
-            padding: "10px 16px",
+            minHeight: 72,
+            padding: "12px 16px",
             background: "transparent",
             border: "none",
             cursor: "pointer",
@@ -133,6 +126,9 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
             size={AVATAR_SIZE}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Who + when, nothing else. The full name always shows whole —
+                it wraps onto a second line rather than truncating; the date
+                sits right-aligned and never shrinks. */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -142,45 +138,30 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
               <span style={{
                 fontWeight: unread ? 600 : 400,
                 fontSize: 16,
+                lineHeight: 1.35,
                 color: t.text,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
                 minWidth: 0,
+                overflowWrap: "break-word",
               }}>
                 {otherUser.displayName}
               </span>
-              {otherUser.verified && <VerifiedBadge interactive={false} style={{ flexShrink: 0 }} />}
+              {otherUser.verified && <VerifiedBadge compact />}
+              {dateLabel && (
+                <span style={{
+                  marginLeft: "auto",
+                  paddingLeft: 8,
+                  fontSize: 12,
+                  color: t.textMuted,
+                  flexShrink: 0,
+                }}>
+                  {dateLabel}
+                </span>
+              )}
             </div>
-            {ended ? (
+            {ended && (
               <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
                 Conversation ended
               </div>
-            ) : (
-              <>
-                {/* F23 — last-message snippet + who-replied-last cue. Single
-                    line, ellipsis-truncated so rows stay tidy and calm. Deleted
-                    → neutral "Message removed"; no messages → gentle placeholder.
-                    No unread count (calm-by-design). */}
-                {wayfindingText && (
-                  <div style={{
-                    fontSize: 13,
-                    color: wayfindingMuted ? t.textMuted : t.textSoft,
-                    marginTop: 2,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    fontStyle: wayfindingMuted ? "italic" : "normal",
-                  }}>
-                    {wayfindingText}
-                  </div>
-                )}
-                {lastMessageLabel && (
-                  <div style={{ fontSize: 12, color: t.textMuted, marginTop: 1 }}>
-                    {lastMessageLabel}
-                  </div>
-                )}
-              </>
             )}
           </div>
           {!ended && unread && (
@@ -197,41 +178,17 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
           )}
         </button>
 
-        {/* Per-row safety menu (view profile / note / block / unmatch) */}
+        {/* Per-row ⋯ menu (view profile / note / archive / block / unmatch) */}
         {rowMenuProps && match.matchId && (
           <RowMenu
-            row={{ matchId: match.matchId, conversationId: match.conversationId || null, otherUser: match.otherUser }}
+            row={{ matchId: match.matchId, conversationId: match.conversationId || null, otherUser: match.otherUser, started }}
             note={rowMenuProps.matchNotes ? rowMenuProps.matchNotes[match.matchId] : null}
             onViewProfile={rowMenuProps.onViewProfile}
             onNote={rowMenuProps.onNote}
+            onArchive={showUnarchive ? null : rowMenuProps.onArchive}
             onReport={rowMenuProps.onReport}
             onUnmatch={rowMenuProps.onUnmatch}
           />
-        )}
-
-        {/* Archive button shown on active rows when cap reached */}
-        {showArchive && (
-          <button
-            type="button"
-            aria-label={`Archive conversation with ${otherUser.displayName}`}
-            onClick={() => onArchive && onArchive(match.conversationId)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: t.textSoft,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-              padding: "8px 16px",
-              minHeight: 44,
-              flexShrink: 0,
-              ...fArchive.style,
-            }}
-            onFocus={fArchive.onFocus}
-            onBlur={fArchive.onBlur}
-          >
-            Archive
-          </button>
         )}
 
         {/* Restore button shown on archived rows */}
@@ -263,10 +220,10 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
   );
 }
 
-// Quiet per-row ⋯ safety menu — block/report/unmatch (and the private note)
+// Quiet per-row ⋯ menu — archive, block/report/unmatch (and the private note)
 // reachable without opening the conversation. Focus returns to the trigger on
 // close; destructive items last, visually separated (a11y adjacency spec).
-function RowMenu({ row, note, onViewProfile, onNote, onReport, onUnmatch }) {
+function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnmatch }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
@@ -301,9 +258,14 @@ function RowMenu({ row, note, onViewProfile, onNote, onReport, onUnmatch }) {
           <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text }} onClick={() => { setOpen(false); onViewProfile(row.otherUser?.userId); }}>
             View profile
           </button>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => { setOpen(false); onNote(row); }}>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => { setOpen(false); onNote(row); }}>
             {note ? "Edit private note" : "Add private note"}
           </button>
+          {onArchive && row.conversationId && row.started && (
+            <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => { setOpen(false); onArchive(row.conversationId); }}>
+              Archive conversation
+            </button>
+          )}
           <button role="menuitem" type="button" style={{ ...itemStyle, color: t.danger, paddingTop: 14 }} onClick={() => { setOpen(false); onReport(row); }}>
             Block or report
           </button>
@@ -316,8 +278,7 @@ function RowMenu({ row, note, onViewProfile, onNote, onReport, onUnmatch }) {
   );
 }
 
-// Feature 3: SectionList passes showArchive and onArchive down to MatchRow
-function SectionList({ title, subtitle, matches, onSelectConversation, showArchive, onArchive, selectedConversationId, currentUserId, onStartConversation, startingMatchId, rowMenuProps }) {
+function SectionList({ title, subtitle, matches, onSelectConversation, selectedConversationId, onStartConversation, startingMatchId, rowMenuProps }) {
   if (matches.length === 0) return null;
   return (
     <section style={{ marginBottom: 24 }}>
@@ -352,9 +313,6 @@ function SectionList({ title, subtitle, matches, onSelectConversation, showArchi
             key={m.conversationId || m.matchId}
             match={m}
             onSelectConversation={onSelectConversation}
-            showArchive={showArchive}
-            onArchive={onArchive}
-            currentUserId={currentUserId}
             selected={selectedConversationId != null && m.conversationId === selectedConversationId}
             onStartConversation={onStartConversation}
             startingMatchId={startingMatchId}
@@ -412,10 +370,6 @@ export default function MatchesListScreen({
     setMergeNoteDismissed(true);
     try { localStorage.setItem("spectrum_merge_note_dismissed", "1"); } catch { /* ignore */ }
   };
-
-  // F23 — current user id for the who-replied-last cue ("You:" vs their name).
-  // Same source the conversation screen uses (getUserId reads local auth).
-  const currentUserId = getUserId();
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -510,7 +464,6 @@ export default function MatchesListScreen({
                     onSelectConversation={onSelectConversation}
                     showUnarchive
                     onUnarchive={onUnarchive}
-                    currentUserId={currentUserId}
                   />
                 ))}
               </ul>
@@ -581,11 +534,9 @@ export default function MatchesListScreen({
   }));
   const newMatches = [...conversations.filter((m) => !m.started), ...pendingRows];
   const rowMenuProps = onRowReport
-    ? { matchNotes, onViewProfile: onRowViewProfile, onNote: onRowNote, onReport: onRowReport, onUnmatch: onRowUnmatch }
+    ? { matchNotes, onViewProfile: onRowViewProfile, onNote: onRowNote, onArchive, onReport: onRowReport, onUnmatch: onRowUnmatch }
     : null;
-  const conversationCount = active.length;
-
-  const capReached = conversationCount >= activeCap;
+  const capReached = active.length >= activeCap;
 
   // Filtering logic — computed from query state
   const trimmedQuery = query.trim().toLowerCase();
@@ -690,8 +641,10 @@ export default function MatchesListScreen({
           Your matches
         </h1>
 
-        {/* Search / filter input — only shown when there are conversations to filter */}
-        {conversations.length > 0 && (
+        {/* Search / filter input — with a hard cap of {activeCap} active
+            conversations the list rarely needs one; only render once the list
+            is genuinely long enough that scanning by eye stops working. */}
+        {active.length + newMatches.length > 7 && (
           <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="conversation-filter"
@@ -712,7 +665,6 @@ export default function MatchesListScreen({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search your matches…"
                 autoComplete="off"
                 aria-controls="matches-list"
                 style={{
@@ -790,7 +742,6 @@ export default function MatchesListScreen({
               matches={filteredConversations}
               onSelectConversation={onSelectConversation}
               selectedConversationId={selectedConversationId}
-              currentUserId={currentUserId}
             />
           ) : (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
@@ -829,7 +780,7 @@ export default function MatchesListScreen({
                   type="button"
                   onClick={dismissMergeNote}
                   aria-label="Dismiss this note"
-                  style={{ background: "transparent", border: "none", color: t.textSoft, fontSize: 16, cursor: "pointer", padding: "2px 6px", minHeight: 32, minWidth: 32, flexShrink: 0 }}
+                  style={{ background: "transparent", border: "none", color: t.textSoft, fontSize: 16, cursor: "pointer", padding: "2px 6px", minHeight: 44, minWidth: 44, flexShrink: 0 }}
                 >
                   ✕
                 </button>
@@ -841,21 +792,17 @@ export default function MatchesListScreen({
 
             <SectionList
               title="Active conversations"
-              subtitle={active.length > 0 ? `${conversationCount} / ${activeCap}` : undefined}
               matches={active}
               onSelectConversation={onSelectConversation}
-              showArchive={capReached}
-              onArchive={onArchive}
               selectedConversationId={selectedConversationId}
-              currentUserId={currentUserId}
               rowMenuProps={rowMenuProps}
             />
 
-            {/* Feature 3 — Conversation cap notice above New matches */}
-            {capReached && (
+            {/* Feature 3 — conversation-cap context. Static explanation (not a
+                live status), shown only when there's actually someone new to
+                start with — otherwise it's pure noise. */}
+            {capReached && (newMatches.length > 0 || likedYou) && (
               <div
-                role="status"
-                aria-live="polite"
                 style={{
                   marginBottom: 16,
                   padding: "12px 16px",
@@ -867,7 +814,9 @@ export default function MatchesListScreen({
                   lineHeight: 1.5,
                 }}
               >
-                You have {activeCap} active conversations. Archive one to start a new one.
+                {plainLanguage
+                  ? "Your active list is full. That's the calm limit, not a problem. To start a new conversation, archive one first (open ⋯ on a row). Archived chats are never deleted."
+                  : "Your active list is full — that's the calm limit, not a problem. If you'd like to start a new conversation, you can archive one first from a row's ⋯ menu. Archived chats are never deleted and can be restored anytime."}
               </div>
             )}
 
@@ -876,7 +825,6 @@ export default function MatchesListScreen({
               matches={newMatches}
               onSelectConversation={onSelectConversation}
               selectedConversationId={selectedConversationId}
-              currentUserId={currentUserId}
               onStartConversation={onStartConversation}
               startingMatchId={startingMatchId}
               rowMenuProps={rowMenuProps}
