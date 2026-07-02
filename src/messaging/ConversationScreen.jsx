@@ -141,7 +141,7 @@ function ReactionPicker({ onSelect, onClose, reactButtonRef, isOwn = false }) {
         background: t.surface,
         border: `1px solid ${t.border}`,
         borderRadius: 24,
-        boxShadow: "0 4px 16px rgba(36,51,45,0.14)",
+        boxShadow: t.shadow.md,
         position: "absolute",
         bottom: "calc(100% + 6px)",
         // Anchor toward the side that keeps it on-screen, then fine-clamp via
@@ -379,7 +379,7 @@ function ImageLightbox({ src, onClose }) {
           maxWidth: "100%",
           maxHeight: "100%",
           borderRadius: 12,
-          boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
+          boxShadow: t.shadow.lg,
         }}
       />
     </div>
@@ -442,7 +442,7 @@ function DeleteConfirmDialog({ onConfirm, onCancel, unsent = false }) {
           padding: "28px 24px",
           width: "min(90vw, 380px)",
           zIndex: 1101,
-          boxShadow: "0 8px 40px rgba(36,51,45,0.18)",
+          boxShadow: t.shadow.lg,
           boxSizing: "border-box",
         }}
       >
@@ -562,7 +562,7 @@ function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
         background: t.surface,
         border: `1px solid ${t.border}`,
         borderRadius: 10,
-        boxShadow: "0 4px 16px rgba(36,51,45,0.14)",
+        boxShadow: t.shadow.md,
         zIndex: 200,
         minWidth: 160,
         overflow: "hidden",
@@ -999,7 +999,7 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef, e
         background: t.surface,
         border: `1px solid ${t.border}`,
         borderRadius: 12,
-        boxShadow: "0 4px 16px rgba(36,51,45,0.14)",
+        boxShadow: t.shadow.md,
         zIndex: 300,
         minWidth: 200,
         overflow: "hidden",

@@ -5,13 +5,15 @@
 // `height` controls tile height (default 18); width is derived from the tiles
 // so the mark scales cleanly. Tiles are square-ish with a small gap.
 
+// Tile colors come from the --mark-* CSS vars (index.html, defined once for
+// both themes — the logo stays constant). Fallbacks are the canonical ramp.
 const TILE_COLORS = [
-  "#5E9459", // green
-  "#4F8A8B", // teal
-  "#3E6660", // deep teal
-  "#6FA39A", // soft teal-green
-  "#C9A875", // clay
-  "#E7D9C4", // sand
+  "var(--mark-1, #5E9459)", // green
+  "var(--mark-2, #4F8A8B)", // teal
+  "var(--mark-3, #3E6660)", // deep teal
+  "var(--mark-4, #6FA39A)", // soft teal-green
+  "var(--mark-5, #C9A875)", // clay
+  "var(--mark-6, #E7D9C4)", // sand
 ];
 
 export default function SpectrumMark({ height = 18, gap, radius = 2, style }) {

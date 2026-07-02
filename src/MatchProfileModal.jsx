@@ -82,7 +82,7 @@ export default function MatchProfileModal({ userId, onClose }) {
         style={{
           position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
           width: "min(94vw, 460px)", maxHeight: "88vh", overflowY: "auto",
-          background: t.surface, borderRadius: 20, boxShadow: "0 12px 48px rgba(36,51,45,0.22)",
+          background: t.surface, borderRadius: 20, boxShadow: t.shadow.lg,
           zIndex: 1201, boxSizing: "border-box",
         }}
       >

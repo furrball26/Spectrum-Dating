@@ -241,7 +241,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
               border: `1px solid ${t.border}`,
               borderRadius: 20,
               padding: "28px 24px",
-              boxShadow: "0 2px 8px rgba(36,51,45,0.07)",
+              boxShadow: t.shadow.sm,
             }}
           >
             {failed && (

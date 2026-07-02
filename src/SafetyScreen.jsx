@@ -27,7 +27,7 @@ const cardStyle = {
   border: `1px solid ${t.border}`,
   borderRadius: 16,
   padding: "18px 18px",
-  boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+  boxShadow: t.shadow.sm,
 };
 
 const sectionTitleStyle = {

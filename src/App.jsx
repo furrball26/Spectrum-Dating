@@ -581,7 +581,7 @@ function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
         zIndex: 200,
         background: t.surface,
         borderBottom: `3px solid ${t.accentFill}`,
-        boxShadow: "0 4px 20px rgba(36,51,45,0.18)",
+        boxShadow: t.shadow.lg,
         padding: "14px 20px",
         display: "flex",
         alignItems: "center",
@@ -1158,8 +1158,8 @@ export default function App() {
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {a11y.reducedSensory
-                      ? <SpectrumMark height={isMobile ? 16 : 14} />
-                      : <AnimatedSpectrumMark height={isMobile ? 16 : 14} />}
+                      ? <SpectrumMark height={isMobile ? 20 : 18} />
+                      : <AnimatedSpectrumMark height={isMobile ? 20 : 18} />}
                     {/* Wordmark is shown in BOTH breakpoints. The earlier mobile
                         overflow came from the utility BUTTON cluster (now moved to
                         the Profile hub, see below), not the wordmark — so there's

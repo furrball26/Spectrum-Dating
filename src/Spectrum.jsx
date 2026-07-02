@@ -18,12 +18,12 @@ import { t } from "./tokens.js";
 // brand tile colours, intentionally NOT themed, same as SpectrumMark).
 
 const RAMP = [
-  "#5E9459", // green
-  "#4F8A8B", // teal
-  "#3E6660", // deep teal
-  "#6FA39A", // soft teal-green
-  "#C9A875", // clay
-  "#E7D9C4", // sand
+  "var(--mark-1, #5E9459)", // green
+  "var(--mark-2, #4F8A8B)", // teal
+  "var(--mark-3, #3E6660)", // deep teal
+  "var(--mark-4, #6FA39A)", // soft teal-green
+  "var(--mark-5, #C9A875)", // clay
+  "var(--mark-6, #E7D9C4)", // sand
 ];
 
 // Pick a colour from the ramp for index i out of n tiles, spread across the ramp.

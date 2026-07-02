@@ -30,7 +30,7 @@ const cardStyle = {
   border: `1px solid ${t.border}`,
   borderRadius: 16,
   padding: "6px 18px",
-  boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+  boxShadow: t.shadow.sm,
 };
 
 function SecondaryButton({ children, onClick }) {
@@ -113,7 +113,7 @@ function ThemeOption({ label, active, onClick }) {
         fontWeight: 600,
         background: active ? t.surface : "transparent",
         color: active ? t.text : t.textSoft,
-        boxShadow: active ? "0 1px 3px rgba(36,51,45,0.12)" : "none",
+        boxShadow: active ? t.shadow.sm : "none",
         transition: `background ${t.motion.base} ${t.motion.standard}, color ${t.motion.base} ${t.motion.standard}`,
         ...f.style,
       }}
@@ -177,7 +177,7 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
             borderRadius: "50%",
             background: "#fff",
             transition: `left ${t.motion.base} ${t.motion.gentle}`,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            boxShadow: t.shadow.sm,
           }}
         />
       </button>

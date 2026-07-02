@@ -148,7 +148,7 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
           padding: "28px 24px",
           width: "min(90vw, 400px)",
           zIndex: 1101,
-          boxShadow: "0 8px 40px rgba(36,51,45,0.18)",
+          boxShadow: t.shadow.lg,
           boxSizing: "border-box",
           fontFamily: t.sans,
         }}

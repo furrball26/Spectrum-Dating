@@ -228,7 +228,7 @@ function AgeRangeSlider({ low, high, onChange }) {
       borderRadius: "50%",
       background: t.accentFill,
       border: "3px solid #fff",
-      boxShadow: "0 1px 5px rgba(36,51,45,0.28)",
+      boxShadow: t.shadow.sm,
       cursor: dragging === which ? "grabbing" : "grab",
       touchAction: "none",
       zIndex: which === dragging ? 3 : 2,
@@ -1108,7 +1108,7 @@ export default function OnboardingScreen({ onComplete }) {
     background: t.surface,
     borderRadius: 24,
     padding: "36px 28px",
-    boxShadow: "0 2px 12px rgba(36,51,45,0.08), 0 8px 32px rgba(36,51,45,0.05)",
+    boxShadow: t.shadow.md,
   };
 
   const stepHeadings = [

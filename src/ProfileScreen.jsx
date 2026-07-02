@@ -348,7 +348,7 @@ function UnsavedDialog({ onSave, onDiscard, onCancel }) {
     padding: "28px 24px",
     maxWidth: 440,
     width: "100%",
-    boxShadow: "0 8px 32px rgba(36,51,45,0.18)",
+    boxShadow: t.shadow.lg,
     transition: prefersReduced ? "none" : "opacity 150ms ease",
   };
 
@@ -996,7 +996,7 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
             borderRadius: "50%",
             background: "#fff",
             transition: `left ${t.motion.base} ${t.motion.gentle}`,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            boxShadow: t.shadow.sm,
           }}
         />
       </button>
@@ -1072,7 +1072,7 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
             borderRadius: "50%",
             background: "#fff",
             transition: `left ${t.motion.base} ${t.motion.gentle}`,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            boxShadow: t.shadow.sm,
           }}
         />
       </button>
@@ -1119,7 +1119,7 @@ function PauseToggle({ checked, onChange }) {
             borderRadius: "50%",
             background: "#fff",
             transition: `left ${t.motion.base} ${t.motion.gentle}`,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            boxShadow: t.shadow.sm,
           }}
         />
       </button>
@@ -1380,7 +1380,7 @@ function AgeRangeSlider({ low, high, onChange }) {
       borderRadius: "50%",
       background: t.accentFill,
       border: "3px solid #fff",
-      boxShadow: "0 1px 5px rgba(36,51,45,0.28)",
+      boxShadow: t.shadow.sm,
       cursor: dragging === which ? "grabbing" : "grab",
       touchAction: "none",
       zIndex: which === dragging ? 3 : 2,
@@ -1530,7 +1530,7 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
         borderRadius: 16,
         padding: "18px 20px 16px",
         marginBottom: 16,
-        boxShadow: "0 2px 8px rgba(36,51,45,0.06)",
+        boxShadow: t.shadow.sm,
       }}
     >
       {/* Header row */}
@@ -1701,7 +1701,7 @@ function ProfilePreviewModal({
     borderRadius: 20,
     padding: "28px 24px",
     marginBottom: 16,
-    boxShadow: "0 2px 8px rgba(36,51,45,0.07), 0 8px 24px rgba(36,51,45,0.04)",
+    boxShadow: t.shadow.md,
   };
   const divider = <div aria-hidden="true" style={{ height: 1, background: t.borderLight, margin: "20px 0" }} />;
 
@@ -2817,7 +2817,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     borderRadius: 20,
     padding: "28px 24px",
     marginBottom: 16,
-    boxShadow: "0 2px 8px rgba(36,51,45,0.07), 0 8px 24px rgba(36,51,45,0.04)",
+    boxShadow: t.shadow.md,
   };
   const fieldGroup = { marginBottom: 20 };
   const h2Style = {

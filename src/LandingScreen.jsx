@@ -180,9 +180,29 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
         {/* Main landmark + skip-link target — the front door needs both. */}
         <main id="main-content" tabIndex={-1}>
         {/* ── Hero ──────────────────────────────────────────────── */}
+        {/* Soft static brand wash behind the hero — a whisper of the spectrum
+            ramp (green → teal → sand) so the first screen has atmosphere
+            instead of blank paper. Static (no motion), extremely low contrast,
+            and behind everything (zIndex 0 wrapper, content above). */}
+        <div style={{ position: "relative" }}>
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflow: "hidden",
+              pointerEvents: "none",
+              background: [
+                "radial-gradient(56% 44% at 18% 6%, rgba(94,148,89,0.10) 0%, rgba(94,148,89,0) 70%)",
+                "radial-gradient(50% 42% at 84% 12%, rgba(79,138,139,0.10) 0%, rgba(79,138,139,0) 70%)",
+                "radial-gradient(64% 50% at 55% 88%, rgba(201,168,117,0.12) 0%, rgba(201,168,117,0) 72%)",
+              ].join(", "),
+            }}
+          />
         <header
           style={{
             ...section,
+            position: "relative",
             paddingTop: 56,
             paddingBottom: 24,
             textAlign: "center",
@@ -196,7 +216,9 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               marginBottom: 40,
             }}
           >
-            <AnimatedSpectrumMark height={36} idle />
+            {/* height 24 keeps the full lockup inside a 390px viewport
+                (36 made the row overflow and clip the wordmark on phones). */}
+            <AnimatedSpectrumMark height={24} idle />
             <span
               style={{
                 fontFamily: t.serif,
@@ -214,11 +236,13 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
             style={{
               fontFamily: t.serif,
               fontWeight: 700,
-              fontSize: 40,
-              lineHeight: 1.15,
+              // Real display scale — Newsreader's optical axis (opsz) kicks in
+              // at large sizes and carries the brand voice.
+              fontSize: "clamp(42px, 8vw, 56px)",
+              lineHeight: 1.12,
               letterSpacing: "-0.02em",
               margin: "0 auto 18px",
-              maxWidth: 520,
+              maxWidth: 560,
               color: t.text,
             }}
           >
@@ -251,60 +275,79 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
             Free to join. Leave whenever you like.
           </p>
 
-          {/* Product glimpse — a calm discovery card (no faces) so visitors see
-              what they're joining. Decorative; the copy above conveys the brand. */}
+          {/* Product glimpse — a finished, branded discovery card (no faces) so
+              visitors see what they're joining. Real fills + the spectrum strip
+              + a soft cast shadow: a product shot, not a wireframe. Decorative. */}
           <div aria-hidden="true" style={{ marginTop: 48, display: "flex", justifyContent: "center" }}>
-            <svg width="300" height="290" viewBox="0 0 300 290" xmlns="http://www.w3.org/2000/svg" role="img">
+            <svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" role="img">
               <defs>
                 <linearGradient id="heroAv" x1="0" y1="0" x2="1" y2="1">
                   <stop offset="0%" stopColor={t.green400} />
                   <stop offset="100%" stopColor={t.teal} />
                 </linearGradient>
+                <linearGradient id="heroWarm" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="var(--mark-6, #E7D9C4)" />
+                  <stop offset="100%" stopColor="var(--mark-5, #C9A875)" />
+                </linearGradient>
+                <filter id="heroShadow" x="-20%" y="-20%" width="140%" height="150%">
+                  <feDropShadow dx="0" dy="10" stdDeviation="14" floodColor="#24332D" floodOpacity="0.16" />
+                </filter>
               </defs>
               {/* card peeking behind — suggests a calm, one-at-a-time deck */}
-              <rect x="48" y="40" width="216" height="222" rx="20" fill={t.surface} stroke={t.border} opacity="0.55" />
-              {/* front card */}
-              <rect x="28" y="30" width="240" height="232" rx="22" fill={t.surface} stroke={t.border} />
-              {/* avatar (gradient, no face) + name/tagline */}
-              <circle cx="74" cy="80" r="26" fill="url(#heroAv)" />
-              <rect x="112" y="66" width="116" height="13" rx="6.5" fill={t.green300} />
-              <rect x="112" y="88" width="84" height="9" rx="4.5" fill={t.borderLight} />
-              {/* verified pill */}
-              <rect x="204" y="64" width="44" height="16" rx="8" fill="none" stroke={t.positive} />
-              <path d="M212 72l3 3 6-6" fill="none" stroke={t.positive} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              {/* interest chips */}
-              <rect x="48" y="124" width="58" height="22" rx="11" fill={t.green50} stroke={t.green100} />
-              <rect x="114" y="124" width="48" height="22" rx="11" fill={t.green50} stroke={t.green100} />
-              <rect x="170" y="124" width="70" height="22" rx="11" fill={t.green50} stroke={t.green100} />
+              <rect x="50" y="44" width="216" height="226" rx="20" fill={t.surface} stroke={t.cardBorder} opacity="0.6" />
+              {/* front card, with a real cast shadow */}
+              <g filter="url(#heroShadow)">
+                <rect x="28" y="32" width="240" height="240" rx="22" fill={t.surface} stroke={t.cardBorder} />
+              </g>
+              {/* spectrum strip — the brand fingerprint on the card */}
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <rect key={i} x={44 + i * 35.4} y="46" width="31" height="5" rx="2.5" fill={`var(--mark-${i + 1})`} />
+              ))}
+              {/* warm portrait block (abstract, no face) + gradient avatar */}
+              <rect x="44" y="62" width="208" height="64" rx="14" fill="url(#heroWarm)" opacity="0.5" />
+              <circle cx="84" cy="94" r="24" fill="url(#heroAv)" />
+              {/* name + tagline */}
+              <rect x="120" y="80" width="104" height="12" rx="6" fill={t.green700} />
+              <rect x="120" y="100" width="76" height="8" rx="4" fill={t.green300} />
+              {/* reviewed pill */}
+              <rect x="204" y="64" width="40" height="15" rx="7.5" fill={t.surface} stroke={t.positiveText} />
+              <path d="M211 71.5l3 3 6-6" fill="none" stroke={t.positiveText} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              {/* interest chips — one warm chip for the two-color brand */}
+              <rect x="44" y="142" width="58" height="22" rx="11" fill={t.green100} stroke={t.green300} />
+              <rect x="110" y="142" width="48" height="22" rx="11" fill={t.green100} stroke={t.green300} />
+              <rect x="166" y="142" width="70" height="22" rx="11" fill="var(--mark-6, #E7D9C4)" stroke="var(--mark-5, #C9A875)" />
               {/* two calm "why you're seeing them" rows */}
-              <circle cx="54" cy="170" r="3" fill={t.accent} />
-              <rect x="64" y="166" width="150" height="8" rx="4" fill={t.borderLight} />
-              <circle cx="54" cy="188" r="3" fill={t.accent} />
-              <rect x="64" y="184" width="120" height="8" rx="4" fill={t.borderLight} />
+              <circle cx="50" cy="186" r="3.5" fill={t.accent} />
+              <rect x="62" y="182" width="150" height="8" rx="4" fill={t.green200} />
+              <circle cx="50" cy="204" r="3.5" fill={t.accent} />
+              <rect x="62" y="200" width="120" height="8" rx="4" fill={t.green200} />
               {/* calm primary action */}
-              <rect x="48" y="214" width="200" height="30" rx="12" fill={t.accentFill} />
-              <rect x="118" y="225" width="60" height="8" rx="4" fill={t.surface} opacity="0.9" />
+              <rect x="44" y="224" width="208" height="32" rx="12" fill={t.accentFill} />
+              <rect x="118" y="236" width="60" height="8" rx="4" fill="#FFFFFF" opacity="0.92" />
             </svg>
           </div>
         </header>
+        </div>
 
         {/* ── What you won't find here (the "removed things" manifesto) ─── */}
         <section style={{ ...section, paddingTop: 40, paddingBottom: 8 }} aria-labelledby="manifesto-heading">
           <div
             style={{
               background: t.surface,
-              border: `1px solid ${t.border}`,
+              border: `1px solid ${t.cardBorder}`,
               borderRadius: 20,
-              padding: "28px 24px",
+              padding: "32px 24px",
               textAlign: "center",
+              boxShadow: t.shadow.sm,
             }}
           >
+            <p style={{ ...t.eyebrow, marginBottom: 10 }}>Our promise</p>
             <h2
               id="manifesto-heading"
               style={{
                 fontFamily: t.serif,
                 fontWeight: 700,
-                fontSize: 24,
+                fontSize: 28,
                 letterSpacing: "-0.01em",
                 margin: "0 0 6px",
                 color: t.text,
@@ -355,12 +398,13 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
 
         {/* ── Why Spectrum is different ─────────────────────────── */}
         <section style={{ ...section, paddingTop: 48, paddingBottom: 24 }} aria-labelledby="why-heading">
+          <p style={{ ...t.eyebrow, textAlign: "center", marginBottom: 10 }}>The approach</p>
           <h2
             id="why-heading"
             style={{
               fontFamily: t.serif,
               fontWeight: 700,
-              fontSize: 28,
+              fontSize: 32,
               letterSpacing: "-0.01em",
               margin: "0 0 24px",
               textAlign: "center",
@@ -382,10 +426,10 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
                 key={title}
                 style={{
                   background: t.surface,
-                  border: `1px solid ${t.border}`,
+                  border: `1px solid ${t.cardBorder}`,
                   borderRadius: 16,
                   padding: "22px 20px",
-                  boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+                  boxShadow: t.shadow.sm,
                 }}
               >
                 <div
@@ -423,14 +467,17 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
           </div>
         </section>
 
-        {/* ── How it works ──────────────────────────────────────── */}
-        <section style={{ ...section, paddingTop: 48, paddingBottom: 24 }} aria-labelledby="how-heading">
+        {/* ── How it works — set in a full-width tinted band so the page
+            breathes in blocks instead of one flat column. ── */}
+        <div style={{ background: t.green50, borderTop: `1px solid ${t.borderLight}`, borderBottom: `1px solid ${t.borderLight}`, marginTop: 40 }}>
+        <section style={{ ...section, paddingTop: 44, paddingBottom: 44 }} aria-labelledby="how-heading">
+          <p style={{ ...t.eyebrow, textAlign: "center", marginBottom: 10 }}>Three steps</p>
           <h2
             id="how-heading"
             style={{
               fontFamily: t.serif,
               fontWeight: 700,
-              fontSize: 28,
+              fontSize: 32,
               letterSpacing: "-0.01em",
               margin: "0 0 24px",
               textAlign: "center",
@@ -457,9 +504,10 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
                   alignItems: "flex-start",
                   gap: 16,
                   background: t.surface,
-                  border: `1px solid ${t.border}`,
+                  border: `1px solid ${t.cardBorder}`,
                   borderRadius: 16,
                   padding: "18px 20px",
+                  boxShadow: t.shadow.sm,
                 }}
               >
                 <div
@@ -503,16 +551,19 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
           </ol>
         </section>
 
-        {/* ── Match-moment tease ────────────────────────────────── */}
-        <section style={{ ...section, paddingTop: 40, paddingBottom: 8 }}>
+        </div>
+
+        {/* ── Match-moment tease — an editorial breath with the brand mark. ── */}
+        <section style={{ ...section, paddingTop: 56, paddingBottom: 16, textAlign: "center" }}>
+          <SpectrumMark height={10} radius={2} style={{ marginBottom: 20 }} />
           <p
             style={{
               textAlign: "center",
               fontFamily: t.serif,
-              fontSize: 20,
+              fontSize: 24,
               lineHeight: 1.5,
               color: t.textSoft,
-              maxWidth: 520,
+              maxWidth: 540,
               margin: "0 auto",
             }}
           >
@@ -569,13 +620,13 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               marginBottom: 12,
             }}
           >
-            <SpectrumMark height={12} />
+            <SpectrumMark height={16} />
             <span
               style={{
                 fontFamily: t.serif,
                 fontWeight: 700,
-                fontSize: 15,
-                color: t.textMuted,
+                fontSize: 17,
+                color: t.textSoft,
               }}
             >
               Spectrum
@@ -584,9 +635,43 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
           <p style={{ margin: "0 0 6px", fontSize: 14, color: t.textMuted, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
             Built with autistic adults. Always opt-in. No dark patterns, ever.
           </p>
-          <p style={{ margin: 0, fontSize: 14, color: t.textMuted }}>
+          <p style={{ margin: "0 0 16px", fontSize: 14, color: t.textMuted }}>
             Your safety &amp; privacy come first.
           </p>
+          {/* Real institutional links — a credible product names its policies. */}
+          <nav aria-label="Legal">
+            <ul
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                gap: 20,
+                justifyContent: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {[
+                { label: "Privacy Policy", href: "/privacy.html" },
+                { label: "Terms of Service", href: "/terms.html" },
+              ].map(({ label, href }) => (
+                <li key={href}>
+                  <a
+                    href={href}
+                    style={{
+                      color: t.accentStrong,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      textDecoration: "underline",
+                      textUnderlineOffset: 3,
+                    }}
+                  >
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </footer>
       </div>
     </div>

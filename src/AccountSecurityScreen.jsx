@@ -270,7 +270,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
     padding: "28px 24px",
     maxWidth: 440,
     width: "100%",
-    boxShadow: "0 8px 32px rgba(36,51,45,0.18)",
+    boxShadow: t.shadow.lg,
     transition: prefersReduced ? "none" : "opacity 150ms ease",
     textAlign: "left",
   };
@@ -426,7 +426,7 @@ export default function AccountSecurityScreen({ onBack, onAccountDeleted }) {
     borderRadius: 20,
     padding: "28px 24px",
     marginBottom: 16,
-    boxShadow: "0 2px 8px rgba(36,51,45,0.07), 0 8px 24px rgba(36,51,45,0.04)",
+    boxShadow: t.shadow.md,
   };
 
   return (

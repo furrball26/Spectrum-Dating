@@ -651,14 +651,35 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     boxSizing: "border-box",
   };
   const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
+  // Raised card tier: real edge + real elevation (the inset tier below overrides
+  // with surfaceAlt + borderLight + no shadow for secondary content).
   const card = {
     background: t.surface,
-    border: `1px solid ${t.border}`,
+    border: `1px solid ${t.cardBorder}`,
     borderRadius: 20,
     padding: "28px 24px",
     marginBottom: 16,
-    boxShadow: "0 2px 8px rgba(36,51,45,0.07), 0 8px 24px rgba(36,51,45,0.04)",
+    boxShadow: t.shadow.md,
   };
+
+  // Brand fingerprint — a quiet 6-tile spectrum strip along the top of the
+  // person card. Static, decorative, hidden under reduced-sensory.
+  const SpectrumStrip = () =>
+    reducedSensory ? null : (
+      <div aria-hidden="true" style={{ display: "flex", gap: 3, marginBottom: 18 }}>
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <span
+            key={n}
+            style={{
+              flex: 1,
+              height: 4,
+              borderRadius: 2,
+              background: `var(--mark-${n})`,
+            }}
+          />
+        ))}
+      </div>
+    );
 
   // The app shell now owns the wordmark + primary nav, so this screen no longer
   // renders its own "Spectrum" header (was a duplicate landmark) or the dead
@@ -883,6 +904,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             )}
             {/* Profile card — one person at a time. No grid, no auto-advance, no timer. */}
             <div style={card}>
+              <SpectrumStrip />
 
               {/* Hero photo when the person has one — real faces get prominence
                   instead of a tiny circle. Decorative (name is in the adjacent

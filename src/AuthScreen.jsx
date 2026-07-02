@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { register, login, forgotPassword, resendVerification, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
+import SpectrumMark from "./SpectrumMark.jsx";
 
 const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
@@ -172,19 +173,29 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
           </button>
         )}
 
-        {/* Wordmark */}
+        {/* Brand lockup — same mark + wordmark as the landing page, so the
+            trust-critical signup moment is unmistakably the same product. */}
         <div
           style={{
-            fontFamily: t.serif,
-            fontSize: 28,
-            fontWeight: 700,
-            color: t.text,
-            letterSpacing: "-0.01em",
-            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
             marginBottom: 8,
           }}
         >
-          Spectrum
+          <SpectrumMark height={24} />
+          <span
+            style={{
+              fontFamily: t.serif,
+              fontSize: 28,
+              fontWeight: 700,
+              color: t.text,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Spectrum
+          </span>
         </div>
         <p
           style={{
@@ -201,9 +212,10 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
         <div
           style={{
             background: t.surface,
-            border: `1px solid ${t.border}`,
+            border: `1px solid ${t.cardBorder}`,
             borderRadius: 20,
             padding: "28px 24px",
+            boxShadow: t.shadow.md,
           }}
         >
           <h1
@@ -476,6 +488,17 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
           </button>
         </p>
         )}
+
+        {/* Quiet trust line — factual, no urgency. */}
+        <p style={{ textAlign: "center", marginTop: 14, fontSize: 13, color: t.textMuted, lineHeight: 1.6 }}>
+          We'll never share your email or show it to other members.{" "}
+          <a
+            href="/privacy.html"
+            style={{ color: t.accentStrong, fontWeight: 600, textUnderlineOffset: 3 }}
+          >
+            Privacy Policy
+          </a>
+        </p>
 
       </div>
     </div>

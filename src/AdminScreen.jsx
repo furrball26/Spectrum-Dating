@@ -89,7 +89,7 @@ function StatCard({ label, value }) {
         padding: "14px 16px",
         minWidth: 96,
         flex: "1 1 96px",
-        boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+        boxShadow: t.shadow.sm,
       }}
     >
       <div style={{ fontFamily: t.serif, fontSize: 26, fontWeight: 700, color: t.text, lineHeight: 1.1 }}>
@@ -145,7 +145,7 @@ function SegmentButton({ label, active, onClick }) {
         fontWeight: active ? 600 : 500,
         background: active ? t.surface : "transparent",
         color: active ? t.text : t.textSoft,
-        boxShadow: active ? "0 1px 3px rgba(36,51,45,0.12)" : "none",
+        boxShadow: active ? t.shadow.sm : "none",
         ...f.style,
       }}
       onFocus={f.onFocus}
@@ -263,7 +263,7 @@ function ReportCard({ report, onRefresh, onStatus }) {
         padding: "20px 20px",
         marginBottom: 14,
         listStyle: "none",
-        boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+        boxShadow: t.shadow.sm,
       }}
     >
       {/* Header row: who reported whom + status */}
@@ -494,7 +494,7 @@ function PhotoReviewCard({ item, onReviewed, onStatus }) {
         display: "flex",
         flexDirection: "column",
         gap: 10,
-        boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+        boxShadow: t.shadow.sm,
       }}
     >
       <img
@@ -675,7 +675,7 @@ function AuditLogView() {
             padding: "16px 18px",
             marginBottom: 10,
             listStyle: "none",
-            boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+            boxShadow: t.shadow.sm,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
@@ -760,7 +760,7 @@ function FeedbackInbox() {
             padding: "18px 20px",
             marginBottom: 12,
             listStyle: "none",
-            boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+            boxShadow: t.shadow.sm,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
@@ -812,7 +812,7 @@ function VerificationCard({ item, onReviewed, onStatus }) {
         padding: "18px 20px",
         marginBottom: 12,
         listStyle: "none",
-        boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+        boxShadow: t.shadow.sm,
       }}
     >
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -962,7 +962,7 @@ function TabButton({ label, active, onClick }) {
         fontWeight: active ? 600 : 500,
         background: active ? t.surface : "transparent",
         color: active ? t.text : t.textSoft,
-        boxShadow: active ? "0 1px 3px rgba(36,51,45,0.12)" : "none",
+        boxShadow: active ? t.shadow.sm : "none",
         ...f.style,
       }}
       onFocus={f.onFocus}

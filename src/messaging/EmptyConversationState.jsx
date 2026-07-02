@@ -78,7 +78,7 @@ export default function EmptyConversationState({ displayName, conversationId, on
           padding: "32px 28px",
           maxWidth: 400,
           width: "100%",
-          boxShadow: "0 2px 8px rgba(36,51,45,0.07)",
+          boxShadow: t.shadow.sm,
         }}
       >
         <div style={{ marginBottom: 16 }}>

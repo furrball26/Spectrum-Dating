@@ -44,7 +44,7 @@ function MatchesSkeleton() {
               alignItems: "center",
               gap: 14,
               background: t.surface,
-              border: `1px solid ${t.border}`,
+              border: `1px solid ${t.cardBorder}`,
               borderRadius: 16,
               padding: "14px 16px",
             }}
@@ -170,7 +170,7 @@ function PrivateNote({ matchId, note, onSaved }) {
           fontSize: 16,
           color: t.text,
           background: t.surface,
-          border: `1px solid ${t.border}`,
+          border: `1px solid ${t.cardBorder}`,
           borderRadius: 10,
           padding: "8px 10px",
           resize: "vertical",
@@ -211,10 +211,10 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
           alignItems: "flex-start",
           gap: 14,
           background: t.surface,
-          border: `1px solid ${t.border}`,
+          border: `1px solid ${t.cardBorder}`,
           borderRadius: 16,
           padding: "14px 16px",
-          boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+          boxShadow: t.shadow.sm,
         }}
       >
         <button
@@ -370,10 +370,10 @@ function LikedYouSection({ people, plainLanguage = false, busyId, onInterested, 
               <div
                 style={{
                   background: t.surface,
-                  border: `1px solid ${t.border}`,
+                  border: `1px solid ${t.cardBorder}`,
                   borderRadius: 16,
                   padding: "14px 16px",
-                  boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+                  boxShadow: t.shadow.sm,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -637,7 +637,7 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
           <div
             style={{
               background: t.surface,
-              border: `1px solid ${t.border}`,
+              border: `1px solid ${t.cardBorder}`,
               borderRadius: 16,
               padding: "28px 24px",
               textAlign: "center",
@@ -656,9 +656,15 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
         ) : (
           <>
             {matches.length > 0 && (
-              <h2 style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 600, color: t.text, margin: "0 0 14px" }}>
-                Your matches
-              </h2>
+              <>
+                {/* Quiet brand divider between the liked-you inbox and the list. */}
+                {incomingLikes.length > 0 && !reducedSensory && (
+                  <Spectrum variant="divider" style={{ margin: "4px 0 24px" }} />
+                )}
+                <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, color: t.text, margin: "0 0 14px" }}>
+                  Your matches
+                </h2>
+              </>
             )}
             <ul style={{ margin: 0, padding: 0 }}>
               {matches.map((m) => (

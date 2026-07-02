@@ -6,8 +6,8 @@
 // without touching any component — inline styles read these values live.
 // Font strings (serif/sans) are NOT themed.
 export const t = {
-  bg: "var(--c-bg, #F4F5F2)",
-  bgGradient: "var(--c-bg-gradient, linear-gradient(150deg, #F4F5F2 0%, #ECF0EB 100%))",
+  bg: "var(--c-bg, #F5F3EE)",
+  bgGradient: "var(--c-bg-gradient, linear-gradient(150deg, #F6F4EF 0%, #EBEFE7 100%))",
   surface: "var(--c-surface, #FFFFFF)",
   surfaceAlt: "var(--c-surfaceAlt, #EEF1ED)",
   text: "var(--c-text, #24332D)",
@@ -29,6 +29,9 @@ export const t = {
   positiveFill: "var(--c-positiveFill, #3F7A38)",
   border: "var(--c-border, #D3DBD5)",
   borderLight: "var(--c-borderLight, #E8EDE7)",
+  // Card edge — deeper than `border` so card boundaries actually read (the old
+  // hairline measured ~1.3:1 on white and dissolved). Pair with a shadow token.
+  cardBorder: "var(--c-cardBorder, #C7D2CA)",
   focus: "var(--c-focus, #24332D)",
   danger: "var(--c-danger, #B94040)",
   // Dark red fill for destructive controls carrying WHITE text (delete confirm).
@@ -62,6 +65,9 @@ export const t = {
   // ── Warm accents (spectrum sand/clay end) ──
   sand: "var(--c-sand, #E7D9C4)",
   clay: "var(--c-clay, #C9A875)",
+  // Warm accent for TEXT (eyebrows/section labels) — `clay` itself is
+  // decorative-only (fails 4.5:1 on light surfaces); this passes in both themes.
+  clayText: "var(--c-clayText, #8A6B3E)",
   // ── Teal (spectrum mid) ──
   teal: "var(--c-teal, #4F8A8B)",
   // ── Green ramp 50→900 (brand core) ──
@@ -75,11 +81,34 @@ export const t = {
   green700: "var(--c-green700, #3E6660)",
   green800: "var(--c-green800, #314E49)",
   green900: "var(--c-green900, #24332D)",
-  formBorder: "var(--c-formBorder, #8A9E96)",
+  formBorder: "var(--c-formBorder, #78877F)",
   bubbleOwn: "var(--c-bubbleOwn, #D6E4DC)",
   bubbleOwnBorder: "var(--c-bubbleOwnBorder, #AFCABD)",
   bubbleOther: "var(--c-bubbleOther, #FFFFFF)",
-  tombstone: "var(--c-tombstone, #7A8C85)",
+  tombstone: "var(--c-tombstone, #5F6F67)",
+  // ── Elevation (theme-aware; defined in index.html for both themes) ──
+  // sm = list cards · md = primary/raised cards · lg = modals/overlays.
+  // ALWAYS use these instead of inline rgba shadows — the old hardcoded
+  // rgba(36,51,45,…) strings were invisible in dim (dark shadow on dark field).
+  shadow: {
+    sm: "var(--sh-sm, 0 1px 2px rgba(36,51,45,0.06), 0 3px 10px rgba(36,51,45,0.08))",
+    md: "var(--sh-md, 0 2px 4px rgba(36,51,45,0.07), 0 12px 28px rgba(36,51,45,0.11))",
+    lg: "var(--sh-lg, 0 4px 12px rgba(36,51,45,0.10), 0 24px 48px rgba(36,51,45,0.15))",
+  },
+  // ── Radii scale ── (use instead of hand-picked numbers; pill = fully round)
+  radius: { sm: 10, md: 12, lg: 16, xl: 20, pill: 999 },
+  // ── Spacing scale ── (multiples of 4; keeps vertical rhythm consistent)
+  space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
+  // ── Eyebrow — small warm section label above serif headings ──
+  // Spread into a <div>/<p> style: <p style={{...t.eyebrow}}>The basics</p>
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--c-clayText, #8A6B3E)",
+    margin: 0,
+  },
   // ── Motion language ──
   // Durations + easings for the calm, fade-forward motion system. Adopt as
   // `${t.motion.base} ${t.motion.standard}`. Rule: fade + ≤8px travel, never
