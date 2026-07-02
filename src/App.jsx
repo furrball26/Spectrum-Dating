@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react"
 // effect) so it stays off the logged-out critical path — see the socket effect.
 import SuggestionScreen from "./SuggestionScreen.jsx";
 import MessagingApp from "./messaging/MessagingApp.jsx";
-import MatchesScreen from "./MatchesScreen.jsx";
+import LikesScreen from "./LikesScreen.jsx";
 import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
@@ -69,7 +69,7 @@ function ScreenFallback() {
 // SPA tab changes are titled and announced (S4).
 const SCREEN_NAMES = {
   suggestions: "Discover",
-  matches: "Matches",
+  matches: "Likes",
   messages: "Messages",
   profile: "Profile",
   admin: "Moderation",
@@ -1254,7 +1254,7 @@ export default function App() {
               tabIndex={-1}
               aria-label={
                 activeTab === "suggestions" ? "Discover" :
-                activeTab === "matches" ? "Matches" :
+                activeTab === "matches" ? "Likes" :
                 activeTab === "messages" ? "Messages" :
                 activeTab === "admin" ? "Moderation" :
                 activeTab === "safety" ? "Safety Center" :
@@ -1304,8 +1304,7 @@ export default function App() {
                 />
               )}
               {activeTab === "matches" && (
-                <MatchesScreen
-                  onGoDiscover={() => { setPrevTab("matches"); setActiveTab("suggestions"); }}
+                <LikesScreen
                   onActivityCount={handleActivityCount}
                   onOpenConversation={(conversationId, seedInfo) => {
                     setPendingConversation(seedInfo ? { id: conversationId, ...seedInfo } : conversationId);
@@ -1428,7 +1427,7 @@ export default function App() {
               />
               <BottomNavTab
                 vertical={viewport === "desktop"}
-                label="Matches"
+                label="Likes"
                 icon={<HeartIcon size={22} />}
                 active={activeTab === "matches"}
                 // Don't zero the count merely on visit — a "liked you" is still

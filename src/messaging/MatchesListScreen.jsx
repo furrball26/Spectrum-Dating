@@ -403,6 +403,15 @@ export default function MatchesListScreen({
   // view path below) so the hook order is always stable.
   const [query, setQuery] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
+  // One-time note explaining the Matches/Messages merge (predictability for an
+  // IA change). Dismissal persists forever.
+  const [mergeNoteDismissed, setMergeNoteDismissed] = useState(() => {
+    try { return localStorage.getItem("spectrum_merge_note_dismissed") === "1"; } catch { return true; }
+  });
+  const dismissMergeNote = () => {
+    setMergeNoteDismissed(true);
+    try { localStorage.setItem("spectrum_merge_note_dismissed", "1"); } catch { /* ignore */ }
+  };
 
   // F23 — current user id for the who-replied-last cue ("You:" vs their name).
   // Same source the conversation screen uses (getUserId reads local auth).
@@ -793,6 +802,40 @@ export default function MatchesListScreen({
         ) : (
           /* Normal sections view */
           <>
+            {!mergeNoteDismissed && (
+              <div
+                role="note"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginBottom: 16,
+                  padding: "12px 16px",
+                  background: t.green50,
+                  border: `1px solid ${t.borderLight}`,
+                  borderRadius: 12,
+                  fontSize: 14,
+                  color: t.textSoft,
+                  lineHeight: 1.55,
+                }}
+              >
+                <span>
+                  {plainLanguage
+                    ? "Everything is in one place now. Your matches and messages are both here. New likes are in the Likes tab."
+                    : "One place now: your matches and conversations both live here. People who liked you are in the Likes tab."}
+                </span>
+                <button
+                  type="button"
+                  onClick={dismissMergeNote}
+                  aria-label="Dismiss this note"
+                  style={{ background: "transparent", border: "none", color: t.textSoft, fontSize: 16, cursor: "pointer", padding: "2px 6px", minHeight: 32, minWidth: 32, flexShrink: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Liked-you inbox — act in place (merged from the Matches tab). */}
             {likedYou}
 
