@@ -1,0 +1,234 @@
+# Spectrum Dating — Status Log
+
+Rolling log of notable changes, newest first, grouped by role.
+
+---
+
+## Backend Dev
+
+### 2026-06-29 — Calm notification copy + always-on feedback endpoint
+- **Calm-notification policy (product #4).** Removed urgency/FOMO/emoji from push
+  copy. `src/routes/matching.js` new-match push: title `'New match! 💚'` →
+  `'New match'`, body → *"You and someone both said yes. There's no rush to say
+  hello."* `src/routes/messaging.js` message push: kept the tier logic
+  (`in_app`/`name_only`/`silent_push`/`none`) intact; `in_app` body is now the
+  plain `'You have a new message.'` (`name_only` "Sent you a message." and
+  `silent_push` empty body were already calm). Audited all notification/email copy
+  for emoji + urgency words ("waiting", countdowns, "reply now", etc.) — none
+  remained; email-verification "expires in 24 hours" is factual security copy and
+  stays; reaction emoji are user content, not notifications.
+- **Feedback endpoint (product #6).** **Migration `020_feedback`**: new `feedback`
+  table (`id`, `user_id` FK → `users` **ON DELETE SET NULL**, `message`,
+  `created_at`) + index `idx_feedback_created(created_at)`. Registered in
+  `src/db.js` (`CREATE TABLE/INDEX IF NOT EXISTS`, safe to re-run). New route
+  `src/routes/feedback.js` mounted at `/feedback` in `src/index.js`:
+  `POST /feedback` (`requireAuth`) — body `{ message }`, validated non-empty
+  string ≤ 2000 chars (→ **400**), inserts with `req.ctx.userId` + `newId()` +
+  `Date.now()`, returns `{ ok: true }`. Added `GET /admin/feedback`
+  (`requireAuth` + `requireAdmin`) to `src/routes/admin.js` → `{ feedback:
+  [{ id, userEmail, message, createdAt }] }` newest first (LEFT JOIN `users`,
+  `userEmail` null when the submitter was deleted).
+- Verified locally: all modified modules pass `node --check`; migration applies +
+  re-applies idempotently on a temp DB, and ON DELETE SET NULL nulls `user_id`
+  (LEFT JOIN email → null) after the user is deleted. Deployed via `npm run deploy`
+  (health-gated). Confirmed in production: `/health` 200 with new SHA;
+  `POST /feedback` with a valid message → `{ok:true}`; empty message and a
+  2001-char message → 400; `GET /admin/feedback` returns the documented shape,
+  401 without auth and 403 for a non-admin.
+- Updated `RUNBOOK.md` (new §6i feedback + §6j calm-notification policy, migrations
+  list incl. `019`/`020`).
+
+### 2026-06-29 — Hinge-style profile prompts (catalog + answers)
+- **Migration `019_profile_prompts`**: new `profile_prompts` table (`id`,
+  `user_id` FK → `users` ON DELETE CASCADE, `prompt_key`, `answer`, `position`,
+  `created_at`) + index `idx_profile_prompts_user(user_id, position)`. Registered
+  in `src/db.js` (`CREATE TABLE/INDEX IF NOT EXISTS`, safe to re-run).
+- **Catalog** `src/data/prompts.js`: `PROMPTS` = 12 concrete, literal,
+  autism-friendly `{ key, text }` prompts (stable keys); plus `PROMPT_KEYS`
+  (`Set`) and `PROMPT_TEXT_BY_KEY` (`Map`) for validation/lookup.
+- **Endpoints** (`src/routes/profile.js`): `GET /profile/prompt-catalog`
+  (public) returns `{ prompts: PROMPTS }`. `PUT /profile/prompts` (auth) takes
+  `{ prompts: [{ promptKey, answer }] }` — **max 3**, each key ∈ catalog, answer
+  non-empty ≤ **200** chars (→ **400** otherwise). Replaces the user's set in a
+  transaction (DELETE all → INSERT at positions `0..n`). Returns serialized
+  `{ promptKey, promptText, answer }` list.
+- **Helper** `listPrompts(db, userId)` (exported from `routes/profile.js`):
+  serialized list ordered by `position`, joins catalog text by key, skips rows
+  whose key was retired from the catalog.
+- **Read paths**: `GET /profile/me` includes `prompts` for the viewer;
+  `GET /matching/candidates` adds `prompts` per candidate; `GET /matching/matches`
+  adds `prompts` to `otherUser` (one small extra query each via `listPrompts`).
+- Verified locally: migration idempotent on a temp DB; `listPrompts` orders,
+  joins promptText, and skips retired keys; modules load with no circular-import
+  issue (`matching.js` → `profile.js`). Deployed via `npm run deploy`
+  (health-gated). Confirmed in production: `/health` 200 new SHA; catalog returns
+  12 prompts; 2 valid entries persist and `GET /profile/me` echoes them with
+  `promptText`; invalid `promptKey` → 400; a 4th prompt → 400; 201-char answer → 400.
+- Updated `RUNBOOK.md` (new §6h, migrations list).
+
+### 2026-06-29 — Differentiator dimensions (comm style · sensory · context card)
+- **Migration `018_richer_profile`**: seven new `profiles` columns
+  (`TEXT NOT NULL DEFAULT ''`): `comm_directness`, `comm_literal`, `comm_cadence`,
+  `sensory_environment`, `sensory_lighting`, `social_duration`, `context_card`.
+  Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner tolerates
+  re-runs). The structured, matchable complement to free-text `comm_note`.
+- **`PUT /profile/me`** (`src/routes/profile.js`): accepts all seven. Six enums
+  validated against their allowed lists (→ **400**); `contextCard` string ≤ 300
+  chars (→ **400** if longer). Added to the string `fieldMap`.
+  **`GET /profile/me`** (and `PUT` echo) returns all seven as camelCase.
+- **Read paths**: `src/matching/candidates.js` SELECTs the seven columns;
+  `GET /matching/candidates` maps them onto each candidate; `GET /matching/matches`
+  adds them to `otherUser` (extended the per-match profile SELECT + mapping).
+- **Light matching signal** (`src/matching/score.js`): **+2** for matching
+  non-empty `sensory_environment`, **+2** for matching non-empty `comm_cadence`
+  (`'either'`/empty = no-bonus; only exact non-`'either'` counts). Adds a
+  `whyReasons` line on a contributing match ("You both prefer quiet settings",
+  cadence lines). Never excludes — only nudges ranking. `candidates.js` passes the
+  viewer's `sensory_environment` + `comm_cadence` into the scorer (like goal/city).
+- Verified scorer locally (both-quiet+daily → +4 with reasons; `either`/empty →
+  no-bonus) and migration apply + restart idempotency on an in-memory DB. Deployed
+  via `npm run deploy` (health-gated). Confirmed in production: `/health` 200 with
+  new SHA; a valid set of all seven persists + `GET /profile/me` echoes them;
+  invalid enum → 400; 301-char `contextCard` → 400.
+- Updated `RUNBOOK.md` (new §6g, migrations list).
+
+### 2026-06-29 — Pause/snooze · undo-skip · report feedback loop
+- **Migration `017_pause`**: `profiles.paused INTEGER NOT NULL DEFAULT 0`.
+  Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner tolerates
+  re-runs). A paused user is **hidden from others' Discover** but keeps full app
+  access (matches, messaging, profile editing).
+- **Pause** (`src/routes/profile.js`): `PUT /profile/me` accepts `paused`
+  (boolean → 0/1, handled via the existing `boolFieldMap`); `GET /profile/me` and
+  the `PUT` echo return `paused: !!profile.paused`. `src/matching/candidates.js`
+  selects `p.paused` and filters `AND p.paused = 0` in SQL — paused profiles never
+  surface as candidates.
+- **Undo last skip** (`src/routes/matching.js`): `POST /matching/undo-skip`
+  (`requireAuth`) finds the viewer's most recent `decision='skip'` swipe
+  (`ORDER BY created_at DESC LIMIT 1`) and deletes it → `{ ok: true,
+  candidateId }`, resurfacing that person. No skip → `{ ok: false }`. Never
+  touches `'like'` swipes.
+- **Report feedback loop** (`src/routes/messaging.js`): `GET /messaging/my-reports`
+  (`requireAuth`) returns the user's own reports (`reporter_id = me`), newest
+  first, as `{ reports: [{ id, reportedName, reason, status, createdAt,
+  resolvedAt }] }` — `reportedName` via LEFT JOIN `profiles`. **`moderator_note`
+  deliberately NOT exposed.** Lets a reporter see their report was reviewed/actioned.
+- Deployed via `npm run deploy` (health-gated, SHA `65ab8ae`). Verified in
+  production: `/health` 200 with new SHA; `PUT {paused:true}` then `GET` shows
+  `paused:true` (and toggles back to `false`); `undo-skip` returns `{ok:false}`
+  with no prior skip, and on a real skip returns `{ok:true, candidateId:<skipped>}`
+  then `{ok:false}` on the second call; `GET /messaging/my-reports` returns
+  `{reports:[]}`.
+- Updated `RUNBOOK.md` (new §6f, migrations list).
+
+### 2026-06-29 — Identity verification trust signal (badge)
+- **Migration `015_verification`**: `profiles.identity_verified INTEGER NOT NULL
+  DEFAULT 0`. **Migration `016_backfill_demo_verified`** (separate file — data
+  backfill, since the runner skips an `ALTER` file wholesale on re-run): marks
+  ~half the `*@sample.spectrum-dating.app` accounts verified for demos
+  (idempotent — only flips rows at 0, scoped to sample domain). Both registered
+  in `src/db.js` (015 then 016).
+- **Exposed `verified` (`!!identity_verified`) on every profile read path**:
+  `GET /profile/me`; `GET /matching/candidates` (selected in
+  `src/matching/candidates.js`); `GET /matching/matches` `otherUser` (added
+  `identity_verified` to the per-match profile SELECT); `GET /messaging/
+  conversations` `otherUser` (added it to the per-conversation profile SELECT).
+- **Admin manual verification**: `POST /admin/users/:id/verify` (`requireAuth` +
+  `requireAdmin`), body `{ verified: boolean }` → `UPDATE profiles SET
+  identity_verified = ? WHERE user_id = ?`. **400** non-boolean, **404** no
+  profile (via `result.changes === 0`), returns `{ ok: true, verified }`. Same
+  column a real ID/photo **vendor webhook** can write later.
+- Deployed via `npm run deploy` (health-gated). Verified `/health` 200; a sample
+  user's `GET /profile/me` includes `verified` (true for some, false for others
+  after backfill); `POST /admin/users/:id/verify {verified:true}` flips it, and
+  the route returns 401 unauthenticated.
+- Updated `RUNBOOK.md` (new §6e, migrations list + data-backfill note).
+
+### 2026-06-29 — Lifestyle attributes + hard deal-breaker filters
+- **Migration `014_dealbreakers`**: six new `profiles` columns — `wants_children`,
+  `smoking`, `drinking` (`TEXT NOT NULL DEFAULT ''`) and `db_wants_children`,
+  `db_non_smoker`, `db_must_be_local` (`INTEGER NOT NULL DEFAULT 0` deal-breaker
+  flags). Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner
+  tolerates re-runs).
+- **`PUT /profile/me`** (`src/routes/profile.js`): accepts the three strings
+  (validated — `wantsChildren` ∈ `''|yes|no|open`, `smoking`/`drinking` ∈
+  `''|no|sometimes|yes`, else **400**) and the three `db*` booleans (coerced to
+  0/1). Strings added to `fieldMap`; flags handled via a separate `boolFieldMap`.
+- **`GET /profile/me`** (and the `PUT` echo): returns `wantsChildren`, `smoking`,
+  `drinking` (strings) + `dbWantsChildren`, `dbNonSmoker`, `dbMustBeLocal`
+  (booleans via `!!profile.db_*`).
+- **Matching** (`src/matching/candidates.js`): selects the new columns for viewer
+  + candidates and applies the viewer's active deal-breakers as **exclusion**
+  filters. **"Unknown passes"** — only excludes on a KNOWN conflict (set, mismatched);
+  empty/unknown candidate values pass so Discover doesn't empty out. Local
+  (city, case/trim-insensitive), non-smoker (smoking set & ≠ `no`), wants-children
+  (set & ≠ viewer's). 18+ / onboarding filters left intact.
+- Verified filter logic locally (known-match + unknown pass; smoker/diff-city/
+  diff-kids/sometimes excluded; case+trim city match) on an in-memory DB, then
+  deployed via `npm run deploy` (health-gated, SHA 0de6f30). Confirmed `/health`
+  200 with new SHA; valid `{wantsChildren:'yes', smoking:'no', dbNonSmoker:true}`
+  persists + `GET` echoes; invalid enum (`smoking:'occasionally'`,
+  `wantsChildren:'maybe'`) → 400.
+- Updated `RUNBOOK.md` (new §6d, migrations list).
+
+### 2026-06-29 — 18+ age gate (date of birth)
+- **Migration `012_date_of_birth`**: `profiles.date_of_birth TEXT NOT NULL
+  DEFAULT ''`. Registered in `src/db.js` (bare `ALTER TABLE ADD COLUMN`, runner
+  tolerates re-runs).
+- **Shared helper `ageFromDob(dob)`** in `src/utils/time.js`: parses `YYYY-MM-DD`,
+  rejects impossible calendar dates (e.g. `2020-02-30`), returns integer years
+  with correct month/day handling, or `null` for missing/invalid input.
+- **`PUT /profile/me`** (`src/routes/profile.js`): accepts `dateOfBirth` (added to
+  fieldMap → persists). Validates format `^\d{4}-\d{2}-\d{2}$` + real date + age.
+  400 `Please enter a valid date of birth.` (malformed) / `You must be 18 or older
+  to use Spectrum Dating.` (age < 18).
+- **`GET /profile/me`**: returns `dateOfBirth` + computed `age`. `onboardingComplete`
+  now ALSO requires a valid 18+ DOB — existing users without a DOB are intentionally
+  routed back through onboarding to confirm 18+.
+- **Matching**: `src/matching/candidates.js` selects `date_of_birth` and post-filters
+  to age ≥ 18 (no/invalid DOB never surfaced). `src/routes/matching.js` adds `age`
+  to each candidate. Both reuse the shared `ageFromDob` helper.
+- Verified helper logic locally (birthday boundaries, impossible dates → null), then
+  deployed via `npm run deploy` (health-gated). Confirmed `/health` 200; underage DOB
+  (`2015-01-01`) → 400 with the 18+ message; valid adult DOB persists + returns `age`.
+
+### 2026-06-29 — Multi-photo profiles (gallery, max 6)
+- **Migration `011_profile_photos_gallery`**: new `profile_photos` table
+  (`id, user_id` FK CASCADE`, storage_key, url, position, is_primary, created_at`),
+  indexed on `(user_id, position)`. Idempotent backfill turns each existing
+  `profiles.photo_url` into the user's primary gallery row. Registered in `src/db.js`.
+- **New endpoints** (`src/routes/photos.js`, all `requireAuth`): `POST /photos/profile-add`
+  (max 6 → 409), `PUT /photos/profile-photos/:id/primary`, `DELETE /photos/profile-photos/:id`
+  (best-effort R2 delete + promotes lowest-position survivor to primary). Shared
+  `addGalleryPhoto` helper; `MAX_PHOTOS = 6`.
+- **Primary mirrors to `profiles.photo_url`** so match cards / candidates (which read
+  that column) are unaffected.
+- **Backward compat**: `POST /photos/profile-confirm` now routes through the same add
+  logic and still returns `{ photoUrl }` (plus `photos`); frontend `confirmProfilePhoto`
+  keeps working.
+- **`GET /profile/me`** now returns a `photos` array (`{ id, url, isPrimary, position }`)
+  alongside `photoUrl` (via exported `listPhotos`).
+- R2-graceful preserved (presign 503s when unconfigured; url falls back to raw key).
+- Verified migration + add/max/primary/delete logic locally (in-memory DB), then
+  deployed via `npm run deploy` (health-gated, SHA 35a7a3c). Confirmed `/health` 200
+  and `/profile/me` returns a `photos` array in production.
+
+### 2026-06-29 — Trust & safety / moderation layer
+- **Migration `010_moderation`**: new `reports` table (open/reviewed/actioned/dismissed
+  lifecycle, moderator note, resolved_at) separate from `blocks`; added
+  `users.suspended` column. Registered in `src/db.js`.
+- **Admin gating** (`src/middleware/admin.js`): `ADMIN_EMAILS`-based `isAdminEmail()`
+  + `requireAdmin` middleware (runs after `requireAuth`).
+- **Admin routes** (`src/routes/admin.js`, mounted at `/admin`): `GET /me`,
+  `GET /reports`, `GET /reports/:id`, `POST /reports/:id/resolve`,
+  `POST /users/:id/suspend`, `GET /stats`.
+- **Report submission**: `POST /messaging/report` (any authed user) — validated,
+  separate from `/block`.
+- **Suspension enforcement**: login returns 403 for suspended accounts; auth
+  middleware rejects suspended users (force-logout). Suspending bumps
+  `token_version` to invalidate live tokens immediately.
+- **isAdmin** surfaced on the login response and `GET /profile/me` for the frontend.
+- Updated `RUNBOOK.md` (§2 `ADMIN_EMAILS` row, new §6a Moderation section,
+  migrations list, open-items).
+- Verified end-to-end locally (report → list → detail → resolve → suspend →
+  force-logout → login-blocked → unsuspend) and confirmed migration idempotency
+  on restart. Deployed via `npm run deploy` (health-gated).
