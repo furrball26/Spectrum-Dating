@@ -149,7 +149,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
               }}>
                 {otherUser.displayName}
               </span>
-              {otherUser.verified && <VerifiedBadge style={{ flexShrink: 0 }} />}
+              {otherUser.verified && <VerifiedBadge interactive={false} style={{ flexShrink: 0 }} />}
             </div>
             {ended ? (
               <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>

@@ -19,6 +19,11 @@ function Frame({ size = 112, children, label }) {
       aria-label={label}
       style={{ display: "block", margin: "0 auto" }}
     >
+      {/* Soft filled backdrop — a pale plate + warm offset blob turn the line
+          art into finished spot illustration instead of a wireframe. Token-
+          driven, so both themes adapt; still calm (no texture, no motion). */}
+      <circle cx="60" cy="63" r="45" fill="var(--c-green50, #EEF3F1)" />
+      <circle cx="86" cy="38" r="17" fill="var(--c-sand, #E7D9C4)" opacity="0.55" />
       {children}
     </svg>
   );

@@ -6,6 +6,7 @@ import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
 import Button from "./Button.jsx";
 import Spectrum from "./Spectrum.jsx";
+import SpectrumMark from "./SpectrumMark.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
 import ErrorState from "./ErrorState.jsx";
 import MatchProfileModal from "./MatchProfileModal.jsx";
@@ -644,11 +645,11 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
               color: t.textSoft,
             }}
           >
-            {!reducedSensory && (
-              <div style={{ marginBottom: 16 }}>
-                <EmptyMatches size={104} />
-              </div>
-            )}
+            {/* Low-stimulation swaps the illustration for the static brand
+                mark — quieter, but never a bare sentence in a box. */}
+            <div style={{ marginBottom: 16 }}>
+              {reducedSensory ? <SpectrumMark height={10} /> : <EmptyMatches size={104} />}
+            </div>
             {plainLanguage
               ? "No matches yet. Both you and the other person need to say yes in Discover. Only matches can message you."
               : "No matches yet. When you and someone both say you're interested in Discover, they'll appear here. Only people you've both matched with can message you."}

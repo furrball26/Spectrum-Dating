@@ -173,7 +173,10 @@ const ModerationGlyph = () => <NavGlyph><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1
 
 // Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label.
 // Plain nav buttons with aria-current="page" on the active item + focus rings.
-function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria }) {
+// `vertical` renders the desktop side-rail variant: icon + label in a row,
+// left-aligned, with a quiet tinted plate on the active item. Mobile/tablet
+// keep the stacked bottom-bar look.
+function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria, vertical = false }) {
   const f = useFocusable();
   return (
     <button
@@ -181,22 +184,40 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria }) {
       aria-current={active ? "page" : undefined}
       onClick={onClick}
       style={{
-        flex: 1,
         minHeight: 44,
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 2,
-        padding: "6px 4px",
-        background: "transparent",
-        border: "none",
-        borderRadius: 8,
         cursor: "pointer",
-        color: active ? t.accentStrong : t.textMuted,
-        fontSize: 11,
-        fontWeight: active ? 600 : 500,
         position: "relative",
+        border: "none",
+        ...(vertical
+          ? {
+              width: "100%",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              gap: 12,
+              padding: "10px 14px",
+              background: active ? t.green50 : "transparent",
+              borderRadius: 10,
+              color: active ? t.accentStrong : t.textSoft,
+              fontSize: 15,
+              fontWeight: active ? 700 : 500,
+              fontFamily: t.sans,
+              textAlign: "left",
+            }
+          : {
+              flex: 1,
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              padding: "6px 4px",
+              background: "transparent",
+              borderRadius: 8,
+              color: active ? t.accentStrong : t.textMuted,
+              fontSize: 11,
+              fontWeight: active ? 600 : 500,
+            }),
         ...f.style,
       }}
       onFocus={f.onFocus}
@@ -1121,8 +1142,11 @@ export default function App() {
               background: t.bg,
               fontFamily: t.sans,
               color: t.text,
-              // Reserve space so content always clears the fixed bottom nav bar.
-              paddingBottom: "calc(56px + env(safe-area-inset-bottom))",
+              // Reserve space for the fixed nav: bottom bar on mobile/tablet,
+              // left rail on desktop.
+              ...(viewport === "desktop"
+                ? { paddingLeft: 224 }
+                : { paddingBottom: "calc(56px + env(safe-area-inset-bottom))" }),
               ...a11yWrapperStyle(a11y),
             }}
           >
@@ -1157,24 +1181,28 @@ export default function App() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {a11y.reducedSensory
+                    {/* On desktop the left rail already carries the brand lockup,
+                        so the header omits its own to avoid a double logo. */}
+                    {viewport !== "desktop" && (a11y.reducedSensory
                       ? <SpectrumMark height={isMobile ? 20 : 18} />
-                      : <AnimatedSpectrumMark height={isMobile ? 20 : 18} />}
+                      : <AnimatedSpectrumMark height={isMobile ? 20 : 18} />)}
                     {/* Wordmark is shown in BOTH breakpoints. The earlier mobile
                         overflow came from the utility BUTTON cluster (now moved to
                         the Profile hub, see below), not the wordmark — so there's
                         room for "Spectrum" on mobile and hiding it read as broken. */}
-                    <div
-                      style={{
-                        fontFamily: t.serif,
-                        fontWeight: 700,
-                        fontSize: 19,
-                        letterSpacing: "-0.01em",
-                        color: t.text,
-                      }}
-                    >
-                      Spectrum
-                    </div>
+                    {viewport !== "desktop" && (
+                      <div
+                        style={{
+                          fontFamily: t.serif,
+                          fontWeight: 700,
+                          fontSize: 19,
+                          letterSpacing: "-0.01em",
+                          color: t.text,
+                        }}
+                      >
+                        Spectrum
+                      </div>
+                    )}
                   </div>
                   {/* Utility cluster is desktop-only; on mobile it moves into the
                       Profile account hub (see ProfileScreen). */}
@@ -1332,31 +1360,64 @@ export default function App() {
 
           </div>
 
-          {/* Primary nav — a single FIXED BOTTOM bar on EVERY viewport, rendered
-              OUTSIDE the a11y wrapper so its filter/zoom can never break
-              position:fixed. Always pinned to the bottom, regardless of scroll.
-              On wide screens the tabs are centered within the content width. */}
+          {/* Primary nav — a fixed BOTTOM bar on mobile/tablet, and a fixed
+              LEFT RAIL on desktop (the mobile bar on a big monitor read as
+              unfinished — audit D17). Rendered OUTSIDE the a11y wrapper so its
+              filter/zoom can never break position:fixed. */}
           <nav
             aria-label="Primary"
-            style={{
-              position: "fixed",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              background: t.surface,
-              borderTop: `1px solid ${t.border}`,
-              paddingBottom: "env(safe-area-inset-bottom)",
-              zIndex: 50,
-            }}
+            style={
+              viewport === "desktop"
+                ? {
+                    position: "fixed",
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    width: 224,
+                    background: t.surface,
+                    borderRight: `1px solid ${t.border}`,
+                    padding: "20px 12px",
+                    boxSizing: "border-box",
+                    zIndex: 50,
+                    overflowY: "auto",
+                  }
+                : {
+                    position: "fixed",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    background: t.surface,
+                    borderTop: `1px solid ${t.border}`,
+                    paddingBottom: "env(safe-area-inset-bottom)",
+                    zIndex: 50,
+                  }
+            }
           >
-            <div style={{ display: "flex", width: "100%", maxWidth: t.layout.maxContent, margin: "0 auto" }}>
+            {viewport === "desktop" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 18px" }}>
+                {/* mark 13 keeps the full lockup inside the 224px rail */}
+                <SpectrumMark height={13} />
+                <span style={{ fontFamily: t.serif, fontWeight: 700, fontSize: 19, color: t.text }}>
+                  Spectrum
+                </span>
+              </div>
+            )}
+            <div
+              style={
+                viewport === "desktop"
+                  ? { display: "flex", flexDirection: "column", gap: 4 }
+                  : { display: "flex", width: "100%", maxWidth: t.layout.maxContent, margin: "0 auto" }
+              }
+            >
               <BottomNavTab
+                vertical={viewport === "desktop"}
                 label="Discover"
                 icon={<DiscoverGlyph />}
                 active={activeTab === "suggestions"}
                 onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
               />
               <BottomNavTab
+                vertical={viewport === "desktop"}
                 label="Matches"
                 icon={<HeartIcon size={22} />}
                 active={activeTab === "matches"}
@@ -1369,6 +1430,7 @@ export default function App() {
                 badgeAria={`${activityCount} ${activityCount === 1 ? "person" : "people"} liked you`}
               />
               <BottomNavTab
+                vertical={viewport === "desktop"}
                 label="Messages"
                 icon={<MessagesGlyph />}
                 active={activeTab === "messages"}
@@ -1376,6 +1438,7 @@ export default function App() {
                 badgeCount={activeTab === "messages" ? 0 : unreadCount}
               />
               <BottomNavTab
+                vertical={viewport === "desktop"}
                 label="Profile"
                 icon={
                   <Avatar
@@ -1395,6 +1458,7 @@ export default function App() {
               />
               {isAdmin && (
                 <BottomNavTab
+                  vertical={viewport === "desktop"}
                   label="Moderation"
                   icon={<ModerationGlyph />}
                   active={activeTab === "admin"}

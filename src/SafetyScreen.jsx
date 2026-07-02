@@ -824,12 +824,34 @@ export default function SafetyScreen({ onBack }) {
           </div>
         </Section>
 
-        {/* 5. If you need help */}
+        {/* 5. If you need help — named, real resources (not boilerplate). A
+            staffed safety program points at concrete places to get help. */}
         <Section title="If you need help">
-          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 15 }}>
-            If you ever feel unsafe or are in immediate danger, contact your local
-            emergency services. You can also block and report anyone from their
-            profile or your conversation.
+          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 15, lineHeight: 1.65 }}>
+            <p style={{ margin: "0 0 12px" }}>
+              If you are in immediate danger, call your local emergency services
+              (<strong style={{ color: t.text }}>911</strong> in the US).
+            </p>
+            <ul style={{ margin: "0 0 12px", paddingLeft: 20 }}>
+              <li style={{ marginBottom: 6 }}>
+                <strong style={{ color: t.text }}>988 Suicide &amp; Crisis Lifeline</strong> (US) —
+                call or text <strong style={{ color: t.text }}>988</strong>, any time, free.
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                <strong style={{ color: t.text }}>Crisis Text Line</strong> — text{" "}
+                <strong style={{ color: t.text }}>HOME</strong> to{" "}
+                <strong style={{ color: t.text }}>741741</strong> (US) to reach a trained counselor.
+              </li>
+              <li>
+                <strong style={{ color: t.text }}>Love Is Respect</strong> (dating abuse, US) —
+                call 1-866-331-9474 or text <strong style={{ color: t.text }}>LOVEIS</strong> to 22522.
+              </li>
+            </ul>
+            <p style={{ margin: 0 }}>
+              Inside Spectrum, you can block or report anyone from their profile or
+              your conversation — our team reviews every report. For anything else,
+              reach us via <strong style={{ color: t.text }}>Settings → Send feedback</strong>.
+            </p>
           </div>
         </Section>
       </div>

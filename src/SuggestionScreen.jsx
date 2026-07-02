@@ -6,6 +6,7 @@ import Avatar from "./Avatar.jsx";
 import MatchMoment from "./MatchMoment.jsx";
 import DiscoverFilters from "./DiscoverFilters.jsx";
 import { AllCaughtUp } from "./illustrations.jsx";
+import SpectrumMark from "./SpectrumMark.jsx";
 import ReportModal from "./ReportModal.jsx";
 
 // The current viewer's identity for the match moment — name/photo from the
@@ -827,11 +828,11 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             </div>
           ) : (
             <div style={card}>
-              {!reducedSensory && (
-                <div style={{ marginBottom: 12 }}>
-                  <AllCaughtUp size={110} />
-                </div>
-              )}
+              {/* Low-stimulation swaps the illustration for the static brand
+                  mark — quieter, but the empty state still feels authored. */}
+              <div style={{ marginBottom: 12 }}>
+                {reducedSensory ? <SpectrumMark height={10} /> : <AllCaughtUp size={110} />}
+              </div>
               <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
                 {plainLanguage ? "You've seen everyone." : "You're all caught up."}
               </h1>

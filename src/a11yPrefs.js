@@ -13,28 +13,32 @@ export const DEFAULT_A11Y = {
   reduceMotion: false,
   highContrast: false,
   largerText: false,
-  theme: "light", // 'light' | 'dim'
+  theme: "dim", // 'light' | 'dim' — the warm dim theme is the product default
   plainLanguage: false,   // shorter, more literal copy throughout the app
   reducedSensory: false,  // hide decorative illustrations + flatten header mark
 };
 
-// D14 — when the visitor has never set a preference (e.g. logged-out Landing /
-// Auth), seed the initial theme from the OS `prefers-color-scheme: dark` query
-// so dim-preferring users get a calm first impression instead of a bright one.
-// An explicit saved choice always wins over this (see readA11y below).
-function osPrefersDim() {
+// The warm dim theme is the DEFAULT for anyone who hasn't explicitly chosen a
+// theme — the calmer first impression for this audience. An explicit saved
+// choice always wins (see readA11y); Settings offers Light for those who
+// prefer it.
+//
+// Motion, unlike theme, IS seeded from the OS: `prefers-reduced-motion` users
+// get the global reduce-motion sheet without having to find the in-app toggle
+// (previously only the toggle activated it — an audit-flagged gap).
+function osPrefersReducedMotion() {
   try {
     return typeof window !== "undefined"
       && typeof window.matchMedia === "function"
-      && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   } catch {
     return false;
   }
 }
 
-// The defaults for a first-time visitor, with the theme seeded from the OS.
+// The defaults for a first-time visitor.
 export function seededDefaults() {
-  return { ...DEFAULT_A11Y, theme: osPrefersDim() ? "dim" : "light" };
+  return { ...DEFAULT_A11Y, reduceMotion: osPrefersReducedMotion() };
 }
 
 // Read + normalise the saved prefs. Always returns a full, well-typed object so
@@ -51,9 +55,8 @@ export function readA11y() {
       reduceMotion: !!parsed.reduceMotion,
       highContrast: !!parsed.highContrast,
       largerText: !!parsed.largerText,
-      // Explicit saved choice wins; if the stored blob predates the theme field,
-      // fall back to the OS preference rather than forcing light.
-      theme: parsed.theme === "dim" ? "dim" : parsed.theme === "light" ? "light" : (osPrefersDim() ? "dim" : "light"),
+      // Explicit saved choice wins; anything else falls back to the dim default.
+      theme: parsed.theme === "light" ? "light" : "dim",
       plainLanguage: !!parsed.plainLanguage,
       // Low Stimulation absorbed the former "Calm mode" — migrate any legacy calmMode=true.
       reducedSensory: !!(parsed.reducedSensory || parsed.calmMode),
