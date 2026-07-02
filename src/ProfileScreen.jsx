@@ -1741,7 +1741,7 @@ function ProfilePreviewModal({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: "12px 8px",
+            padding: "calc(12px + env(safe-area-inset-top, 0px)) 8px 12px",
             background: t.surface,
             borderBottom: `1px solid ${t.border}`,
             borderRadius: "0 0 12px 12px",

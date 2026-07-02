@@ -594,7 +594,7 @@ function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
         background: t.surface,
         borderBottom: `3px solid ${t.accentFill}`,
         boxShadow: t.shadow.lg,
-        padding: "14px 20px",
+        padding: "calc(14px + env(safe-area-inset-top, 0px)) 20px 14px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -739,6 +739,19 @@ export default function App() {
   const [emailVerified, setEmailVerified] = useState(true); // default true so banner hidden until we know
   const [emailVerifyEnabled, setEmailVerifyEnabled] = useState(false);
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
+
+  // iOS Safari can leave a phantom out-of-bounds window scroll after the
+  // keyboard dismisses (it pans the window to lift a focused field, then fails
+  // to re-clamp), exposing un-painted backdrop below the document (IMG_3119).
+  // The window legitimately never scrolls in this layout (all scrolling lives
+  // inside <main>), so snapping back to 0 on visual-viewport resize is safe.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => { if (window.scrollY > 0) window.scrollTo(0, 0); };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   // Admin / moderation access
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1152,7 +1165,8 @@ export default function App() {
               style={{
                 background: t.surface,
                 borderBottom: `1px solid ${t.border}`,
-                padding: "14px 20px 0",
+                // Reserve the iOS notch/status-bar area (viewport-fit=cover).
+                padding: "calc(14px + env(safe-area-inset-top, 0px)) 20px 0",
                 flexShrink: 0,
               }}
             >

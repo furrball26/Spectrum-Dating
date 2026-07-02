@@ -193,7 +193,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
           style={{
             ...section,
             position: "relative",
-            paddingTop: 56,
+            paddingTop: "calc(56px + env(safe-area-inset-top, 0px))",
             paddingBottom: 24,
             textAlign: "center",
           }}

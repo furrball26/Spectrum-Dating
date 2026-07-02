@@ -346,7 +346,7 @@ function ImageLightbox({ src, onClose }) {
         onClick={onClose}
         style={{
           position: "absolute",
-          top: 16,
+          top: "calc(16px + env(safe-area-inset-top, 0px))",
           right: 16,
           minHeight: 44,
           minWidth: 44,
@@ -1511,7 +1511,7 @@ function HelperTray({ onInsert, onClose, triggerRef }) {
           boxShadow: "0 -8px 40px rgba(36,51,45,0.18)",
           zIndex: 1151,
           boxSizing: "border-box",
-          padding: "20px 20px 24px",
+          padding: "20px 20px calc(24px + env(safe-area-inset-bottom, 0px))",
           animation: prefersReduced ? "none" : "helperTraySlideUp 180ms ease",
         }}
       >

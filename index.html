@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Spectrum Dating</title>
     <meta name="description" content="Dating at your own pace." />
     <meta name="theme-color" content="#3E6660" />
@@ -200,6 +200,14 @@
       .sr-only {
         position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
         overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+      }
+      /* Paint the ROOT element too: iOS Safari derives its under-page backdrop
+         (shown during overscroll / keyboard viewport mismatches) from the html
+         element's background. With html transparent it fell back to the UA
+         backdrop — pure black in dark appearance — producing a black void
+         below content after keyboard dismiss (bug IMG_3119). */
+      html {
+        background: var(--c-bg, #F5F3EE);
       }
       body {
         background: var(--c-bg, #F5F3EE);
