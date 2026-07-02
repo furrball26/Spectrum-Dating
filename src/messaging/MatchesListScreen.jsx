@@ -105,6 +105,10 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
             alignItems: "center",
             gap: 14,
             flex: 1,
+            // Allow the button to shrink below its content width — the implicit
+            // min-width:auto let long snippets push the row past the viewport
+            // and shove the Archive button into an overlap.
+            minWidth: 0,
             minHeight: 56,
             padding: "10px 16px",
             background: "transparent",
@@ -137,6 +141,7 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                minWidth: 0,
               }}>
                 {otherUser.displayName}
               </span>

@@ -320,15 +320,20 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
           <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            {/* Name ellipsizes on one line instead of wrapping/clipping; pronouns
-                and the badge never get pushed off. */}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{otherUser.displayName || "Someone"}</span>
-            {otherUser.pronouns && (
-              <span style={{ fontSize: 13, fontWeight: 400, color: t.textMuted, flexShrink: 0 }}>{otherUser.pronouns}</span>
-            )}
-            {otherUser.verified && <span style={{ flexShrink: 0, display: "inline-flex" }}><VerifiedBadge /></span>}
+          {/* Name gets its own line so it can NEVER be crushed to nothing by
+              unshrinkable siblings (the old single-row flex collapsed the name
+              and let pronouns + badge overflow into the Open button). */}
+          <div style={{ fontSize: 17, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {otherUser.displayName || "Someone"}
           </div>
+          {(otherUser.pronouns || otherUser.verified) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 2, minWidth: 0 }}>
+              {otherUser.pronouns && (
+                <span style={{ fontSize: 13, fontWeight: 400, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{otherUser.pronouns}</span>
+              )}
+              {otherUser.verified && <span style={{ flexShrink: 0, display: "inline-flex" }}><VerifiedBadge /></span>}
+            </div>
+          )}
           {otherUser.distCity && (
             <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
               {otherUser.distCity}
