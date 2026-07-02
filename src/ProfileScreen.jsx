@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription } from "./api.js";
+import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import { ShieldIcon, GearIcon, LockIcon } from "./icons.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
@@ -1665,7 +1665,7 @@ function ProfilePreviewModal({
   }, [onClose]);
 
   // Primary photo URL — first photo with isPrimary, else first photo, else null.
-  const primaryPhoto = photos.find((p) => p.isPrimary) || photos[0] || null;
+  const primaryPhoto = (photos || []).find((p) => p.isPrimary) || (photos || [])[0] || null;
   const photoUrl = primaryPhoto?.url || null;
 
   // Comms/sensory chips — mirrors SuggestionScreen's commStyleChips helper.
@@ -2464,7 +2464,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     if (e && e.status === 503) {
       return "Photo uploads aren't available right now. Please try again later.";
     }
-    return (e && e.message) || "Photo upload failed. Please try again.";
+    return safeErrorMessage(e, "Photo upload failed. Please try again.");
   }
 
   // ── Validate a chosen image file; returns an error string or "" if OK.

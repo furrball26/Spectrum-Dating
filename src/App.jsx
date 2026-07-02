@@ -8,7 +8,7 @@ import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
 import Skeleton from "./Skeleton.jsx";
-import { readA11y } from "./a11yPrefs.js";
+import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
 
 // ── Code-split screens ──────────────────────────────────────────────────────
 // Screens that are never the first paint are lazy-loaded so they ship in their
@@ -944,6 +944,9 @@ export default function App() {
       // the expiry message has context.
       setAuthMode("login");
       setShowAuth(true);
+      // Trust & safety: identity-flag theme must not persist in-memory across a
+      // same-session logout→login (clearAuth already reset localStorage + DOM).
+      setA11y((prev) => IDENTITY_THEMES.includes(prev.theme) ? { ...prev, theme: "dim" } : prev);
     }
     window.addEventListener("auth:expired", handleExpired);
     return () => window.removeEventListener("auth:expired", handleExpired);
@@ -979,6 +982,9 @@ export default function App() {
     setMyPhotoUrl(null);
     setMyDisplayName("");
     setShowAuth(false); // back to the landing page
+    // Trust & safety: identity-flag theme must not persist in-memory into the
+    // next login on this page load (clearAuth already reset localStorage + DOM).
+    setA11y((prev) => IDENTITY_THEMES.includes(prev.theme) ? { ...prev, theme: "dim" } : prev);
     if (activeTab === "admin") setActiveTab("suggestions");
   }, [activeTab]);
 

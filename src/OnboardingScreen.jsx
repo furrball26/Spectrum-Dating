@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { updateProfile } from "./api.js";
+import { updateProfile, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
@@ -1069,7 +1069,7 @@ export default function OnboardingScreen({ onComplete }) {
       setSaving(false);
       setCelebrating(true);
     } catch (e) {
-      setError(e.message || "Something went wrong. Please try again.");
+      setError(safeErrorMessage(e, "Something went wrong. Please try again."));
       setSaving(false);
     }
   }

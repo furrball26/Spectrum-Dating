@@ -46,20 +46,68 @@ function ConversationFallback() {
 function NoteSheet({ row, initialNote, onSaved, onClose }) {
   const [value, setValue] = useState(initialNote || "");
   const [saving, setSaving] = useState(false);
+  const dialogRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // Move focus into the dialog on open (the textarea), restore to the trigger on
+  // close. Mirrors ReportModal / UnmatchSheet focus-restore discipline. WCAG 2.4.3.
+  useEffect(() => {
+    const prevFocus = document.activeElement;
+    textareaRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
+  }, []);
+
+  // Escape to close + Tab/Shift+Tab focus trap. Focusable set (textarea + two
+  // buttons) queried live. WCAG 2.4.3 / 2.1.2.
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Tab") {
+        const root = dialogRef.current;
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll(
+            'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   return (
     <>
       <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)", zIndex: 1100 }} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`Private note about ${row.otherUser?.displayName || "this person"}`}
-        style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: t.surface, borderRadius: 20, padding: "24px 20px", width: "min(90vw, 400px)", zIndex: 1101, boxShadow: t.shadow.lg, boxSizing: "border-box", fontFamily: t.sans }}
+        style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: t.surface, borderRadius: 20, padding: "24px 20px", width: "min(90vw, 400px)", maxHeight: "88vh", overflowY: "auto", WebkitOverflowScrolling: "touch", zIndex: 1101, boxShadow: t.shadow.lg, boxSizing: "border-box", fontFamily: t.sans }}
       >
         <h2 style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: t.text }}>
           Private note
         </h2>
         <p style={{ fontSize: 14, color: t.textMuted, margin: "0 0 12px" }}>Only you can see this.</p>
         <textarea
+          ref={textareaRef}
           value={value}
           maxLength={500}
           onChange={(e) => setValue(e.target.value)}

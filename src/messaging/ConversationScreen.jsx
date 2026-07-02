@@ -1648,7 +1648,7 @@ function HelperPhraseButton({ phrase, onInsert }) {
 
 export default function ConversationScreen({
   conversationId,
-  otherUser,
+  otherUser: otherUserProp,
   started = true,
   onBack,
   onUnmatch,
@@ -1662,6 +1662,10 @@ export default function ConversationScreen({
   hideBack = false,
   plainLanguage = false,
 }) {
+  // Guard: a deleted/suspended partner can arrive with no otherUser payload.
+  // Default to {} so the existing `otherUser.displayName || ""` fallbacks take
+  // over instead of throwing (white-screen). Normal case is unchanged.
+  const otherUser = otherUserProp || {};
   const headingRef = useRef(null);
   const composeRef = useRef(null);
   const logRef = useRef(null);
