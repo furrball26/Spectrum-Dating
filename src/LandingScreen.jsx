@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { t } from "./tokens.js";
 import SpectrumMark from "./SpectrumMark.jsx";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import { ShieldIcon, GearIcon, HeartIcon, SealCheckIcon } from "./icons.jsx";
+import { useFocusable } from "./useFocusable.js";
 
 // LandingScreen — the calm public front door for Spectrum Dating.
 // Mobile-first, generous whitespace, low-stimulation. No autoplay motion;
@@ -11,16 +11,6 @@ import { ShieldIcon, GearIcon, HeartIcon, SealCheckIcon } from "./icons.jsx";
 // honour the prefers-reduced-motion media query inline). All colours come from
 // the themed `t.*` tokens so light/dim themes are handled automatically.
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // A calm tile-pair motif borrowed from the brand mark, used as a step indicator
 // and small section accent. Decorative only.
@@ -570,6 +560,48 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
             When you match, we celebrate quietly — no confetti, no noise. Just a
             calm moment that says you’re on the same wavelength.
           </p>
+        </section>
+
+        {/* ── Who we are ─────────────────────────────────────────
+            ⚠️ PLACEHOLDER CONTENT — sample copy for the preview build. The
+            client will supply the real team story, names, and any community-
+            partner credits before launch. Keep the structure; swap the words. */}
+        <section style={{ ...section, paddingTop: 40, paddingBottom: 8 }} aria-labelledby="who-heading">
+          <div
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.cardBorder}`,
+              borderRadius: 20,
+              padding: "32px 28px",
+              textAlign: "center",
+              boxShadow: t.shadow.sm,
+            }}
+          >
+            <p style={{ ...t.eyebrow, marginBottom: 10 }}>Who we are</p>
+            <h2
+              id="who-heading"
+              style={{
+                fontFamily: t.serif,
+                fontWeight: 700,
+                fontSize: 28,
+                letterSpacing: "-0.01em",
+                margin: "0 0 12px",
+                color: t.text,
+              }}
+            >
+              A small team, building with the community
+            </h2>
+            <p style={{ margin: "0 auto 12px", fontSize: 16, color: t.textSoft, maxWidth: 560, lineHeight: 1.65 }}>
+              Spectrum is made by a small team working directly with autistic
+              adults — as designers, testers, and decision-makers, not as an
+              afterthought. Every feature is reviewed against one question:
+              does this make meeting someone calmer, clearer, and safer?
+            </p>
+            <p style={{ margin: "0 auto", fontSize: 14, color: t.textMuted, maxWidth: 480, lineHeight: 1.6 }}>
+              [Team introductions and community-partner credits will appear here
+              closer to launch.]
+            </p>
+          </div>
         </section>
 
         {/* ── Closing CTA ───────────────────────────────────────── */}

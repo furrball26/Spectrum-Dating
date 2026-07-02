@@ -8,6 +8,7 @@ import { hasSafetySignal } from "./safetySignals.js";
 import ErrorState from "../ErrorState.jsx";
 import Avatar from "../Avatar.jsx";
 import MatchProfileModal from "../MatchProfileModal.jsx";
+import { useFocusable } from "../useFocusable.js";
 
 // Advisory fix 2 — dynamic prefers-reduced-motion hook (replaces static snapshot)
 function usePrefersReduced() {
@@ -23,7 +24,6 @@ function usePrefersReduced() {
   return prefersReduced;
 }
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
 // Shared frozen empty-reactions object. Passed to every bubble that has no
 // reactions so React.memo(MessageBubble) sees a STABLE reference (an inline `{}`
@@ -46,14 +46,6 @@ const senderLabelStyle = {
 const OTHER_AVATAR_SIZE = 28;
 const OTHER_GUTTER = OTHER_AVATAR_SIZE + 8;
 
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // Photo message attachments are built end-to-end (upload-intent → R2 PUT →
 // confirm → sendMessage with attachmentId → moderator review). Kept gated OFF

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { changePassword, changeEmail, deleteAccount, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
+import { useFocusable } from "./useFocusable.js";
 
 // AccountSecurityScreen — Spectrum Dating
 // Split out of ProfileScreen so the dating profile and account controls live in
@@ -8,16 +9,6 @@ import { t } from "./tokens.js";
 // (permanent) delete-account danger zone. The password/email/delete flows are
 // relocated INTACT from ProfileScreen — same api.js calls, same UX.
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // Gates all transitions on prefers-reduced-motion.
 function usePrefersReduced() {

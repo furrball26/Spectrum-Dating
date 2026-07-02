@@ -3,6 +3,7 @@ import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingA
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
+import { useFocusable } from "./useFocusable.js";
 
 // Calm placeholder cards shown while reports load.
 function ReportsSkeleton() {
@@ -34,16 +35,6 @@ function ReportsSkeleton() {
 // Moderation dashboard — autism-friendly: calm, low-stimulation, clear states.
 // Reds reserved for genuinely destructive actions (suspend).
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 const STATUS_FILTERS = [
   { value: "open", label: "Open" },

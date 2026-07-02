@@ -6,20 +6,11 @@ import Avatar from "../Avatar.jsx";
 import Skeleton from "../Skeleton.jsx";
 import { EmptyMessages } from "../illustrations.jsx";
 import ErrorState from "../ErrorState.jsx";
+import { useFocusable } from "../useFocusable.js";
 
 const CONVERSATION_CAP = 5;
 const AVATAR_SIZE = 44;
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // Calm placeholder rows shown while conversations load.
 function MatchesListSkeleton() {

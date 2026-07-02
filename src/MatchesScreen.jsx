@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMatches, createConversation, getActivity, saveMatchNote, safeErrorMessage, swipe, getUserId } from "./api.js";
+import { getMatches, createConversation, getActivity, saveMatchNote, safeErrorMessage, swipe, getUserId, unmatchConversation } from "./api.js";
+import { useFocusable } from "./useFocusable.js";
+import UnmatchSheet from "./messaging/UnmatchSheet.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
@@ -179,7 +181,7 @@ function PrivateNote({ matchId, note, onSaved }) {
         }}
       />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 6 }}>
-        <span style={{ fontSize: 12, color: t.textMuted }}>
+        <span role="status" aria-live="polite" style={{ fontSize: 12, color: t.textMuted }}>
           {savedFlash ? "Saved. Only you can see this." : "Only you can see this."}
         </span>
         <Button
@@ -195,7 +197,98 @@ function PrivateNote({ matchId, note, onSaved }) {
   );
 }
 
-function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSaved }) {
+// Quiet per-match "⋯" menu — safety actions must be reachable WITHOUT having
+// to open a conversation first (block/report/unmatch straight from the card).
+function MatchCardMenu({ name, onViewProfile, onReport, onUnmatch }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const f = useFocusable();
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e) { if (e.key === "Escape") setOpen(false); }
+    function onClick(e) { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClick);
+    };
+  }, [open]);
+
+  const itemStyle = {
+    display: "block",
+    width: "100%",
+    padding: "12px 16px",
+    background: "transparent",
+    border: "none",
+    textAlign: "left",
+    fontSize: 15,
+    fontWeight: 500,
+    cursor: "pointer",
+    fontFamily: t.sans,
+  };
+  return (
+    <span ref={rootRef} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        type="button"
+        aria-label={`More options for ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: t.textMuted,
+          fontSize: 18,
+          cursor: "pointer",
+          padding: "4px 6px",
+          borderRadius: 8,
+          minHeight: 44,
+          minWidth: 36,
+          ...f.style,
+        }}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={`Options for ${name}`}
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 4px)",
+            background: t.surface,
+            border: `1px solid ${t.cardBorder}`,
+            borderRadius: 12,
+            boxShadow: t.shadow.md,
+            zIndex: 300,
+            minWidth: 190,
+            overflow: "hidden",
+          }}
+        >
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, borderBottom: `1px solid ${t.borderLight}` }}
+            onClick={() => { setOpen(false); onViewProfile(); }}>
+            View profile
+          </button>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.danger, borderBottom: `1px solid ${t.borderLight}` }}
+            onClick={() => { setOpen(false); onReport(); }}>
+            Block or report
+          </button>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft }}
+            onClick={() => { setOpen(false); onUnmatch(); }}>
+            Unmatch
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
+function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSaved, onReport, onUnmatch }) {
   const { otherUser, hasConversation } = match;
   // Optional first-prompt preview — only if it has an answer and no tagline/context
   // already filling the row, to keep the card calm and uncluttered.
@@ -322,6 +415,12 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
             </span>
           ) : hasConversation ? "Open" : (plainLanguage ? "Send message" : "Say hello")}
         </Button>
+        <MatchCardMenu
+          name={otherUser.displayName || "this person"}
+          onViewProfile={() => onViewProfile && onViewProfile(otherUser.userId)}
+          onReport={() => onReport(match)}
+          onUnmatch={() => onUnmatch(match)}
+        />
       </div>
     </li>
   );
@@ -432,6 +531,10 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
   const [likerBusyId, setLikerBusyId] = useState(null);
   const [matchMoment, setMatchMoment] = useState(null);
   const [reportingLiker, setReportingLiker] = useState(null);
+  // Safety actions on an existing match (from the card's ⋯ menu).
+  const [reportingMatch, setReportingMatch] = useState(null);
+  const [unmatchingMatch, setUnmatchingMatch] = useState(null);
+  const [statusMessage, setStatusMessage] = useState("");
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -516,6 +619,21 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
     setLikerBusyId(null);
   }
 
+  // Unmatch from the card menu — same server action as unmatching from a
+  // conversation (removes match + conversation; the other person isn't told).
+  async function handleUnmatchConfirm() {
+    const m = unmatchingMatch;
+    setUnmatchingMatch(null);
+    if (!m) return;
+    try {
+      await unmatchConversation(m.matchId);
+    } catch (e) {
+      console.warn("Unmatch failed", e);
+    }
+    setMatches((prev) => prev.filter((x) => x.matchId !== m.matchId));
+    setStatusMessage(`You unmatched ${m.otherUser?.displayName || "this person"}.`);
+  }
+
   async function handleOpen(match) {
     if (match.hasConversation && match.conversationId) {
       onOpenConversation(match.conversationId);
@@ -596,6 +714,25 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
           onBlocked={(c) => removeLiker(c.memberId)}
         />
       )}
+      {/* Block/report an existing match from the card's ⋯ menu. */}
+      {reportingMatch && (
+        <ReportModal
+          candidate={{ memberId: reportingMatch.otherUser.userId, displayName: reportingMatch.otherUser.displayName }}
+          onClose={() => setReportingMatch(null)}
+          onBlocked={() => {
+            setMatches((prev) => prev.filter((x) => x.matchId !== reportingMatch.matchId));
+            setStatusMessage(`You blocked ${reportingMatch.otherUser?.displayName || "this person"}.`);
+          }}
+        />
+      )}
+      {/* Unmatch confirm — same calm sheet as in a conversation. */}
+      {unmatchingMatch && (
+        <UnmatchSheet
+          displayName={unmatchingMatch.otherUser?.displayName || "this person"}
+          onConfirm={handleUnmatchConfirm}
+          onCancel={() => setUnmatchingMatch(null)}
+        />
+      )}
       <div style={shell}>
         <h1
           ref={headingRef}
@@ -623,6 +760,11 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
         {error && (
           <p role="alert" style={{ color: t.danger, fontSize: 14, marginBottom: 16 }}>
             {error}
+          </p>
+        )}
+        {statusMessage && (
+          <p role="status" style={{ color: t.textSoft, fontSize: 14, marginBottom: 16 }}>
+            {statusMessage}
           </p>
         )}
 
@@ -677,6 +819,8 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
                   plainLanguage={plainLanguage}
                   onViewProfile={setViewingUserId}
                   onNoteSaved={handleNoteSaved}
+                  onReport={setReportingMatch}
+                  onUnmatch={setUnmatchingMatch}
                 />
               ))}
             </ul>

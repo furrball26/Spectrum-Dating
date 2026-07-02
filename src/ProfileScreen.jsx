@@ -4,6 +4,7 @@ import { t } from "./tokens.js";
 import { ShieldIcon, GearIcon, LockIcon } from "./icons.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
+import { useFocusable, focusRing } from "./useFocusable.js";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -11,7 +12,6 @@ import Avatar from "./Avatar.jsx";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
 // Visually hidden but exposed to assistive tech (mirrors App.jsx / .sr-only).
 const srOnly = {
@@ -26,14 +26,6 @@ const srOnly = {
   border: 0,
 };
 
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // P-22: gates all transitions on prefers-reduced-motion
 function usePrefersReduced() {
@@ -1389,7 +1381,6 @@ function AgeRangeSlider({ low, high, onChange }) {
   }
 
   const [focusedThumb, setFocusedThumb] = useState(null);
-  const focusRingStyle = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
   return (
     <div style={{ padding: "4px 0 2px" }}>
@@ -1455,7 +1446,7 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "low")}
           onFocus={() => setFocusedThumb("low")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRingStyle : {}) }}
+          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRing : {}) }}
         />
 
         {/* High thumb */}
@@ -1471,7 +1462,7 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "high")}
           onFocus={() => setFocusedThumb("high")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRingStyle : {}) }}
+          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRing : {}) }}
         />
       </div>
 

@@ -2,17 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { getStarters } from "../api.js";
 import { t } from "../tokens.js";
 import { EmptyMessages } from "../illustrations.jsx";
+import { useFocusable } from "../useFocusable.js";
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // Generic fallback — used only if the personalised starters can't be fetched.
 const FALLBACK_STARTERS = [

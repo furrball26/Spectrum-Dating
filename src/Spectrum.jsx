@@ -39,6 +39,11 @@ const LOADER_CSS = `
 @keyframes spectrumTileFade {
   0%, 100% { opacity: 0.25; }
   40%      { opacity: 1; }
+}
+/* Self-guard: OS-level reduced-motion users get static tiles even if the
+   in-app toggle (which mounts the global reduce sheet) was never set. */
+@media (prefers-reduced-motion: reduce) {
+  .spectrum-loader-tile { animation: none !important; opacity: 0.6 !important; }
 }`;
 
 function ensureLoaderStyle() {
@@ -85,6 +90,7 @@ export default function Spectrum({
         {loaderColors.map((c, i) => (
           <span
             key={i}
+            className="spectrum-loader-tile"
             style={{
               width: size,
               height: size,

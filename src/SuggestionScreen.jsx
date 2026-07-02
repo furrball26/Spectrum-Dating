@@ -8,6 +8,7 @@ import DiscoverFilters from "./DiscoverFilters.jsx";
 import { AllCaughtUp } from "./illustrations.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
 import ReportModal from "./ReportModal.jsx";
+import { useFocusable } from "./useFocusable.js";
 
 // The current viewer's identity for the match moment — name/photo from the
 // cached profile, id from auth. Best-effort: the monogram avatar degrades
@@ -43,16 +44,6 @@ function getViewerInterests() {
 }
 
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 function ActionButton({ label, kind, onClick, icon, ariaLabel, disabled }) {
   const f = useFocusable();

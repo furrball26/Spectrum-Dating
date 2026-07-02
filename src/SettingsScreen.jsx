@@ -6,6 +6,7 @@ import { submitFeedback, getProfile, updateProfile } from "./api.js";
 // split) screen back into the main bundle. Re-exported here for any existing
 // importers.
 import { A11Y_KEY, DEFAULT_A11Y, readA11y } from "./a11yPrefs.js";
+import { useFocusable } from "./useFocusable.js";
 
 export { A11Y_KEY, DEFAULT_A11Y, readA11y };
 
@@ -14,16 +15,6 @@ export { A11Y_KEY, DEFAULT_A11Y, readA11y };
 // user toggle them and saves immediately. Same calm shell as MatchesScreen /
 // SafetyScreen.
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 const cardStyle = {
   background: t.surface,

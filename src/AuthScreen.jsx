@@ -2,17 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { register, login, forgotPassword, resendVerification, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import SpectrumMark from "./SpectrumMark.jsx";
+import { useFocusable } from "./useFocusable.js";
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 function inputStyle(hasError) {
   return {

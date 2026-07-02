@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
 import { getMyReports, getBlockedUsers, unblockUser, withdrawReport } from "./api.js";
 import Button from "./Button.jsx";
+import { useFocusable } from "./useFocusable.js";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
 // place to prepare for the offline transition: meeting tips, ready-to-use
@@ -9,16 +10,6 @@ import Button from "./Button.jsx";
 
 const CHECKIN_KEY = "spectrum_safety_checkin";
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // ----- shared style helpers -------------------------------------------------
 

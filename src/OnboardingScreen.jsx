@@ -2,17 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { updateProfile } from "./api.js";
 import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
+import { useFocusable, focusRing } from "./useFocusable.js";
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 function usePrefersReduced() {
   const [prefersReduced, setPrefersReduced] = useState(
@@ -173,7 +164,6 @@ function AgeRangeSlider({ low, high, onChange }) {
   const trackRef = useRef(null);
   const [dragging, setDragging] = useState(null); // "low" | "high" | null
   const [focusedThumb, setFocusedThumb] = useState(null);
-  const focusRingStyle = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
 
   function pct(v) {
     return ((v - AGE_SLIDER_MIN) / (AGE_SLIDER_MAX - AGE_SLIDER_MIN)) * 100;
@@ -294,7 +284,7 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "low")}
           onFocus={() => setFocusedThumb("low")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRingStyle : {}) }}
+          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRing : {}) }}
         />
 
         <div
@@ -309,7 +299,7 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "high")}
           onFocus={() => setFocusedThumb("high")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRingStyle : {}) }}
+          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRing : {}) }}
         />
       </div>
 

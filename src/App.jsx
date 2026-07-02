@@ -28,6 +28,7 @@ import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
 import { ShieldIcon, GearIcon, HeartIcon, LockIcon } from "./icons.jsx";
+import { useFocusable } from "./useFocusable.js";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -63,16 +64,6 @@ function ScreenFallback() {
   );
 }
 
-const focusRing = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
-
-function useFocusable() {
-  const [focused, setFocused] = useState(false);
-  return {
-    style: focused ? focusRing : { outline: "none" },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-  };
-}
 
 // Human-readable screen names — drive document.title + the SR announcement so
 // SPA tab changes are titled and announced (S4).
