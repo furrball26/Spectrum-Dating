@@ -26,6 +26,23 @@ burning the session on coordination.
 - **Tier 3 (initiatives):** one parallel advisor panel to PLAN, then Tier-2
   loops to execute. Never re-panel for follow-up bugs.
 
+## Per-agent economy (each agent's own footprint)
+Crew-sizing above controls HOW MANY agents run; these controls cap how much
+EACH one burns, because every agent re-reads the codebase:
+- **Tool scoping (frontmatter `tools:`):** read-only advisors get only
+  `Read, Grep, Glob, Bash`; the builder/QA add `Edit, Write`. Fewer tool
+  schemas loaded per agent, and read-only is enforced structurally, not by trust.
+- **"Session economy" block (every agent):** grep-then-read the specific
+  files/ranges instead of bulk-reading the tree, read `CLAUDE.md` once, stop
+  once findings are supported, and return tight ranked output — the caller pays
+  for everything an agent reads AND everything it returns.
+- **Model tiering (frontmatter `model:`) — the biggest lever:** correctness-
+  critical agents pin `opus` (`frontend-feature-builder`, `backend-security-
+  auditor`, `code-reviewer`, `trust-safety-specialist`); analysis/testing agents
+  run `sonnet` (`qa-functional-tester`, `design-ux-reviewer`,
+  `accessibility-auditor`, `user-journey-tester`, `product-strategist`,
+  `executive-assistant`). Retune per agent if a Sonnet tier misses too much.
+
 ## The files that make autonomy real
 - `CLAUDE.md` (repo root) — ship pipeline, sandbox E2E recipe, product law,
   definition of done. Auto-loaded every session; agents are told to read it.
