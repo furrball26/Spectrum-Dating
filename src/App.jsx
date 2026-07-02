@@ -1168,7 +1168,15 @@ export default function App() {
           <>
           <div
             style={{
-              minHeight: "100vh",
+              // Messages hosts its own internal scroller (the message log), so
+              // the shell must be HEIGHT-LOCKED to the viewport there — with
+              // minHeight the whole page grew to fit the thread and the log
+              // never scrolled. Every other tab keeps normal page scrolling.
+              // dvh tracks the iOS dynamic toolbar (100vh hides the composer
+              // behind it).
+              ...(activeTab === "messages"
+                ? { height: "100dvh", overflow: "hidden" }
+                : { minHeight: "100dvh" }),
               display: "flex",
               flexDirection: "column",
               background: t.bg,

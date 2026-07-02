@@ -506,6 +506,10 @@
         padding: 10px 16px; font-weight: 600; text-decoration: none;
       }
       .skip-link:focus { left: 12px; top: 12px; }
+      /* Scroll containers that should scroll WITHOUT a visible scrollbar
+         (the message log): scrolling still works by touch/wheel/keys. */
+      .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
       /* Visually-hidden but exposed to assistive tech (accessible-name helpers). */
       .sr-only {
         position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

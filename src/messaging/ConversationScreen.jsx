@@ -887,7 +887,7 @@ const MessageBubble = memo(function MessageBubble({
           side (own→right, other→left) and inset past the avatar gutter.
           D18 — pull the pill up so it slightly overlaps the bubble's lower edge,
           reading as attached to its message rather than floating below it. */}
-      {msgReactions && (
+      {reactionCount > 0 && (
         <div
           style={{
             maxWidth: "min(88%, 34rem)",
@@ -2590,7 +2590,7 @@ export default function ConversationScreen({
 
       {/* Message log or empty state */}
       {!hasMessages && !started ? (
-        <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+        <div className="hide-scrollbar" style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
           <div style={{ padding: "16px 16px 0" }}>
             {safetyReassuranceCard}
             {/* F12 (light) — a brand-new thread with no messages is the clearest
@@ -2635,6 +2635,7 @@ export default function ConversationScreen({
             aria-label={`Conversation with ${otherUser.displayName}`}
             aria-describedby={logHintId}
             tabIndex={0}
+            className="hide-scrollbar"
             {...logFocus}
             style={{
               flex: 1,
