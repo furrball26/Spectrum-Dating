@@ -49,67 +49,87 @@ function SecondaryButton({ children, onClick }) {
   );
 }
 
-// Segmented control for the theme choice (Light / Warm dim). Mirrors the calm,
-// rounded styling of the rest of the screen and applies the change immediately.
+// Theme picker — a swatch-card radio grid. Each card is a static mini preview
+// built from THAT theme's actual palette (hardcoded per card, since only one
+// theme's CSS variables can be live at once): the theme's bg as the card fill,
+// a surface chip, an accent dot, and "Aa" in its text color. Seeing before
+// committing beats flashing the whole screen through every option; selection
+// still applies instantly (predictable), and dim stays the default.
+const THEME_CARDS = [
+  { key: "dim",       label: "Warm dim",   note: "The calm default", bg: "#181F1D", surface: "#26312D", border: "#3E4D47", accent: "#356962", text: "#E4EAE6" },
+  { key: "light",     label: "Light",      note: "",                 bg: "#F5F3EE", surface: "#FFFFFF", border: "#C7D2CA", accent: "#3E6660", text: "#24332D" },
+  { key: "navy",      label: "Navy",       note: "",                 bg: "#121A2B", surface: "#1C2740", border: "#3A4B6B", accent: "#33518A", text: "#E5EAF3" },
+  { key: "lightblue", label: "Light blue", note: "",                 bg: "#F2F5F9", surface: "#FFFFFF", border: "#BFCEDC", accent: "#2F5675", text: "#22303F" },
+  { key: "pink",      label: "Pink",       note: "",                 bg: "#FAF3F2", surface: "#FFFFFF", border: "#D8C2C8", accent: "#8A4560", text: "#372B2F" },
+];
+
 function ThemeSegmented({ value, onChange }) {
-  const options = [
-    { key: "light", label: "Light" },
-    { key: "dim", label: "Warm dim" },
-  ];
   return (
     <div
       role="radiogroup"
       aria-label="Theme"
       style={{
-        display: "flex",
-        gap: 4,
-        padding: 4,
-        background: t.surfaceAlt,
-        border: `1px solid ${t.border}`,
-        borderRadius: 12,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+        gap: 10,
       }}
     >
-      {options.map((opt) => {
-        const active = value === opt.key;
-        return (
-          <ThemeOption
-            key={opt.key}
-            label={opt.label}
-            active={active}
-            onClick={() => onChange(opt.key)}
-          />
-        );
-      })}
+      {THEME_CARDS.map((c) => (
+        <ThemeCard key={c.key} card={c} active={value === c.key} onClick={() => onChange(c.key)} />
+      ))}
     </div>
   );
 }
 
-function ThemeOption({ label, active, onClick }) {
+function ThemeCard({ card, active, onClick }) {
   const f = useFocusable();
   return (
     <button
       type="button"
       role="radio"
       aria-checked={active}
+      aria-label={`${card.label} theme${card.note ? ` — ${card.note.toLowerCase()}` : ""}`}
       onClick={onClick}
-      {...f}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
       style={{
-        flex: 1,
-        minHeight: 44,
-        padding: "10px 12px",
-        borderRadius: 9,
-        border: "none",
+        padding: 0,
+        border: active ? `2px solid ${t.accentStrong}` : `1px solid ${t.border}`,
+        borderRadius: 12,
+        background: t.surface,
         cursor: "pointer",
-        fontSize: 16,
-        fontWeight: 600,
-        background: active ? t.surface : "transparent",
-        color: active ? t.text : t.textSoft,
-        boxShadow: active ? t.shadow.sm : "none",
-        transition: `background ${t.motion.base} ${t.motion.standard}, color ${t.motion.base} ${t.motion.standard}`,
+        overflow: "hidden",
+        textAlign: "left",
+        fontFamily: t.sans,
         ...f.style,
       }}
     >
-      {label}
+      {/* Static swatch preview in the target theme's own colors */}
+      <span
+        aria-hidden="true"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          height: 56,
+          padding: "0 12px",
+          background: card.bg,
+          borderBottom: `1px solid ${card.border}`,
+        }}
+      >
+        <span style={{ fontSize: 16, fontWeight: 700, color: card.text }}>Aa</span>
+        <span style={{ width: 26, height: 18, borderRadius: 5, background: card.surface, border: `1px solid ${card.border}` }} />
+        <span style={{ width: 14, height: 14, borderRadius: "50%", background: card.accent }} />
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 40, padding: "4px 12px" }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{card.label}</span>
+        {active && <span aria-hidden="true" style={{ color: t.accentStrong, fontWeight: 700 }}>✓</span>}
+      </span>
+      {card.note && (
+        <span style={{ display: "block", padding: "0 12px 8px", fontSize: 13, color: t.textSoft }}>
+          {card.note}
+        </span>
+      )}
     </button>
   );
 }
@@ -446,7 +466,7 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
           Theme
         </h2>
         <p style={{ margin: "0 2px 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-          Warm dim is easier on the eyes in low light.
+          Pick whichever feels comfortable. You can change it anytime.
         </p>
         <ThemeSegmented value={prefs.theme} onChange={(v) => update("theme", v)} />
 

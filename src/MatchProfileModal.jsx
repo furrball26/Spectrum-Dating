@@ -73,7 +73,7 @@ export default function MatchProfileModal({ userId, onClose }) {
 
   return (
     <>
-      <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(36,51,45,0.4)", zIndex: 1200 }} />
+      <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.4)", zIndex: 1200 }} />
       <div
         ref={dialogRef}
         role="dialog"

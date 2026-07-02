@@ -74,7 +74,7 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: "28px 24px 40px",
-    boxShadow: "0 -4px 24px rgba(36,51,45,0.14)",
+    boxShadow: "0 -4px 24px rgba(var(--c-scrimRgb, 36, 51, 45),0.14)",
     zIndex: 1000,
     width: "100%",
     maxWidth: 540,
@@ -92,7 +92,7 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(36,51,45,0.45)",
+          background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.45)",
           zIndex: 999,
           transition: prefersReduced ? "none" : "opacity 150ms",
         }}

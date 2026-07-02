@@ -129,7 +129,7 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(36,51,45,0.35)",
+          background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)",
           zIndex: 1100,
         }}
       />

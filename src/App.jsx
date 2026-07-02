@@ -359,9 +359,20 @@ function applyA11yStylesheet(prefs) {
 // defined in index.html for [data-theme="dim"] then cascade to every token.
 // '' (empty) falls back to the default light :root values. The high-contrast /
 // larger-text / calm overrides layer on top of whichever theme is active.
+// Browser-chrome color per theme (status bar / PWA). Keyed by theme id;
+// unknown ids fall back to dim's, matching the prefs normaliser.
+const THEME_META_COLOR = {
+  light: "#3E6660",
+  dim: "#181F1D",
+  navy: "#121A2B",
+  lightblue: "#2F5675",
+  pink: "#8A4560",
+};
 function applyTheme(prefs) {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = prefs.theme === "dim" ? "dim" : "";
+  document.documentElement.dataset.theme = prefs.theme === "light" ? "" : prefs.theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", THEME_META_COLOR[prefs.theme] || THEME_META_COLOR.dim);
 }
 
 // Inline style overrides for the top-level app container based on prefs.

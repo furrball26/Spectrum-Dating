@@ -9,6 +9,12 @@
 
 export const A11Y_KEY = "spectrum_a11y";
 
+// Every selectable theme id. Fail-closed: anything not in this list normalises
+// to the dim default (never to a surprise theme). Keep in sync with the theme
+// blocks in index.html, the pre-paint bootstrap script there, and the picker
+// in SettingsScreen.
+export const THEMES = ["dim", "light", "navy", "lightblue", "pink"];
+
 export const DEFAULT_A11Y = {
   reduceMotion: false,
   highContrast: false,
@@ -56,7 +62,7 @@ export function readA11y() {
       highContrast: !!parsed.highContrast,
       largerText: !!parsed.largerText,
       // Explicit saved choice wins; anything else falls back to the dim default.
-      theme: parsed.theme === "light" ? "light" : "dim",
+      theme: THEMES.includes(parsed.theme) ? parsed.theme : "dim",
       plainLanguage: !!parsed.plainLanguage,
       // Low Stimulation absorbed the former "Calm mode" — migrate any legacy calmMode=true.
       reducedSensory: !!(parsed.reducedSensory || parsed.calmMode),

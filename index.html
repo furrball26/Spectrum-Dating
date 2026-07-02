@@ -35,6 +35,21 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&display=swap"
     />
+    <!-- Pre-paint theme bootstrap: set data-theme from the saved preference
+         BEFORE the first paint so nobody gets a flash of the wrong theme.
+         Mirrors readA11y() in src/a11yPrefs.js exactly: known ids apply,
+         "light" clears the attribute, anything else falls back to dim. -->
+    <script>
+      (function () {
+        var th = "dim";
+        try {
+          var p = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
+          var v = p && typeof p.theme === "string" ? p.theme : "dim";
+          th = ["dim", "navy", "lightblue", "pink"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
+        } catch (e) { /* fall through to dim */ }
+        document.documentElement.dataset.theme = th;
+      })();
+    </script>
     <style>
       /* ── Theme color variables ───────────────────────────────────────────
          Light is the default (:root). The warm dim theme activates when
@@ -111,6 +126,11 @@
         --c-bubbleOwnBorder: #AFCABD;
         --c-bubbleOther: #FFFFFF;
         --c-tombstone: #5F6F67;
+        /* Modal/sheet scrim RGB triplet — used as rgba(var(--c-scrimRgb), a)
+           so each overlay keeps its own opacity but the hue follows the theme
+           (the old hardcoded green-black rgba(36,51,45,…) read wrong off-brand
+           on non-green themes — same bug class the --sh-* migration fixed). */
+        --c-scrimRgb: 36, 51, 45;
       }
       :root[data-theme="dim"] {
         /* Deeper bg + slightly lifted surfaces = real figure/ground in dim. */
@@ -170,6 +190,168 @@
         /* Tracks --c-surface (other-person bubbles read as surface cards). */
         --c-bubbleOther: #26312D;
         --c-tombstone: #8A988F;
+        --c-scrimRgb: 0, 0, 0;
+      }
+      /* ── Navy — the second dark theme: desaturated slate-navy, soft blue
+         accent. Status hues (positive/danger/warning) reuse dim's proven
+         AA-passing values; shadows stay black-based like every dark theme. */
+      :root[data-theme="navy"] {
+        --c-bg: #121A2B;
+        --c-bg-gradient: linear-gradient(150deg, #121A2B 0%, #0F1626 100%);
+        --c-surface: #1C2740;
+        --c-surfaceAlt: #233150;
+        --c-cardBorder: #3A4B6B;
+        --sh-sm: 0 1px 2px rgba(0,0,0,0.28), 0 3px 10px rgba(0,0,0,0.32);
+        --sh-md: 0 2px 4px rgba(0,0,0,0.30), 0 12px 28px rgba(0,0,0,0.42);
+        --sh-lg: 0 4px 12px rgba(0,0,0,0.36), 0 24px 48px rgba(0,0,0,0.52);
+        --c-clayText: #D9BE8E;
+        --c-text: #E5EAF3;
+        --c-textSoft: #B4C0D4;
+        --c-textMuted: #93A1B8;
+        --c-accent: #8FAEDB;
+        --c-accentStrong: #A4BEE6;
+        --c-accentFill: #33518A;
+        --c-positive: #86BE8C;
+        --c-positiveFill: #2F6A3A;
+        --c-border: #2C3A55;
+        --c-borderLight: #25314A;
+        --c-focus: #E5EAF3;
+        --c-danger: #E39090;
+        --c-dangerFill: #A03D3D;
+        --c-positiveText: #86BE8C;
+        --c-warning: #D9B45A;
+        --c-warningFill: #806508;
+        --c-warningBorder: #D9B45A;
+        --c-mutedFill: #566275;
+        --c-dangerSurface: #392626;
+        --c-warningSurface: #33301E;
+        --c-warningSurfaceText: #E9DFC0;
+        --c-sand: #3A352B;
+        --c-clay: #C9A875;
+        --c-teal: #6FA39A;
+        --c-green50: #1A2438;
+        --c-green100: #202C46;
+        --c-green200: #283757;
+        --c-green300: #33456C;
+        --c-green400: #5F7BA8;
+        --c-green500: #8FAEDB;
+        --c-green600: #A4BEE6;
+        --c-green700: #B5CBEC;
+        --c-green800: #CBDAF2;
+        --c-green900: #E5EAF3;
+        --c-formBorder: #5F7392;
+        --c-bubbleOwn: #2B3A58;
+        --c-bubbleOwnBorder: #435577;
+        --c-bubbleOther: #1C2740;
+        --c-tombstone: #8B99AE;
+        --c-scrimRgb: 4, 10, 20;
+      }
+      /* ── Light blue — cool blue-gray paper, steel-blue accent. Warm labels
+         (sand/clay/warning) deliberately keep their light-theme values. */
+      :root[data-theme="lightblue"] {
+        --c-bg: #F2F5F9;
+        --c-bg-gradient: linear-gradient(150deg, #F4F7FA 0%, #E9EFF5 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #EAF0F6;
+        --c-cardBorder: #BFCEDC;
+        --sh-sm: 0 1px 2px rgba(24,34,54,0.06), 0 3px 10px rgba(24,34,54,0.08);
+        --sh-md: 0 2px 4px rgba(24,34,54,0.07), 0 12px 28px rgba(24,34,54,0.11);
+        --sh-lg: 0 4px 12px rgba(24,34,54,0.10), 0 24px 48px rgba(24,34,54,0.15);
+        --c-clayText: #8A6B3E;
+        --c-text: #22303F;
+        --c-textSoft: #48586A;
+        --c-textMuted: #5B6C7E;
+        --c-accent: #43708F;
+        --c-accentStrong: #2F5675;
+        --c-accentFill: #2F5675;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #CFDAE4;
+        --c-borderLight: #E3EAF1;
+        --c-focus: #22303F;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #556472;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #EDF2F7;
+        --c-green100: #DEE8F0;
+        --c-green200: #C2D5E4;
+        --c-green300: #A0BDD3;
+        --c-green400: #6F94B0;
+        --c-green500: #43708F;
+        --c-green600: #3A627F;
+        --c-green700: #2F5675;
+        --c-green800: #264760;
+        --c-green900: #22303F;
+        --c-formBorder: #74879B;
+        --c-bubbleOwn: #DCE8F2;
+        --c-bubbleOwnBorder: #B7CCDE;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #5B6C7E;
+        --c-scrimRgb: 24, 34, 54;
+      }
+      /* ── Pink ("Blush") — blush paper, DUSTY-ROSE accent, deliberately
+         mauve-shifted so the true-red danger states stay unmistakable.
+         Readable pink on pastel means wine/plum text ramps (AA-checked). */
+      :root[data-theme="pink"] {
+        --c-bg: #FAF3F2;
+        --c-bg-gradient: linear-gradient(150deg, #FBF4F3 0%, #F3E9E9 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F4E9E8;
+        --c-cardBorder: #D8C2C8;
+        --sh-sm: 0 1px 2px rgba(52,40,44,0.06), 0 3px 10px rgba(52,40,44,0.08);
+        --sh-md: 0 2px 4px rgba(52,40,44,0.07), 0 12px 28px rgba(52,40,44,0.11);
+        --sh-lg: 0 4px 12px rgba(52,40,44,0.10), 0 24px 48px rgba(52,40,44,0.15);
+        --c-clayText: #8A6B3E;
+        --c-text: #372B2F;
+        --c-textSoft: #645159;
+        --c-textMuted: #77626B;
+        --c-accent: #A05A70;
+        --c-accentStrong: #8A4560;
+        --c-accentFill: #8A4560;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #E4D3D6;
+        --c-borderLight: #F0E4E6;
+        --c-focus: #372B2F;
+        --c-danger: #B23A3A;
+        --c-dangerFill: #B23A3A;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #6E5A62;
+        --c-dangerSurface: #FBEFEF;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #F7EDEE;
+        --c-green100: #EFDEE1;
+        --c-green200: #E2C6CC;
+        --c-green300: #D0A8B2;
+        --c-green400: #B27E90;
+        --c-green500: #A05A70;
+        --c-green600: #945064;
+        --c-green700: #8A4560;
+        --c-green800: #6E3750;
+        --c-green900: #372B2F;
+        --c-formBorder: #94787F;
+        --c-bubbleOwn: #F5DFE3;
+        --c-bubbleOwnBorder: #E2BEC7;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #77626B;
+        --c-scrimRgb: 52, 40, 44;
       }
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }

@@ -247,7 +247,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
   const overlay = {
     position: "fixed",
     inset: 0,
-    background: "rgba(36,51,45,0.45)",
+    background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.45)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",

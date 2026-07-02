@@ -48,7 +48,7 @@ function NoteSheet({ row, initialNote, onSaved, onClose }) {
   const [saving, setSaving] = useState(false);
   return (
     <>
-      <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(36,51,45,0.35)", zIndex: 1100 }} />
+      <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)", zIndex: 1100 }} />
       <div
         role="dialog"
         aria-modal="true"

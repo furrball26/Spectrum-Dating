@@ -331,7 +331,7 @@ function ImageLightbox({ src, onClose }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(36,51,45,0.72)",
+        background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.72)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -415,7 +415,7 @@ function DeleteConfirmDialog({ onConfirm, onCancel, unsent = false }) {
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(36,51,45,0.35)",
+          background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)",
           zIndex: 1100,
         }}
       />
@@ -1531,7 +1531,7 @@ function HelperTray({ onInsert, onClose, triggerRef }) {
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(36,51,45,0.35)",
+          background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)",
           zIndex: 1150,
         }}
       />
@@ -1551,7 +1551,7 @@ function HelperTray({ onInsert, onClose, triggerRef }) {
           overflowY: "auto",
           background: t.surface,
           borderRadius: "20px 20px 0 0",
-          boxShadow: "0 -8px 40px rgba(36,51,45,0.18)",
+          boxShadow: "0 -8px 40px rgba(var(--c-scrimRgb, 36, 51, 45),0.18)",
           zIndex: 1151,
           boxSizing: "border-box",
           padding: "20px 20px calc(24px + env(safe-area-inset-bottom, 0px))",

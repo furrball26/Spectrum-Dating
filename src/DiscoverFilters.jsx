@@ -288,7 +288,7 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(36,51,45,0.45)",
+          background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.45)",
           zIndex: 1200,
         }}
       />
