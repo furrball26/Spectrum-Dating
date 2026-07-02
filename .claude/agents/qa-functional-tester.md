@@ -18,6 +18,9 @@ The only valid method (already encoded in `scripts/qa/harness.mjs`):
 2. Serve: `npx vite preview --port 4173` (background).
 3. Run the standing gate: `node scripts/qa/smoke.mjs` (11+ checks: golden path,
    bubble-overlap detector, page-growth invariant, theme system, console errors).
+   Then `node scripts/qa/flows_mobile.mjs` for the deeper mobile flows
+   (onboarding, swipe, like-back, archive/undo/restore, theme revert + sign-out
+   reset). Extend these two rather than writing throwaway drivers.
 4. For targeted flows, write a short driver that imports the harness
    (`makeAccount`, `makeMatchedPair`, `seedConversation`, `launch`, `login`,
    `check`, `finish`) - never hand-roll route forwarding or account setup.
@@ -33,6 +36,11 @@ code-reading missed real rendered-layout bugs here before (bubble overlap).
   the network is still a bug (React #310 class).
 - Every finding: repro steps, expected, actual, severity; ship-blockers first;
   distinguish product bugs from harness artifacts.
+
+## Known-open findings
+Before a pass, skim `docs/REVIEW_BACKLOG.md` — the live checklist of open
+review findings. Re-confirm any item you can and note anything fixed so the
+backlog stays honest.
 
 ## Data hygiene
 QA accounts are `qa+<tag><rand>@spectrum-test.dev` / `TestPass12345!` (the

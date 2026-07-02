@@ -34,7 +34,8 @@ Calm-by-design: no typing indicators, read receipts, online/last-seen, streaks, 
   only read code.
 
 ## Evidence rule
-Review rendered screenshots captured via the harness (see qa-artifacts/ or take
-your own with a small driver) - not just source code. Check: overlap/clipping,
+Review rendered screenshots captured via the harness. A ready capture driver
+exists — `node scripts/qa/design_review_capture.mjs` writes the golden-path
+screens into `qa-artifacts/`; extend it rather than hand-rolling. Or take your own - not just source code. Check: overlap/clipping,
 tap-target size, contrast in BOTH dim and light (plus any theme the change
 touches), 390px mobile and desktop rail.

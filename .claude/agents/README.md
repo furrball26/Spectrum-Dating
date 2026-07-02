@@ -26,13 +26,19 @@ burning the session on coordination.
 - **Tier 3 (initiatives):** one parallel advisor panel to PLAN, then Tier-2
   loops to execute. Never re-panel for follow-up bugs.
 
-## The three files that make autonomy real
+## The files that make autonomy real
 - `CLAUDE.md` (repo root) — ship pipeline, sandbox E2E recipe, product law,
   definition of done. Auto-loaded every session; agents are told to read it.
 - `scripts/qa/harness.mjs` — account seeding + browser launch + API forwarding
   (the sandbox has no browser internet; this is the only way to run the app).
 - `scripts/qa/smoke.mjs` — the standing regression gate (golden path + layout
   invariants from every past regression). Green smoke = shippable.
+- `scripts/qa/flows_mobile.mjs` — deeper mobile flows (onboarding, swipe,
+  like-back, archive/undo/restore, theme revert + sign-out reset).
+- `scripts/qa/design_review_capture.mjs` — screenshots the golden-path screens
+  into `qa-artifacts/` for the design reviewer.
+- `docs/REVIEW_BACKLOG.md` — live checklist of open review findings.
+- `docs/AUTONOMY_REPORT.md` — why the team exists / how to run autonomously.
 
 ## Installing in another repo
 1. Copy `.claude/agents/` into the target repo (project-scoped) or
@@ -41,5 +47,7 @@ burning the session on coordination.
    pipeline/discipline sections transfer as-is.
 3. Copy `scripts/qa/` and adjust `PROFILE_DEFAULTS`/endpoints in `harness.mjs`
    to the target backend; keep `check`/`finish`/`launch` unchanged.
-4. Commit all three. The brain must live in version control — this team was
+4. Commit everything. The brain must live in version control — this team was
    originally lost because its files lived only in another repo's chat.
+5. Keep repo `.claude/agents/` and `~/.claude/agents/` identical if you use
+   both scopes (re-copy after edits).
