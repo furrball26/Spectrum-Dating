@@ -173,7 +173,7 @@ const ModerationGlyph = () => <NavGlyph><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1
 
 // Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label.
 // Plain nav buttons with aria-current="page" on the active item + focus rings.
-function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
+function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria }) {
   const f = useFocusable();
   return (
     <button
@@ -206,7 +206,7 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount }) {
         {icon}
         {badgeCount > 0 && (
           <span
-            aria-label={`${badgeCount} unread`}
+            aria-label={badgeAria || `${badgeCount} unread`}
             style={{
               position: "absolute",
               top: -4,
@@ -978,6 +978,10 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   // Activity count — incoming likes from the activity inbox (drives the Matches tab badge)
   const [activityCount, setActivityCount] = useState(0);
+  // Stable so MatchesScreen's activity effect doesn't re-run (and re-fetch) on
+  // every App render — a fresh inline arrow here caused a redundant getActivity
+  // per render and a flickering badge.
+  const handleActivityCount = useCallback((n) => setActivityCount(n), []);
 
   // Ref so the socket effect can read the current tab without a stale closure
   const activeTabRef = useRef(activeTab);
@@ -1266,7 +1270,7 @@ export default function App() {
               {activeTab === "matches" && (
                 <MatchesScreen
                   onGoDiscover={() => { setPrevTab("matches"); setActiveTab("suggestions"); }}
-                  onActivityCount={(n) => setActivityCount(n)}
+                  onActivityCount={handleActivityCount}
                   onOpenConversation={(conversationId) => {
                     setPendingConversationId(conversationId);
                     setPrevTab("matches");
@@ -1356,8 +1360,13 @@ export default function App() {
                 label="Matches"
                 icon={<HeartIcon size={22} />}
                 active={activeTab === "matches"}
-                onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); setActivityCount(0); }}
+                // Don't zero the count merely on visit — a "liked you" is still
+                // unactioned until you like back or dismiss them. It hides while
+                // this tab is active and reappears on leave; it drops only when
+                // MatchesScreen reports a smaller count (someone was acted on).
+                onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
                 badgeCount={activeTab === "matches" ? 0 : activityCount}
+                badgeAria={`${activityCount} ${activityCount === 1 ? "person" : "people"} liked you`}
               />
               <BottomNavTab
                 label="Messages"

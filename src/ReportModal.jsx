@@ -1,0 +1,333 @@
+import { useState, useRef, useEffect } from "react";
+import { reportUser, blockUser } from "./api.js";
+import { t } from "./tokens.js";
+import { SAFETY_REASONS } from "./safetyReasons.js";
+
+// Block-or-report modal (shared by Discover and Matches). `candidate` needs
+// { memberId, displayName }; `onBlocked(candidate)` fires only when a block
+// actually landed (E27). Extracted from SuggestionScreen so the Matches page
+// can offer the same calm block/report flow on people who liked you.
+export default function ReportModal({ candidate, onClose, onBlocked }) {
+  const [reason, setReason] = useState("");
+  const [details, setDetails] = useState("");
+  // Block and report are independent choices. Default: report on (this is the
+  // "Report" entry point), block on too since it's pre-match — but each is
+  // optional and can be turned off. At least one is required.
+  const [doReport, setDoReport] = useState(true);
+  const [doBlock, setDoBlock] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
+  const [confirmMsg, setConfirmMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [failMsg, setFailMsg] = useState("");
+  const headingRef = useRef(null);
+  const dialogRef = useRef(null);
+
+  // Move focus into the dialog on open, restore to the trigger on close. WCAG 2.4.3.
+  useEffect(() => {
+    const prevFocus = document.activeElement;
+    headingRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
+  }, []);
+
+  // Escape to close + Tab/Shift+Tab focus trap. Focusable set is dynamic
+  // (checkboxes, reason radios, textarea, buttons), so query live. WCAG 2.4.3 / 2.1.2.
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Tab") {
+        const root = dialogRef.current;
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll(
+            'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !root.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  const canSubmit = (doBlock || doReport) && !!reason && !submitting;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setFailed(false);
+
+    // Report to moderators (independent of block).
+    let reported = false;
+    if (doReport) {
+      try {
+        await reportUser(candidate.memberId, reason, details || undefined);
+        reported = true;
+      } catch (err) {
+        console.warn("Report failed", err);
+      }
+    }
+    // Block. blockUser canonicalises the reason to a valid block reason.
+    let blocked = false;
+    if (doBlock) {
+      try {
+        await blockUser(candidate.memberId, reason, details || undefined);
+        blocked = true;
+      } catch (err) {
+        console.warn("Block failed", err);
+      }
+    }
+    setSubmitting(false);
+
+    // E27: only drop them from the deck / promise "gone" when the block landed.
+    if (doBlock) {
+      if (!blocked) {
+        setFailMsg(`We couldn't block ${candidate.displayName}. Please try again.`);
+        setFailed(true);
+        return;
+      }
+      if (onBlocked) onBlocked(candidate);
+    }
+    if (!doBlock && doReport && !reported) {
+      setFailMsg("We couldn't send your report. Please try again.");
+      setFailed(true);
+      return;
+    }
+
+    setConfirmMsg(
+      blocked && reported
+        ? `Blocked and reported. You won't see ${candidate.displayName} again, and our team will take a look.`
+        : blocked
+        ? `Blocked. You won't see ${candidate.displayName} again.`
+        : "Report submitted. Thank you — our team will take a look."
+    );
+    setSubmitted(true);
+    setTimeout(onClose, 1600);
+  }
+
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(36,51,45,0.35)",
+          zIndex: 1100,
+        }}
+      />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="report-modal-heading"
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: t.surface,
+          borderRadius: 20,
+          padding: "28px 24px",
+          width: "min(90vw, 400px)",
+          zIndex: 1101,
+          boxShadow: "0 8px 40px rgba(36,51,45,0.18)",
+          boxSizing: "border-box",
+          fontFamily: t.sans,
+        }}
+      >
+        {submitted ? (
+          <p
+            role="status"
+            style={{ color: t.textSoft, textAlign: "center", margin: 0, lineHeight: 1.6 }}
+          >
+            {confirmMsg}
+          </p>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <h2
+              id="report-modal-heading"
+              ref={headingRef}
+              tabIndex={-1}
+              style={{
+                fontFamily: t.serif,
+                fontSize: 20,
+                fontWeight: 700,
+                margin: "0 0 8px",
+                color: t.text,
+                outline: "none",
+              }}
+            >
+              Block or report {candidate.displayName}
+            </h2>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.55 }}>
+              Choose what you'd like to do — you can block, report, or both. Neither is required.
+            </p>
+            {failed && (
+              <div
+                role="alert"
+                style={{
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  marginBottom: 16,
+                  fontSize: 14,
+                  color: t.text,
+                  lineHeight: 1.5,
+                }}
+              >
+                {failMsg}
+              </div>
+            )}
+            <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
+              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
+                What would you like to do?
+              </legend>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, fontSize: 15, color: t.text, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={doBlock}
+                  onChange={() => setDoBlock((v) => !v)}
+                  style={{ minWidth: 18, minHeight: 18, marginTop: 2, accentColor: t.accent }}
+                />
+                <span>
+                  <span style={{ display: "block", fontWeight: 600 }}>Block them</span>
+                  <span style={{ display: "block", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                    You won't see {candidate.displayName} again.
+                  </span>
+                </span>
+              </label>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 15, color: t.text, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={doReport}
+                  onChange={() => setDoReport((v) => !v)}
+                  style={{ minWidth: 18, minHeight: 18, marginTop: 2, accentColor: t.accent }}
+                />
+                <span>
+                  <span style={{ display: "block", fontWeight: 600 }}>Report to our team</span>
+                  <span style={{ display: "block", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                    Flag this for our team — you don't have to block them. It's private and low-stakes.
+                  </span>
+                </span>
+              </label>
+              {!doBlock && !doReport && (
+                <p style={{ fontSize: 13, color: t.textMuted, margin: "10px 0 0" }}>
+                  Pick at least one to continue.
+                </p>
+              )}
+            </fieldset>
+            <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
+              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
+                What's going on?
+              </legend>
+              {SAFETY_REASONS.map((r) => (
+                <label
+                  key={r.value}
+                  style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 15, color: t.text, cursor: "pointer" }}
+                >
+                  <input
+                    type="radio"
+                    name="report-reason"
+                    value={r.value}
+                    checked={reason === r.value}
+                    onChange={() => setReason(r.value)}
+                    style={{ minWidth: 18, minHeight: 18, accentColor: t.accent }}
+                  />
+                  {r.label}
+                </label>
+              ))}
+            </fieldset>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 6 }}>
+                Additional details (optional)
+              </span>
+              <textarea
+                value={details}
+                onChange={(e) => setDetails(e.target.value.slice(0, 200))}
+                maxLength={200}
+                rows={3}
+                placeholder="Tell us more…"
+                style={{
+                  width: "100%",
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 10,
+                  padding: "8px 12px",
+                  // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+                  fontSize: 16,
+                  color: t.text,
+                  fontFamily: t.sans,
+                  resize: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+              <span style={{ fontSize: 12, color: t.textMuted }}>{200 - details.length} characters remaining</span>
+            </label>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  flex: 1,
+                  minHeight: 48,
+                  borderRadius: 12,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: t.surface,
+                  color: t.text,
+                  border: `1px solid ${t.border}`,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                style={{
+                  flex: 1,
+                  minHeight: 48,
+                  borderRadius: 12,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: canSubmit ? "pointer" : "not-allowed",
+                  background: canSubmit ? t.dangerFill : t.borderLight,
+                  color: canSubmit ? "#fff" : t.textMuted,
+                  border: "none",
+                }}
+              >
+                {submitting
+                  ? "Submitting…"
+                  : failed
+                  ? "Try again"
+                  : doBlock && doReport
+                  ? "Block and report"
+                  : doReport
+                  ? "Send report"
+                  : "Block"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </>
+  );
+}

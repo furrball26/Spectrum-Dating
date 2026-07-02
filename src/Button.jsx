@@ -19,7 +19,11 @@ const VARIANTS = {
   secondary: {
     background: t.green100,
     color: t.accentStrong,
-    border: `1px solid ${t.border}`,
+    // Border is accentStrong (not the faint t.border) so the button's edge clears
+    // WCAG 1.4.11 non-text contrast (≥3:1) against the card surface in BOTH
+    // themes — t.border measured ~1.3:1 and made secondary buttons nearly
+    // invisible, worst in dark mode.
+    border: `1px solid ${t.accentStrong}`,
   },
   tertiary: {
     background: "transparent",

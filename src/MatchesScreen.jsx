@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { t } from "./tokens.js";
-import { getMatches, createConversation, getActivity, saveMatchNote, safeErrorMessage } from "./api.js";
+import { getMatches, createConversation, getActivity, saveMatchNote, safeErrorMessage, swipe, getUserId } from "./api.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
 import Skeleton from "./Skeleton.jsx";
@@ -9,9 +9,28 @@ import Spectrum from "./Spectrum.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
 import ErrorState from "./ErrorState.jsx";
 import MatchProfileModal from "./MatchProfileModal.jsx";
+import MatchMoment from "./MatchMoment.jsx";
+import ReportModal from "./ReportModal.jsx";
 
 // Matches — people you and they have both said yes to. Separate from active
 // conversations (Messages). Calm, low-pressure: no counters, no urgency.
+
+// The current viewer's identity for the match moment — name/photo from the
+// cached profile, id from auth. Best-effort; the monogram avatar degrades
+// gracefully on a missing name.
+function getViewerIdentity() {
+  let profile = {};
+  try {
+    profile = JSON.parse(localStorage.getItem("spectrum_profile") || "{}") || {};
+  } catch {
+    profile = {};
+  }
+  return {
+    name: profile.displayName || profile.name || "You",
+    userId: getUserId() || profile.memberId || profile.userId || null,
+    photoUrl: profile.photoUrl || profile.photo_url || null,
+  };
+}
 
 // Calm placeholder rows shown while matches load.
 function MatchesSkeleton() {
@@ -90,31 +109,28 @@ function PrivateNote({ matchId, note, onSaved }) {
           display: "inline-flex",
           alignItems: "center",
           gap: 6,
+          maxWidth: "100%",
           background: "none",
           border: "none",
-          padding: "4px 0 0",
-          marginTop: 4,
+          padding: "8px 0",
+          marginTop: 2,
+          minHeight: 44,
           cursor: "pointer",
           fontSize: 12,
           fontWeight: 600,
           color: t.textMuted,
           textAlign: "left",
         }}
-        aria-label={hasNote ? "Edit your private note" : "Add a private note"}
+        aria-label={hasNote ? `Edit your private note: ${note}` : "Add a private note (only you can see it)"}
       >
         <span aria-hidden="true">🔒</span>
         {hasNote ? (
-          <span
-            style={{
-              fontWeight: 500,
-              fontStyle: "italic",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: 220,
-            }}
-          >
-            {note}
+          // Explicit "Private note:" label so the value isn't mistaken for a
+          // name or for the other person's words (their italic "In their words"
+          // card looks similar). The note text stays italic; the label doesn't.
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+            <span style={{ fontWeight: 700 }}>Private note:</span>{" "}
+            <span style={{ fontWeight: 500, fontStyle: "italic" }}>{note}</span>
           </span>
         ) : (
           <span>Add a private note</span>
@@ -210,12 +226,14 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
           <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span>{otherUser.displayName || "Someone"}</span>
+          <div style={{ fontSize: 17, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            {/* Name ellipsizes on one line instead of wrapping/clipping; pronouns
+                and the badge never get pushed off. */}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{otherUser.displayName || "Someone"}</span>
             {otherUser.pronouns && (
-              <span style={{ fontSize: 13, fontWeight: 400, color: t.textMuted }}>{otherUser.pronouns}</span>
+              <span style={{ fontSize: 13, fontWeight: 400, color: t.textMuted, flexShrink: 0 }}>{otherUser.pronouns}</span>
             )}
-            {otherUser.verified && <VerifiedBadge />}
+            {otherUser.verified && <span style={{ flexShrink: 0, display: "inline-flex" }}><VerifiedBadge /></span>}
           </div>
           {otherUser.distCity && (
             <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
@@ -236,7 +254,9 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
               {otherUser.tagline}
             </div>
           )}
-          {otherUser.contextCard && otherUser.contextCard.trim() && (
+          {/* Density: show at most one secondary line — tagline takes precedence,
+              so the context quote only appears when there's no tagline. */}
+          {!otherUser.tagline && otherUser.contextCard && otherUser.contextCard.trim() && (
             <div
               style={{
                 fontSize: 13,
@@ -287,6 +307,11 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
           variant={hasConversation ? "secondary" : "primary"}
           onClick={() => onOpen(match)}
           disabled={busy}
+          aria-label={
+            hasConversation
+              ? `Open conversation with ${otherUser.displayName || "this person"}`
+              : `Say hello to ${otherUser.displayName || "this person"}`
+          }
           style={{ flexShrink: 0, cursor: busy ? "wait" : undefined }}
         >
           {busy ? (
@@ -294,7 +319,7 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
               <Spectrum variant="loader" size={6} gap={3} />
               Starting…
             </span>
-          ) : hasConversation ? "Open conversation" : (plainLanguage ? "Send first message" : "Say hello")}
+          ) : hasConversation ? "Open" : (plainLanguage ? "Send message" : "Say hello")}
         </Button>
       </div>
     </li>
@@ -303,90 +328,96 @@ function MatchCard({ match, busy, onOpen, plainLanguage, onViewProfile, onNoteSa
 
 // ─── Liked-you section ────────────────────────────────────────────────────────
 
-// Small horizontal scroll of people who liked you (one-sided likes, no mutual match yet).
-// Tapping the avatar or "Go to Discover" button takes you back to the Discover deck
-// where they'll show up naturally in the candidate queue.
-function LikedYouSection({ people, onGoDiscover, plainLanguage = false }) {
+// People who have liked you (one-sided, no mutual match yet). This is where you
+// ACT on them, calmly and at your own pace. Because they already like you,
+// "I'm interested" completes the mutual match immediately (previously this sent
+// you to Discover, which never surfaced the liker — a dead end). "Not right now"
+// declines quietly, and each person can be blocked or reported. No swipe stack,
+// no counters, no urgency.
+function LikedYouSection({ people, plainLanguage = false, busyId, onInterested, onNotNow, onReport }) {
   if (!people || people.length === 0) return null;
+  const linkStyle = {
+    background: "none",
+    border: "none",
+    padding: "8px 4px",
+    minHeight: 44,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.textMuted,
+    cursor: "pointer",
+    fontFamily: t.sans,
+  };
   return (
     <section aria-labelledby="liked-you-heading" style={{ marginBottom: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <h2
-          id="liked-you-heading"
-          style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 600, color: t.text, margin: 0 }}
-        >
-          Liked you
-        </h2>
-        <span
-          aria-label={`${people.length} ${people.length === 1 ? "person" : "people"}`}
-          style={{
-            background: t.accentFill,
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            borderRadius: 10,
-            padding: "1px 8px",
-            lineHeight: 1.6,
-          }}
-        >
-          {people.length}
-        </span>
-      </div>
-      <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}>
-        {people.length === 1 ? "1 person has" : `${people.length} people have`} expressed interest.
-        {plainLanguage
-          ? " Go to Discover to see them."
-          : " Head to Discover to see them and decide at your own pace — no rush."}
-      </p>
-      {/* Horizontal scroll row of liked-you avatars */}
-      <ul
-        aria-label="People who liked you"
-        style={{
-          display: "flex",
-          gap: 16,
-          overflowX: "auto",
-          padding: "4px 0 12px",
-          margin: 0,
-          listStyle: "none",
-          scrollbarWidth: "none",
-        }}
+      <h2
+        id="liked-you-heading"
+        style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 600, color: t.text, margin: "0 0 6px" }}
       >
-        {people.map((person) => (
-          <li key={person.userId} style={{ flexShrink: 0, textAlign: "center", width: 72 }}>
-            <Avatar
-              name={person.displayName}
-              userId={person.userId}
-              photoUrl={person.photoUrl}
-              size={64}
-              style={{ margin: "0 auto 6px" }}
-            />
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: t.text,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                maxWidth: 72,
-              }}
-            >
-              {person.displayName || "Someone"}
-            </div>
-            {person.age && (
-              <div style={{ fontSize: 11, color: t.textMuted }}>{person.age}</div>
-            )}
-          </li>
-        ))}
+        Liked you
+      </h2>
+      <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}>
+        {people.length === 1 ? "1 person has" : `${people.length} people have`} said they're interested in you.
+        {plainLanguage
+          ? " If you're interested too, say so and you'll match."
+          : " If you feel the same, say you're interested — you'll match and can start chatting. There's no rush."}
+      </p>
+      <ul aria-label="People who liked you" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {people.map((person) => {
+          const busy = busyId === person.userId;
+          const name = person.displayName || "Someone";
+          return (
+            <li key={person.userId} style={{ marginBottom: 12 }}>
+              <div
+                style={{
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  boxShadow: "0 1px 4px rgba(36,51,45,0.05)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <Avatar name={person.displayName} userId={person.userId} photoUrl={person.photoUrl} size={52} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {name}
+                    </div>
+                    {person.age && <div style={{ fontSize: 13, color: t.textMuted }}>{person.age}</div>}
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={() => onInterested(person)}
+                    disabled={busy}
+                    aria-label={`I'm interested in ${name}`}
+                    style={{ flexShrink: 0, cursor: busy ? "wait" : undefined }}
+                  >
+                    {busy ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <Spectrum variant="loader" size={6} gap={3} />
+                        …
+                      </span>
+                    ) : (plainLanguage ? "Yes" : "I'm interested")}
+                  </Button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, marginLeft: 66 }}>
+                  <button type="button" style={linkStyle} disabled={busy} onClick={() => onNotNow(person)}>
+                    Not right now
+                  </button>
+                  <span aria-hidden="true" style={{ color: t.borderLight }}>·</span>
+                  <button type="button" style={linkStyle} onClick={() => onReport(person)}>
+                    Block or report
+                  </button>
+                </div>
+              </div>
+            </li>
+          );
+        })}
       </ul>
-      <Button variant="secondary" onClick={onGoDiscover} style={{ width: "100%" }}>
-        Go to Discover to meet them
-      </Button>
     </section>
   );
 }
 
-export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActivityCount, plainLanguage = false, reducedSensory = false }) {
+export default function MatchesScreen({ onOpenConversation, onActivityCount, plainLanguage = false, reducedSensory = false }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -395,6 +426,11 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
   const [viewingUserId, setViewingUserId] = useState(null);
   // Activity inbox — incoming likes (one-sided).
   const [incomingLikes, setIncomingLikes] = useState([]);
+  // Liked-you action state: which liker is mid-request, the mutual-match moment
+  // to celebrate, and the person being blocked/reported.
+  const [likerBusyId, setLikerBusyId] = useState(null);
+  const [matchMoment, setMatchMoment] = useState(null);
+  const [reportingLiker, setReportingLiker] = useState(null);
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -431,6 +467,53 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
       .catch(() => { /* best-effort; no error UI for the inbox section */ });
     return () => { active = false; };
   }, [onActivityCount]);
+
+  // Drop a liker from the inbox and keep the tab badge in sync.
+  const removeLiker = useCallback((userId) => {
+    setIncomingLikes((prev) => {
+      const next = prev.filter((p) => p.userId !== userId);
+      if (onActivityCount) onActivityCount(next.length);
+      return next;
+    });
+  }, [onActivityCount]);
+
+  // "I'm interested" on a liker. They already liked us, so this like completes
+  // the mutual match — celebrate with the MatchMoment, then drop them from the
+  // inbox. (If they withdrew their like in the meantime, it just resolves quietly.)
+  async function handleLikeBack(person) {
+    if (likerBusyId) return;
+    setLikerBusyId(person.userId);
+    setError("");
+    try {
+      const result = await swipe(person.userId, "like");
+      if (result && result.matched) {
+        setMatchMoment({
+          them: { name: person.displayName, userId: person.userId, photoUrl: person.photoUrl },
+          matchId: result.matchId || null,
+        });
+      } else {
+        setError(`${person.displayName || "They"} isn't available anymore.`);
+      }
+      removeLiker(person.userId);
+    } catch (e) {
+      setError(safeErrorMessage(e, "Couldn't save that just now. Please try again."));
+    } finally {
+      setLikerBusyId(null);
+    }
+  }
+
+  // "Not right now" — decline a liker quietly (a skip); low-harm on failure.
+  async function handleDismissLiker(person) {
+    if (likerBusyId) return;
+    setLikerBusyId(person.userId);
+    try {
+      await swipe(person.userId, "skip");
+    } catch (e) {
+      console.warn("Dismiss liker failed", e);
+    }
+    removeLiker(person.userId);
+    setLikerBusyId(null);
+  }
 
   async function handleOpen(match) {
     if (match.hasConversation && match.conversationId) {
@@ -479,6 +562,39 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
       {viewingUserId && (
         <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
       )}
+      {/* Mutual match from liking someone back — the same calm celebration as
+          Discover, deep-linking straight into the new conversation. */}
+      {matchMoment && (
+        <MatchMoment
+          you={getViewerIdentity()}
+          them={matchMoment.them}
+          plainLanguage={plainLanguage}
+          onOpenChat={async () => {
+            const mm = matchMoment;
+            setMatchMoment(null);
+            loadMatches();
+            if (mm.matchId) {
+              try {
+                const conv = await createConversation(mm.matchId);
+                const convId = conv?.conversation?.id || conv?.conversationId || conv?.id;
+                if (convId) { onOpenConversation(convId); return; }
+              } catch (e) {
+                const convId = e?.status === 409 && e?.body?.conversationId;
+                if (convId) { onOpenConversation(convId); return; }
+              }
+            }
+          }}
+          onContinue={() => { setMatchMoment(null); loadMatches(); }}
+        />
+      )}
+      {/* Calm block/report on a person who liked you (reused from Discover). */}
+      {reportingLiker && (
+        <ReportModal
+          candidate={{ memberId: reportingLiker.userId, displayName: reportingLiker.displayName }}
+          onClose={() => setReportingLiker(null)}
+          onBlocked={(c) => removeLiker(c.memberId)}
+        />
+      )}
       <div style={shell}>
         <h1
           ref={headingRef}
@@ -493,8 +609,15 @@ export default function MatchesScreen({ onOpenConversation, onGoDiscover, onActi
             : "People you've both said yes to. Reach out whenever you're ready — there's no rush."}
         </p>
 
-        {/* Activity inbox: people who liked you (one-sided) */}
-        <LikedYouSection people={incomingLikes} onGoDiscover={onGoDiscover} plainLanguage={plainLanguage} />
+        {/* Activity inbox: people who liked you (one-sided) — act in place */}
+        <LikedYouSection
+          people={incomingLikes}
+          plainLanguage={plainLanguage}
+          busyId={likerBusyId}
+          onInterested={handleLikeBack}
+          onNotNow={handleDismissLiker}
+          onReport={setReportingLiker}
+        />
 
         {error && (
           <p role="alert" style={{ color: t.danger, fontSize: 14, marginBottom: 16 }}>
