@@ -70,7 +70,7 @@ const VP = { width: 390, height: 844 };
   await likeBack.first().click();
   const dialog = page.getByRole("dialog");
   let momentShown = false;
-  try { await dialog.waitFor({ timeout, timeout: 8000 }); momentShown = true; } catch { /* absent */ }
+  try { await dialog.waitFor({ timeout: 8000 }); momentShown = true; } catch { /* absent */ }
   const dtext = momentShown ? await dialog.innerText() : "";
   check("C2 MatchMoment dialog appears with Say hello", momentShown && /Say hello/.test(dtext), dtext.slice(0, 60).replace(/\n/g, " "));
   await page.screenshot({ path: `${OUT}/flows_matchmoment.png` });
@@ -144,7 +144,7 @@ const VP = { width: 390, height: 844 };
   await page.waitForTimeout(2000);
   await page.getByRole("button", { name: /Settings/ }).first().click();
   await page.waitForTimeout(2000);
-  const prideCard = page.getByRole("button", { name: /Pride theme/ });
+  const prideCard = page.getByRole("radio", { name: /Pride theme/ });
   check("E1 theme picker shows Pride card", (await prideCard.count()) > 0);
   await prideCard.first().scrollIntoViewIfNeeded();
   await prideCard.first().click();
@@ -160,7 +160,7 @@ const VP = { width: 390, height: 844 };
   check("E4 double-tap logo reverts identity theme to dim", (await page.evaluate(() => document.documentElement.dataset.theme)) === "dim");
 
   // Trans theme + sign out -> reset to dim (shared-device safety)
-  const transCard = page.getByRole("button", { name: /Trans pride theme/ });
+  const transCard = page.getByRole("radio", { name: /Trans pride theme/ });
   await transCard.first().scrollIntoViewIfNeeded();
   await transCard.first().click();
   await page.waitForTimeout(800);
