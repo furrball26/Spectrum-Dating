@@ -39,7 +39,7 @@ function MatchesListSkeleton() {
 
 // MatchRow accepts showArchive/onArchive for active rows and
 // showUnarchive/onUnarchive for archived rows.
-function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUnarchive, onUnarchive, selected, currentUserId }) {
+function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUnarchive, onUnarchive, selected, currentUserId , onStartConversation, startingMatchId, rowMenuProps }) {
   const f = useFocusable();
   const fArchive = useFocusable();
   const fRestore = useFocusable(); // for the unarchive / "Restore" button
@@ -99,7 +99,12 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
           type="button"
           aria-label={ariaLabel}
           aria-current={selected ? "page" : undefined}
-          onClick={() => onSelectConversation(match.conversationId)}
+          onClick={() =>
+            match.needsConversation
+              ? onStartConversation && onStartConversation(match)
+              : onSelectConversation(match.conversationId)
+          }
+          disabled={match.needsConversation && startingMatchId != null}
           style={{
             display: "flex",
             alignItems: "center",
@@ -192,6 +197,18 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
           )}
         </button>
 
+        {/* Per-row safety menu (view profile / note / block / unmatch) */}
+        {rowMenuProps && match.matchId && (
+          <RowMenu
+            row={{ matchId: match.matchId, conversationId: match.conversationId || null, otherUser: match.otherUser }}
+            note={rowMenuProps.matchNotes ? rowMenuProps.matchNotes[match.matchId] : null}
+            onViewProfile={rowMenuProps.onViewProfile}
+            onNote={rowMenuProps.onNote}
+            onReport={rowMenuProps.onReport}
+            onUnmatch={rowMenuProps.onUnmatch}
+          />
+        )}
+
         {/* Archive button shown on active rows when cap reached */}
         {showArchive && (
           <button
@@ -246,8 +263,61 @@ function MatchRow({ match, onSelectConversation, showArchive, onArchive, showUna
   );
 }
 
+// Quiet per-row ⋯ safety menu — block/report/unmatch (and the private note)
+// reachable without opening the conversation. Focus returns to the trigger on
+// close; destructive items last, visually separated (a11y adjacency spec).
+function RowMenu({ row, note, onViewProfile, onNote, onReport, onUnmatch }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const f = useFocusable();
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e) { if (e.key === "Escape") { setOpen(false); triggerRef.current?.focus(); } }
+    function onClick(e) { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
+  }, [open]);
+  const itemStyle = { display: "block", width: "100%", padding: "12px 16px", background: "transparent", border: "none", textAlign: "left", fontSize: 15, fontWeight: 500, cursor: "pointer", fontFamily: t.sans };
+  const name = row.otherUser?.displayName || "this person";
+  return (
+    <span ref={rootRef} style={{ position: "relative", flexShrink: 0, marginRight: 4 }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`More options for ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(v => !v)}
+        style={{ background: "transparent", border: "none", color: t.textMuted, fontSize: 18, cursor: "pointer", padding: "4px 8px", borderRadius: 8, minHeight: 44, minWidth: 44, ...f.style }}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text }} onClick={() => { setOpen(false); onViewProfile(row.otherUser?.userId); }}>
+            View profile
+          </button>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => { setOpen(false); onNote(row); }}>
+            {note ? "Edit private note" : "Add private note"}
+          </button>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.danger, paddingTop: 14 }} onClick={() => { setOpen(false); onReport(row); }}>
+            Block or report
+          </button>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft }} onClick={() => { setOpen(false); onUnmatch(row); }}>
+            Unmatch
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
 // Feature 3: SectionList passes showArchive and onArchive down to MatchRow
-function SectionList({ title, subtitle, matches, onSelectConversation, showArchive, onArchive, selectedConversationId, currentUserId }) {
+function SectionList({ title, subtitle, matches, onSelectConversation, showArchive, onArchive, selectedConversationId, currentUserId, onStartConversation, startingMatchId, rowMenuProps }) {
   if (matches.length === 0) return null;
   return (
     <section style={{ marginBottom: 24 }}>
@@ -286,6 +356,9 @@ function SectionList({ title, subtitle, matches, onSelectConversation, showArchi
             onArchive={onArchive}
             currentUserId={currentUserId}
             selected={selectedConversationId != null && m.conversationId === selectedConversationId}
+            onStartConversation={onStartConversation}
+            startingMatchId={startingMatchId}
+            rowMenuProps={rowMenuProps}
           />
         ))}
       </ul>
@@ -314,6 +387,16 @@ export default function MatchesListScreen({
   archivedCount = 0,
   onToggleArchived,
   onUnarchive,
+  // ── Merged surface (Phase 1) ──
+  likedYou = null,
+  pendingMatches = [],
+  onStartConversation,
+  startingMatchId = null,
+  matchNotes = {},
+  onRowViewProfile,
+  onRowReport,
+  onRowUnmatch,
+  onRowNote,
 }) {
   const headingRef = useRef(null);
   // ALL hooks declared here — before any early return (including the archived
@@ -475,7 +558,22 @@ export default function MatchesListScreen({
   }
 
   const active = conversations.filter((m) => m.started);
-  const newMatches = conversations.filter((m) => !m.started);
+  // New matches = conversations nobody has messaged in yet PLUS matches that
+  // don't have a conversation row at all (tap creates + opens in place).
+  const pendingRows = pendingMatches.map((pm) => ({
+    conversationId: null,
+    matchId: pm.matchId,
+    otherUser: pm.otherUser,
+    started: false,
+    unread: false,
+    ended: false,
+    lastMessageLabel: null,
+    needsConversation: true,
+  }));
+  const newMatches = [...conversations.filter((m) => !m.started), ...pendingRows];
+  const rowMenuProps = onRowReport
+    ? { matchNotes, onViewProfile: onRowViewProfile, onNote: onRowNote, onReport: onRowReport, onUnmatch: onRowUnmatch }
+    : null;
   const conversationCount = active.length;
 
   const capReached = conversationCount >= activeCap;
@@ -695,6 +793,9 @@ export default function MatchesListScreen({
         ) : (
           /* Normal sections view */
           <>
+            {/* Liked-you inbox — act in place (merged from the Matches tab). */}
+            {likedYou}
+
             <SectionList
               title="Active conversations"
               subtitle={active.length > 0 ? `${conversationCount} / ${activeCap}` : undefined}
@@ -704,6 +805,7 @@ export default function MatchesListScreen({
               onArchive={onArchive}
               selectedConversationId={selectedConversationId}
               currentUserId={currentUserId}
+              rowMenuProps={rowMenuProps}
             />
 
             {/* Feature 3 — Conversation cap notice above New matches */}
@@ -732,9 +834,12 @@ export default function MatchesListScreen({
               onSelectConversation={onSelectConversation}
               selectedConversationId={selectedConversationId}
               currentUserId={currentUserId}
+              onStartConversation={onStartConversation}
+              startingMatchId={startingMatchId}
+              rowMenuProps={rowMenuProps}
             />
 
-            {conversations.length === 0 && (
+            {conversations.length === 0 && pendingRows.length === 0 && (
               <div style={{ textAlign: "center", marginTop: 48 }}>
                 <div style={{ marginBottom: 16 }}>
                   <EmptyMessages size={104} />

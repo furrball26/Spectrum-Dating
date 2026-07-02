@@ -2,7 +2,12 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import MatchesListScreen from "./MatchesListScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
-import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation } from "../api.js";
+import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation, getActivity, getMatches, createConversation, swipe, saveMatchNote, safeErrorMessage } from "../api.js";
+import LikedYouSection from "../LikedYouSection.jsx";
+import MatchMoment from "../MatchMoment.jsx";
+import ReportModal from "../ReportModal.jsx";
+import MatchProfileModal from "../MatchProfileModal.jsx";
+import { getViewerIdentity } from "../viewerIdentity.js";
 import { t } from "../tokens.js";
 import { useViewport } from "../useViewport.js";
 import Skeleton from "../Skeleton.jsx";
@@ -36,13 +41,65 @@ function ConversationFallback() {
   );
 }
 
+// Small private-note editor sheet (F13 survives the merge — notes were only
+// editable on the retiring Matches tab). Owner-only; saved via saveMatchNote.
+function NoteSheet({ row, initialNote, onSaved, onClose }) {
+  const [value, setValue] = useState(initialNote || "");
+  const [saving, setSaving] = useState(false);
+  return (
+    <>
+      <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(36,51,45,0.35)", zIndex: 1100 }} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Private note about ${row.otherUser?.displayName || "this person"}`}
+        style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: t.surface, borderRadius: 20, padding: "24px 20px", width: "min(90vw, 400px)", zIndex: 1101, boxShadow: t.shadow.lg, boxSizing: "border-box", fontFamily: t.sans }}
+      >
+        <h2 style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: t.text }}>
+          Private note
+        </h2>
+        <p style={{ fontSize: 13, color: t.textMuted, margin: "0 0 12px" }}>Only you can see this.</p>
+        <textarea
+          value={value}
+          maxLength={500}
+          onChange={(e) => setValue(e.target.value)}
+          rows={3}
+          placeholder="e.g. met at the book club; dislikes loud bars"
+          style={{ width: "100%", boxSizing: "border-box", fontFamily: t.sans, fontSize: 16, color: t.text, background: t.surface, border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "8px 10px", resize: "vertical", lineHeight: 1.5 }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+          <button type="button" onClick={onClose} style={{ minHeight: 44, padding: "8px 16px", borderRadius: 10, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: t.sans }}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                const res = await saveMatchNote(row.matchId, value.trim());
+                onSaved(row.matchId, typeof res?.note === "string" ? res.note : value.trim());
+              } catch { /* keep text; user can retry */ }
+              setSaving(false);
+              onClose();
+            }}
+            style={{ minHeight: 44, padding: "8px 18px", borderRadius: 10, border: "none", background: t.accentFill, color: "#fff", fontSize: 15, fontWeight: 600, cursor: saving ? "wait" : "pointer", fontFamily: t.sans }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // `initialConversation` (preferred) is a seed object {id, otherUser, started}
 // passed straight from the tapping surface, so the thread opens INSTANTLY on
 // mount — no waiting for the conversations list to download just to re-derive
 // data the caller already had. `initialConversationId` remains as the id-only
 // legacy path. `onConsumedInitial` lets App clear the pending deep-link so a
 // later visit to Messages doesn't re-open the same thread (stale-pending bug).
-export default function MessagingApp({ onUnreadCount, initialConversation, initialConversationId, onConsumedInitial, plainLanguage = false }) {
+export default function MessagingApp({ onUnreadCount, onActivityCount, initialConversation, initialConversationId, onConsumedInitial, plainLanguage = false }) {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
   const isDesktop = viewport === "desktop";
   // Seed usable only when it carries enough to render a thread header.
@@ -70,6 +127,23 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
   // so the read state has committed server-side before we GET — otherwise the
   // unread badge can flicker back on when the refresh out-races the write.
   const pendingReadRef = useRef(null);
+
+  // ── Merged surface (Phase 1): likes + conversation-less matches live HERE ──
+  // Incoming likes (one-sided) — act in place, same as the old Matches tab.
+  const [incomingLikes, setIncomingLikes] = useState([]);
+  const [likerBusyId, setLikerBusyId] = useState(null);
+  const [matchMoment, setMatchMoment] = useState(null);
+  const [reportingLiker, setReportingLiker] = useState(null);
+  // Matches that don't have a conversation row yet (join source for notes too).
+  const [pendingMatches, setPendingMatches] = useState([]);
+  const [matchNotes, setMatchNotes] = useState({}); // matchId -> note
+  // Seed for a conversation created in place (before the list refetch knows it).
+  const [localSeed, setLocalSeed] = useState(null);
+  // Row-level safety actions (⋯ menu on every person).
+  const [reportingRow, setReportingRow] = useState(null);   // {matchId, conversationId, otherUser}
+  const [unmatchingRow, setUnmatchingRow] = useState(null); // same shape
+  const [viewingUserId, setViewingUserId] = useState(null);
+  const [noteRow, setNoteRow] = useState(null);             // {matchId, otherUser}
 
   // Warm the (lazy) ConversationScreen chunk as soon as Messages mounts, so
   // the first thread-open doesn't pay a JS download mid-gesture.
@@ -111,6 +185,122 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
 
   const retryLoadConversations = () => setRefreshKey(k => k + 1);
 
+  // Likes + matches (for conversation-less matches and private notes). Runs on
+  // the same refresh cadence as the conversations list; failures are non-fatal.
+  useEffect(() => {
+    let cancelled = false;
+    getActivity()
+      .then(({ incomingLikes: likes }) => {
+        if (cancelled) return;
+        setIncomingLikes(likes);
+        if (onActivityCount) onActivityCount(likes.length);
+      })
+      .catch(() => {});
+    getMatches()
+      .then((arr) => {
+        if (cancelled) return;
+        setPendingMatches(arr.filter(m => !m.hasConversation || !m.conversationId));
+        const notes = {};
+        arr.forEach(m => { if (m.note) notes[m.matchId] = m.note; });
+        setMatchNotes(notes);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  // Drop a liker locally and keep the likes badge in sync.
+  const removeLiker = (userId) => {
+    setIncomingLikes(prev => {
+      const next = prev.filter(p => p.userId !== userId);
+      if (onActivityCount) onActivityCount(next.length);
+      return next;
+    });
+  };
+
+  // "I'm interested" on a liker — they already liked us, so this completes the
+  // mutual match; celebrate, then open the new thread IN PLACE.
+  async function handleLikeBack(person) {
+    if (likerBusyId) return;
+    setLikerBusyId(person.userId);
+    try {
+      const result = await swipe(person.userId, "like");
+      if (result && result.matched) {
+        setMatchMoment({
+          them: { name: person.displayName, userId: person.userId, photoUrl: person.photoUrl },
+          matchId: result.matchId || null,
+        });
+      } else {
+        setMatchesStatusMessage(`${person.displayName || "They"} isn't available anymore.`);
+      }
+      removeLiker(person.userId);
+    } catch (e) {
+      setMatchesStatusMessage(safeErrorMessage(e, "Couldn't save that just now. Please try again."));
+    } finally {
+      setLikerBusyId(null);
+    }
+  }
+
+  async function handleDismissLiker(person) {
+    if (likerBusyId) return;
+    setLikerBusyId(person.userId);
+    try { await swipe(person.userId, "skip"); } catch (e) { console.warn("Dismiss liker failed", e); }
+    removeLiker(person.userId);
+    setLikerBusyId(null);
+  }
+
+  // Open a thread in place with a seed (created-just-now or pending match).
+  function openInPlace(conversationId, otherUser, started) {
+    setLocalSeed({ id: conversationId, otherUser, started: !!started });
+    setSelectedConversationId(conversationId);
+    setScreen("conversation");
+    pendingReadRef.current = markConversationRead(conversationId)
+      .catch((e) => console.warn("Mark-read failed", e));
+  }
+
+  // Tap on a match that has no conversation yet: create it, open in place.
+  const [startingMatchId, setStartingMatchId] = useState(null);
+  async function handleStartConversation(match) {
+    if (startingMatchId) return;
+    setStartingMatchId(match.matchId);
+    try {
+      const res = await createConversation(match.matchId);
+      const convId = res?.conversation?.id || res?.conversationId || res?.id;
+      if (convId) {
+        setPendingMatches(prev => prev.filter(m => m.matchId !== match.matchId));
+        openInPlace(convId, match.otherUser, false);
+        setRefreshKey(k => k + 1);
+      }
+    } catch (e) {
+      const existingId = e?.status === 409 && e?.body?.conversationId;
+      if (existingId) {
+        openInPlace(existingId, match.otherUser, true);
+      } else {
+        setMatchesStatusMessage(
+          e?.code === "CAP_REACHED"
+            ? "You've reached your active conversations for now. Archive one below to start a new one."
+            : safeErrorMessage(e, "Couldn't start the conversation. Please try again.")
+        );
+      }
+    } finally {
+      setStartingMatchId(null);
+    }
+  }
+
+  // Row ⋯ safety actions.
+  async function handleRowUnmatchConfirm() {
+    const row = unmatchingRow;
+    setUnmatchingRow(null);
+    if (!row) return;
+    try {
+      if (row.matchId) await unmatchConversation(row.matchId);
+      else if (row.conversationId) await archiveConversation(row.conversationId);
+    } catch (e) { console.warn("Unmatch failed", e); }
+    if (row.conversationId) setConversations(prev => prev.filter(c => c.id !== row.conversationId));
+    setPendingMatches(prev => prev.filter(m => m.matchId !== row.matchId));
+    setMatchesStatusMessage(`You unmatched ${row.otherUser?.displayName || "this person"}.`);
+  }
+
   // Refresh the list when RETURNING to it — skip the mount run (the
   // [refreshKey] effect above already fetches on mount; the old version
   // double-fetched getConversations on every mount).
@@ -146,6 +336,7 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
     conversations.find(c => c.id === selectedConversationId) ||
     archivedConversations.find(c => c.id === selectedConversationId) ||
     (seed && seed.id === selectedConversationId ? seed : null) ||
+    (localSeed && localSeed.id === selectedConversationId ? localSeed : null) ||
     null;
 
   function handleToggleArchived() {
@@ -284,9 +475,29 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
     setScreen("conversation");
   }
 
+  const likedYouPane = (
+    <LikedYouSection
+      people={incomingLikes}
+      plainLanguage={plainLanguage}
+      busyId={likerBusyId}
+      onInterested={handleLikeBack}
+      onNotNow={handleDismissLiker}
+      onReport={setReportingLiker}
+    />
+  );
+
   const listPane = (
     <MatchesListScreen
       conversations={conversations}
+      likedYou={likedYouPane}
+      pendingMatches={pendingMatches}
+      onStartConversation={handleStartConversation}
+      startingMatchId={startingMatchId}
+      matchNotes={matchNotes}
+      onRowViewProfile={setViewingUserId}
+      onRowReport={setReportingRow}
+      onRowUnmatch={setUnmatchingRow}
+      onRowNote={setNoteRow}
       loading={loadingConvs}
       loadFailed={convsLoadFailed}
       onRetry={retryLoadConversations}
@@ -341,6 +552,78 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
     />
   );
 
+  // Overlays shared by both layouts (match moment, safety modals, note editor).
+  const overlays = (
+    <>
+      {matchMoment && (
+        <MatchMoment
+          you={getViewerIdentity()}
+          them={matchMoment.them}
+          plainLanguage={plainLanguage}
+          onOpenChat={async () => {
+            const mm = matchMoment;
+            setMatchMoment(null);
+            if (mm.matchId) {
+              try {
+                const conv = await createConversation(mm.matchId);
+                const convId = conv?.conversation?.id || conv?.conversationId || conv?.id;
+                if (convId) {
+                  openInPlace(convId, { userId: mm.them.userId, displayName: mm.them.name, photoUrl: mm.them.photoUrl }, false);
+                  setRefreshKey(k => k + 1);
+                  return;
+                }
+              } catch (e) {
+                const convId = e?.status === 409 && e?.body?.conversationId;
+                if (convId) {
+                  openInPlace(convId, { userId: mm.them.userId, displayName: mm.them.name, photoUrl: mm.them.photoUrl }, true);
+                  return;
+                }
+              }
+            }
+            setRefreshKey(k => k + 1);
+          }}
+          onContinue={() => { setMatchMoment(null); setRefreshKey(k => k + 1); }}
+        />
+      )}
+      {reportingLiker && (
+        <ReportModal
+          candidate={{ memberId: reportingLiker.userId, displayName: reportingLiker.displayName }}
+          onClose={() => setReportingLiker(null)}
+          onBlocked={(c) => removeLiker(c.memberId)}
+        />
+      )}
+      {reportingRow && (
+        <ReportModal
+          candidate={{ memberId: reportingRow.otherUser?.userId, displayName: reportingRow.otherUser?.displayName }}
+          onClose={() => setReportingRow(null)}
+          onBlocked={() => {
+            if (reportingRow.conversationId) setConversations(prev => prev.filter(c => c.id !== reportingRow.conversationId));
+            setPendingMatches(prev => prev.filter(m => m.matchId !== reportingRow.matchId));
+            setMatchesStatusMessage(`You blocked ${reportingRow.otherUser?.displayName || "this person"}.`);
+          }}
+        />
+      )}
+      {unmatchingRow && (
+        <UnmatchSheet
+          displayName={unmatchingRow.otherUser?.displayName || "this person"}
+          onConfirm={handleRowUnmatchConfirm}
+          onCancel={() => setUnmatchingRow(null)}
+        />
+      )}
+      {viewingUserId && (
+        <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
+      {noteRow && (
+        <NoteSheet
+          row={noteRow}
+          initialNote={matchNotes[noteRow.matchId] || ""}
+          onSaved={(matchId, note) => setMatchNotes(prev => ({ ...prev, [matchId]: note }))}
+          onClose={() => setNoteRow(null)}
+        />
+      )}
+    </>
+  );
+
   // ── Desktop: two-pane (list + open thread side-by-side) ──
   // List stays visible while a thread is open. Capped + centered so it reads as
   // a calm app panel, not an edge-to-edge inbox. Mobile/tablet keep the existing
@@ -390,6 +673,7 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
         <div style={{ flex: 1, minWidth: 0, height: "100%", position: "relative" }}>
           {rightPane}
         </div>
+        {overlays}
       </div>
     );
   }
@@ -409,6 +693,7 @@ export default function MessagingApp({ onUnreadCount, initialConversation, initi
       {screen === "conversation" && currentConvo && conversationPane}
 
       {screen === "block-report" && currentConvo && blockReportPane}
+      {overlays}
     </div>
   );
 }
