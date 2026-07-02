@@ -1,0 +1,45 @@
+# Spectrum Dating — autonomous frontend team
+
+Ten agents + a shared brain + a real QA gate. Designed so a session needs one
+sentence of direction ("fix X", "build Y") and ships verified work without
+burning the session on coordination.
+
+## The crew
+
+| Agent | Role | Trigger |
+|---|---|---|
+| `frontend-feature-builder` | ONLY code writer; owns implement→lint→build→smoke→ship→live-verify | PROACTIVE for any code change |
+| `qa-functional-tester` | Drives the real app via `scripts/qa/harness.mjs`; runs/extends `smoke.mjs` | PROACTIVE after every change |
+| `design-ux-reviewer` | Screenshot-based visual review (both themes, 390px + desktop) | PROACTIVE after visual changes |
+| `executive-assistant` | Picks the right-sized crew (cost tiers), synthesizes | On demand |
+| `accessibility-auditor` | WCAG + calm/sensory audit | Planned reviews |
+| `user-journey-tester` | First-time autistic-user friction | Planned reviews |
+| `code-reviewer` | Latent bugs pre-merge | Planned reviews |
+| `product-strategist` | Backlog/priority | Decisions |
+| `backend-security-auditor` | Exploitability lens | Safety-critical work |
+| `trust-safety-specialist` | User-harm lens | Safety-critical work |
+
+## Cost tiers (session-limit discipline)
+- **Tier 1 (default, bug fixes):** builder alone — its pipeline embeds the QA
+  gate. ~1 agent instead of the 6-agent panels that used to burn sessions.
+- **Tier 2 (features):** builder → qa → design review, sequential.
+- **Tier 3 (initiatives):** one parallel advisor panel to PLAN, then Tier-2
+  loops to execute. Never re-panel for follow-up bugs.
+
+## The three files that make autonomy real
+- `CLAUDE.md` (repo root) — ship pipeline, sandbox E2E recipe, product law,
+  definition of done. Auto-loaded every session; agents are told to read it.
+- `scripts/qa/harness.mjs` — account seeding + browser launch + API forwarding
+  (the sandbox has no browser internet; this is the only way to run the app).
+- `scripts/qa/smoke.mjs` — the standing regression gate (golden path + layout
+  invariants from every past regression). Green smoke = shippable.
+
+## Installing in another repo
+1. Copy `.claude/agents/` into the target repo (project-scoped) or
+   `~/.claude/agents/` (user-scoped, all projects).
+2. Copy `CLAUDE.md` and edit the header facts (URLs, branch, stack) — the
+   pipeline/discipline sections transfer as-is.
+3. Copy `scripts/qa/` and adjust `PROFILE_DEFAULTS`/endpoints in `harness.mjs`
+   to the target backend; keep `check`/`finish`/`launch` unchanged.
+4. Commit all three. The brain must live in version control — this team was
+   originally lost because its files lived only in another repo's chat.

@@ -17,4 +17,15 @@ Find correctness bugs, latent traps, and quality/tech-debt issues in the diff or
 - **Correctness:** off-by-one, boundary/empty-list cases (e.g. acting on the last item), null/undefined access.
 
 ## What to report
-Findings ranked most-severe first, each with `file:line`, the concrete failure (inputs → wrong result), and a one-line fix. Separate confirmed bugs from suspicions.
+Findings ranked most-severe first, each with `file:line`, the concrete failure (inputs → wrong result), and a one-line fix. Separate confirmed bugs from suspicions.\n
+## Operations (mandatory context)
+- Read `CLAUDE.md` at the repo root FIRST - ship pipeline, sandbox constraints,
+  product law, definition of done.
+- Deploys are GIT-DRIVEN: ff-merge to master -> Vercel auto-deploy -> verify the
+  live bundle hash + a marker string. `npm run deploy`/`vercel --prod`/alias
+  re-pointing is RETIRED - do not use or recommend it.
+- Seeing the real app: Chromium here has NO internet. Use
+  `scripts/qa/harness.mjs` (local `vite preview` on :4173 + API forwarding to
+  the real backend); `node scripts/qa/smoke.mjs` is the standing gate. If you
+  cannot run it, say so explicitly - never imply the app was exercised when you
+  only read code.

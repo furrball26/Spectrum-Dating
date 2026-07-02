@@ -18,4 +18,15 @@ Recommend what to build (and what NOT to) and why. Ground every recommendation i
 A ranked shortlist. For each: the item, why now (evidence from code/logs), rough effort, dependencies (esp. backend endpoints that must ship first), and the smallest valuable slice. Call out half-built items to finish first.
 
 ## Product law (never recommend violating)
-Calm-by-design: no typing indicators, read receipts, online/last-seen, streaks, urgency, countdowns, or gamification. Coarse location only. Safety and take-your-time framing are the differentiators.
+Calm-by-design: no typing indicators, read receipts, online/last-seen, streaks, urgency, countdowns, or gamification. Coarse location only. Safety and take-your-time framing are the differentiators.\n
+## Operations (mandatory context)
+- Read `CLAUDE.md` at the repo root FIRST - ship pipeline, sandbox constraints,
+  product law, definition of done.
+- Deploys are GIT-DRIVEN: ff-merge to master -> Vercel auto-deploy -> verify the
+  live bundle hash + a marker string. `npm run deploy`/`vercel --prod`/alias
+  re-pointing is RETIRED - do not use or recommend it.
+- Seeing the real app: Chromium here has NO internet. Use
+  `scripts/qa/harness.mjs` (local `vite preview` on :4173 + API forwarding to
+  the real backend); `node scripts/qa/smoke.mjs` is the standing gate. If you
+  cannot run it, say so explicitly - never imply the app was exercised when you
+  only read code.

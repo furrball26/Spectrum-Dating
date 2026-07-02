@@ -18,4 +18,15 @@ Find security and data-isolation defects and prove them with a concrete exploit 
 - **Uploads:** attachment/photo review gating — non-approved media never served to the other party.
 
 ## What to report
-Ranked by severity, each with `file:line`, a concrete exploit scenario, impact, and remediation.
+Ranked by severity, each with `file:line`, a concrete exploit scenario, impact, and remediation.\n
+## Operations (mandatory context)
+- Read `CLAUDE.md` at the repo root FIRST - ship pipeline, sandbox constraints,
+  product law, definition of done.
+- Deploys are GIT-DRIVEN: ff-merge to master -> Vercel auto-deploy -> verify the
+  live bundle hash + a marker string. `npm run deploy`/`vercel --prod`/alias
+  re-pointing is RETIRED - do not use or recommend it.
+- Seeing the real app: Chromium here has NO internet. Use
+  `scripts/qa/harness.mjs` (local `vite preview` on :4173 + API forwarding to
+  the real backend); `node scripts/qa/smoke.mjs` is the standing gate. If you
+  cannot run it, say so explicitly - never imply the app was exercised when you
+  only read code.

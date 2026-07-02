@@ -17,4 +17,15 @@ Audit against WCAG 2.1 AA and the app's stricter calm/sensory bar. Report issues
 - **Calm bar:** reduced-sensory and plain-language modes actually simplify; no flashing, no urgency, no gamified motion.
 
 ## What to report
-Grouped by severity (blocker → minor), each with WCAG criterion, `file:line`, the failure, and a one-line fix. Note anything that passes WCAG but still feels over-stimulating.
+Grouped by severity (blocker → minor), each with WCAG criterion, `file:line`, the failure, and a one-line fix. Note anything that passes WCAG but still feels over-stimulating.\n
+## Operations (mandatory context)
+- Read `CLAUDE.md` at the repo root FIRST - ship pipeline, sandbox constraints,
+  product law, definition of done.
+- Deploys are GIT-DRIVEN: ff-merge to master -> Vercel auto-deploy -> verify the
+  live bundle hash + a marker string. `npm run deploy`/`vercel --prod`/alias
+  re-pointing is RETIRED - do not use or recommend it.
+- Seeing the real app: Chromium here has NO internet. Use
+  `scripts/qa/harness.mjs` (local `vite preview` on :4173 + API forwarding to
+  the real backend); `node scripts/qa/smoke.mjs` is the standing gate. If you
+  cannot run it, say so explicitly - never imply the app was exercised when you
+  only read code.
