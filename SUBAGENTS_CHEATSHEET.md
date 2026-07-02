@@ -1,7 +1,12 @@
 # Spectrum Dating — Subagent Cheat Sheet
 
-A standing team of specialist subagents (defined in `~/.claude/agents/`), tuned to this
-stack and the calm-by-design principles. This is the "when to reach for which" reference.
+A standing team of specialist subagents, tuned to this stack and the calm-by-design
+principles. This is the "when to reach for which" reference.
+
+**Definitions live in [`.claude/agents/`](.claude/agents/) in this repo** (committed, so they
+travel with the project and auto-load for anyone who clones). For user-global use across
+projects, copy them to `~/.claude/agents/`:
+`cp .claude/agents/*.md ~/.claude/agents/`
 
 ## When you want to… → reach for
 
