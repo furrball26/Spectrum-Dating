@@ -2247,6 +2247,45 @@ export default function ConversationScreen({
     }
   }
 
+  // Group messages by timeLabel for group headers. `showSender` marks the first
+  // message of each consecutive same-sender run (and the first after any day
+  // divider). It drives the turn-break gap on BOTH sides, and — for the OTHER
+  // person only — the name label + avatar at the start of their run.
+  // Memoized on [messages] so a composer keystroke (which re-renders the parent
+  // but doesn't touch messages) doesn't rebuild the whole grouped list.
+  // NOTE: declared BEFORE the apiLoading/apiError early returns below so this
+  // hook runs unconditionally on every render (Rules of Hooks — a useMemo placed
+  // after an early return crashes the component when loading flips to loaded).
+  const grouped = useMemo(() => {
+    const out = [];
+    let lastLabel = null;
+    let lastSenderId = null;
+    messages.forEach((msg) => {
+      let dividerBefore = false;
+      if (msg.timeLabel !== lastLabel) {
+        out.push({ type: "header", label: msg.timeLabel });
+        lastLabel = msg.timeLabel;
+        dividerBefore = true;
+      }
+      const showSender = dividerBefore || msg.senderId !== lastSenderId;
+      out.push({ type: "message", msg, showSender });
+      lastSenderId = msg.senderId;
+    });
+    return out;
+  }, [messages]);
+
+  // F12 (light) — "new thread" signal for the slow-start framing. A thread is
+  // NEW until it becomes a real two-sided exchange: zero real messages, OR only
+  // one person has spoken (distinctSenders < 2), OR both have spoken but neither
+  // past their first message (<= 2 real messages). Recedes once there are 3+ real
+  // messages across 2 senders. Memoized on [messages]; also declared BEFORE the
+  // early returns below (Rules of Hooks).
+  const newThread = useMemo(() => {
+    const liveMessages = messages.filter((m) => !m.deleted);
+    const distinctSenders = new Set(liveMessages.map((m) => m.senderId)).size;
+    return liveMessages.length === 0 || distinctSenders < 2 || liveMessages.length <= 2;
+  }, [messages]);
+
   if (apiLoading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: t.textSoft }}>Loading…</p></div>;
   if (apiError) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -2276,30 +2315,6 @@ export default function ConversationScreen({
       ? lastMsg.id
       : null;
 
-  // Group messages by timeLabel for group headers. `showSender` marks the first
-  // message of each consecutive same-sender run (and the first after any day
-  // divider). It drives the turn-break gap on BOTH sides, and — for the OTHER
-  // person only — the name label + avatar at the start of their run.
-  // Memoized on [messages] so a composer keystroke (which re-renders the parent
-  // but doesn't touch messages) doesn't rebuild the whole grouped list.
-  const grouped = useMemo(() => {
-    const out = [];
-    let lastLabel = null;
-    let lastSenderId = null;
-    messages.forEach((msg) => {
-      let dividerBefore = false;
-      if (msg.timeLabel !== lastLabel) {
-        out.push({ type: "header", label: msg.timeLabel });
-        lastLabel = msg.timeLabel;
-        dividerBefore = true;
-      }
-      const showSender = dividerBefore || msg.senderId !== lastSenderId;
-      out.push({ type: "message", msg, showSender });
-      lastSenderId = msg.senderId;
-    });
-    return out;
-  }, [messages]);
-
   const hasMessages = messages.length > 0;
 
   // F11 — first name for the gentle framing; the card renders itself null when
@@ -2313,27 +2328,6 @@ export default function ConversationScreen({
       onToggle={() => setExpectCollapsed((v) => !v)}
     />
   );
-
-  // F12 (light) — "new thread" signal for the slow-start framing.
-  // Definition: a thread is NEW until it becomes a real two-sided exchange.
-  // We derive it from the message data already loaded (no new field/plumbing):
-  //   - count only non-deleted messages (deletions shouldn't "un-new" a thread);
-  //   - count distinct senders among them.
-  // A thread is NEW when there are zero real messages, OR only one person has
-  // spoken so far (distinctSenders < 2), OR both have spoken but neither has gone
-  // past their first message (total real messages <= 2). It recedes naturally
-  // once both people have exchanged at least once AND there are messages beyond
-  // the opening turn (3+ real messages across 2 senders). Chosen over "raw
-  // message count" so a one-sided burst of openers still reads as new, and over a
-  // server timestamp because the two-sided-exchange shape is the cleanest signal
-  // already present in the loaded data.
-  // Memoized on [messages] — these counts feed the "new thread" framing and only
-  // change when messages change, not on every composer keystroke.
-  const newThread = useMemo(() => {
-    const liveMessages = messages.filter((m) => !m.deleted);
-    const distinctSenders = new Set(liveMessages.map((m) => m.senderId)).size;
-    return liveMessages.length === 0 || distinctSenders < 2 || liveMessages.length <= 2;
-  }, [messages]);
 
   const openSlowStartPrompts = () => {
     setHelperTrayOpen(true);

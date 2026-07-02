@@ -1075,7 +1075,13 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     );
   }
 
-  if (atEnd) {
+  // Only show the "caught up"/empty-deck screen while actually viewing. If the
+  // user just acted on their LAST card, the deck is now empty (atEnd) but we must
+  // still render that action's confirmation — especially a mutual-match moment
+  // (its "Say hello" deep-link) or the skip/not-now Undo — instead of jumping
+  // straight to "all caught up". Once they continue (next() → stage "viewing"),
+  // this guard lets the caught-up screen show.
+  if (atEnd && stage === "viewing") {
     // F22 — a deck that came back empty on load is a different situation from
     // one the user has worked all the way through. The zero case names the
     // likely filter culprits and uses a calmer, neutral treatment (no
