@@ -1,5 +1,30 @@
 # Status
 
+---
+## ⭐ CURRENT STATE — READ THIS FIRST (living shared-memory for all agents) · updated 2026-07-01
+
+**Product law — calm-by-design:** never add (or flag as missing) typing indicators, online-now/last-seen, read receipts, streaks, urgency, or gamification.
+
+**Deploy pipeline (AUTHORITATIVE — the backend path changed):**
+- **Backend** (`Spectrum-Dating-Server`): deploy = **`git push origin master`** → GitHub → Railway. Poll `https://spectrum-dating-server-production.up.railway.app/health` until `{sha}` == commit. **NEVER `railway up`/`npm run deploy`** (Defender false-positive quarantines `profile.js` → crash). A ~30s `502` rollover blip is normal.
+- **Frontend** (`Spectrum-Dating`): **Vercel only, NO git remote.** `npm run deploy` THEN `npx vercel alias set <url> spectrum-dating-eta.vercel.app`. Vercel rebuilds → **live hash differs from local**; verify by a distinctive STRING, not hash.
+- Commit to `master`, never a feature branch. When a FE change needs a new endpoint, deploy BACKEND first. In orchestrated runs builders commit locally; the orchestrator pushes + verifies.
+
+**Serialization:** one builder per repo; FE + BE builders (different repos) run in parallel; read-only reviewers compose freely. Same-repo parallel = worktree isolation + disjoint files.
+
+**Gotchas:** live browser won't narrow below ~1920px → verify ~375px in a **same-origin 375px iframe**. `/auth/register` rate-limit ~20/15min (seed in START/COUNT batches). Photos set via a **migration** (`randomuser.me` URLs, see `021/022/035`), not the profile API. R2 CORS set via Cloudflare dashboard only.
+
+**Live now:** FE bundle `index-BJtdzSbP.js` (code-split, ~81KB gzip). BE `/health` `3ea6b90`.
+
+**Shipped (don't re-propose):** F1–F7, F9, F10b, F11, F13, F16, F17, F18–F24, F26, F27; F6 digest (needs Resend env vars to send); F14 backend tests/CI; all 🔴 errors + most 🟠 (E4/E5/E7/E8/E9/E11/E13/E16–E19/E21–E34/E38/E40/E43–E45); KI-1/KI-2 resolved; design D1/D3/D5/D6/D10/D13/D14/D18–D36; backend error-copy rewrites. 50 AZ/CA/CO sample users (photo'd).
+
+**Deferred / needs decision or vendor:** F8 photo-moderation scanner · F25 verification (make real or relabel — DECISION) · E2 attachments go-live (F8 + ToS/Privacy + NCMEC) · E12 dual-socket + E20 matching-perf (big/risky) · F29 drop orphaned `notification_preferences` (needs OK) · F6 Resend env vars (Taylor) · perf follow-ups (self-host fonts, WebP/AVIF, real mobile Lighthouse) · F28 facets · F15 helpers · D15 footer legal links.
+
+**Keep this section updated after every ship.** History below.
+
+---
+# Historical dev log
+
 ## Frontend Dev
 
 ### 2026-06-29 — Responsive layout + navigation overhaul (width token, useViewport, mobile bottom-nav, desktop frame + 2-pane messages, Moderation moved to Profile)
