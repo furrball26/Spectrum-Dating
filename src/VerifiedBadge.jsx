@@ -1,13 +1,16 @@
 import { t } from "./tokens.js";
 import { SealCheckIcon } from "./icons.jsx";
 
-// A small, calm "✓ Verified" trust pill. Subtle by design — no flash, no fill.
+// A small, calm "✓ Reviewed" trust pill. Subtle by design — no flash, no fill.
 // Reused next to display names and in the profile verification section.
+// Honest labeling (F25): this asserts a team review of the profile, NOT a formal
+// identity/ID check — so it reads "Reviewed", not "Verified", to avoid a
+// vulnerable audience over-trusting a literal "Verified".
 export default function VerifiedBadge({ style }) {
   return (
     <span
-      title="Identity verified"
-      aria-label="Identity verified"
+      title="Reviewed by our team"
+      aria-label="Reviewed by our team"
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -27,7 +30,7 @@ export default function VerifiedBadge({ style }) {
       }}
     >
       <SealCheckIcon size={13} />
-      Verified
+      Reviewed
     </span>
   );
 }

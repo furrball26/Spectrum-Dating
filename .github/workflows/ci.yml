@@ -1,0 +1,23 @@
+name: CI
+
+# Lint + build gate for the frontend (F14). The lint step runs
+# eslint-plugin-react-hooks with rules-of-hooks as an error, so a hook placed
+# after an early return (the ConversationScreen #310 crash class) fails CI.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

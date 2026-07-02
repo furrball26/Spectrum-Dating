@@ -115,7 +115,7 @@ const VALUES = [
     Icon: ShieldIcon,
     title: "Safety first",
     body:
-      "Profile verification, straightforward reporting, and a real safety center — built in from the start, not bolted on.",
+      "Profile review, straightforward reporting, and a real safety center — built in from the start, not bolted on.",
   },
   {
     Icon: SealCheckIcon,

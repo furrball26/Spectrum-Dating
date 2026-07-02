@@ -2917,7 +2917,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 
   // Identity verification
   const verificationSummary = verified
-    ? "Verified"
+    ? "Reviewed"
     : verificationRequested === "pending"
       ? "Pending review"
       : verificationRequested === "rejected"
@@ -4071,7 +4071,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           ══════════════════════════════════════════════════════ */}
           <CollapsibleSection
             id="verification"
-            title="Identity verification"
+            title="Profile review"
             summary={verificationSummary}
             hasContent={verificationHasContent}
             open={!!sectionOpen.verification}
@@ -4081,13 +4081,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           >
             {verified ? (
               <p style={{ margin: 0, fontSize: 15, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
-                <span aria-hidden="true">✓</span> Your identity is verified.
+                <span aria-hidden="true">✓</span> Your profile has been reviewed by our team.
               </p>
             ) : verificationRequested === "pending" ? (
               <>
                 <p style={{ margin: "0 0 10px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
-                  <strong style={{ color: t.text }}>Verification request received.</strong> Our
-                  team will review it and confirm your identity shortly.
+                  <strong style={{ color: t.text }}>Review request received.</strong> Our
+                  team will look over your profile shortly.
                 </p>
                 <span
                   style={{
@@ -4111,9 +4111,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 <p style={{ margin: "0 0 14px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
                   {verificationRequested === "rejected"
                     ? (verificationRejectionReason
-                        ? `Your verification wasn't approved this time. ${verificationRejectionReason} You can review your details and try again.`
-                        : "Your verification wasn't approved this time. You can review your details and try again.")
-                    : "Get a verified badge to show other members you're a real person. We'll review your profile and confirm your identity."}
+                        ? `Your review wasn't approved this time. ${verificationRejectionReason} You can review your details and try again.`
+                        : "Your review wasn't approved this time. You can review your details and try again.")
+                    : "Ask our team to review your profile. Reviewed members get a badge that shows others a real person has looked over their profile. This is a team review, not a formal identity or ID check."}
                 </p>
                 {verifRequestError && (
                   <p role="alert" style={{ color: t.danger, fontSize: 13, margin: "0 0 10px" }}>
@@ -4149,7 +4149,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     opacity: verifRequestBusy ? 0.7 : 1,
                   }}
                 >
-                  {verifRequestBusy ? "Submitting…" : verificationRequested === "rejected" ? "Re-request verification" : "Request verification"}
+                  {verifRequestBusy ? "Submitting…" : verificationRequested === "rejected" ? "Re-request review" : "Request review"}
                 </button>
               </>
             )}
