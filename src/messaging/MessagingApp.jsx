@@ -58,7 +58,7 @@ function NoteSheet({ row, initialNote, onSaved, onClose }) {
         <h2 style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: t.text }}>
           Private note
         </h2>
-        <p style={{ fontSize: 13, color: t.textMuted, margin: "0 0 12px" }}>Only you can see this.</p>
+        <p style={{ fontSize: 14, color: t.textMuted, margin: "0 0 12px" }}>Only you can see this.</p>
         <textarea
           value={value}
           maxLength={500}
@@ -68,7 +68,7 @@ function NoteSheet({ row, initialNote, onSaved, onClose }) {
           style={{ width: "100%", boxSizing: "border-box", fontFamily: t.sans, fontSize: 16, color: t.text, background: t.surface, border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "8px 10px", resize: "vertical", lineHeight: 1.5 }}
         />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-          <button type="button" onClick={onClose} style={{ minHeight: 44, padding: "8px 16px", borderRadius: 10, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: t.sans }}>
+          <button type="button" onClick={onClose} style={{ minHeight: 44, padding: "8px 16px", borderRadius: 10, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 16, fontWeight: 600, cursor: "pointer", fontFamily: t.sans }}>
             Cancel
           </button>
           <button
@@ -83,7 +83,7 @@ function NoteSheet({ row, initialNote, onSaved, onClose }) {
               setSaving(false);
               onClose();
             }}
-            style={{ minHeight: 44, padding: "8px 18px", borderRadius: 10, border: "none", background: t.accentFill, color: "#fff", fontSize: 15, fontWeight: 600, cursor: saving ? "wait" : "pointer", fontFamily: t.sans }}
+            style={{ minHeight: 44, padding: "8px 18px", borderRadius: 10, border: "none", background: t.accentFill, color: "#fff", fontSize: 16, fontWeight: 600, cursor: saving ? "wait" : "pointer", fontFamily: t.sans }}
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -644,7 +644,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
               padding: "32px",
               textAlign: "center",
               color: t.textMuted,
-              fontSize: 15,
+              fontSize: 16,
             }}
           >
             {plainLanguage ? "Click a conversation to open it." : "Select a conversation to start reading."}

@@ -133,7 +133,7 @@ export default function LikesScreen({ onOpenConversation, onActivityCount, plain
         >
           Likes
         </h1>
-        <p style={{ margin: "0 0 22px", fontSize: 15, color: t.textSoft }}>
+        <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft }}>
           {plainLanguage
             ? "People who said yes to you. If you say yes too, you match — then you can message each other."
             : "People who've said they're interested in you. If you feel the same, say so — you'll match and can chat in Messages. There's no rush."}

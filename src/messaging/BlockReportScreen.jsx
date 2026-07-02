@@ -180,7 +180,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
           {heading}
         </h1>
         {!submitted && (
-          <p style={{ fontSize: 15, color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}>
             Choose what you'd like to do. You can block, report, or both — whatever feels
             right. Neither is required.
           </p>
@@ -244,7 +244,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                   borderRadius: 12,
                   padding: "12px 14px",
                   marginBottom: 20,
-                  fontSize: 15,
+                  fontSize: 16,
                   color: t.text,
                   lineHeight: 1.5,
                 }}
@@ -334,7 +334,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                 htmlFor="block-report-details"
                 style={{
                   display: "block",
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: 500,
                   color: t.textSoft,
                   marginBottom: 8,

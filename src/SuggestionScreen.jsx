@@ -105,7 +105,7 @@ function InterestPills({ interests, viewerInterests }) {
               gap: 5,
               padding: "5px 13px",
               borderRadius: 24,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: shared ? 600 : 400,
               background: shared ? t.accentFill : t.surfaceAlt,
               color: shared ? "#fff" : t.textSoft,
@@ -172,7 +172,7 @@ function CommStyleArea({ person }) {
               alignItems: "center",
               padding: "5px 13px",
               borderRadius: 24,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 400,
               background: t.surface,
               color: t.textSoft,
@@ -201,7 +201,7 @@ function PromptCards({ prompts }) {
           <p
             style={{
               margin: "0 0 6px",
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
               color: t.textMuted,
               textTransform: "uppercase",
@@ -251,7 +251,7 @@ function PausedBanner({ onGoToProfile, plainLanguage = false }) {
         justifyContent: "space-between",
       }}
     >
-      <p style={{ margin: 0, color: t.textSoft, fontSize: 15, lineHeight: 1.55, flex: "1 1 220px" }}>
+      <p style={{ margin: 0, color: t.textSoft, fontSize: 16, lineHeight: 1.55, flex: "1 1 220px" }}>
         {plainLanguage ? (
           <>Your profile is <strong style={{ color: t.text, fontWeight: 600 }}>paused</strong>. Other people can't see you and you don't appear in Discover. You can still look around. You can turn it back on anytime.</>
         ) : (
@@ -689,7 +689,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           border: `1px solid ${t.border}`,
           borderRadius: 999,
           color: t.text,
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: 600,
           cursor: "pointer",
           padding: "8px 16px",
@@ -708,7 +708,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           background: "none",
           border: "none",
           color: t.accentStrong,
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: 600,
           cursor: "pointer",
           padding: "8px 4px",
@@ -795,7 +795,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   ? "We couldn't find anyone who matches your filters right now. Try changing your filters to see more people."
                   : "We couldn't find anyone matching your current filters right now. That's not a problem on your end — it just means the filters are narrow at the moment."}
               </p>
-              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
+              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 16 }}>
                 {noSeeking ? (
                   <>You haven't set <strong>who you want to meet</strong> yet — choosing that, or widening your <strong>age range</strong> or <strong>search radius</strong>, will usually bring people in.</>
                 ) : tightRadius ? (
@@ -832,7 +832,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   ? "You've seen everyone in your search for now. We will show more people as they join."
                   : "You've seen everyone who matches your search for now. There's nothing you need to do — we'll have more people as folks join."}
               </p>
-              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 15 }}>
+              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 16 }}>
                 Want to see more? Widening your <strong>search radius</strong>, <strong>age range</strong>, or <strong>who you want to meet</strong> can help — you can adjust all three here.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -950,7 +950,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   )}
                   <p style={{
                     fontFamily: t.serif,
-                    fontSize: 15,
+                    fontSize: 16,
                     color: t.textSoft,
                     fontStyle: "italic",
                     margin: "4px 0 6px",
@@ -958,7 +958,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   }}>
                     {person.tagline}
                   </p>
-                  <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 500, letterSpacing: "0.02em" }}>
+                  <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 500, letterSpacing: "0.02em" }}>
                     {person.distanceLabel}
                   </span>
                 </div>
@@ -972,7 +972,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               <Divider />
 
               {/* Communication note */}
-              <p style={{ margin: 0, color: t.textSoft, fontSize: 15, lineHeight: 1.6 }}>
+              <p style={{ margin: 0, color: t.textSoft, fontSize: 16, lineHeight: 1.6 }}>
                 <strong style={{ color: t.text, fontWeight: 600 }}>About talking: </strong>
                 {person.communicationNote}
               </p>
@@ -988,7 +988,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
                 <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: 0, fontWeight: 700 }}>Interests</h2>
-                <span style={{ fontSize: 12, color: t.textMuted }}>
+                <span style={{ fontSize: 13, color: t.textMuted }}>
                   <span aria-hidden="true">✦</span> = shared
                 </span>
               </div>
@@ -1006,7 +1006,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                     gap: 10,
                     alignItems: "flex-start",
                     marginBottom: 8,
-                    fontSize: 15,
+                    fontSize: 16,
                     color: t.textSoft,
                   }}>
                     <span aria-hidden="true" style={{ color: t.accent, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
@@ -1105,7 +1105,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   padding: "12px 14px",
                   marginBottom: 20,
                   color: t.textSoft,
-                  fontSize: 15,
+                  fontSize: 16,
                   lineHeight: 1.6,
                 }}
               >

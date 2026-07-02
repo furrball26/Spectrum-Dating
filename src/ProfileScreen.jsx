@@ -131,7 +131,7 @@ function CollapsibleSection({ id, title, summary, hasContent, open, onToggle, he
                   gap: 6,
                   marginTop: 4,
                   fontFamily: t.sans,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 400,
                   color: t.textSoft,
                   lineHeight: 1.4,
@@ -148,7 +148,7 @@ function CollapsibleSection({ id, title, summary, hasContent, open, onToggle, he
             aria-hidden="true"
             style={{
               flexShrink: 0,
-              fontSize: 15,
+              fontSize: 16,
               color: t.textMuted,
               transform: open ? "rotate(180deg)" : "rotate(0deg)",
               transition: prefersReduced ? "none" : "transform 180ms cubic-bezier(0.2,0,0,1)",
@@ -232,7 +232,7 @@ function FieldLabel({ htmlFor, children, required }) {
       style={{
         display: "block",
         fontWeight: 600,
-        fontSize: 15,
+        fontSize: 16,
         color: t.text,
         marginBottom: 4,
       }}
@@ -249,7 +249,7 @@ function HelperText({ id, children }) {
   return (
     <span
       id={id}
-      style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}
+      style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
     >
       {children}
     </span>
@@ -263,7 +263,7 @@ function ErrorText({ id, children }) {
       role="alert"
       style={{
         display: "block",
-        fontSize: 13,
+        fontSize: 14,
         color: t.danger,
         marginTop: 4,
         fontWeight: 500,
@@ -469,7 +469,7 @@ function PhotoCell({ photo, index, selected, onSelect, tileStyle, cellRef }) {
             left: 8,
             background: t.accentFill,
             color: "#fff",
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 700,
             padding: "3px 8px",
             borderRadius: 999,
@@ -557,12 +557,12 @@ function PhotoEditorPanel({
             border: `1px solid ${t.border}`,
           }}
         />
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: t.text }}>{heading}</h3>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: t.text }}>{heading}</h3>
       </div>
 
       {/* Alt-text description */}
       <div>
-        <label htmlFor={descId} style={{ display: "block", fontWeight: 600, fontSize: 13, color: t.textSoft, marginBottom: 4 }}>
+        <label htmlFor={descId} style={{ display: "block", fontWeight: 600, fontSize: 14, color: t.textSoft, marginBottom: 4 }}>
           Describe this photo
           <span className="sr-only"> — photo {index}{photo.isPrimary ? ", your main photo" : ""}</span>
         </label>
@@ -588,15 +588,15 @@ function PhotoEditorPanel({
           }}
         />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginTop: 4 }}>
-          <span id={hintId} style={{ fontSize: 13, color: t.textSoft }}>
+          <span id={hintId} style={{ fontSize: 14, color: t.textSoft }}>
             Helps people who use screen readers. Optional.
           </span>
-          <span aria-live="polite" style={{ fontSize: 13, color: desc.length >= DESC_MAX ? t.danger : t.textSoft, flexShrink: 0 }}>
+          <span aria-live="polite" style={{ fontSize: 14, color: desc.length >= DESC_MAX ? t.danger : t.textSoft, flexShrink: 0 }}>
             {desc.length}/{DESC_MAX}
           </span>
         </div>
         {descError && (
-          <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: t.danger }}>{descError}</p>
+          <p role="alert" style={{ margin: "6px 0 0", fontSize: 14, color: t.danger }}>{descError}</p>
         )}
       </div>
 
@@ -929,12 +929,12 @@ function PhotoGallery({ photos, uploading, error, onAdd, onReplace, onSetPrimary
         />
       )}
 
-      <p style={{ fontSize: 13, color: t.textSoft, margin: "12px 0 0" }}>
+      <p style={{ fontSize: 14, color: t.textSoft, margin: "12px 0 0" }}>
         Add up to {MAX_PHOTOS} photos. Your main photo is what people see first.
       </p>
 
       {error && (
-        <span role="alert" style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 8 }}>
+        <span role="alert" style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 8 }}>
           {error}
         </span>
       )}
@@ -950,10 +950,10 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
       <div>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: t.text }}>
+        <p style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
           Push notifications
         </p>
-        <p style={{ margin: "2px 0 0", fontSize: 13, color: t.textSoft }}>
+        <p style={{ margin: "2px 0 0", fontSize: 14, color: t.textSoft }}>
           Get notified about new matches and messages
         </p>
       </div>
@@ -1030,7 +1030,7 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
   const f = useFocusable();
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-      <p id={`${id}-label`} style={{ margin: 0, fontSize: 15, fontWeight: 500, color: t.text }}>
+      <p id={`${id}-label`} style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
         {label}
       </p>
       <button
@@ -1077,7 +1077,7 @@ function PauseToggle({ checked, onChange }) {
   const f = useFocusable();
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <p id="pause-profile-label" style={{ margin: 0, fontSize: 15, fontWeight: 500, color: t.text }}>
+      <p id="pause-profile-label" style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
         Pause my profile
       </p>
       <button
@@ -1164,7 +1164,7 @@ function PromptSlot({ index, promptText, answer, onChangeAnswer, onRemove }) {
         role="status"
         aria-live="polite"
         id={counterId}
-        style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+        style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
       >
         {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
       </div>
@@ -1189,7 +1189,7 @@ function RemovePromptButton({ onRemove, promptText }) {
         border: `1px solid ${t.formBorder}`,
         background: t.surface,
         color: t.textSoft,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 600,
         cursor: "pointer",
         ...f.style,
@@ -1257,7 +1257,7 @@ function PromptChooser({ available, onAdd, onCancel }) {
             role="status"
             aria-live="polite"
             id="prompt-chooser-answer-counter"
-            style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+            style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
           >
             {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
           </div>
@@ -1277,7 +1277,7 @@ function PromptChooser({ available, onAdd, onCancel }) {
             border: `1px solid ${canAdd ? t.accentFill : t.border}`,
             background: canAdd ? t.accentFill : t.surfaceAlt,
             color: canAdd ? "#fff" : t.textMuted,
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: 600,
             cursor: canAdd ? "pointer" : "not-allowed",
             ...fAdd.style,
@@ -1296,7 +1296,7 @@ function PromptChooser({ available, onAdd, onCancel }) {
             border: `1px solid ${t.border}`,
             background: t.surface,
             color: t.text,
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: 600,
             cursor: "pointer",
             ...fCancel.style,
@@ -1467,7 +1467,7 @@ function AgeRangeSlider({ low, high, onChange }) {
       </div>
 
       {/* Tick labels */}
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: t.textMuted, marginTop: 2 }}>
         <span>{AGE_SLIDER_MIN}</span>
         <span>{AGE_SLIDER_MAX}+</span>
       </div>
@@ -1558,7 +1558,7 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
       </div>
 
       {/* Missing-field chips */}
-      <p style={{ margin: "0 0 8px", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+      <p style={{ margin: "0 0 8px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
         Adding these helps matches understand you better:
       </p>
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1570,7 +1570,7 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
             background: t.green50,
             border: `1px solid ${t.green200}`,
             color: t.accentStrong,
-            fontSize: 13,
+            fontSize: 14,
             lineHeight: 1.5,
           };
           // The "prompt" chip is an actionable shortcut that jumps to the
@@ -1774,7 +1774,7 @@ function ProfilePreviewModal({
               background: t.accentFill,
               border: "none",
               color: "#fff",
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               padding: "8px 18px",
@@ -1836,7 +1836,7 @@ function ProfilePreviewModal({
                 {tagline && (
                   <p style={{
                     fontFamily: t.serif,
-                    fontSize: 15,
+                    fontSize: 16,
                     color: t.textSoft,
                     fontStyle: "italic",
                     margin: "4px 0 6px",
@@ -1854,7 +1854,7 @@ function ProfilePreviewModal({
             {bio ? (
               <p style={{ margin: 0, color: t.text, lineHeight: 1.75 }}>{bio}</p>
             ) : (
-              <p style={{ margin: 0, color: t.textMuted, lineHeight: 1.75, fontStyle: "italic", fontSize: 15 }}>
+              <p style={{ margin: 0, color: t.textMuted, lineHeight: 1.75, fontStyle: "italic", fontSize: 16 }}>
                 No bio yet — add one to help people get to know you.
               </p>
             )}
@@ -1863,12 +1863,12 @@ function ProfilePreviewModal({
 
             {/* Communication note */}
             {commNote ? (
-              <p style={{ margin: 0, color: t.textSoft, fontSize: 15, lineHeight: 1.6 }}>
+              <p style={{ margin: 0, color: t.textSoft, fontSize: 16, lineHeight: 1.6 }}>
                 <strong style={{ color: t.text, fontWeight: 600 }}>About talking: </strong>
                 {commNote}
               </p>
             ) : (
-              <p style={{ margin: 0, color: t.textMuted, fontSize: 15, lineHeight: 1.6, fontStyle: "italic" }}>
+              <p style={{ margin: 0, color: t.textMuted, fontSize: 16, lineHeight: 1.6, fontStyle: "italic" }}>
                 No communication note yet.
               </p>
             )}
@@ -1892,7 +1892,7 @@ function ProfilePreviewModal({
                     style={{
                       padding: "5px 13px",
                       borderRadius: 24,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 400,
                       background: t.surface,
                       color: t.textSoft,
@@ -1930,7 +1930,7 @@ function ProfilePreviewModal({
                       alignItems: "center",
                       padding: "5px 13px",
                       borderRadius: 24,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 400,
                       background: t.surface,
                       color: t.textSoft,
@@ -1949,7 +1949,7 @@ function ProfilePreviewModal({
             <div style={card}>
               <p style={{
                 margin: "0 0 10px",
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 600,
                 color: t.textMuted,
                 textTransform: "uppercase",
@@ -1958,7 +1958,7 @@ function ProfilePreviewModal({
               }}>
                 In their words{" "}
                 <span style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 400,
                   color: t.textMuted,
                   letterSpacing: 0,
@@ -1990,7 +1990,7 @@ function ProfilePreviewModal({
                   <li key={p.promptKey || i}>
                     <p style={{
                       margin: "0 0 6px",
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: t.textMuted,
                       textTransform: "uppercase",
@@ -2018,7 +2018,7 @@ function ProfilePreviewModal({
           {/* Footer note */}
           <p style={{
             margin: "8px 0 0",
-            fontSize: 13,
+            fontSize: 14,
             color: t.textMuted,
             textAlign: "center",
             lineHeight: 1.6,
@@ -3005,7 +3005,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               background: "transparent",
               border: "none",
               color: t.accentStrong,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               padding: "8px 0",
@@ -3067,7 +3067,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 
           {/* P-27: framing copy — first-time only */}
           {!hasEverSaved && (
-            <p style={{ color: t.textSoft, fontSize: 15, margin: "0 0 20px", lineHeight: 1.6 }}>
+            <p style={{ color: t.textSoft, fontSize: 16, margin: "0 0 20px", lineHeight: 1.6 }}>
               Tell us a bit about yourself. You control what people see — none of this
               is required except your display name and at least one interest.
             </p>
@@ -3102,10 +3102,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             }}
           >
             <div style={{ minWidth: 200, flex: 1 }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: t.text }}>
+              <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text }}>
                 {paused ? "Your profile is paused" : "Take a break"}
               </p>
-              <p style={{ margin: "2px 0 0", fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>
+              <p style={{ margin: "2px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
                 {paused
                   ? "You won't appear in Discover. Your matches and messages stay. Turn it back on whenever you're ready."
                   : "Pause your profile anytime. You'll disappear from Discover, but keep your matches and messages."}
@@ -3122,7 +3122,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 color: paused ? t.accentStrong : "#fff",
                 border: paused ? `1px solid ${t.accentStrong}` : "none",
                 borderRadius: 10,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: 600,
                 fontFamily: t.sans,
                 cursor: pauseBusy ? "default" : "pointer",
@@ -3189,7 +3189,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 role="status"
                 aria-live="polite"
                 id="display-name-counter"
-                style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+                style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
               >
                 {displayNameTouched ? `${30 - displayName.length} remaining` : ""}
               </div>
@@ -3250,7 +3250,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 role="status"
                 aria-live="polite"
                 id="bio-counter"
-                style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+                style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
               >
                 {bioTouched ? `${500 - bio.length} remaining` : ""}
               </div>
@@ -3366,7 +3366,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                           color: "#fff",
                           borderRadius: 24,
                           padding: "4px 4px 4px 12px",
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: 500,
                           transition: prefersReduced ? "none" : "opacity 150ms ease",
                         }}
@@ -3395,7 +3395,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <h3
                 id="suggestions-heading"
                 style={{
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 600,
                   color: t.textMuted,
                   textTransform: "uppercase",
@@ -3428,7 +3428,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <div style={{ flex: 1 }}>
                 <label
                   htmlFor="add-custom-tag"
-                  style={{ display: "block", fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 4 }}
+                  style={{ display: "block", fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4 }}
                 >
                   Add your own
                 </label>
@@ -3468,7 +3468,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               style={{
                 display: "block",
                 marginTop: 12,
-                fontSize: 13,
+                fontSize: 14,
                 color: t.danger,
                 fontWeight: 500,
                 outline: "none",
@@ -3502,7 +3502,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               }}
             >
               <legend
-                style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
+                style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
               >
                 What are you looking for?
               </legend>
@@ -3521,7 +3521,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                         minHeight: 44,
                         cursor: "pointer",
                         gap: 12,
-                        fontSize: 15,
+                        fontSize: 16,
                         color: t.text,
                       }}
                     >
@@ -3539,7 +3539,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     </label>
                     <span
                       id={`rel-${value}-desc`}
-                      style={{ display: "block", fontSize: 13, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
+                      style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
                     >
                       {desc}
                     </span>
@@ -3580,16 +3580,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 style={inputStyle(false)}
                 placeholder="e.g. she/her, they/them"
               />
-              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}>
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
                 Shown on your profile so people address you correctly.
               </span>
             </div>
 
             <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
-              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
+              <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
                 Who do you want to meet?
               </legend>
-              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginBottom: 10, clear: "both" }}>
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
                 Choose any. Leave all unchecked to be open to everyone.
               </span>
               {[
@@ -3611,7 +3611,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                       }}
                       style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
                     />
-                    <span style={{ fontSize: 15, color: t.text }}>{label}</span>
+                    <span style={{ fontSize: 16, color: t.text }}>{label}</span>
                   </label>
                 );
               })}
@@ -3620,7 +3620,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             {/* Age range preference — dual-handle slider (replaces the two
                 number inputs that suffered the HTML min/max clamp bug) */}
             <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
-              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 2 }}>
+              <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 2 }}>
                 Age range
               </legend>
               <AgeRangeSlider
@@ -3631,7 +3631,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                   setPrefAgeMax(newHigh);
                 }}
               />
-              <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}>
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
                 Only show people in this age range.
               </span>
             </fieldset>
@@ -3653,7 +3653,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               />
               <span
                 id="distance-help"
-                style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}
+                style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
               >
                 Used to show people near you. Approximate is fine.
               </span>
@@ -3679,7 +3679,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </select>
               <span
                 id="radius-help"
-                style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}
+                style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
               >
                 Only show people within this distance. Set your location above for this to apply.
               </span>
@@ -3749,7 +3749,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
               <h3
                 style={{
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 600,
                   color: t.textMuted,
                   textTransform: "uppercase",
@@ -3759,7 +3759,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               >
                 Deal-breakers
               </h3>
-              <p style={{ fontSize: 13, color: t.textSoft, margin: "0 0 16px", lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 16px", lineHeight: 1.6 }}>
                 Deal-breakers hide people who clearly don't match. People who haven't said yet still show up.
               </p>
 
@@ -3872,7 +3872,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 role="status"
                 aria-live="polite"
                 id="context-card-counter"
-                style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+                style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
               >
                 {contextCardTouched ? `${300 - contextCard.length} remaining` : ""}
               </div>
@@ -3964,7 +3964,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             {/* P-18, P-19: fieldset + legend + per-radio describedby */}
             <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
               <legend
-                style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
+                style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
               >
                 Notification style
               </legend>
@@ -3999,7 +3999,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                         minHeight: 44,
                         cursor: "pointer",
                         gap: 12,
-                        fontSize: 15,
+                        fontSize: 16,
                         color: t.text,
                       }}
                     >
@@ -4018,7 +4018,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     {/* P-19: always in DOM */}
                     <span
                       id={`${id}-desc`}
-                      style={{ display: "block", fontSize: 13, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
+                      style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
                     >
                       {desc}
                     </span>
@@ -4046,7 +4046,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <p
                 style={{
                   margin: "16px 0 0",
-                  fontSize: 15,
+                  fontSize: 16,
                   color: t.textSoft,
                   lineHeight: 1.7,
                 }}
@@ -4071,12 +4071,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             cardStyle={card}
           >
             {verified ? (
-              <p style={{ margin: 0, fontSize: 15, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
+              <p style={{ margin: 0, fontSize: 16, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
                 <span aria-hidden="true">✓</span> Your profile has been reviewed by our team.
               </p>
             ) : verificationRequested === "pending" ? (
               <>
-                <p style={{ margin: "0 0 10px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+                <p style={{ margin: "0 0 10px", fontSize: 16, color: t.textSoft, lineHeight: 1.7 }}>
                   <strong style={{ color: t.text }}>Review request received.</strong> Our
                   team will look over your profile shortly.
                 </p>
@@ -4086,7 +4086,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     alignItems: "center",
                     padding: "4px 12px",
                     borderRadius: 999,
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                     color: t.textSoft,
                     background: t.surfaceAlt,
@@ -4099,7 +4099,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </>
             ) : (
               <>
-                <p style={{ margin: "0 0 14px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+                <p style={{ margin: "0 0 14px", fontSize: 16, color: t.textSoft, lineHeight: 1.7 }}>
                   {verificationRequested === "rejected"
                     ? (verificationRejectionReason
                         ? `Your review wasn't approved this time. ${verificationRejectionReason} You can review your details and try again.`
@@ -4107,7 +4107,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     : "Ask our team to review your profile. Reviewed members get a badge that shows others a real person has looked over their profile. This is a team review, not a formal identity or ID check."}
                 </p>
                 {verifRequestError && (
-                  <p role="alert" style={{ color: t.danger, fontSize: 13, margin: "0 0 10px" }}>
+                  <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "0 0 10px" }}>
                     {verifRequestError}
                   </p>
                 )}
@@ -4133,7 +4133,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     border: `1px solid ${t.accentStrong}`,
                     background: "transparent",
                     color: t.accentStrong,
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: 600,
                     cursor: verifRequestBusy ? "wait" : "pointer",
                     fontFamily: t.sans,
@@ -4242,7 +4242,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 border: `1px solid ${t.border}`,
                 borderRadius: 10,
                 color: t.textSoft,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: 500,
                 textDecoration: "none",
                 padding: "10px 24px",
@@ -4252,7 +4252,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             >
               Download my data
             </a>
-            <p style={{ margin: "10px 0 0", fontSize: 13, color: t.textMuted }}>
+            <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted }}>
               A copy of your conversations and messages (JSON).
             </p>
           </div>
@@ -4316,7 +4316,7 @@ function SignOutButton({ onSignOut }) {
         border: `1px solid ${t.border}`,
         borderRadius: 10,
         color: t.textSoft,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 500,
         cursor: "pointer",
         padding: "10px 24px",
@@ -4385,7 +4385,7 @@ function SuggestionChip({ tag, selected, onToggle, prefersReduced }) {
         border: `1.5px solid ${selected ? t.accentFill : t.formBorder}`,
         background: selected ? t.accentFill : t.surfaceAlt,
         color: selected ? "#fff" : t.textSoft,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: selected ? 600 : 400,
         cursor: "pointer",
         transition: prefersReduced ? "none" : "background 120ms ease, color 120ms ease",
@@ -4415,7 +4415,7 @@ function AddButton({ onAdd }) {
         border: `1.5px solid ${t.accentStrong}`,
         background: t.surface,
         color: t.accentStrong,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         cursor: "pointer",
         alignSelf: "flex-end",
@@ -4447,7 +4447,7 @@ function AddPromptButton({ onClick, disabled }) {
         border: `1.5px dashed ${disabled ? t.border : t.accentStrong}`,
         background: t.surface,
         color: disabled ? t.textMuted : t.accentStrong,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",
         ...f.style,

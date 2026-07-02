@@ -198,10 +198,10 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
               </div>
             )}
             <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
-              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
+              <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 10 }}>
                 What would you like to do?
               </legend>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, fontSize: 15, color: t.text, cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, fontSize: 16, color: t.text, cursor: "pointer" }}>
                 <input
                   type="checkbox"
                   checked={doBlock}
@@ -210,12 +210,12 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
                 />
                 <span>
                   <span style={{ display: "block", fontWeight: 600 }}>Block them</span>
-                  <span style={{ display: "block", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                  <span style={{ display: "block", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
                     You won't see {candidate.displayName} again.
                   </span>
                 </span>
               </label>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 15, color: t.text, cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 16, color: t.text, cursor: "pointer" }}>
                 <input
                   type="checkbox"
                   checked={doReport}
@@ -224,25 +224,25 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
                 />
                 <span>
                   <span style={{ display: "block", fontWeight: 600 }}>Report to our team</span>
-                  <span style={{ display: "block", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                  <span style={{ display: "block", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
                     Flag this for our team — you don't have to block them. It's private and low-stakes.
                   </span>
                 </span>
               </label>
               {!doBlock && !doReport && (
-                <p style={{ fontSize: 13, color: t.textMuted, margin: "10px 0 0" }}>
+                <p style={{ fontSize: 14, color: t.textMuted, margin: "10px 0 0" }}>
                   Pick at least one to continue.
                 </p>
               )}
             </fieldset>
             <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
-              <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 10 }}>
+              <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 10 }}>
                 What's going on?
               </legend>
               {SAFETY_REASONS.map((r) => (
                 <label
                   key={r.value}
-                  style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 15, color: t.text, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 16, color: t.text, cursor: "pointer" }}
                 >
                   <input
                     type="radio"
@@ -279,7 +279,7 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
                   boxSizing: "border-box",
                 }}
               />
-              <span style={{ fontSize: 12, color: t.textMuted }}>{200 - details.length} characters remaining</span>
+              <span style={{ fontSize: 13, color: t.textMuted }}>{200 - details.length} characters remaining</span>
             </label>
             <div style={{ display: "flex", gap: 10 }}>
               <button

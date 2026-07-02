@@ -34,7 +34,7 @@ const EMPTY_REACTIONS = Object.freeze({});
 // run (and just after a day divider). Own messages get no label — right side +
 // green bubble already reads as "you". Primary sender cues are now SIDE + COLOR.
 const senderLabelStyle = {
-  fontSize: 12,
+  fontSize: 13,
   color: t.textMuted,
   fontWeight: 600,
   margin: "2px 2px 3px",
@@ -262,7 +262,7 @@ function MessageAttachment({ attachment, isOwn, hasBody, onEnlarge }) {
           border: `1px dashed ${t.border}`,
           background: t.surfaceAlt,
           color: t.textSoft,
-          fontSize: 13,
+          fontSize: 14,
           lineHeight: 1.4,
         }}
       >
@@ -572,7 +572,7 @@ function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
           background: "transparent",
           border: "none",
           textAlign: "left",
-          fontSize: 15,
+          fontSize: 16,
           color: t.danger,
           fontWeight: 500,
           cursor: "pointer",
@@ -861,12 +861,12 @@ const MessageBubble = memo(function MessageBubble({
         </div>
 
         {isOwn && message.failed && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 13, color: t.danger }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 14, color: t.danger }}>
             <span>Didn't send.</span>
             <button
               type="button"
               onClick={() => onRetry && onRetry(message)}
-              style={{ background: "none", border: "none", color: t.accentStrong, fontWeight: 600, fontSize: 13, cursor: "pointer", textDecoration: "underline", padding: "4px 2px", minHeight: 32 }}
+              style={{ background: "none", border: "none", color: t.accentStrong, fontWeight: 600, fontSize: 14, cursor: "pointer", textDecoration: "underline", padding: "4px 2px", minHeight: 32 }}
             >
               Retry
             </button>
@@ -919,7 +919,7 @@ const MessageBubble = memo(function MessageBubble({
             marginTop: 3,
             marginRight: 2,
             alignSelf: "flex-end",
-            fontSize: 11,
+            fontSize: 12,
             color: t.textMuted,
             fontFamily: t.sans,
             lineHeight: 1.2,
@@ -1011,7 +1011,7 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef, e
           background: "transparent",
           border: "none",
           textAlign: "left",
-          fontSize: 15,
+          fontSize: 16,
           color: t.text,
           fontWeight: 500,
           cursor: "pointer",
@@ -1036,7 +1036,7 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef, e
           background: "transparent",
           border: "none",
           textAlign: "left",
-          fontSize: 15,
+          fontSize: 16,
           color: t.danger,
           fontWeight: 500,
           cursor: "pointer",
@@ -1059,7 +1059,7 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef, e
           background: "transparent",
           border: "none",
           textAlign: "left",
-          fontSize: 15,
+          fontSize: 16,
           color: t.textSoft,
           fontWeight: 500,
           cursor: "pointer",
@@ -1150,7 +1150,7 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
               style={{
                 padding: "5px 13px",
                 borderRadius: 24,
-                fontSize: 13,
+                fontSize: 14,
                 background: t.surface,
                 color: t.textSoft,
                 border: `1px solid ${t.border}`,
@@ -1164,7 +1164,7 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
 
       {hasContext && (
         <div style={{ padding: "12px 16px", background: t.surface, borderRadius: 12, border: `1px solid ${t.borderLight}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>
           <p style={{ fontStyle: "italic", color: t.text, margin: 0, lineHeight: 1.5 }}>"{profile.contextCard}"</p>
         </div>
       )}
@@ -1285,7 +1285,7 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
 
       {openers.length > 0 && (
         <div style={{ marginTop: 4 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
             Openers you can use
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1310,7 +1310,7 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
             borderRadius: 20,
             color: t.accentStrong,
             padding: "0 16px",
-            fontSize: 13.5,
+            fontSize: 14,
             fontWeight: 500,
             fontFamily: t.sans,
             cursor: "pointer",
@@ -1424,7 +1424,7 @@ function SafetyInlineNote() {
         border: `1px solid ${t.border}`,
         borderRadius: 14,
         color: t.textSoft,
-        fontSize: 13.5,
+        fontSize: 14,
         lineHeight: 1.5,
       }}
     >
@@ -1601,7 +1601,7 @@ function HelperTray({ onInsert, onClose, triggerRef }) {
 
         {HELPER_CATEGORIES.map((cat) => (
           <div key={cat.id} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
               {cat.label}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1630,7 +1630,7 @@ function HelperPhraseButton({ phrase, onInsert }) {
         border: `1px solid ${t.borderLight}`,
         borderRadius: 12,
         padding: "12px 14px",
-        fontSize: 15,
+        fontSize: 16,
         color: t.text,
         lineHeight: 1.5,
         cursor: "pointer",
@@ -2369,7 +2369,7 @@ export default function ConversationScreen({
         <div style={{ alignSelf: "flex-end", width: "48%", height: 44, borderRadius: 16, background: t.green100 }} />
         <div style={{ alignSelf: "flex-start", width: "64%", height: 44, borderRadius: 16, background: t.surfaceAlt }} />
       </div>
-      <div role="status" style={{ textAlign: "center", fontSize: 13, color: t.textMuted, paddingBottom: 8 }}>
+      <div role="status" style={{ textAlign: "center", fontSize: 14, color: t.textMuted, paddingBottom: 8 }}>
         Opening your conversation…
       </div>
       <div style={{ padding: "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${t.border}`, background: t.surface, flexShrink: 0 }}>
@@ -2500,7 +2500,7 @@ export default function ConversationScreen({
               background: "transparent",
               border: "none",
               color: t.accentStrong,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               padding: "8px 10px 8px 0",
@@ -2621,7 +2621,7 @@ export default function ConversationScreen({
           </p>
 
           {!socketConnected && (
-            <div role="status" style={{ textAlign: "center", padding: "6px 12px", fontSize: 13, color: t.textMuted, background: t.surfaceAlt, borderBottom: `1px solid ${t.borderLight}` }}>
+            <div role="status" style={{ textAlign: "center", padding: "6px 12px", fontSize: 14, color: t.textMuted, background: t.surfaceAlt, borderBottom: `1px solid ${t.borderLight}` }}>
               Reconnecting… new messages will appear once you're back online.
             </div>
           )}
@@ -2693,7 +2693,7 @@ export default function ConversationScreen({
                     aria-label={item.label}
                     style={{
                       textAlign: "center",
-                      fontSize: 12,
+                      fontSize: 13,
                       color: t.textSoft,
                       fontWeight: 500,
                       letterSpacing: "0.06em",
@@ -2803,7 +2803,7 @@ export default function ConversationScreen({
             background: t.surfaceAlt,
             borderTop: `1px solid ${t.danger}`,
             color: t.danger,
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: 500,
             flexShrink: 0,
           }}
@@ -3049,7 +3049,7 @@ export default function ConversationScreen({
                 role="status"
                 aria-live="polite"
                 style={{
-                  fontSize: 12,
+                  fontSize: 13,
                   color: charsRemaining < 0 ? t.danger : t.textMuted,
                   textAlign: "right",
                   paddingRight: 4,

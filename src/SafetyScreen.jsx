@@ -59,7 +59,7 @@ function PrimaryButton({ children, onClick, disabled, full }) {
         borderRadius: 11,
         border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         background: t.accentFill,
         color: "#fff",
@@ -87,7 +87,7 @@ function SecondaryButton({ children, onClick, disabled, full }) {
         borderRadius: 11,
         border: `1px solid ${t.formBorder}`,
         cursor: disabled ? "not-allowed" : "pointer",
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         background: t.green100,
         color: t.text,
@@ -117,7 +117,7 @@ function ScriptCard({ script, copied, onCopy }) {
   return (
     <li style={{ listStyle: "none", marginBottom: 12 }}>
       <div style={{ ...cardStyle, borderLeft: `3px solid ${t.clay}`, background: t.sand }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 6 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 6 }}>
           {script.label}
         </div>
         <blockquote
@@ -229,7 +229,7 @@ function StatusPill({ status }) {
         alignItems: "center",
         padding: "3px 10px",
         borderRadius: 999,
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 600,
         color: "#fff",
         background: meta.color,
@@ -533,7 +533,7 @@ export default function SafetyScreen({ onBack }) {
         >
           Safety Center
         </h1>
-        <p style={{ margin: "0 0 26px", fontSize: 15, color: t.textSoft }}>
+        <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft }}>
           A calm place to prepare for meeting someone offline. Everything here stays
           on your device — nothing is sent anywhere unless you choose to share it.
         </p>
@@ -687,7 +687,7 @@ export default function SafetyScreen({ onBack }) {
 
         {/* Your privacy (backlog #9) — advertises the no-presence design. */}
         <Section title="Your privacy">
-          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 15, lineHeight: 1.65 }}>
+          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 16, lineHeight: 1.65 }}>
             We never show when you're online, when you were last active, or whether
             you've read a message. You're never put on the spot to reply quickly.
           </div>
@@ -700,13 +700,13 @@ export default function SafetyScreen({ onBack }) {
         >
           <div style={cardStyle}>
             {reportsLoading ? (
-              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>Loading your reports…</p>
+              <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>Loading your reports…</p>
             ) : reportsError ? (
-              <p role="alert" style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+              <p role="alert" style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
                 Couldn't load your reports right now. Please try again later.
               </p>
             ) : reports.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+              <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
                 You haven't reported anyone.
               </p>
             ) : (
@@ -728,7 +728,7 @@ export default function SafetyScreen({ onBack }) {
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
+                        <div style={{ fontSize: 16, fontWeight: 600, color: t.text }}>
                           {r.reportedName || "Someone"}
                         </div>
                         {r.reason && (
@@ -737,7 +737,7 @@ export default function SafetyScreen({ onBack }) {
                           </div>
                         )}
                         {formatReportDate(r.createdAt) && (
-                          <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+                          <div style={{ fontSize: 14, color: t.textMuted, marginTop: 2 }}>
                             Reported {formatReportDate(r.createdAt)}
                           </div>
                         )}
@@ -756,7 +756,7 @@ export default function SafetyScreen({ onBack }) {
                       </div>
                     </div>
                     {(REPORT_OUTCOME[r.status] || REPORT_OUTCOME.open) && (
-                      <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                      <p style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
                         {REPORT_OUTCOME[r.status] || REPORT_OUTCOME.open}
                       </p>
                     )}
@@ -774,13 +774,13 @@ export default function SafetyScreen({ onBack }) {
         >
           <div style={cardStyle}>
             {blockedLoading ? (
-              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>Loading your blocked list…</p>
+              <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>Loading your blocked list…</p>
             ) : blockedError ? (
-              <p role="alert" style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+              <p role="alert" style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
                 Couldn't load your blocked list right now. Please try again later.
               </p>
             ) : blocked.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>
+              <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
                 You haven't blocked anyone.
               </p>
             ) : (
@@ -797,7 +797,7 @@ export default function SafetyScreen({ onBack }) {
                       borderTop: i === 0 ? "none" : `1px solid ${t.borderLight}`,
                     }}
                   >
-                    <div style={{ fontSize: 15, fontWeight: 600, color: t.text, minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: t.text, minWidth: 0 }}>
                       {b.displayName || "Someone"}
                     </div>
                     <Button
@@ -818,7 +818,7 @@ export default function SafetyScreen({ onBack }) {
         {/* 5. If you need help — named, real resources (not boilerplate). A
             staffed safety program points at concrete places to get help. */}
         <Section title="If you need help">
-          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 15, lineHeight: 1.65 }}>
+          <div style={{ ...cardStyle, color: t.textSoft, fontSize: 16, lineHeight: 1.65 }}>
             <p style={{ margin: "0 0 12px" }}>
               If you are in immediate danger, call your local emergency services
               (<strong style={{ color: t.text }}>911</strong> in the US).

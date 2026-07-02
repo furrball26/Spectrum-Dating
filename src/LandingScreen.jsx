@@ -345,7 +345,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
             >
               What you won’t find here
             </h2>
-            <p style={{ margin: "0 0 20px", fontSize: 15, color: t.textSoft }}>
+            <p style={{ margin: "0 0 20px", fontSize: 16, color: t.textSoft }}>
               We left out the things that make dating apps exhausting.
             </p>
             <ul
@@ -449,7 +449,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
                 >
                   {title}
                 </h3>
-                <p style={{ margin: 0, fontSize: 15, color: t.textSoft, lineHeight: 1.55 }}>
+                <p style={{ margin: 0, fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
                   {body}
                 </p>
               </div>
@@ -534,7 +534,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
                   >
                     {step.title}
                   </h3>
-                  <p style={{ margin: 0, fontSize: 15, color: t.textSoft }}>{step.body}</p>
+                  <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>{step.body}</p>
                 </div>
               </li>
             ))}

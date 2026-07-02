@@ -109,7 +109,7 @@ export default function EmptyConversationState({ displayName, conversationId, on
             border: `1px solid ${t.border}`,
             borderRadius: 10,
             padding: "10px 20px",
-            fontSize: 15,
+            fontSize: 16,
             color: t.accentStrong,
             fontWeight: 600,
             cursor: "pointer",
@@ -134,7 +134,7 @@ export default function EmptyConversationState({ displayName, conversationId, on
               textAlign: "left",
             }}
           >
-            <p style={{ fontSize: 13, color: t.textMuted, margin: "0 0 4px", fontWeight: 500 }}>
+            <p style={{ fontSize: 14, color: t.textMuted, margin: "0 0 4px", fontWeight: 500 }}>
               Tap a suggestion to use it:
             </p>
             {starters.map((text, i) => {
@@ -170,7 +170,7 @@ function StarterItem({ text, onSelect, itemRef }) {
         border: `1px solid ${t.borderLight}`,
         borderRadius: 12,
         padding: "12px 16px",
-        fontSize: 15,
+        fontSize: 16,
         color: t.text,
         lineHeight: 1.5,
         cursor: "pointer",

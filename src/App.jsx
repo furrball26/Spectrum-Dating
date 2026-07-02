@@ -27,7 +27,7 @@ import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
-import { ShieldIcon, GearIcon, HeartIcon, LockIcon } from "./icons.jsx";
+import { ShieldIcon, GearIcon, HeartIcon, LockIcon, CompassIcon, MessageBubbleIcon } from "./icons.jsx";
 import { useFocusable } from "./useFocusable.js";
 
 function urlBase64ToUint8Array(base64String) {
@@ -111,7 +111,7 @@ function NavTab({ label, active, onClick, badgeCount }) {
         border: "none",
         borderBottom: active ? `2px solid ${t.accent}` : "2px solid transparent",
         color: active ? t.accentStrong : t.textMuted,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: active ? 600 : 400,
         cursor: "pointer",
         display: "flex",
@@ -131,7 +131,7 @@ function NavTab({ label, active, onClick, badgeCount }) {
           style={{
             background: t.accentFill,
             color: "#fff",
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 700,
             borderRadius: 10,
             padding: "2px 6px",
@@ -145,22 +145,9 @@ function NavTab({ label, active, onClick, badgeCount }) {
   );
 }
 
-// ─── Mobile bottom-nav icons ──────────────────────────────────────────────────
-// Tiny inline glyphs (1.6px stroke, currentColor) for the 4 primary mobile tabs.
-// HeartIcon (from icons.jsx) is reused for Matches; the rest are local so the
-// bottom bar reads as a consistent icon+label set.
-function NavGlyph({ children }) {
-  return (
-    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-      focusable="false" style={{ display: "block" }}>
-      {children}
-    </svg>
-  );
-}
-const DiscoverGlyph = () => <NavGlyph><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></NavGlyph>;
-const MessagesGlyph = () => <NavGlyph><path d="M4 5h16v11H9l-4 3v-3H4z" /></NavGlyph>;
-const ModerationGlyph = () => <NavGlyph><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></NavGlyph>;
+// ─── Nav icons ────────────────────────────────────────────────────────────────
+// One family from icons.jsx: 24px / 1.75 stroke on mobile (22px on the desktop
+// rail), outline when inactive, the SAME silhouette filled when active.
 
 // Fixed bottom tab bar (mobile only). 4 items, each ≥44px, icon + label.
 // Plain nav buttons with aria-current="page" on the active item + focus rings.
@@ -191,7 +178,7 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria, ver
               background: active ? t.green50 : "transparent",
               borderRadius: 10,
               color: active ? t.accentStrong : t.textSoft,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: active ? 700 : 500,
               fontFamily: t.sans,
               textAlign: "left",
@@ -206,8 +193,8 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria, ver
               background: "transparent",
               borderRadius: 8,
               color: active ? t.accentStrong : t.textMuted,
-              fontSize: 11,
-              fontWeight: active ? 600 : 500,
+              fontSize: 12,
+              fontWeight: active ? 700 : 500,
             }),
         ...f.style,
       }}
@@ -215,21 +202,25 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria, ver
       onBlur={f.onBlur}
     >
       <span style={{ position: "relative", display: "inline-flex" }}>
-        {icon}
+        {typeof icon === "function" ? icon(active, vertical ? 22 : 24) : icon}
         {badgeCount > 0 && (
           <span
             aria-label={badgeAria || `${badgeCount} unread`}
             style={{
               position: "absolute",
-              top: -4,
-              right: -8,
+              top: -5,
+              right: -9,
               background: t.accentFill,
               color: "#fff",
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 700,
-              borderRadius: 10,
-              padding: "1px 5px",
-              lineHeight: 1.3,
+              minWidth: 16,
+              height: 16,
+              boxSizing: "border-box",
+              borderRadius: 8,
+              padding: "0 4px",
+              lineHeight: "16px",
+              textAlign: "center",
             }}
           >
             {badgeCount}
@@ -267,7 +258,7 @@ function SafetyLink({ active, onClick }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
-      <ShieldIcon size={16} /> Safety
+      <ShieldIcon size={18} /> Safety
     </button>
   );
 }
@@ -298,7 +289,7 @@ function SettingsLink({ active, onClick }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
-      <GearIcon size={16} /> Settings
+      <GearIcon size={18} /> Settings
     </button>
   );
 }
@@ -329,7 +320,7 @@ function SecurityLink({ active, onClick }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
-      <LockIcon size={16} /> Security
+      <LockIcon size={18} /> Security
     </button>
   );
 }
@@ -524,7 +515,7 @@ function VerifyEmailBanner({ onDismiss }) {
               // D32 — warningBorder ≥3:1 on the sand banner bg (was t.warning at 2.34:1).
               border: `1px solid ${t.warningBorder}`,
               color: t.text,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 600,
               cursor: status === "sending" ? "not-allowed" : "pointer",
               padding: "6px 12px",
@@ -603,7 +594,7 @@ function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
       }}
     >
       <div>
-        <p id="inactivity-heading" style={{ margin: 0, fontWeight: 700, color: t.text, fontSize: 15 }}>
+        <p id="inactivity-heading" style={{ margin: 0, fontWeight: 700, color: t.text, fontSize: 16 }}>
           Still here?
         </p>
         <p id="inactivity-desc" style={{ margin: "3px 0 0", color: t.textSoft, fontSize: 14 }}>
@@ -623,7 +614,7 @@ function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
           border: "none",
           background: t.accentFill,
           color: "#fff",
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: 600,
           cursor: "pointer",
           flexShrink: 0,
@@ -1421,14 +1412,14 @@ export default function App() {
               <BottomNavTab
                 vertical={viewport === "desktop"}
                 label="Discover"
-                icon={<DiscoverGlyph />}
+                icon={(a, s) => <CompassIcon size={s} filled={a} />}
                 active={activeTab === "suggestions"}
                 onClick={() => { setPrevTab(activeTab); setActiveTab("suggestions"); }}
               />
               <BottomNavTab
                 vertical={viewport === "desktop"}
                 label="Likes"
-                icon={<HeartIcon size={22} />}
+                icon={(a, s) => <HeartIcon size={s} strokeWidth={1.75} filled={a} />}
                 active={activeTab === "matches"}
                 // Don't zero the count merely on visit — a "liked you" is still
                 // unactioned until you like back or dismiss them. It hides while
@@ -1441,7 +1432,7 @@ export default function App() {
               <BottomNavTab
                 vertical={viewport === "desktop"}
                 label="Messages"
-                icon={<MessagesGlyph />}
+                icon={(a, s) => <MessageBubbleIcon size={s} filled={a} />}
                 active={activeTab === "messages"}
                 onClick={() => { setPrevTab(activeTab); setPendingConversation(null); setActiveTab("messages"); setUnreadCount(0); }}
                 badgeCount={activeTab === "messages" ? 0 : unreadCount}
@@ -1458,7 +1449,7 @@ export default function App() {
                     style={
                       activeTab === "profile"
                         ? { boxShadow: `0 0 0 2px ${t.surface}, 0 0 0 4px ${t.accentStrong}` }
-                        : undefined
+                        : { boxShadow: `0 0 0 1.5px ${t.border}` }
                     }
                   />
                 }
@@ -1469,7 +1460,7 @@ export default function App() {
                 <BottomNavTab
                   vertical={viewport === "desktop"}
                   label="Moderation"
-                  icon={<ModerationGlyph />}
+                  icon={(a, s) => <ShieldIcon size={s} strokeWidth={1.75} filled={a} />}
                   active={activeTab === "admin"}
                   onClick={() => { setPrevTab(activeTab); setActiveTab("admin"); }}
                 />

@@ -118,8 +118,8 @@ export default function MatchProfileModal({ userId, onClose }) {
                 {profile.verified && <VerifiedBadge style={{ marginLeft: 10, position: "relative", top: -3 }} />}
               </h1>
               {profile.pronouns && <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 2 }}>{profile.pronouns}</div>}
-              {profile.tagline && <p style={{ fontFamily: t.serif, fontStyle: "italic", fontSize: 15, color: t.textSoft, margin: "2px 0 6px" }}>{profile.tagline}</p>}
-              {profile.distCity && <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 10 }}>Near {profile.distCity}</div>}
+              {profile.tagline && <p style={{ fontFamily: t.serif, fontStyle: "italic", fontSize: 16, color: t.textSoft, margin: "2px 0 6px" }}>{profile.tagline}</p>}
+              {profile.distCity && <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 10 }}>Near {profile.distCity}</div>}
 
               {profile.bio && <p style={{ fontSize: 16, color: t.text, lineHeight: 1.55, margin: "14px 0" }}>{profile.bio}</p>}
 
@@ -128,7 +128,7 @@ export default function MatchProfileModal({ userId, onClose }) {
                   <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>Interests</h2>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {profile.interests.map((i) => (
-                      <span key={i} style={{ padding: "5px 13px", borderRadius: 24, fontSize: 13, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}>{i}</span>
+                      <span key={i} style={{ padding: "5px 13px", borderRadius: 24, fontSize: 14, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}>{i}</span>
                     ))}
                   </div>
                 </div>
@@ -139,7 +139,7 @@ export default function MatchProfileModal({ userId, onClose }) {
                   <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>How they communicate</h2>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {chips.map((c) => (
-                      <span key={c} style={{ padding: "5px 13px", borderRadius: 24, fontSize: 13, background: t.surface, color: t.textSoft, border: `1px solid ${t.border}` }}>{c}</span>
+                      <span key={c} style={{ padding: "5px 13px", borderRadius: 24, fontSize: 14, background: t.surface, color: t.textSoft, border: `1px solid ${t.border}` }}>{c}</span>
                     ))}
                   </div>
                 </div>
@@ -147,7 +147,7 @@ export default function MatchProfileModal({ userId, onClose }) {
 
               {profile.contextCard && profile.contextCard.trim() && (
                 <div style={{ margin: "14px 0", padding: "12px 16px", background: t.green50, borderRadius: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>
                   <p style={{ fontStyle: "italic", color: t.text, margin: 0 }}>"{profile.contextCard}"</p>
                 </div>
               )}
@@ -156,7 +156,7 @@ export default function MatchProfileModal({ userId, onClose }) {
                 <div style={{ margin: "14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
                   {profile.prompts.filter(p => p && p.answer && p.answer.trim()).map((p, i) => (
                     <div key={p.promptKey || i}>
-                      <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 2 }}>{p.promptText || p.promptKey}</div>
+                      <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 2 }}>{p.promptText || p.promptKey}</div>
                       <div style={{ fontFamily: t.serif, fontSize: 17, color: t.text }}>{p.answer}</div>
                     </div>
                   ))}

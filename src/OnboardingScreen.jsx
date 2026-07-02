@@ -84,7 +84,7 @@ function FieldLabel({ htmlFor, children, required }) {
       style={{
         display: "block",
         fontWeight: 600,
-        fontSize: 15,
+        fontSize: 16,
         color: t.text,
         marginBottom: 4,
       }}
@@ -101,7 +101,7 @@ function HelperText({ id, children }) {
   return (
     <span
       id={id}
-      style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}
+      style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
     >
       {children}
     </span>
@@ -116,7 +116,7 @@ function InlineError({ id, children }) {
       role="alert"
       style={{
         display: "block",
-        fontSize: 13,
+        fontSize: 14,
         color: t.danger,
         marginTop: 4,
         fontWeight: 500,
@@ -303,7 +303,7 @@ function AgeRangeSlider({ low, high, onChange }) {
         />
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: t.textMuted, marginTop: 2 }}>
         <span>{AGE_SLIDER_MIN}</span>
         <span>{AGE_SLIDER_MAX}+</span>
       </div>
@@ -329,7 +329,7 @@ function SuggestionChip({ tag, selected, onToggle, prefersReduced }) {
         border: `1.5px solid ${selected ? t.accentFill : t.formBorder}`,
         background: selected ? t.accentFill : t.surfaceAlt,
         color: selected ? "#fff" : t.textSoft,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: selected ? 600 : 400,
         cursor: "pointer",
         transition: prefersReduced ? "none" : "background 120ms ease, color 120ms ease",
@@ -405,7 +405,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
         <div
           role="status"
           aria-live="polite"
-          style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+          style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
         >
           {nameTouched ? `${30 - displayName.length} remaining` : ""}
         </div>
@@ -530,7 +530,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
           role="status"
           aria-live="polite"
           id="ob-bio-counter"
-          style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}
+          style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
         >
           {bioTouched ? `${500 - bio.length} remaining` : ""}
         </div>
@@ -539,10 +539,10 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
 
       {/* Interests */}
       <div>
-        <p style={{ margin: "0 0 6px", fontWeight: 600, fontSize: 15, color: t.text }}>
+        <p style={{ margin: "0 0 6px", fontWeight: 600, fontSize: 16, color: t.text }}>
           Interests <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>
         </p>
-        <p id="ob-interests-hint" style={{ margin: "0 0 12px", fontSize: 13, color: t.textSoft }}>
+        <p id="ob-interests-hint" style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft }}>
           Pick at least one — these help us find people you'll connect with.
         </p>
 
@@ -570,7 +570,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
                     color: "#fff",
                     borderRadius: 24,
                     padding: "4px 4px 4px 12px",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 500,
                     transition: prefersReduced ? "none" : "opacity 150ms ease",
                   }}
@@ -592,7 +592,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
           <h3
             id="ob-suggestions-heading"
             style={{
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 600,
               color: t.textMuted,
               textTransform: "uppercase",
@@ -620,7 +620,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
           <div style={{ flex: 1 }}>
             <label
               htmlFor="ob-custom-tag"
-              style={{ display: "block", fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 4 }}
+              style={{ display: "block", fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4 }}
             >
               Add your own
             </label>
@@ -655,7 +655,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
               border: `1.5px solid ${t.accentStrong}`,
               background: t.surface,
               color: t.accentStrong,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               alignSelf: "flex-end",
@@ -715,7 +715,7 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
         <legend
           style={{
             fontWeight: 600,
-            fontSize: 15,
+            fontSize: 16,
             color: t.text,
             marginBottom: 12,
             float: "left",
@@ -735,7 +735,7 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
                 minHeight: 44,
                 cursor: "pointer",
                 gap: 12,
-                fontSize: 15,
+                fontSize: 16,
                 color: t.text,
               }}
             >
@@ -785,7 +785,7 @@ function Step4({
 
   return (
     <>
-      <p style={{ margin: "0 0 22px", fontSize: 15, color: t.textSoft, lineHeight: 1.55 }}>
+      <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
         This helps us shape your Discover deck. All of it is optional — you can
         skip and adjust anytime in your profile.
       </p>
@@ -822,10 +822,10 @@ function Step4({
       </div>
 
       <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
-        <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
+        <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
           Who do you want to meet?
         </legend>
-        <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginBottom: 10, clear: "both" }}>
+        <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
           Choose any. Leave all unchecked to be open to everyone.
         </span>
         {[
@@ -846,14 +846,14 @@ function Step4({
                 }}
                 style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
               />
-              <span style={{ fontSize: 15, color: t.text }}>{label}</span>
+              <span style={{ fontSize: 16, color: t.text }}>{label}</span>
             </label>
           );
         })}
       </fieldset>
 
       <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
-        <legend style={{ fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 2 }}>
+        <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 2 }}>
           Age range
         </legend>
         <AgeRangeSlider
@@ -861,7 +861,7 @@ function Step4({
           high={prefAgeMax}
           onChange={(newLow, newHigh) => { setPrefAgeMin(newLow); setPrefAgeMax(newHigh); }}
         />
-        <span style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 4 }}>
+        <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
           Only show people in this age range.
         </span>
       </fieldset>
@@ -878,7 +878,7 @@ function Step5({
 }) {
   return (
     <>
-      <p style={{ margin: "0 0 22px", fontSize: 15, color: t.textSoft, lineHeight: 1.55 }}>
+      <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
         A couple of taps that help matches know how to talk with you. Totally
         optional — skip if you'd rather add this later.
       </p>
@@ -1212,7 +1212,7 @@ export default function OnboardingScreen({ onComplete }) {
           aria-hidden="true"
         >
           <Spectrum variant="progress" value={step} count={TOTAL_STEPS} size={9} gap={5} />
-          <span style={{ fontSize: 13, color: t.textMuted, letterSpacing: "0.02em" }}>
+          <span style={{ fontSize: 14, color: t.textMuted, letterSpacing: "0.02em" }}>
             Step {step} of {TOTAL_STEPS}
           </span>
         </div>
@@ -1348,7 +1348,7 @@ export default function OnboardingScreen({ onComplete }) {
                 background: "transparent",
                 border: "none",
                 color: t.textSoft,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: 500,
                 cursor: saving ? "wait" : "pointer",
                 padding: "8px 0",
@@ -1371,7 +1371,7 @@ export default function OnboardingScreen({ onComplete }) {
                 background: "transparent",
                 border: "none",
                 color: t.accentStrong,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: 500,
                 cursor: "pointer",
                 padding: "8px 0",

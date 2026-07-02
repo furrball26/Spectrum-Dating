@@ -153,7 +153,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               background: "none",
               border: "none",
               color: t.accentStrong,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               borderRadius: 8,
@@ -192,7 +192,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
           style={{
             textAlign: "center",
             color: t.textSoft,
-            fontSize: 15,
+            fontSize: 16,
             marginBottom: 32,
           }}
         >
@@ -229,7 +229,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
 
           {mode === "check-email" ? (
             <div>
-              <p style={{ margin: "0 0 6px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
                 We sent a verification link to{" "}
                 <strong style={{ color: t.text }}>{email}</strong>.
                 Click the link to confirm your account.
@@ -289,20 +289,20 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               >
                 Continue to app →
               </button>
-              <p style={{ marginTop: 12, fontSize: 13, color: t.textMuted, textAlign: "center", lineHeight: 1.5 }}>
+              <p style={{ marginTop: 12, fontSize: 14, color: t.textMuted, textAlign: "center", lineHeight: 1.5 }}>
                 You can verify later — a reminder will appear at the top of the app.
               </p>
             </div>
           ) : mode === "forgot" && forgotSent ? (
             <div>
-              <p role="status" style={{ margin: "0 0 20px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+              <p role="status" style={{ margin: "0 0 20px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
                 If an account exists for that email, we've sent a link to reset your
                 password. Check your inbox — the link expires in 1 hour.
               </p>
               <button
                 type="button"
                 onClick={() => switchMode("login")}
-                style={{ background: "none", border: "none", color: t.accentStrong, fontSize: 15, fontWeight: 600, cursor: "pointer", padding: "4px 2px", minHeight: 44, textDecoration: "underline" }}
+                style={{ background: "none", border: "none", color: t.accentStrong, fontSize: 16, fontWeight: 600, cursor: "pointer", padding: "4px 2px", minHeight: 44, textDecoration: "underline" }}
               >
                 ← Back to sign in
               </button>
@@ -362,7 +362,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 <span
                   id="auth-email-error"
                   role="alert"
-                  style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 6 }}
+                  style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 6 }}
                 >
                   {fieldErrors.email}
                 </span>
@@ -399,7 +399,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 <span
                   id="auth-password-error"
                   role="alert"
-                  style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 6 }}
+                  style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 6 }}
                 >
                   {fieldErrors.password}
                 </span>
@@ -407,7 +407,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               {mode === "register" && (
                 <span
                   id="pw-hint"
-                  style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 5 }}
+                  style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 5 }}
                 >
                   At least 8 characters.
                 </span>
@@ -456,7 +456,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
 
         {/* Toggle mode — hidden in forgot mode (its own back link is in the card) */}
         {mode !== "forgot" && (
-        <p style={{ textAlign: "center", marginTop: 20, fontSize: 15, color: t.textSoft }}>
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 16, color: t.textSoft }}>
           {mode === "login" ? "New to Spectrum? " : "Already have an account? "}
           <button
             type="button"
@@ -466,7 +466,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               background: "none",
               border: "none",
               color: t.accentStrong,  // was t.accent — #5B8A82 fails 4.5:1 AA
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               padding: "4px 2px",
@@ -481,7 +481,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
         )}
 
         {/* Quiet trust line — factual, no urgency. */}
-        <p style={{ textAlign: "center", marginTop: 14, fontSize: 13, color: t.textMuted, lineHeight: 1.6 }}>
+        <p style={{ textAlign: "center", marginTop: 14, fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
           We'll never share your email or show it to other members.{" "}
           <a
             href="/privacy.html"

@@ -56,7 +56,7 @@ export default function ResetPasswordScreen({ token, onDone }) {
 
           {done ? (
             <div>
-              <p role="status" style={{ margin: "0 0 20px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+              <p role="status" style={{ margin: "0 0 20px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
                 Your password has been reset. You can sign in with it now.
               </p>
               <button
@@ -77,7 +77,7 @@ export default function ResetPasswordScreen({ token, onDone }) {
               <div style={{ marginBottom: 16 }}>
                 <label htmlFor="reset-pw" style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>New password</label>
                 <input id="reset-pw" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} aria-required="true" aria-invalid={error ? "true" : undefined} aria-describedby="reset-pw-hint" />
-                <span id="reset-pw-hint" style={{ display: "block", fontSize: 13, color: t.textSoft, marginTop: 5 }}>At least 8 characters.</span>
+                <span id="reset-pw-hint" style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 5 }}>At least 8 characters.</span>
               </div>
               <div style={{ marginBottom: 24 }}>
                 <label htmlFor="reset-confirm" style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>Confirm new password</label>

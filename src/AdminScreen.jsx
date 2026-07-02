@@ -86,7 +86,7 @@ function StatCard({ label, value }) {
       <div style={{ fontFamily: t.serif, fontSize: 26, fontWeight: 700, color: t.text, lineHeight: 1.1 }}>
         {value}
       </div>
-      <div style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>{label}</div>
+      <div style={{ fontSize: 14, color: t.textMuted, marginTop: 4 }}>{label}</div>
     </div>
   );
 }
@@ -269,7 +269,7 @@ function ReportCard({ report, onRefresh, onStatus }) {
         </div>
         <span
           style={{
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 600,
             textTransform: "capitalize",
             color: "#fff",
@@ -284,7 +284,7 @@ function ReportCard({ report, onRefresh, onStatus }) {
       </div>
 
       {(report.reportedEmail || verified) && (
-        <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 14, color: t.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {report.reportedEmail && <span>{report.reportedEmail}</span>}
           {verified && (
             <span style={{ color: t.accentStrong, fontWeight: 600 }}>✓ Verified</span>
@@ -299,13 +299,13 @@ function ReportCard({ report, onRefresh, onStatus }) {
           <span style={{ textTransform: "capitalize" }}>{report.reason || "—"}</span>
         </div>
         {report.details && (
-          <p style={{ margin: "8px 0 0", fontSize: 15, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 16, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
             {report.details}
           </p>
         )}
       </div>
 
-      <div style={{ fontSize: 12, color: t.textMuted, marginTop: 12 }}>
+      <div style={{ fontSize: 13, color: t.textMuted, marginTop: 12 }}>
         {formatTimestamp(report.createdAt)}
         {suspended && (
           <span style={{ color: t.danger, fontWeight: 600, marginLeft: 10 }}>• Account suspended</span>
@@ -313,14 +313,14 @@ function ReportCard({ report, onRefresh, onStatus }) {
       </div>
 
       {localError && (
-        <p role="alert" style={{ color: t.danger, fontSize: 13, margin: "12px 0 0" }}>{localError}</p>
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "12px 0 0" }}>{localError}</p>
       )}
 
       {/* Resolve controls */}
       <div style={{ borderTop: `1px solid ${t.borderLight}`, marginTop: 16, paddingTop: 16 }}>
         <label
           htmlFor={`resolve-${report.id}`}
-          style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 8 }}
+          style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 8 }}
         >
           Resolve report
         </label>
@@ -509,10 +509,10 @@ function PhotoReviewCard({ item, onReviewed, onStatus }) {
       <div style={{ fontSize: 14, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>
         {item.uploaderEmail || "Unknown member"}
       </div>
-      <div style={{ fontSize: 12, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</div>
+      <div style={{ fontSize: 13, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</div>
 
       {localError && (
-        <p role="alert" style={{ color: t.danger, fontSize: 13, margin: 0 }}>{localError}</p>
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: 0 }}>{localError}</p>
       )}
 
       <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
@@ -673,12 +673,12 @@ function AuditLogView() {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 15, fontWeight: 600, color: t.text, textTransform: "capitalize" }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: t.text, textTransform: "capitalize" }}>
               {String(entry.action || "action").replace(/_/g, " ")}
             </span>
-            <span style={{ fontSize: 12, color: t.textMuted }}>{formatTimestamp(entry.createdAt)}</span>
+            <span style={{ fontSize: 13, color: t.textMuted }}>{formatTimestamp(entry.createdAt)}</span>
           </div>
-          <div style={{ fontSize: 13, color: t.textSoft, marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 14, color: t.textSoft, marginTop: 6, lineHeight: 1.5 }}>
             <span>{entry.actor || "Unknown admin"}</span>
             {entry.targetId != null && entry.targetId !== "" && (
               <>
@@ -761,9 +761,9 @@ function FeedbackInbox() {
             <span style={{ fontSize: 14, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>
               {item.userEmail || "Anonymous member"}
             </span>
-            <span style={{ fontSize: 12, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</span>
+            <span style={{ fontSize: 13, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</span>
           </div>
-          <p style={{ margin: "10px 0 0", fontSize: 15, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          <p style={{ margin: "10px 0 0", fontSize: 16, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
             {item.message}
           </p>
         </li>
@@ -844,18 +844,18 @@ function VerificationCard({ item, onReviewed, onStatus }) {
             {item.displayName || "Unnamed member"}
           </div>
           {item.email && (
-            <div style={{ fontSize: 13, color: t.textMuted, wordBreak: "break-word" }}>
+            <div style={{ fontSize: 14, color: t.textMuted, wordBreak: "break-word" }}>
               {item.email}
             </div>
           )}
-          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 4 }}>
+          <div style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>
             Requested {formatTimestamp(item.requestedAt)}
           </div>
         </div>
       </div>
 
       {localError && (
-        <p role="alert" style={{ color: t.danger, fontSize: 13, margin: "12px 0 0" }}>{localError}</p>
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "12px 0 0" }}>{localError}</p>
       )}
 
       <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>

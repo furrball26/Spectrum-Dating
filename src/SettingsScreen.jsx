@@ -37,7 +37,7 @@ function SecondaryButton({ children, onClick }) {
         borderRadius: 11,
         border: `1px solid ${t.formBorder}`,
         cursor: "pointer",
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         background: t.green100,
         color: t.text,
@@ -100,7 +100,7 @@ function ThemeOption({ label, active, onClick }) {
         borderRadius: 9,
         border: "none",
         cursor: "pointer",
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         background: active ? t.surface : "transparent",
         color: active ? t.text : t.textSoft,
@@ -248,7 +248,7 @@ function FeedbackSection() {
         }}
       />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: t.textMuted }}>
+        <span style={{ fontSize: 13, color: t.textMuted }}>
           {message.length}/{FEEDBACK_MAX}
         </span>
         <button
@@ -262,7 +262,7 @@ function FeedbackSection() {
             border: `1px solid ${t.accent}`,
             cursor: canSend ? "pointer" : "not-allowed",
             opacity: canSend ? 1 : 0.6,
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: 600,
             background: t.accent,
             color: "#fff",
@@ -340,7 +340,7 @@ function DigestSection() {
         checked={enabled}
         onChange={loaded ? handleToggle : () => {}}
       />
-      <p style={{ margin: "0 0 14px", fontSize: 13, color: t.textMuted, lineHeight: 1.6 }}>
+      <p style={{ margin: "0 0 14px", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
         Emails only start once this is on and your email address is verified. You
         can turn it off here anytime.
       </p>
@@ -437,7 +437,7 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
         >
           Settings
         </h1>
-        <p style={{ margin: "0 0 26px", fontSize: 15, color: t.textSoft }}>
+        <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft }}>
           Adjust how Spectrum looks and feels. Changes save instantly and stay on
           this device.
         </p>
@@ -493,7 +493,7 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
           />
         </div>
 
-        <p style={{ margin: "20px 2px 0", fontSize: 13, color: t.textMuted, lineHeight: 1.6 }}>
+        <p style={{ margin: "20px 2px 0", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
           These settings only change how the app appears for you. If text still
           isn't large enough, your browser or device zoom can enlarge it further.
         </p>

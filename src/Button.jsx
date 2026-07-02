@@ -48,7 +48,7 @@ const Button = forwardRef(function Button({ variant = "primary", children, style
         minHeight: 44,
         padding: "10px 18px",
         borderRadius: 11,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         fontFamily: t.sans,
         cursor: disabled ? "not-allowed" : "pointer",

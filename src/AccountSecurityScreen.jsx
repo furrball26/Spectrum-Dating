@@ -29,7 +29,7 @@ function FieldLabel({ htmlFor, children }) {
   return (
     <label
       htmlFor={htmlFor}
-      style={{ display: "block", fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 4 }}
+      style={{ display: "block", fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4 }}
     >
       {children}
     </label>
@@ -68,7 +68,7 @@ function AccountSecuritySection() {
   const field = { ...inputStyle(false), marginBottom: 10 };
   const submitBtn = (busy) => ({
     background: t.accentFill, color: "#fff", border: "none", borderRadius: 10,
-    padding: "10px 18px", minHeight: 44, fontSize: 15, fontWeight: 600,
+    padding: "10px 18px", minHeight: 44, fontSize: 16, fontWeight: 600,
     cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1,
   });
 
@@ -158,7 +158,7 @@ function DeleteAccountSection({ onAccountDeleted }) {
       >
         Danger zone
       </h2>
-      <p style={{ fontSize: 13, color: t.textSoft, margin: "0 0 14px" }}>
+      <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}>
         Deleting your account is permanent and cannot be undone.
       </p>
       <button
@@ -171,7 +171,7 @@ function DeleteAccountSection({ onAccountDeleted }) {
           border: `1px solid ${t.danger}`,
           borderRadius: 10,
           color: t.danger,
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: 600,
           cursor: "pointer",
           padding: "10px 24px",
@@ -310,7 +310,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
         />
 
         {error && (
-          <span role="alert" style={{ display: "block", fontSize: 13, color: t.danger, marginTop: 8, fontWeight: 500 }}>
+          <span role="alert" style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 8, fontWeight: 500 }}>
             {error}
           </span>
         )}
@@ -381,7 +381,7 @@ function BackButton({ onClick }) {
         borderRadius: 11,
         border: `1px solid ${t.formBorder}`,
         cursor: "pointer",
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 600,
         background: t.green100,
         color: t.text,
@@ -432,7 +432,7 @@ export default function AccountSecurityScreen({ onBack, onAccountDeleted }) {
         >
           Account &amp; security
         </h1>
-        <p style={{ margin: "0 0 26px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
           Manage your sign-in details. Your dating profile lives on the Profile
           screen — this is just your account.
         </p>

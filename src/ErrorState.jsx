@@ -41,7 +41,7 @@ export default function ErrorState({ title = "Something went wrong", message, on
         {title}
       </h2>
       {message && (
-        <p style={{ color: t.textSoft, fontSize: 15, lineHeight: 1.6, margin: 0 }}>
+        <p style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.6, margin: 0 }}>
           {message}
         </p>
       )}

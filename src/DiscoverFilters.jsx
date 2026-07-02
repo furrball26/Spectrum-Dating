@@ -159,7 +159,7 @@ function AgeRangeSlider({ low, high, onChange }) {
         />
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: t.textMuted, marginTop: 2 }}>
         <span>{AGE_SLIDER_MIN}</span>
         <span>{AGE_SLIDER_MAX}+</span>
       </div>
@@ -261,8 +261,8 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
   }
 
   const fieldset = { border: "none", margin: "0 0 22px", padding: 0 };
-  const legend = { fontWeight: 600, fontSize: 15, color: t.text, marginBottom: 6 };
-  const helper = { display: "block", fontSize: 13, color: t.textSoft, marginTop: 6, lineHeight: 1.5 };
+  const legend = { fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 6 };
+  const helper = { display: "block", fontSize: 14, color: t.textSoft, marginTop: 6, lineHeight: 1.5 };
   const selectStyle = {
     width: "100%",
     boxSizing: "border-box",
@@ -340,7 +340,7 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
               background: "none",
               border: "none",
               color: t.textSoft,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: "pointer",
               padding: "6px 8px",
@@ -379,7 +379,7 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
                   onChange={() => toggleSeeking(value)}
                   style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
                 />
-                <span style={{ fontSize: 15, color: t.text }}>{label}</span>
+                <span style={{ fontSize: 16, color: t.text }}>{label}</span>
               </label>
             );
           })}
@@ -451,7 +451,7 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
               border: `1px solid ${t.border}`,
               background: t.surface,
               color: t.text,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 600,
               cursor: applying ? "not-allowed" : "pointer",
             }}

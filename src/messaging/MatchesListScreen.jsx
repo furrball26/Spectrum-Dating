@@ -150,7 +150,7 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
                 <span style={{
                   marginLeft: "auto",
                   paddingLeft: 8,
-                  fontSize: 12,
+                  fontSize: 13,
                   color: t.textMuted,
                   flexShrink: 0,
                 }}>
@@ -159,7 +159,7 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
               )}
             </div>
             {ended && (
-              <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
+              <div style={{ fontSize: 14, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
                 Conversation ended
               </div>
             )}
@@ -236,7 +236,7 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
     document.addEventListener("mousedown", onClick);
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
   }, [open]);
-  const itemStyle = { display: "block", width: "100%", padding: "12px 16px", background: "transparent", border: "none", textAlign: "left", fontSize: 15, fontWeight: 500, cursor: "pointer", fontFamily: t.sans };
+  const itemStyle = { display: "block", width: "100%", padding: "12px 16px", background: "transparent", border: "none", textAlign: "left", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: t.sans };
   const name = row.otherUser?.displayName || "this person";
   return (
     <span ref={rootRef} style={{ position: "relative", flexShrink: 0, marginRight: 4 }}>
@@ -284,7 +284,7 @@ function SectionList({ title, subtitle, matches, onSelectConversation, selectedC
     <section style={{ marginBottom: 24 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 0 8px 16px", paddingRight: 4 }}>
         <h2 style={{
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: 600,
           color: t.textSoft,
           letterSpacing: "0.08em",
@@ -294,7 +294,7 @@ function SectionList({ title, subtitle, matches, onSelectConversation, selectedC
           {title}
         </h2>
         {subtitle && (
-          <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 500 }}>{subtitle}</span>
+          <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 500 }}>{subtitle}</span>
         )}
       </div>
       <ul
@@ -401,7 +401,7 @@ export default function MatchesListScreen({
               background: "none",
               border: "none",
               color: t.accentStrong,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: 500,
               cursor: "pointer",
               padding: "0 0 16px",
@@ -650,7 +650,7 @@ export default function MatchesListScreen({
               htmlFor="conversation-filter"
               style={{
                 display: "block",
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 500,
                 color: t.textSoft,
                 marginBottom: 6,
@@ -810,7 +810,7 @@ export default function MatchesListScreen({
                   border: `1px solid ${t.border}`,
                   borderRadius: 12,
                   color: t.textSoft,
-                  fontSize: 15,
+                  fontSize: 16,
                   lineHeight: 1.5,
                 }}
               >

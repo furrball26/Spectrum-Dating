@@ -18,7 +18,7 @@ export default function LikedYouSection({ people, plainLanguage = false, busyId,
     border: "none",
     padding: "8px 4px",
     minHeight: 44,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 600,
     color: t.textMuted,
     cursor: "pointer",
@@ -59,7 +59,7 @@ export default function LikedYouSection({ people, plainLanguage = false, busyId,
                     <div style={{ fontSize: 16, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {name}
                     </div>
-                    {person.age && <div style={{ fontSize: 13, color: t.textMuted }}>{person.age}</div>}
+                    {person.age && <div style={{ fontSize: 14, color: t.textMuted }}>{person.age}</div>}
                   </div>
                   <Button
                     variant="primary"

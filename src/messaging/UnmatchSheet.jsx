@@ -130,7 +130,7 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
         <p style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.65, margin: "0 0 14px" }}>
           Here's exactly what happens:
         </p>
-        <ul style={{ color: t.textSoft, fontSize: 15, lineHeight: 1.6, margin: "0 0 28px", paddingLeft: 20 }}>
+        <ul style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.6, margin: "0 0 28px", paddingLeft: 20 }}>
           <li>This ends the conversation and you won't see each other again.</li>
           <li>{displayName} <strong>won't be told</strong>, and won't know it was you.</li>
           <li>Your conversation becomes read-only — no one can send new messages.</li>
