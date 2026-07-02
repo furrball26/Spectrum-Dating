@@ -25,6 +25,18 @@ export function clearAuth() {
   // Clear cached profile so identity-derived UI (e.g. the match-moment "you"
   // avatar) can never carry a previous account's name into a new session.
   localStorage.removeItem("spectrum_profile");
+  // Identity-flag themes (pride/trans) reset to the neutral default on
+  // sign-out: a themed LOGIN page on a shared family computer is an outing
+  // vector with no account access needed. Other a11y prefs (motion, text
+  // size, light/dim) rightly keep persisting.
+  try {
+    const a = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
+    if (a && (a.theme === "pride" || a.theme === "trans")) {
+      a.theme = "dim";
+      localStorage.setItem("spectrum_a11y", JSON.stringify(a));
+      if (typeof document !== "undefined") document.documentElement.dataset.theme = "dim";
+    }
+  } catch { /* prefs unreadable — nothing to reset */ }
 }
 
 export function isLoggedIn() {

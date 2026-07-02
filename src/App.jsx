@@ -367,6 +367,16 @@ const THEME_META_COLOR = {
   navy: "#121A2B",
   lightblue: "#2F5675",
   pink: "#8A4560",
+  pride: "#5A3E8C",
+  trans: "#21607C",
+};
+
+// The one sanctioned multi-color surface outside the brand mark: a 3px flag
+// ribbon under the app header for the identity themes. Decorative only
+// (aria-hidden), never animated, and hidden entirely under reduced-sensory.
+const FLAG_RIBBONS = {
+  pride: "linear-gradient(90deg,#B5544C 0%,#B5544C 16.6%,#C08A45 16.6%,#C08A45 33.3%,#B29A45 33.3%,#B29A45 50%,#5E9459 50%,#5E9459 66.6%,#4F7DA6 66.6%,#4F7DA6 83.3%,#7B5EA7 83.3%,#7B5EA7 100%)",
+  trans: "linear-gradient(90deg,#5BCEFA 0%,#5BCEFA 20%,#F5A9B8 20%,#F5A9B8 40%,#FFFFFF 40%,#FFFFFF 60%,#F5A9B8 60%,#F5A9B8 80%,#5BCEFA 80%,#5BCEFA 100%)",
 };
 function applyTheme(prefs) {
   if (typeof document === "undefined") return;
@@ -808,6 +818,19 @@ export default function App() {
     applyTheme(a11y);
   }, [a11y]);
 
+  // One-gesture quiet revert (safety): double-tapping the Spectrum mark while
+  // an identity theme is active switches instantly back to Warm dim — no
+  // navigation through Settings needed when someone walks into the room.
+  // Silent by design; the tip is disclosed at selection time in Settings.
+  const revertIdentityTheme = useCallback(() => {
+    setA11y((prev) => {
+      if (prev.theme !== "pride" && prev.theme !== "trans") return prev;
+      const next = { ...prev, theme: "dim" };
+      try { localStorage.setItem("spectrum_a11y", JSON.stringify(next)); } catch { /* state still applies */ }
+      return next;
+    });
+  }, []);
+
   // Handle ?verify=TOKEN URL param on mount — verify regardless of auth state
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1190,7 +1213,7 @@ export default function App() {
                     marginBottom: 12,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }} onDoubleClick={revertIdentityTheme}>
                     {/* On desktop the left rail already carries the brand lockup,
                         so the header omits its own to avoid a double logo. */}
                     {viewport !== "desktop" && (a11y.reducedSensory
@@ -1248,6 +1271,13 @@ export default function App() {
                     pinned to the bottom of the screen regardless of scroll. */}
               </div>
             </header>
+
+            {/* Identity-theme flag ribbon — 3px, decorative, static, and gone
+                entirely under reduced-sensory (the one multi-color surface
+                outside the brand mark). */}
+            {FLAG_RIBBONS[a11y.theme] && !a11y.reducedSensory && (
+              <div aria-hidden="true" style={{ height: 3, flexShrink: 0, background: FLAG_RIBBONS[a11y.theme] }} />
+            )}
 
             {/* Main content — grows to fill viewport. id + tabIndex make it the
                 target of the skip link and a focus destination on tab change. */}
@@ -1405,7 +1435,7 @@ export default function App() {
             }
           >
             {viewport === "desktop" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 18px" }} onDoubleClick={revertIdentityTheme}>
                 {/* mark 13 keeps the full lockup inside the 224px rail */}
                 <SpectrumMark height={13} />
                 <span style={{ fontFamily: t.serif, fontWeight: 700, fontSize: 19, color: t.text }}>

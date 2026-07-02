@@ -61,7 +61,14 @@ const THEME_CARDS = [
   { key: "navy",      label: "Navy",       note: "",                 bg: "#121A2B", surface: "#1C2740", border: "#3A4B6B", accent: "#33518A", text: "#E5EAF3" },
   { key: "lightblue", label: "Light blue", note: "",                 bg: "#F2F5F9", surface: "#FFFFFF", border: "#BFCEDC", accent: "#2F5675", text: "#22303F" },
   { key: "pink",      label: "Pink",       note: "",                 bg: "#FAF3F2", surface: "#FFFFFF", border: "#D8C2C8", accent: "#8A4560", text: "#372B2F" },
+  // Identity themes — named honestly (the rendered colors are what an onlooker
+  // recognizes, not the menu label; euphemisms only patronize). The flag shows
+  // in the swatch stripe; the UI itself stays a calm single-accent theme.
+  { key: "pride",     label: "Pride",      note: "Calm violet, rainbow in the logo", bg: "#F7F5F2", surface: "#FFFFFF", border: "#CCC5D4", accent: "#5A3E8C", text: "#2B2833", stripes: ["#B5544C", "#C08A45", "#B29A45", "#5E9459", "#4F7DA6", "#7B5EA7"] },
+  { key: "trans",     label: "Trans pride", note: "Soft blue, pink message bubbles",  bg: "#F3F8FB", surface: "#FFFFFF", border: "#BDD2DE", accent: "#21607C", text: "#23323B", stripes: ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"] },
 ];
+
+const IDENTITY_KEYS = ["pride", "trans"];
 
 function ThemeSegmented({ value, onChange }) {
   return (
@@ -77,6 +84,16 @@ function ThemeSegmented({ value, onChange }) {
       {THEME_CARDS.map((c) => (
         <ThemeCard key={c.key} card={c} active={value === c.key} onClick={() => onChange(c.key)} />
       ))}
+      {/* Plain, non-alarming disclosure for the identity themes (shown while
+          one is selected): screen visibility, the instant revert gesture, and
+          the sign-out reset. Honest information, no fear framing. */}
+      {IDENTITY_KEYS.includes(value) && (
+        <p style={{ gridColumn: "1 / -1", margin: "2px 2px 0", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
+          This changes how the app looks to anyone who can see your screen. You can
+          switch back anytime — double-tap the Spectrum logo to return to Warm dim
+          instantly. It also switches back to Warm dim when you sign out.
+        </p>
+      )}
     </div>
   );
 }
@@ -120,6 +137,13 @@ function ThemeCard({ card, active, onClick }) {
         <span style={{ fontSize: 16, fontWeight: 700, color: card.text }}>Aa</span>
         <span style={{ width: 26, height: 18, borderRadius: 5, background: card.surface, border: `1px solid ${card.border}` }} />
         <span style={{ width: 14, height: 14, borderRadius: "50%", background: card.accent }} />
+        {card.stripes && (
+          <span style={{ display: "flex", flexDirection: "column", width: 10, height: 18, borderRadius: 3, overflow: "hidden", border: `1px solid ${card.border}`, marginLeft: "auto" }}>
+            {card.stripes.map((s, i) => (
+              <span key={i} style={{ flex: 1, background: s }} />
+            ))}
+          </span>
+        )}
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 40, padding: "4px 12px" }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{card.label}</span>

@@ -45,7 +45,7 @@
         try {
           var p = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
           var v = p && typeof p.theme === "string" ? p.theme : "dim";
-          th = ["dim", "navy", "lightblue", "pink"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
+          th = ["dim", "navy", "lightblue", "pink", "pride", "trans"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
         } catch (e) { /* fall through to dim */ }
         document.documentElement.dataset.theme = th;
       })();
@@ -352,6 +352,134 @@
         --c-bubbleOther: #FFFFFF;
         --c-tombstone: #77626B;
         --c-scrimRgb: 52, 40, 44;
+      }
+      /* ── Pride — a QUIET violet theme; the rainbow lives in exactly two
+         sanctioned places: the brand-mark tiles (muted flag six, below) and
+         the thin header ribbon (App.jsx, hidden under reduced-sensory).
+         A rainbow interface would be sensory overload — the flag is present,
+         the UI stays calm. Functional colors are all AA on light paper. */
+      :root[data-theme="pride"] {
+        --c-bg: #F7F5F2;
+        --c-bg-gradient: linear-gradient(150deg, #F8F6F3 0%, #F0EDE8 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F1EEE9;
+        --c-cardBorder: #CCC5D4;
+        --sh-sm: 0 1px 2px rgba(43,40,51,0.06), 0 3px 10px rgba(43,40,51,0.08);
+        --sh-md: 0 2px 4px rgba(43,40,51,0.07), 0 12px 28px rgba(43,40,51,0.11);
+        --sh-lg: 0 4px 12px rgba(43,40,51,0.10), 0 24px 48px rgba(43,40,51,0.15);
+        --c-clayText: #8A6B3E;
+        /* Muted six-color flag in the mark tiles (~65% saturation — recognizably
+           the flag, calm on the page). Only identity themes override --mark-*. */
+        --mark-1: #B5544C;
+        --mark-2: #C08A45;
+        --mark-3: #B29A45;
+        --mark-4: #5E9459;
+        --mark-5: #4F7DA6;
+        --mark-6: #7B5EA7;
+        --c-text: #2B2833;
+        --c-textSoft: #565164;
+        --c-textMuted: #6A6577;
+        --c-accent: #6D4FA1;
+        --c-accentStrong: #5A3E8C;
+        --c-accentFill: #5A3E8C;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #DAD5DE;
+        --c-borderLight: #EAE6EE;
+        --c-focus: #2B2833;
+        --c-danger: #B94040;
+        --c-dangerFill: #B94040;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #5F5A6C;
+        --c-dangerSurface: #FBF1F1;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #F2EFF5;
+        --c-green100: #E6E0EC;
+        --c-green200: #D4CBE0;
+        --c-green300: #BBAED2;
+        --c-green400: #9379BC;
+        --c-green500: #6D4FA1;
+        --c-green600: #634791;
+        --c-green700: #5A3E8C;
+        --c-green800: #483070;
+        --c-green900: #2B2833;
+        --c-formBorder: #7E7890;
+        --c-bubbleOwn: #E9E3F1;
+        --c-bubbleOwnBorder: #CDC1DE;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #6A6577;
+        --c-scrimRgb: 43, 40, 51;
+      }
+      /* ── Trans pride — white-forward on a whisper-blue field. The literal
+         flag colors are all too light to be functional (1.2–1.9:1), so they
+         live decoratively: mark tiles, the header ribbon, and the quiet
+         signature — own message bubbles in pale pink on the pale blue field.
+         The working accent is a deepened AA-passing trans blue. */
+      :root[data-theme="trans"] {
+        --c-bg: #F3F8FB;
+        --c-bg-gradient: linear-gradient(150deg, #F4F9FC 0%, #EBF3F8 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #EAF3F8;
+        --c-cardBorder: #BDD2DE;
+        --sh-sm: 0 1px 2px rgba(30,45,56,0.06), 0 3px 10px rgba(30,45,56,0.08);
+        --sh-md: 0 2px 4px rgba(30,45,56,0.07), 0 12px 28px rgba(30,45,56,0.11);
+        --sh-lg: 0 4px 12px rgba(30,45,56,0.10), 0 24px 48px rgba(30,45,56,0.15);
+        --c-clayText: #946985;
+        /* Flag stripes across the six tiles: blue / pink / white / white /
+           pink / blue (the white tiles read via the mark's tile edges). */
+        --mark-1: #5BCEFA;
+        --mark-2: #F5A9B8;
+        --mark-3: #FFFFFF;
+        --mark-4: #FFFFFF;
+        --mark-5: #F5A9B8;
+        --mark-6: #5BCEFA;
+        --c-text: #23323B;
+        --c-textSoft: #4C5E69;
+        --c-textMuted: #5F717C;
+        --c-accent: #2E7396;
+        --c-accentStrong: #21607C;
+        --c-accentFill: #21607C;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #CEDEE7;
+        --c-borderLight: #E2EDF3;
+        --c-focus: #23323B;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #54666F;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #EDF4F8;
+        --c-green100: #DCEAF2;
+        --c-green200: #C3DCEA;
+        --c-green300: #9FC4DA;
+        --c-green400: #5E9BBB;
+        --c-green500: #2E7396;
+        --c-green600: #286886;
+        --c-green700: #21607C;
+        --c-green800: #1B4E66;
+        --c-green900: #23323B;
+        --c-formBorder: #71858F;
+        --c-bubbleOwn: #FBE4E9;
+        --c-bubbleOwnBorder: #ECC2CC;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #5F717C;
+        --c-scrimRgb: 30, 45, 56;
       }
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }

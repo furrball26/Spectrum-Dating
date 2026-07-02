@@ -13,7 +13,13 @@ export const A11Y_KEY = "spectrum_a11y";
 // to the dim default (never to a surprise theme). Keep in sync with the theme
 // blocks in index.html, the pre-paint bootstrap script there, and the picker
 // in SettingsScreen.
-export const THEMES = ["dim", "light", "navy", "lightblue", "pink"];
+export const THEMES = ["dim", "light", "navy", "lightblue", "pink", "pride", "trans"];
+
+// Identity-flag themes are a visible signal to anyone who can see the screen.
+// They reset to the neutral default on sign-out / auth expiry (see clearAuth
+// in api.js) so a logged-out shared device never renders them, and they get a
+// quiet one-line disclosure + instant revert affordance in the UI.
+export const IDENTITY_THEMES = ["pride", "trans"];
 
 export const DEFAULT_A11Y = {
   reduceMotion: false,
