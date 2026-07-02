@@ -732,7 +732,10 @@ export default function App() {
 
   // When opening a chat from the Matches tab, this tells MessagingApp which
   // conversation to open on mount.
-  const [pendingConversationId, setPendingConversationId] = useState(null);
+  // Deep-link into a specific conversation. Preferably an OBJECT seed
+  // ({id, otherUser, started}) so MessagingApp can open the thread instantly
+  // without waiting for the conversations list; a bare string id still works.
+  const [pendingConversation, setPendingConversation] = useState(null);
 
   // Email verification state
   const [verifyResult, setVerifyResult] = useState(null); // null | 'success' | 'error'
@@ -1289,8 +1292,8 @@ export default function App() {
               {activeTab === "suggestions" && (
                 <SuggestionScreen
                   onOpenMessages={() => setActiveTab("messages")}
-                  onOpenConversation={(conversationId) => {
-                    setPendingConversationId(conversationId);
+                  onOpenConversation={(conversationId, seedInfo) => {
+                    setPendingConversation(seedInfo ? { id: conversationId, ...seedInfo } : conversationId);
                     setPrevTab("suggestions");
                     setActiveTab("messages");
                     setUnreadCount(0);
@@ -1304,8 +1307,8 @@ export default function App() {
                 <MatchesScreen
                   onGoDiscover={() => { setPrevTab("matches"); setActiveTab("suggestions"); }}
                   onActivityCount={handleActivityCount}
-                  onOpenConversation={(conversationId) => {
-                    setPendingConversationId(conversationId);
+                  onOpenConversation={(conversationId, seedInfo) => {
+                    setPendingConversation(seedInfo ? { id: conversationId, ...seedInfo } : conversationId);
                     setPrevTab("matches");
                     setActiveTab("messages");
                     setUnreadCount(0);
@@ -1317,7 +1320,9 @@ export default function App() {
               {activeTab === "messages" && (
                 <MessagingApp
                   onUnreadCount={setUnreadCount}
-                  initialConversationId={pendingConversationId}
+                  initialConversation={typeof pendingConversation === "object" && pendingConversation ? pendingConversation : null}
+                  initialConversationId={typeof pendingConversation === "string" ? pendingConversation : null}
+                  onConsumedInitial={() => setPendingConversation(null)}
                   plainLanguage={!!a11y.plainLanguage}
                 />
               )}
@@ -1439,7 +1444,7 @@ export default function App() {
                 label="Messages"
                 icon={<MessagesGlyph />}
                 active={activeTab === "messages"}
-                onClick={() => { setPrevTab(activeTab); setPendingConversationId(null); setActiveTab("messages"); setUnreadCount(0); }}
+                onClick={() => { setPrevTab(activeTab); setPendingConversation(null); setActiveTab("messages"); setUnreadCount(0); }}
                 badgeCount={activeTab === "messages" ? 0 : unreadCount}
               />
               <BottomNavTab

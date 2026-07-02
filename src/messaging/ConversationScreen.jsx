@@ -2278,7 +2278,51 @@ export default function ConversationScreen({
     return liveMessages.length === 0 || distinctSenders < 2 || liveMessages.length <= 2;
   }, [messages]);
 
-  if (apiLoading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: t.textSoft }}>Loading…</p></div>;
+  // While messages load, keep the PERSON continuously on screen: a real thread
+  // header (name + avatar from props we already have) over a calm skeleton log.
+  // The old bare centered "Loading…" blanked the whole pane at the moment of
+  // highest anxiety ("did the app lose them?").
+  if (apiLoading) return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: t.bg }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "12px 16px",
+          background: t.surface,
+          borderBottom: `1px solid ${t.border}`,
+          flexShrink: 0,
+        }}
+      >
+        {!hideBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to conversations"
+            style={{ background: "none", border: "none", color: t.accentStrong, fontSize: 22, cursor: "pointer", padding: "6px 10px", minHeight: 44 }}
+          >
+            ←
+          </button>
+        )}
+        <Avatar name={otherUser?.displayName} userId={otherUser?.userId} photoUrl={otherUser?.photoUrl} size={36} />
+        <div style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {otherUser?.displayName || ""}
+        </div>
+      </div>
+      <div aria-hidden="true" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12, padding: 20, overflow: "hidden" }}>
+        <div style={{ alignSelf: "flex-start", width: "58%", height: 44, borderRadius: 16, background: t.surfaceAlt }} />
+        <div style={{ alignSelf: "flex-end", width: "48%", height: 44, borderRadius: 16, background: t.green100 }} />
+        <div style={{ alignSelf: "flex-start", width: "64%", height: 44, borderRadius: 16, background: t.surfaceAlt }} />
+      </div>
+      <div role="status" style={{ textAlign: "center", fontSize: 13, color: t.textMuted, paddingBottom: 8 }}>
+        Opening your conversation…
+      </div>
+      <div style={{ padding: "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${t.border}`, background: t.surface, flexShrink: 0 }}>
+        <div aria-hidden="true" style={{ height: 44, borderRadius: 12, border: `1px solid ${t.border}`, background: t.surfaceAlt }} />
+      </div>
+    </div>
+  );
   if (apiError) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <ErrorState

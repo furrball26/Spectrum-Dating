@@ -1158,14 +1158,17 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             // conversation with starters, not on the Messages inbox.
             next();
             if (matchId && onOpenConversation) {
+              const seedInfo = lastPerson
+                ? { otherUser: { userId: lastPerson.memberId, displayName: lastPerson.displayName, photoUrl: lastPerson.photoUrl }, started: false }
+                : undefined;
               try {
                 const conv = await createConversation(matchId);
                 const convId = conv?.conversationId || conv?.id;
-                if (convId) { onOpenConversation(convId); return; }
+                if (convId) { onOpenConversation(convId, seedInfo); return; }
               } catch (e) {
                 // 409 = conversation already exists; server returns conversationId
                 const convId = e?.body?.conversationId;
-                if (convId) { onOpenConversation(convId); return; }
+                if (convId) { onOpenConversation(convId, seedInfo); return; }
               }
             }
             // Fallback: just open the Messages tab if we can't deep-link.

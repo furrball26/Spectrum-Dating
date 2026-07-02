@@ -300,6 +300,7 @@ export default function MatchesListScreen({
   onRetry,
   onSelectConversation,
   statusMessage,
+  statusAction,
   onArchive,
   selectedConversationId = null,
   plainLanguage = false,
@@ -518,6 +519,52 @@ export default function MatchesListScreen({
       >
         {statusMessage || ""}
       </div>
+
+      {/* Visible, persistent status strip — archive/restore feedback with a
+          no-time-pressure Undo (calm alternative to a timed snackbar). */}
+      {statusMessage && (
+        <div
+          style={{
+            maxWidth: t.layout.maxContent,
+            margin: "12px auto 0",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            background: t.surfaceAlt,
+            border: `1px solid ${t.cardBorder}`,
+            borderRadius: 12,
+            fontSize: 14,
+            color: t.textSoft,
+            boxSizing: "border-box",
+            width: "calc(100% - 32px)",
+          }}
+        >
+          <span style={{ minWidth: 0 }}>{statusMessage}</span>
+          {statusAction && (
+            <button
+              type="button"
+              onClick={statusAction.onAction}
+              style={{
+                background: "transparent",
+                border: `1px solid ${t.accentStrong}`,
+                borderRadius: 999,
+                color: t.accentStrong,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "6px 16px",
+                minHeight: 40,
+                flexShrink: 0,
+                fontFamily: t.sans,
+              }}
+            >
+              {statusAction.label}
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ maxWidth: t.layout.maxContent, margin: "0 auto", padding: "24px 16px 48px" }}>
         <h1

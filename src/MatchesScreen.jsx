@@ -641,7 +641,8 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
 
   async function handleOpen(match) {
     if (match.hasConversation && match.conversationId) {
-      onOpenConversation(match.conversationId);
+      // Seed the thread so it opens instantly (no list-fetch wait).
+      onOpenConversation(match.conversationId, { otherUser: match.otherUser, started: true });
       return;
     }
     setBusyId(match.matchId);
@@ -649,14 +650,14 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
     try {
       const res = await createConversation(match.matchId);
       const convId = res?.conversation?.id || res?.conversationId;
-      if (convId) onOpenConversation(convId);
+      if (convId) onOpenConversation(convId, { otherUser: match.otherUser, started: false });
       else setError("Couldn't open the conversation. Please try again.");
     } catch (e) {
       // The conversation already exists (e.g. stale list / race): the server
       // returns 409 with the existing id — just open it instead of erroring.
       const existingId = e?.status === 409 && e?.body?.conversationId;
       if (existingId) {
-        onOpenConversation(existingId);
+        onOpenConversation(existingId, { otherUser: match.otherUser, started: true });
       } else {
         setError(
           e?.code === "CAP_REACHED"
@@ -698,13 +699,17 @@ export default function MatchesScreen({ onOpenConversation, onActivityCount, pla
             setMatchMoment(null);
             loadMatches();
             if (mm.matchId) {
+              const seedInfo = {
+                otherUser: { userId: mm.them.userId, displayName: mm.them.name, photoUrl: mm.them.photoUrl },
+                started: false,
+              };
               try {
                 const conv = await createConversation(mm.matchId);
                 const convId = conv?.conversation?.id || conv?.conversationId || conv?.id;
-                if (convId) { onOpenConversation(convId); return; }
+                if (convId) { onOpenConversation(convId, seedInfo); return; }
               } catch (e) {
                 const convId = e?.status === 409 && e?.body?.conversationId;
-                if (convId) { onOpenConversation(convId); return; }
+                if (convId) { onOpenConversation(convId, seedInfo); return; }
               }
             }
           }}

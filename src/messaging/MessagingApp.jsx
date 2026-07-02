@@ -36,12 +36,23 @@ function ConversationFallback() {
   );
 }
 
-export default function MessagingApp({ onUnreadCount, initialConversationId, plainLanguage = false }) {
+// `initialConversation` (preferred) is a seed object {id, otherUser, started}
+// passed straight from the tapping surface, so the thread opens INSTANTLY on
+// mount — no waiting for the conversations list to download just to re-derive
+// data the caller already had. `initialConversationId` remains as the id-only
+// legacy path. `onConsumedInitial` lets App clear the pending deep-link so a
+// later visit to Messages doesn't re-open the same thread (stale-pending bug).
+export default function MessagingApp({ onUnreadCount, initialConversation, initialConversationId, onConsumedInitial, plainLanguage = false }) {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
   const isDesktop = viewport === "desktop";
-  // state: 'list' | 'conversation' | 'block-report'
-  const [screen, setScreen] = useState("list");
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  // Seed usable only when it carries enough to render a thread header.
+  const seed = initialConversation && initialConversation.id && initialConversation.otherUser
+    ? { started: false, ...initialConversation }
+    : null;
+  // state: 'list' | 'conversation' | 'block-report' — seeded opens start
+  // directly on the conversation (no list flash, no wait).
+  const [screen, setScreen] = useState(seed ? "conversation" : "list");
+  const [selectedConversationId, setSelectedConversationId] = useState(seed ? seed.id : null);
   const [showUnmatchSheet, setShowUnmatchSheet] = useState(false);
   const [matchesStatusMessage, setMatchesStatusMessage] = useState("");
   const [conversations, setConversations] = useState([]);
@@ -59,6 +70,22 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
   // so the read state has committed server-side before we GET — otherwise the
   // unread badge can flicker back on when the refresh out-races the write.
   const pendingReadRef = useRef(null);
+
+  // Warm the (lazy) ConversationScreen chunk as soon as Messages mounts, so
+  // the first thread-open doesn't pay a JS download mid-gesture.
+  useEffect(() => { import("./ConversationScreen.jsx"); }, []);
+
+  // Consume the deep-link once; App clears it so revisiting Messages later
+  // shows the list instead of silently re-opening the last thread.
+  useEffect(() => {
+    if ((seed || initialConversationId) && onConsumedInitial) onConsumedInitial();
+    // A seeded open still marks the thread read (same as a list tap).
+    if (seed) {
+      pendingReadRef.current = markConversationRead(seed.id)
+        .catch((e) => console.warn("Mark-read failed", e));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,32 +111,41 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
 
   const retryLoadConversations = () => setRefreshKey(k => k + 1);
 
+  // Refresh the list when RETURNING to it — skip the mount run (the
+  // [refreshKey] effect above already fetches on mount; the old version
+  // double-fetched getConversations on every mount).
+  const firstListRunRef = useRef(true);
   useEffect(() => {
+    if (firstListRunRef.current) { firstListRunRef.current = false; return; }
     if (screen === "list") {
       setRefreshKey(k => k + 1);
       if (onUnreadCount) onUnreadCount(0);
     }
   }, [screen]);
 
-  // Auto-open a conversation when arriving from the Matches tab. Fires once,
-  // after the conversation appears in the loaded list.
-  const openedInitialRef = useRef(false);
+  // Legacy id-only deep-link: auto-open once the conversation appears in the
+  // loaded list. (Seeded opens above never wait for this.) If the list has
+  // loaded and the id ISN'T there, say so calmly instead of silently doing
+  // nothing — the old behavior was an unexplained dead-end.
+  const openedInitialRef = useRef(!!seed);
   useEffect(() => {
-    if (
-      !openedInitialRef.current &&
-      initialConversationId &&
-      conversations.some(c => c.id === initialConversationId)
-    ) {
+    if (openedInitialRef.current || !initialConversationId) return;
+    if (conversations.some(c => c.id === initialConversationId)) {
       openedInitialRef.current = true;
       handleSelectConversation(initialConversationId);
+    } else if (!loadingConvs) {
+      openedInitialRef.current = true;
+      setMatchesStatusMessage("We couldn't open that conversation — it may have been archived.");
     }
-  }, [initialConversationId, conversations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConversationId, conversations, loadingConvs]);
 
   // Look up the selected conversation in both the active and archived lists so
   // a user can open and read an archived thread after navigating to it.
   const currentConvo =
     conversations.find(c => c.id === selectedConversationId) ||
     archivedConversations.find(c => c.id === selectedConversationId) ||
+    (seed && seed.id === selectedConversationId ? seed : null) ||
     null;
 
   function handleToggleArchived() {
@@ -223,9 +259,25 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
     return { blocked, reported };
   }
 
+  // Archive with a calm, persistent Undo — a one-tap silent removal is how
+  // "my match disappeared" happens for an accidental-tap-prone audience.
+  const [lastArchived, setLastArchived] = useState(null); // {id, name}
   async function handleArchive(conversationId) {
+    const conv = conversations.find(c => c.id === conversationId);
+    const name = conv?.otherUser?.displayName || "this person";
     try { await archiveConversation(conversationId); } catch (e) { console.warn("Archive failed", e); }
     setConversations(prev => prev.filter(c => c.id !== conversationId));
+    setArchivedCount(prev => prev + 1);
+    setLastArchived({ id: conversationId, name });
+    setMatchesStatusMessage(`Conversation with ${name} archived.`);
+    if (screen !== "list") handleBackToList();
+  }
+  async function handleUndoArchive() {
+    const la = lastArchived;
+    setLastArchived(null);
+    if (!la) return;
+    await handleUnarchive(la.id);
+    setMatchesStatusMessage(`Conversation with ${la.name} restored.`);
   }
 
   function handleBlockReportBack() {
@@ -240,6 +292,7 @@ export default function MessagingApp({ onUnreadCount, initialConversationId, pla
       onRetry={retryLoadConversations}
       onSelectConversation={handleSelectConversation}
       statusMessage={matchesStatusMessage}
+      statusAction={lastArchived ? { label: "Undo", onAction: handleUndoArchive } : null}
       onArchive={handleArchive}
       conversationCount={conversations.filter(c => c.started).length}
       activeCap={activeCap}
