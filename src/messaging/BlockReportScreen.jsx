@@ -95,6 +95,10 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
     let msg;
     if (blocked && reported) {
       msg = `You have blocked and reported ${displayName}. You won't see them again, and our team will take a look.`;
+    } else if (blocked && doReport && !reported) {
+      // Block landed but the report didn't — stay honest about both, keep the
+      // successful block, and point them to where they can retry the report.
+      msg = `You've blocked ${displayName}. We couldn't send your report to our team — you can try reporting again from Safety Center.`;
     } else if (blocked) {
       msg = `You have blocked ${displayName}. You won't see them again.`;
     } else {

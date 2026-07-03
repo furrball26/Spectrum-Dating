@@ -113,6 +113,10 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
     setConfirmMsg(
       blocked && reported
         ? `Blocked and reported. You won't see ${candidate.displayName} again, and our team will take a look.`
+        : blocked && doReport && !reported
+        // Block landed but the report didn't — stay honest about both. Don't
+        // undo the successful block; point them to where they can retry.
+        ? `You've blocked ${candidate.displayName}. We couldn't send your report to our team — you can try reporting again from Safety Center.`
         : blocked
         ? `Blocked. You won't see ${candidate.displayName} again.`
         : "Report submitted. Thank you — our team will take a look."

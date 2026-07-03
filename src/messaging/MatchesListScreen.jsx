@@ -244,6 +244,14 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
   }, [open]);
   const itemStyle = { display: "block", width: "100%", padding: "12px 16px", background: "transparent", border: "none", textAlign: "left", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: t.sans };
   const name = row.otherUser?.displayName || "this person";
+  // FE-2: activating a menu item closes the menu, which unmounts the item
+  // button (it lives inside the `open &&` block). If that button still holds
+  // focus when it unmounts, focus falls to <body> — so the modal this item
+  // opens snapshots <body> as its focus-restore target and dumps a keyboard
+  // user at the top of the page on close. Move focus to the ⋯ trigger FIRST
+  // (synchronously, before the modal mounts and snapshots activeElement),
+  // mirroring the Escape-close branch, so focus returns to the row on close.
+  const runItem = (fn) => { setOpen(false); triggerRef.current?.focus(); fn(); };
   return (
     <span ref={rootRef} style={{ position: "relative", flexShrink: 0, marginRight: 4 }}>
       <button
@@ -261,21 +269,21 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
       </button>
       {open && (
         <div role="menu" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text }} onClick={() => { setOpen(false); onViewProfile(row.otherUser?.userId); }}>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text }} onClick={() => runItem(() => onViewProfile(row.otherUser?.userId))}>
             View profile
           </button>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => { setOpen(false); onNote(row); }}>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => runItem(() => onNote(row))}>
             {note ? "Edit private note" : "Add private note"}
           </button>
           {onArchive && row.conversationId && row.started && (
-            <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => { setOpen(false); onArchive(row.conversationId); }}>
+            <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => runItem(() => onArchive(row.conversationId))}>
               Archive conversation
             </button>
           )}
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.danger, paddingTop: 14 }} onClick={() => { setOpen(false); onReport(row); }}>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.danger, paddingTop: 14 }} onClick={() => runItem(() => onReport(row))}>
             Block or report
           </button>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft }} onClick={() => { setOpen(false); onUnmatch(row); }}>
+          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft }} onClick={() => runItem(() => onUnmatch(row))}>
             Unmatch
           </button>
         </div>

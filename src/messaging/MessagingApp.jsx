@@ -503,7 +503,13 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       // so the user isn't confronted with it again this session.
       setConversations(prev => prev.filter(c => c.id !== convId));
       setMatchesStatusMessage(
-        reported ? `You blocked and reported ${name}.` : `You blocked ${name}.`
+        reported
+          ? `You blocked and reported ${name}.`
+          : doReport
+          // Block landed but the report didn't — don't imply the report was
+          // sent; keep the block and tell them where to retry the report.
+          ? `You've blocked ${name}. We couldn't send your report to our team — you can try reporting again from Safety Center.`
+          : `You blocked ${name}.`
       );
       handleBackToList();
     }
