@@ -16,6 +16,10 @@ export default [
       "public/**",
       "scripts/**",
       "*.config.js",
+      // Backend is its own project with its own flat config + lint script.
+      // Root `eslint .` is frontend-only; lint the server via
+      // `cd server && npm run lint` (or the server-ci workflow).
+      "server/**",
     ],
   },
   js.configs.recommended,

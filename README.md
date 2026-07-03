@@ -1,11 +1,21 @@
-# Spectrum Dating — Frontend
+# Spectrum Dating — Monorepo
 
 An autism-friendly dating web app. Calm, low-pressure, WCAG 2.2 AA. React + Vite,
 plain JavaScript, inline styles only (no Tailwind / CSS files).
 
+This repository is a **monorepo**:
+
+- **Frontend** — this repo's root (`src/`, `index.html`, …). React 18 + Vite,
+  deployed to **Vercel** (`spectrum-dating-eta.vercel.app`).
+- **Backend** — [`server/`](server/). Node/Express + socket.io + JWT, deployed to
+  **Railway** (root directory = `server`). See
+  [`server/RUNBOOK.md`](server/RUNBOOK.md) for the API, env vars, deploy,
+  seeding, backups, and moderation.
+
+The two halves deploy independently to their own platforms; the frontend reaches
+the backend via `VITE_API_URL`.
+
 - **Live:** https://spectrum-dating-eta.vercel.app
-- **Backend:** Railway — see `../Spectrum-Dating-Server/RUNBOOK.md` for the API,
-  env vars, deploy, seeding, backups, and moderation.
 
 ---
 
@@ -38,14 +48,20 @@ VITE_API_URL=https://spectrum-dating-server-production.up.railway.app
 
 ```bash
 npm run build              # outputs to dist/ — must be clean before deploy
-npx vercel --prod --yes    # deploy to Vercel (production alias: spectrum-dating-eta)
 ```
 
-`VITE_API_URL` is configured in the Vercel project's environment variables.
+Deploys are owned by Vercel's Git integration: merging to `master` auto-deploys
+the frontend (do **not** use `npx vercel --prod` / alias re-pointing — that path
+is retired). `VITE_API_URL` is configured in the Vercel project's environment
+variables. The backend deploys separately on Railway from `server/` — see
+[`server/RUNBOOK.md`](server/RUNBOOK.md).
 
 ## Project structure
 
 ```
+server/                  Backend (Express + socket.io + JWT). Own package.json,
+                         eslint config, tests, and Railway config. See
+                         server/RUNBOOK.md.
 src/
   api.js                 All backend calls + token handling + 401 auto-logout.
                          Normalises a few response shapes (admin reports/stats).

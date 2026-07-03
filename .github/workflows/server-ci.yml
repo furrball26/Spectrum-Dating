@@ -1,10 +1,22 @@
-name: CI
+name: Server CI
 
+# Backend lint + test gate. The backend lives under server/ in this monorepo,
+# so every step runs with working-directory: server and the job only fires on
+# server-only changes (path filter below). Lifted from the pre-merge
+# spectrum-dating-server repo's own CI.
 on:
   push:
     branches: [master]
+    paths:
+      - "server/**"
   pull_request:
     branches: [master]
+    paths:
+      - "server/**"
+
+defaults:
+  run:
+    working-directory: server
 
 jobs:
   test:
@@ -18,9 +30,10 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          # Matches package.json engines (>=20).
-          node-version: '20'
-          cache: 'npm'
+          # Matches server/package.json engines (>=20).
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
 
       - name: Install dependencies
         run: npm ci

@@ -1,13 +1,21 @@
-name: CI
+name: Frontend CI
 
 # Lint + build gate for the frontend (F14). The lint step runs
 # eslint-plugin-react-hooks with rules-of-hooks as an error, so a hook placed
 # after an early return (the ConversationScreen #310 crash class) fails CI.
+#
+# Monorepo note: the backend lives under server/ and has its own workflow
+# (server-ci.yml). paths-ignore keeps this frontend job from running on
+# server-only commits.
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "server/**"
   pull_request:
     branches: [master]
+    paths-ignore:
+      - "server/**"
 
 jobs:
   lint-and-build:

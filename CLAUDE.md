@@ -6,9 +6,20 @@ Railway — `https://spectrum-dating-server-production.up.railway.app`, read via
 `VITE_API_URL`. Styling: inline styles from `src/tokens.js` ↔ CSS variables in
 `index.html` (7 themes; `dim` is the default; theme ids in `src/a11yPrefs.js`).
 
+## Repo layout (monorepo)
+- **Frontend** — repo root (`src/`, `index.html`, `scripts/qa/…`). Vercel,
+  root directory `.`. This CLAUDE.md and the ship pipeline below are about the
+  frontend.
+- **Backend** — `server/` (Express + socket.io + JWT, own `package.json`,
+  eslint config, vitest tests). Railway, root directory `server`. Deploys on
+  push to `master` that touches `server/**`; see `server/RUNBOOK.md` for the
+  backend's own ops. Lint/test the backend from inside `server/`
+  (`cd server && npm run lint && npm test`) — the root `eslint .` ignores it.
+
 ## Ship pipeline (the ONLY correct deploy path)
 1. Branch: work on `claude/spectrum-dating-audit-ty9peq` (or the session's branch).
 2. `npx eslint .` → must be 0 errors (react-hooks/rules-of-hooks is a gate).
+   This lints the frontend only; `server/**` is ignored (backend lints itself).
 3. Build — the env var MUST be exported in the SAME shell invocation:
    `export VITE_API_URL="https://spectrum-dating-server-production.up.railway.app" && npm run build`
    (A build without it bakes `BASE_URL=""` and every API call silently 404s —
