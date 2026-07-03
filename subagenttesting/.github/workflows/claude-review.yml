@@ -1,0 +1,65 @@
+name: Claude Code Review
+
+# Automatically review pull requests when they are opened or updated.
+#
+# Prerequisites (one-time, repo-admin):
+#   1. Install the Claude GitHub App on this repo: https://github.com/apps/claude
+#      (or run `/install-github-app` from the Claude Code CLI).
+#   2. Add an `ANTHROPIC_API_KEY` repository secret
+#      (Settings → Secrets and variables → Actions).
+#
+# Docs: https://code.claude.com/docs/en/github-actions
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+# Limit what the job can touch; the review needs to read code, write PR
+# comments, and mint an OIDC token (the v1 action exchanges it for its
+# GitHub token).
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+# Don't pile up reviews if a PR is pushed to repeatedly; cancel stale runs.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip drafts to avoid reviewing work-in-progress PRs.
+    if: github.event.pull_request.draft == false
+    # Expose the secret as an env var so steps can gate on its presence
+    # (secrets can't be referenced directly in `if:` conditions).
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      # Until the ANTHROPIC_API_KEY secret is configured, the review step is
+      # skipped (job stays green) instead of failing on every PR. Setup:
+      #   1. Install the Claude GitHub App: https://github.com/apps/claude
+      #   2. Add the ANTHROPIC_API_KEY repository secret.
+      - name: Check configuration
+        if: env.ANTHROPIC_API_KEY == ''
+        run: |
+          echo "::notice::ANTHROPIC_API_KEY secret not set — skipping Claude review."
+          echo "Configure it to enable automated PR review (see workflow header)."
+
+      - name: Checkout repository
+        if: env.ANTHROPIC_API_KEY != ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude code review
+        if: env.ANTHROPIC_API_KEY != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          # Install and run the official code-review skill against this PR.
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          claude_args: "--max-turns 15"

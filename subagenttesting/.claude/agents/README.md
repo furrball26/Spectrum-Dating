@@ -1,0 +1,106 @@
+# Subagent roster & orchestration guide
+
+This directory holds the specialist subagents for building a dating website for
+adults on the autism spectrum. This file explains **how they work together** —
+read it before driving a multi-agent task.
+
+## The one rule that shapes everything
+
+**Subagents cannot talk to each other.** Each runs in an isolated context and
+returns a single result *up* to whoever spawned it. Sibling agents can't see or
+message one another. (Nested spawning exists but is still parent→child, not
+peer-to-peer; true peer messaging only exists in experimental Agent Teams.)
+
+So the **main conversation is the orchestrator/conductor.** It spawns an agent,
+reads the result, and decides what runs next. Agents surface cross-cutting
+concerns in a trailing `## Hand-offs` section of their output; the orchestrator
+reads those and routes the follow-up work. Agents do **not** call each other.
+
+When you read "hand this to X" or "spec from Y" inside an agent, that means
+*"emit a hand-off for the orchestrator to route,"* not *"call agent X yourself."*
+
+## Roster
+
+| Agent | Role | Model |
+| --- | --- | --- |
+| `user-research` | Participatory co-design *with* autistic users | opus |
+| `accessibility-ux` | Neurodivergent UX design/specs/review (WCAG 2.2 AA+) | opus |
+| `matchmaking` | Reciprocal compatibility/recommendation model design | opus |
+| `trust-safety` | Verification, moderation, anti-scam/abuse design | opus |
+| `privacy-compliance` | GDPR/CCPA, sensitive data, age assurance, EU AI Act | opus |
+| `security-engineer` | AppSec, authz/IDOR, encryption, threat modeling | opus |
+| `frontend-engineer` | React/Next.js web client implementation | sonnet |
+| `backend-engineer` | APIs, profiles, media pipeline, search, notifications | sonnet |
+| `realtime-chat` | WebSocket messaging transport | sonnet |
+| `database-architect` | Schema/migrations, geo/search data layer | sonnet |
+| `devops-infra` | IaC, CI/CD, observability, deploy safety | sonnet |
+| `payments-subscriptions` | Ethical billing/entitlements | sonnet |
+| `qa-accessibility-test` | Test strategy + automated/manual a11y | sonnet |
+| `test-runner` | Executes an existing test suite, reports pass/fail | haiku |
+
+## Who does what (avoid overlap)
+
+- **Design vs build:** `accessibility-ux` designs UX/specs/copy → `frontend-engineer`
+  implements them. Don't ask the implementer to invent UX.
+- **Three "safety-ish" agents:** `security-engineer` = technical attack surface;
+  `privacy-compliance` = legal/regulatory data rules; `trust-safety` = user-facing
+  abuse/moderation. Pick by which lens the task needs.
+- **Data:** `database-architect` designs the schema/indices; `backend-engineer`
+  consumes it; `privacy-compliance` sets retention/deletion rules the DB enforces.
+- **Testing:** `qa-accessibility-test` designs/authors tests; `test-runner` only
+  executes an existing suite.
+
+## Typical orchestration sequences (the main thread drives these)
+
+- **New user-facing feature:** `user-research` → `accessibility-ux` (spec) →
+  `frontend-engineer` + `backend-engineer` (build) → `qa-accessibility-test`
+  (tests) → `test-runner` (run). Route `privacy-compliance` / `trust-safety`
+  hand-offs whenever data or safety is touched.
+- **Matching feature:** `matchmaking` (model) → `database-architect` (indexes) →
+  `backend-engineer` (serve) → `privacy-compliance` (profiling consent).
+- **Messaging:** `accessibility-ux` + `trust-safety` (specs) → `realtime-chat`
+  (build) → `security-engineer` (review) → `qa-accessibility-test`.
+
+## Persistent memory
+
+The six opus decision-making agents — `user-research`, `accessibility-ux`,
+`matchmaking`, `trust-safety`, `privacy-compliance`, `security-engineer` — have
+`memory: project` set. Each keeps its **own** memory directory at
+`.claude/agent-memory/<agent-name>/` with a `MEMORY.md` entrypoint (only the
+first ~200 lines / 25 KB are auto-injected; move detail into sibling topic files
+there). These persist across sessions so durable decisions, research findings,
+threat models, and the compliance record accumulate instead of being re-derived.
+
+> **Important (verified 2026-07-01, Claude Code v2.1.198):** the `memory:`
+> field's documented auto-enable of Read/Write/Edit does **not** engage reliably
+> when a `tools:` allowlist is present (see anthropics/claude-code#57507). In a
+> live test, a memory agent wrote its `MEMORY.md` to the **repo root** instead of
+> `.claude/agent-memory/<name>/`, because the memory wiring never injected the
+> correct path. So we make memory deterministic rather than relying on the
+> auto-wiring: (1) `Read, Write, Edit` are listed **explicitly** in each memory
+> agent's `tools`; (2) each agent's system prompt names the exact memory-file
+> path to read at task start and update before finishing; (3) seed `MEMORY.md`
+> files are committed at the correct path. Keep this belt-and-suspenders setup
+> until the upstream bug is confirmed fixed. See
+> `SuberAgents/knowledge-base/memory-and-state.md` for the full analysis.
+
+The implementation agents are stateless by design (they work per-task); add
+`memory` to one only if it genuinely needs to remember across sessions.
+
+## Agent Teams (enabled)
+
+Experimental **Agent Teams** is enabled in `.claude/settings.json`
+(`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"`). In a team, a lead (the main
+session) spawns teammates that can **message each other directly** and share a
+task list — genuine parallel coordination, unlike ordinary subagents.
+
+Use it for parallel work that needs cross-talk — e.g. a feature build where
+`frontend-engineer`, `backend-engineer`, and `database-architect` align on a
+contract as they go, or competing-hypothesis reviews. Caveats: it's
+**experimental** (behavior may change), one team per session, no nested teams,
+the lead can't be transferred, and each teammate is a full session so **token
+cost is significantly higher**.
+
+Default to orchestrator-routed `## Hand-offs` for normal sequential work; reach
+for a team only when concurrent cross-talk genuinely helps. Enabling it changes
+nothing until you actually ask for a team.
