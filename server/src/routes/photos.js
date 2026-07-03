@@ -253,7 +253,7 @@ router.post('/upload-intent', requireAuth, mutationLimiter, async (req, res) => 
   `).run(attachmentId, userId, storageKey, publicUrl, mimeType, fileSizeBytes, now);
 
   try {
-    const uploadUrl = await getPresignedUploadUrl(storageKey, mimeType, 300, fileSizeBytes);
+    const uploadUrl = await getPresignedUploadUrl(storageKey, mimeType, 300);
     res.status(201).json({ attachmentId, storageKey, uploadUrl, publicUrl });
   } catch (e) {
     console.error('R2 presign error:', e);
