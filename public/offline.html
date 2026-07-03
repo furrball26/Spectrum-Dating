@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>You're offline · Spectrum</title>
+    <meta name="theme-color" content="#181F1D" />
+    <!-- Fully self-contained: inline CSS, no external requests, no hashed
+         assets. Calm-by-design — dim palette, low-key reassuring copy, no
+         alarm, no urgency, no auto-retry countdown. -->
+    <style>
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+        padding: 32px;
+        background: #181F1D;
+        color: #E4EAE6;
+        font-family: -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 420px;
+        width: 100%;
+        text-align: center;
+      }
+      .mark {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 24px;
+        border-radius: 14px;
+        background: #26312D;
+        border: 1px solid #3E4D47;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .mark span {
+        display: block;
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: #6FA39A;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 24px;
+        font-weight: 700;
+        color: #E4EAE6;
+      }
+      p {
+        margin: 0 0 8px;
+        font-size: 16px;
+        color: #B6C2BC;
+      }
+      .hint {
+        margin-top: 20px;
+        font-size: 14px;
+        color: #95A29A;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true"><span></span></div>
+      <h1>You're offline</h1>
+      <p>Spectrum needs a connection to load, and it looks like there isn't one right now.</p>
+      <p>Nothing is lost. Your matches and messages will be here when you're back.</p>
+      <p class="hint">Reconnect whenever you're ready — there's no rush.</p>
+    </main>
+  </body>
+</html>
