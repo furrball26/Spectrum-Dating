@@ -43,6 +43,79 @@ Lint 0 errors · smoke 11/11 PASS · new regression driver
 - [x] **BUG-7 (LOW crash) — `ProfilePreviewModal` dereferenced `photos` without a
   guard.** `src/ProfileScreen.jsx:1668` now `(photos || []).find(...)`.
 
+### ✅ Also fixed + SHIPPED TO PROD (master `fd12541`, live-verified)
+Rebased cleanly onto the monorepo `origin/master` (`c85221a`, +30 commits adding
+`server/`, `audit/`, `legal/`); no force-push, monorepo work preserved. Gate:
+lint 0 · smoke 11/11 · `block-report-reach.mjs` 14/14 · `report-modal-reach.mjs`
+9/9. Live bundle SHA256 == local dist; fix markers present in served bundle.
+
+- [x] **BUG-8 (HIGH, user-reported w/ screenshot) — Full-page in-conversation
+  Block/Report couldn't scroll to Submit on mobile.** This was the REAL surface
+  behind the report; the earlier ReportModal fix was a *different* component.
+  `BlockReportScreen.jsx:127-149` root now `height:100%, overflowY:auto,
+  WebkitOverflowScrolling:touch` (internal scroller; Messages-tab height invariant
+  preserved).
+- [x] **BUG-9 (user-reported) — Bottom-nav "Messages" was dead inside a
+  sub-screen.** Tapping Messages while in a conversation/block-report did nothing
+  (activeTab already "messages", MessagingApp's internal `screen` never reset).
+  `App.jsx:1042,1490,1376` new `homeSignal` counter → `MessagingApp.jsx:150,205`
+  resets to the conversation list (initial mount skipped so deep-links aren't yanked).
+
+---
+
+## Open — CHAT / touch UX (user-reported 2026-07-03; NEXT builder pass, ship to prod)
+
+- [ ] **CHAT-1 (MED) — Conversation log scrolls sideways; should be up/down only.**
+  `ConversationScreen.jsx:2644` `[role="log"]` has `overflowY:auto` but no
+  `overflowX:hidden`; an over-wide child drifts the thread horizontally. Lock
+  `overflowX:hidden` + enforce `minWidth:0` on message rows + `maxWidth` on bubbles.
+- [ ] **CHAT-2 (MED, feature) — Hold-to-react on a message bubble.** Reactions only
+  open via the ＋ button today. Add a long-press (~450ms press-and-hold via
+  touchstart timer) on the bubble to open the ReactionPicker. Touch-only; needs real
+  390px harness testing. `ConversationScreen.jsx` message row + ReactionPicker (:78).
+- [ ] **CHAT-3 (MED) — Reaction ＋ button is invisible/too small on touch.**
+  `ConversationScreen.jsx:784-812`: `fontSize:16`, muted color, and
+  `opacity:0 until hover/focus` — touch has no hover, so it's effectively hidden on
+  phones. Make it visibly present on touch (larger glyph, stronger contrast, drop the
+  hover-gate) as the discoverable fallback alongside CHAT-2.
+- [ ] **UX-TAP (MED, journey) — Toggle rows only respond to the tiny switch, not the
+  label/row.** Tapping the words "Plain language"/"Low stimulation"/"Pause my
+  profile" does nothing. `SettingsScreen.jsx:163-219` (ToggleRow),
+  `ProfileScreen.jsx:1076-1119` (PauseToggle): make the whole row the tap target.
+  (Batch with the chat pass — same touch-affordance theme.)
+
+---
+
+## Open — DESIGN contrast (systemic; own builder pass)
+
+One root cause: hand-rolled buttons use `t.accentStrong`/`t.danger` as a SOLID FILL
+under white text, but those tokens are light tints in dark themes (`dim` default,
+`navy`) → fail AA. The `*Fill` variants exist for white-on-fill and pass; `Button.jsx`
+already documents the 2.10:1 failure. Mechanical swaps:
+- [ ] **DSGN-1 — Landing "Create your profile"** `LandingScreen.jsx:49` (hero + bottom
+  CTA) → `accentFill`/shared Button. **First screen, default theme, fails twice.**
+- [ ] **DSGN-2 — Auth "Sign in / Create account"** `AuthScreen.jsx:441` → `accentFill`.
+- [ ] **DSGN-3 — Profile "Pause my profile"** `ProfileScreen.jsx:3121` → `accentFill`.
+- [ ] **DSGN-4 — Block/Report submit** `BlockReportScreen.jsx:383` → `dangerFill`
+  (ReportModal already uses dangerFill — fix the inconsistency).
+- [ ] **DSGN-5 — Profile photo "Remove"** `ProfileScreen.jsx:684` → `dangerFill`.
+- [ ] **DSGN-6 — Profile save-error toast** `ProfileScreen.jsx:2981` → `dangerFill`.
+- [ ] **DSGN-7 (MED) — Match Moment muddy + subline fails contrast in `light`.**
+  `MatchMoment.jsx:156,250`: darker/opaque panel behind white text so AA passes.
+
+---
+
+## Open — JOURNEY / product (from user-journey pass)
+- [ ] **JRN-1 (MED) — Junk profile served as newcomer's first Discover card**
+  ("Kinda Stupid, 34", "Bla bla bla"). Bad trust signal at the trust-critical moment.
+  Screen abusive display names from the deck or curate the first-session deck.
+  (Data/moderation — likely backend `server/`.)
+- [ ] **JRN-2 (LOW) — Duplicate "Pause my profile" controls** (top card
+  `ProfileScreen.jsx:3090` + collapsed section `:4034`). Remove the redundant one.
+- [ ] **JRN-3 (LOW) — Match Moment has no explicit × close** (`MatchMoment.jsx`).
+- [ ] **JRN-4 (LOW) — Signup 429 message is mildly urgency-flavored** ("try again in
+  15 minutes"); calmer non-countdown phrasing if it surfaces on the signup screen.
+
 ---
 
 ## Open — frontend (fixable in this repo; next builder pass)
@@ -136,10 +209,10 @@ applied everywhere). These are the real gaps:
 
 ---
 
-## Pending (3 reviewers re-running against the fixed branch)
-- [~] QA-functional-tester — full-flow harness pass, 390px + desktop, both themes.
-- [~] user-journey-tester — first-time autistic user on a phone.
-- [~] design-UX-reviewer — real-screenshot visual/layout pass, both themes.
+## Reviewer panel status
+- [x] user-journey-tester — done (findings folded into JRN-1..4 + UX-TAP above).
+- [x] design-UX-reviewer — done (findings folded into DSGN-1..7 above).
+- [~] QA-functional-tester — still running (full-flow harness pass, 390px + desktop).
 
 Feature-gap backlog (F1–F29) lives separately in `audit/FEATURE_BACKLOG.md` —
 unchanged this session; it tracks missing features, not production bugs.
