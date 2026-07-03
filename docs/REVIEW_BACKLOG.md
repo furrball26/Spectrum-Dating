@@ -63,26 +63,24 @@ lint 0 · smoke 11/11 · `block-report-reach.mjs` 14/14 · `report-modal-reach.m
 
 ---
 
-## Open — CHAT / touch UX (user-reported 2026-07-03; NEXT builder pass, ship to prod)
+## ✅ CHAT / touch UX (user-reported 2026-07-03) — SHIPPED TO PROD (master `3146860`, live-verified)
+Driver `scripts/qa/touch-chat-ux.mjs` 15/15 · smoke 11/11 · block-report 14/14 ·
+report-modal 9/9 · clean ff-merge (no force) · live bundle markers confirmed.
 
-- [ ] **CHAT-1 (MED) — Conversation log scrolls sideways; should be up/down only.**
-  `ConversationScreen.jsx:2644` `[role="log"]` has `overflowY:auto` but no
-  `overflowX:hidden`; an over-wide child drifts the thread horizontally. Lock
-  `overflowX:hidden` + enforce `minWidth:0` on message rows + `maxWidth` on bubbles.
-- [ ] **CHAT-2 (MED, feature) — Hold-to-react on a message bubble.** Reactions only
-  open via the ＋ button today. Add a long-press (~450ms press-and-hold via
-  touchstart timer) on the bubble to open the ReactionPicker. Touch-only; needs real
-  390px harness testing. `ConversationScreen.jsx` message row + ReactionPicker (:78).
-- [ ] **CHAT-3 (MED) — Reaction ＋ button is invisible/too small on touch.**
-  `ConversationScreen.jsx:784-812`: `fontSize:16`, muted color, and
-  `opacity:0 until hover/focus` — touch has no hover, so it's effectively hidden on
-  phones. Make it visibly present on touch (larger glyph, stronger contrast, drop the
-  hover-gate) as the discoverable fallback alongside CHAT-2.
-- [ ] **UX-TAP (MED, journey) — Toggle rows only respond to the tiny switch, not the
-  label/row.** Tapping the words "Plain language"/"Low stimulation"/"Pause my
-  profile" does nothing. `SettingsScreen.jsx:163-219` (ToggleRow),
-  `ProfileScreen.jsx:1076-1119` (PauseToggle): make the whole row the tap target.
-  (Batch with the chat pass — same touch-affordance theme.)
+- [x] **CHAT-1 — Thread scrolls vertically only.** `[role="log"]` gains
+  `overflowX:hidden`; fixed the SOURCE too: message rows `minWidth:0` + side-aware
+  bubble `maxWidth` reserving the floated ＋/⋯ footprint (was pushing ＋ ~21px past
+  the viewport). Log `scrollWidth` 411→390.
+- [x] **CHAT-2 — Hold-to-react.** ~450ms long-press on a bubble opens the
+  ReactionPicker; a scroll (touchmove >10px) or early release cancels; light
+  vibrate (reduced-motion-gated); native context menu suppressed. Additive — ＋
+  button + keyboard path untouched.
+- [x] **CHAT-3 — ＋ visible on touch.** New `useCoarsePointer`: on touch the ＋ rests
+  at `opacity:0.7`, `fontSize` 16→20, `textMuted`→`textSoft`; fine pointers keep
+  hover-reveal. 44×44 target kept.
+- [x] **UX-TAP — Whole toggle row tappable.** SettingsScreen ToggleRow +
+  ProfileScreen PauseToggle: row `onClick`→onChange; switch `stopPropagation` so one
+  tap = one toggle. Label tap now flips persisted state.
 
 ---
 
