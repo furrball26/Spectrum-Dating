@@ -44,6 +44,6 @@ projects, copy them to `~/.claude/agents/`:
 - ALL React hooks before any early return.
 - Coarse location only — never expose a precise ZIP to strangers.
 - Migrations must be idempotent and registered in the `MIGRATIONS` array.
-- Frontend deploy: `npm run deploy`, then manually `npx vercel alias set <deployment-url> spectrum-dating-eta.vercel.app`, then verify the live bundle.
+- Deploys are Git-driven (monorepo): ff-merge to `master` → **Vercel** auto-deploys the frontend (repo root) and **Railway** auto-deploys the backend (`server/`, root directory = `server`). Verify by a distinctive marker string in the live bundle, not the hash. `npm run deploy` / `vercel alias` re-pointing is **retired** — do not use or recommend it.
 
 _Stack: React 18 + Vite (Vercel) · Node/Express + better-sqlite3 + socket.io + JWT (Railway)._
