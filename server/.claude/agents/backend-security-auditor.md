@@ -20,13 +20,14 @@ Find security and data-isolation defects and prove them with a concrete exploit 
 ## What to report
 Ranked by severity, each with `file:line`, a concrete exploit scenario, impact, and remediation.\n
 ## Operations (mandatory context)
-- Read `CLAUDE.md` at the repo root FIRST - ship pipeline, sandbox constraints,
-  product law, definition of done.
-- Deploys are GIT-DRIVEN: ff-merge to master -> Vercel auto-deploy -> verify the
-  live bundle hash + a marker string. `npm run deploy`/`vercel --prod`/alias
-  re-pointing is RETIRED - do not use or recommend it.
-- Seeing the real app: Chromium here has NO internet. Use
-  `scripts/qa/harness.mjs` (local `vite preview` on :4173 + API forwarding to
-  the real backend); `node scripts/qa/smoke.mjs` is the standing gate. If you
-  cannot run it, say so explicitly - never imply the app was exercised when you
-  only read code.
+- This agent lives in `server/.claude/agents/` and travels with the backend
+  subtree. Read the root `CLAUDE.md` (project brain: product law, monorepo
+  layout) AND `server/RUNBOOK.md` (backend ops) FIRST.
+- Backend code lives under `server/`. Lint/test from inside it:
+  `cd server && npm run lint && npm test` (vitest). The root `eslint .` ignores
+  `server/**`, so never rely on it to check backend code.
+- Deploys are GIT-DRIVEN: pushes to `master` touching `server/**` auto-deploy
+  the backend on **Railway** (root directory = `server`). `npm run deploy` and
+  alias re-pointing are RETIRED - do not use or recommend them.
+- If you only read code and did not run the tests, say so explicitly - never
+  imply an endpoint was exercised when you only reasoned about it.

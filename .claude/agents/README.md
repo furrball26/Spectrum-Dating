@@ -19,6 +19,13 @@ burning the session on coordination.
 | `backend-security-auditor` | Exploitability lens | Safety-critical work |
 | `trust-safety-specialist` | User-harm lens | Safety-critical work |
 
+> **File locations (monorepo split).** The frontend crew lives here in
+> `.claude/agents/` (repo root). The two **backend** agents —
+> `backend-security-auditor` and `trust-safety-specialist` — live in
+> **`server/.claude/agents/`** so they travel with the backend subtree and
+> auto-load for sessions rooted at `server/`. All ten are one logical team;
+> only their files are split to match the frontend/backend boundary.
+
 ## Cost tiers (session-limit discipline)
 - **Tier 1 (default, bug fixes):** builder alone — its pipeline embeds the QA
   gate. ~1 agent instead of the 6-agent panels that used to burn sessions.
@@ -41,8 +48,9 @@ burning the session on coordination.
 - `docs/AUTONOMY_REPORT.md` — why the team exists / how to run autonomously.
 
 ## Installing in another repo
-1. Copy `.claude/agents/` into the target repo (project-scoped) or
-   `~/.claude/agents/` (user-scoped, all projects).
+1. Copy `.claude/agents/` (frontend crew) AND `server/.claude/agents/` (backend
+   agents) into the target repo (project-scoped) or `~/.claude/agents/`
+   (user-scoped, all projects — flatten both dirs into one).
 2. Copy `CLAUDE.md` and edit the header facts (URLs, branch, stack) — the
    pipeline/discipline sections transfer as-is.
 3. Copy `scripts/qa/` and adjust `PROFILE_DEFAULTS`/endpoints in `harness.mjs`
