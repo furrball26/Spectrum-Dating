@@ -326,8 +326,10 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
               minHeight: 48,
               padding: "12px 20px",
               borderRadius: 12,
-              border: `1px solid ${canConfirm ? t.danger : t.border}`,
-              background: canConfirm ? t.danger : t.surfaceAlt,
+              // dangerFill so the white "Delete" text clears AA in dim/navy,
+              // where `danger` is a light tint (white-on-it ~2.6:1).
+              border: `1px solid ${canConfirm ? t.dangerFill : t.border}`,
+              background: canConfirm ? t.dangerFill : t.surfaceAlt,
               color: canConfirm ? "#fff" : t.textMuted,
               fontSize: 16,
               fontWeight: 600,

@@ -149,11 +149,16 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
         justifyContent: "center",
         padding: "24px",
         boxSizing: "border-box",
-        // Opaque backdrop: the 55% ink scrim layered over an opaque copy of the
+        // Opaque backdrop: a 70% ink scrim layered over an opaque copy of the
         // theme gradient. A bare rgba here only LOOKED solid on Discover because
         // that screen unmounts its card while the moment shows — on Matches the
         // list kept rendering underneath and bled through (bug IMG_3117).
-        background: `linear-gradient(rgba(var(--c-scrimRgb, 36, 51, 45),0.55), rgba(var(--c-scrimRgb, 36, 51, 45),0.55)), ${t.bgGradient}`,
+        // 70% (was 55%): in `light` the scrim is a dark-green tint over a light
+        // gradient, and 55% left the white heading borderline (~2.7:1) and the
+        // subline failing AA. 70% darkens the panel enough for white to clear
+        // ≥4.5:1 in light while staying calm; dim/navy use a near-black scrim
+        // and already passed (this only deepens them slightly).
+        background: `linear-gradient(rgba(var(--c-scrimRgb, 36, 51, 45),0.70), rgba(var(--c-scrimRgb, 36, 51, 45),0.70)), ${t.bgGradient}`,
         opacity: entered ? 1 : 0,
         transition: `opacity ${slow} ${gentle}`,
         fontFamily: t.sans,
@@ -247,7 +252,10 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
               fontFamily: t.sans,
               fontSize: 16,
               lineHeight: 1.6,
-              color: "rgba(244,245,242,0.82)",
+              // Fully opaque (was 0.82) so the small subline clears AA on the
+              // scrim in `light` — a translucent white composited toward the
+              // backdrop and dropped below 4.5:1.
+              color: "#F4F5F2",
               margin: 0,
             }}
           >

@@ -438,7 +438,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 width: "100%",
                 padding: "14px",
                 minHeight: 52,
-                background: loading ? "#4E5F58" : t.accentStrong,
+                background: loading ? "#4E5F58" : t.accentFill,
                 color: "#fff",
                 border: "none",
                 borderRadius: 12,

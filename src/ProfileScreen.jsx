@@ -680,8 +680,10 @@ function PhotoEditorPanel({
                 {...fPrimary}
                 style={{
                   ...outlineBtn,
-                  border: `1.5px solid ${t.danger}`,
-                  background: t.danger,
+                  // dangerFill (not danger) so white text passes AA in dim/navy,
+                  // where `danger` is a light tint (white-on-it ~2.6:1).
+                  border: `1.5px solid ${t.dangerFill}`,
+                  background: t.dangerFill,
                   color: "#fff",
                   ...fPrimary.style,
                 }}
@@ -2984,7 +2986,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             bottom: 16,
             left: "50%",
             transform: "translateX(-50%)",
-            background: t.danger,
+            // dangerFill so the white alert text clears AA in dim/navy.
+            background: t.dangerFill,
             color: "#fff",
             padding: "10px 20px",
             borderRadius: 12,
@@ -3124,7 +3127,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               aria-pressed={paused}
               style={{
                 flexShrink: 0,
-                background: paused ? "transparent" : t.accentStrong,
+                background: paused ? "transparent" : t.accentFill,
                 color: paused ? t.accentStrong : "#fff",
                 border: paused ? `1px solid ${t.accentStrong}` : "none",
                 borderRadius: 10,

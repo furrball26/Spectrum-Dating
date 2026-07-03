@@ -46,9 +46,11 @@ function PrimaryButton({ children, onClick, style }) {
         fontSize: 16,
         fontWeight: 700,
         fontFamily: t.sans,
-        background: t.accentStrong,
+        // accentFill (not accentStrong) so white text passes AA in BOTH themes —
+        // in dim, accentStrong is a light tint and white-on-it fails (~2.10:1).
+        background: t.accentFill,
         color: "#fff",
-        border: `1px solid ${t.accentStrong}`,
+        border: `1px solid ${t.accentFill}`,
         cursor: "pointer",
         transition: `background ${t.motion.base} ${t.motion.standard}`,
         ...f.style,

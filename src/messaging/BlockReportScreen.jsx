@@ -392,7 +392,9 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                 fontSize: 17,
                 fontWeight: 600,
                 cursor: canSubmit ? "pointer" : "not-allowed",
-                background: canSubmit ? t.danger : t.borderLight,
+                // dangerFill (matches ReportModal) so white text passes AA in
+                // dim/navy, where `danger` is a light tint (white-on-it ~2.6:1).
+                background: canSubmit ? t.dangerFill : t.borderLight,
                 color: canSubmit ? "#fff" : t.textMuted,
                 border: "none",
                 ...fSubmit.style,
