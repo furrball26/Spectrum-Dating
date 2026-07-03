@@ -1,89 +1,145 @@
-# Full-team review backlog (mobile + desktop)
+# Production-bug review backlog
 
-Captured from the parallel review panel. The session hit its limit mid-panel:
-the **accessibility** and **product** reviewers returned full reports (below);
-the **QA**, **design**, **journey**, and **code-review** agents did their work
-(20–36 tool calls each) but died before writing final reports — re-run those
-four next session (their prompts are in the git history / this session log).
+Rebuilt 2026-07-03 from a full read-only review panel (accessibility, trust &
+safety, backend security, code review) plus a frontend builder pass that shipped
+7 confirmed fixes. Three harness-driving reviewers (QA-functional, user-journey,
+design-UX) are re-running against the fixed branch — their findings append below
+when in.
 
 Status legend: [ ] open · [x] done · [~] in progress
 
-## Accessibility findings (verified: code + computed contrast)
+---
 
-- [ ] **A11Y-1 (BLOCKER) — NoteSheet dialog has no focus management.**
-  `src/messaging/MessagingApp.jsx:46-94`: `role="dialog" aria-modal="true"` but
-  focus never enters on open, no Tab trap, no Escape, no focus restore. SR users
-  who pick "Add private note" land in silence; keyboard users must tab the whole
-  page behind the scrim. Fix: focus textarea on mount, trap Tab, Escape to close,
-  restore focus to the row ⋯ trigger (mirror RowMenu's pattern at
-  MatchesListScreen.jsx:233).
-- [ ] **A11Y-2 (SERIOUS) — Identity-theme quick revert is gesture-only (WCAG 2.1.1).**
-  `src/App.jsx:1224, :1446` bind revert only to `onDoubleClick` on a `div`; no
-  keyboard/SR path, and it's silent to AT. Fix: while an identity theme is active,
+## ✅ Fixed this session (commit 9b5fa2d, branch `claude/production-bugs-backlog-okvown`)
+
+Lint 0 errors · smoke 11/11 PASS · new regression driver
+`scripts/qa/report-modal-reach.mjs` 9/9 PASS (screenshot proof at 390px).
+
+- [x] **BUG-1 (HIGH) — Report/Block dialog submit unreachable on mobile** (the
+  archetype "can't scroll to complete the report form" bug). `src/ReportModal.jsx`
+  was a `position:fixed` transform-centered dialog with no `maxHeight`/`overflowY`,
+  so on a small/zoomed phone or keyboard-open the reason radios + textarea +
+  "Block and report" clipped off-screen with no scroll. Added
+  `maxHeight:"88vh", overflowY:"auto", WebkitOverflowScrolling:"touch"` (matches
+  DiscoverFilters/MatchProfileModal). Triple-confirmed by a11y + trust-safety +
+  code review; regression-tested reachable at 390px.
+- [x] **BUG-2 (BLOCKER a11y = old A11Y-1) — NoteSheet dialog had zero focus
+  management** + same no-scroll issue. `src/messaging/MessagingApp.jsx` NoteSheet:
+  added maxHeight/overflow + focus-in on textarea, activeElement capture/restore,
+  Tab trap, Escape→close (copied from ReportModal/UnmatchSheet).
+- [x] **BUG-3 (MEDIUM trust&safety) — Identity theme leaked across same-session
+  logout→login.** `clearAuth` reset localStorage+DOM but not in-memory `a11y`
+  state, so a next user on the same page load saw the prior user's pride/trans
+  ribbon and could re-persist it. `src/App.jsx` `handleSignOut` + `auth:expired`
+  now reset the in-memory identity theme too (safety invariant restored).
+- [x] **BUG-4 (MEDIUM) — Raw backend error string leaked on onboarding save.**
+  `src/OnboardingScreen.jsx:1072` now routes through `safeErrorMessage`.
+- [x] **BUG-5 (LOW-MED) — Raw error string leaked on photo upload.**
+  `src/ProfileScreen.jsx` `photoErrorMessage` now routes the non-503 fallback
+  through `safeErrorMessage`.
+- [x] **BUG-6 (MEDIUM crash) — Unguarded `otherUser` deref could white-screen the
+  conversation thread** for a deleted/suspended partner.
+  `src/messaging/ConversationScreen.jsx` now defaults `otherUser = otherUserProp || {}`.
+- [x] **BUG-7 (LOW crash) — `ProfilePreviewModal` dereferenced `photos` without a
+  guard.** `src/ProfileScreen.jsx:1668` now `(photos || []).find(...)`.
+
+---
+
+## Open — frontend (fixable in this repo; next builder pass)
+
+Grouped as the a11y auditor recommended: items on the messaging surface
+(`MatchesListScreen.jsx` / `MessagingApp.jsx`) ship together; verify each in the
+harness at 390px before/after.
+
+- [ ] **FE-1 (MEDIUM trust&safety) — Failed report silently dropped when block
+  succeeds.** `src/ReportModal.jsx` (+ mirrored in `messaging/MessagingApp.jsx`,
+  `messaging/BlockReportScreen.jsx`): when a user ticks BOTH block + report and the
+  block lands but `reportUser` throws, the flow reports success ("Blocked") and the
+  report is lost with no retry prompt — the retry path only exists for the
+  block-free report case. Surface a calm non-blocking notice when
+  `doReport && !reported` even if the block succeeded.
+- [ ] **FE-2 (SERIOUS a11y, NEW) — Row ⋯ safety menu loses keyboard focus to
+  `<body>` after any modal closes.** `MatchesListScreen.jsx:258-273`: menu items
+  call `setOpen(false)` (unmounts the trigger) *before* firing the callback, so the
+  modal snapshots `activeElement` as `<body>` and restores focus there on close —
+  keyboard users get dumped to the top of the list. Restore focus to the ⋯
+  `triggerRef` on item-activation (mirror the Escape branch at `:233`).
+- [ ] **FE-3 (SERIOUS a11y = old A11Y-3) — Row ⋯ menu clipped by list
+  `overflow:hidden`.** `MatchesListScreen.jsx:257` popup inside the `<ul>` at
+  `:300-309`; for a single-match/last-row list the menu is clipped and keyboard
+  users tab into invisible controls (worst at 390px). Drop `overflow:hidden`
+  (round rows individually), portal the menu, or flip it upward for last rows.
+- [ ] **FE-4 (SERIOUS a11y = old A11Y-2) — Identity-theme quick revert is
+  gesture-only.** `src/App.jsx:1224,1446` bind revert only to `onDoubleClick` on a
+  `div`; no keyboard/SR path and it's silent. While an identity theme is active,
   render the logo cluster as a real `<button aria-label="Switch back to Warm dim">`
-  (keep double-tap for pointer), announce via the polite `role="status"` region,
-  update the Settings disclosure copy to mention both paths.
-- [ ] **A11Y-3 (SERIOUS) — Row ⋯ menu clipped by list `overflow:hidden`.**
-  `src/messaging/MatchesListScreen.jsx:257` popup inside the `<ul>` with
-  `overflow:hidden` (300-309). For a single-match list (common case) the menu is
-  clipped; keyboard users tab into invisible controls. Fix: drop `overflow:hidden`,
-  round first/last rows individually, or flip menu upward for last rows.
-  **Confirm in harness before/after.**
-- [ ] **A11Y-4 (MOD) — `role="menu"` without menu keyboard behavior.**
-  `MatchesListScreen.jsx:226-278`: no focus-into-menu, no Arrow/Home/End, item
-  activation drops focus to body. Fix: roving focus + focus restore, OR downgrade
-  honestly to a disclosure (drop role=menu/menuitem, keep buttons) — calmer/smaller.
-- [ ] **A11Y-5 (MOD) — Theme picker radio semantics without radio behavior.**
-  `src/SettingsScreen.jsx:73-158`: `role=radiogroup`/`radio` but every card is a
-  Tab stop and arrows do nothing; identity disclosure appears after selection with
-  no programmatic tie. Fix: roving tabindex + arrow selection OR plain buttons with
-  `aria-pressed`; associate disclosure via `aria-describedby` on identity cards.
-- [ ] **A11Y-6 (MINOR) — Sub-44px targets + type-floor slips (house calm bar).**
-  Undo btn `minHeight:40` (MatchesListScreen.jsx:617 → 44); clear-filter × `width:32`
-  (:704 → `minWidth:44`); collapse pills `fontSize:13` (ConversationScreen.jsx:1101,
-  :1234 → 14).
+  (keep double-tap for pointer) + announce via the polite `role="status"` region;
+  update Settings copy.
+- [ ] **FE-5 (MOD a11y = old A11Y-4) — `role="menu"` without menu keyboard
+  behavior.** `MatchesListScreen.jsx:226-278`: no focus-into-menu, no Arrow/Home/End.
+  Add roving focus + restore, OR downgrade honestly to a disclosure (drop
+  role=menu/menuitem) — calmer/smaller.
+- [ ] **FE-6 (MOD a11y = old A11Y-5) — Theme picker radio semantics without radio
+  behavior.** `src/SettingsScreen.jsx:73-158`: every card is a Tab stop, arrows do
+  nothing. Roving tabindex + arrow selection OR plain buttons with `aria-pressed`;
+  tie the identity disclosure via `aria-describedby`.
+- [ ] **FE-7 (MINOR a11y = old A11Y-6) — Sub-44px targets + type-floor slips.**
+  Archive Undo `minHeight:40` (`MatchesListScreen.jsx:616`→44); clear-filter ×
+  `width:32` (`:704`→add `minWidth:44`); collapse pills `fontSize:13`
+  (`ConversationScreen.jsx:1101,:1234`→14).
+- [ ] **FE-8 (LOW, low-confidence) — Text-send has no explicit in-flight guard.**
+  `ConversationScreen.jsx:2037` relies on `setComposeValue("")` to prevent
+  double-send; a `sending` ref would make it bulletproof. No reliable repro.
+- [ ] **PROD-1..6** (product opportunities — carried forward, unchanged): legal
+  links inside the app; self-host fonts; push-click navigation; ReactionPicker
+  keyboard semantics; calm PWA offline fallback; viewer-side photo gallery
+  (needs backend `photos[]`). Detail in git history of this file.
 
-**A11y passes (measured, no action):** all 5 new theme palettes clear AA
-(worst 4.51:1); flag ribbon/stripes decorative + reduced-sensory-gated;
-icon-only Reviewed seal correctly aria-hidden with row-label text; unread is
-triple-coded; nav aria-current + labels + labeled badges; filter input 16px.
+---
 
-## Product opportunities (ranked value ÷ effort)
+## Open — backend-owned (server repo `spectrum-dating-server`, NOT fixable from this frontend repo)
 
-- [ ] **PROD-1 (S) — Legal links inside the logged-in app.** privacy.html/terms.html
-  linked only from the logged-out landing footer; no path from SettingsScreen. Add a
-  quiet "About & legal" block (plain links, `rel="noopener"`).
-- [ ] **PROD-2 (S/M) — Self-host the two fonts.** index.html:32-36 render-blocks on
-  Google Fonts across two third-party origins (owed item). Latin woff2 subsets in
-  public/fonts/ + inline @font-face `font-display:swap`; delete preconnects. Accept:
-  harness shows zero fonts.googleapis/gstatic requests.
-- [ ] **PROD-3 (S) — Push-notification clicks land nowhere.** public/sw.js:28-47
-  focuses an existing window but never navigates (`urlToOpen` only used on fresh
-  window). Add `client.navigate(urlToOpen)` (or postMessage → Messages tab). Check
-  the backend push payload's `data.url` first.
-- [ ] **PROD-4 (S) — ReactionPicker keyboard semantics.**
-  `src/messaging/ConversationScreen.jsx:125` `role="toolbar"` with no arrow-key nav.
-  Cheapest: `role="group"` + aria-label; better: roving tabindex.
-- [ ] **PROD-5 (M, careful) — Calm offline fallback for the installed PWA.** sw.js is
-  push-only; offline = browser error screen. Add a navigation-only network-first
-  fetch handler → one precached offline.html. **Do NOT cache hashed assets**
-  (stale-chunk deploy scar tissue). Accept: offline emulation shows calm page AND a
-  redeploy still serves newest bundle.
-- [ ] **PROD-6 (OUT — needs backend) — Viewer-side photo gallery.** Members curate up
-  to 6 photos w/ alt text + main choice, but every viewing surface renders ONE image
-  (SuggestionScreen.jsx:904, MatchProfileModal.jsx:108-109). Live API `/matching/
-  candidates` returns only `photoUrl`/`photoDescription` — no `photos[]`. Backend must
-  expose `photos[]` first. Top backend ask; frontend slice after is S–M.
+Confirmed by the backend-security + trust-safety auditors. Overall backend posture
+is strong (no SQLi, tenant scoping correct, admin authZ uniform, coarse-location
+applied everywhere). These are the real gaps:
 
-## Hygiene flags
-- [ ] **HYG-1 — STATUS.md is dangerous:** its "CURRENT STATE" header still instructs
-  the retired `npm run deploy` + `vercel alias` path CLAUDE.md forbids, and lags git.
-  15-min refresh (or delete in favor of CLAUDE.md).
-- [x] **HYG-2 — QA driver `scripts/qa/flows_mobile.mjs` fixed:** bad Playwright option
-  `{ timeout, timeout: 8000 }` and theme cards queried as `button` not `radio`
-  (they're `role="radio"`). Selectors corrected this session.
+- [ ] **BE-1 (MEDIUM) — Blocked users not excluded from Discover/swipe/matching.**
+  `candidates.js:41-53` never consults the `blocks` table; a blocked person still
+  appears in the deck, can re-like, and a mutual like still creates a match + fires
+  a "New match" push. Chat *is* block-gated (masks it). Exclude blocked pairs from
+  `getCandidates` and reject `/swipe` across a block. (Harass-around-a-block.)
+- [ ] **BE-2 (MEDIUM) — `requireAuth` accepts purpose-scoped tokens.**
+  `auth.js:59-70` never checks `payload.purpose`, so a leaked password-reset link
+  can be replayed as a full 1-hour `Bearer` session — silently (no token_version
+  bump). Reject `payload.purpose` in `requireAuth`/`optionalAuth`.
+- [ ] **BE-3 (LOW-MED) — `GET /profile/:userId` doesn't filter ended matches.**
+  `profile.js:488-495` lacks `AND ended_at IS NULL`; after an unmatch both parties
+  keep permanent read access to each other's full profile incl. the post-match-only
+  `context_card`.
+- [ ] **BE-4 (LOW) — `verifyPurposeToken` skips version/suspension checks.**
+  `export.js:44-56` honors a 5-min export token even if the user was suspended /
+  signed out in the window, returning full message bodies.
+- [ ] **BE-5 (LOW) — `POST /push/subscribe` reassigns a subscription by endpoint.**
+  `push.js:24-32` overwrites `user_id` on endpoint collision — an attacker who
+  learns a victim's push endpoint could hijack it. Reject on collision instead.
+- [ ] **BE-OPS — admin reset-password hook re-runs every boot** if
+  `RESET_PASSWORD_EMAIL`/`_VALUE` stay set in Railway (`reset-password.js`,
+  `index.js:143`): re-hashes admin password + force-logout each deploy. Confirm
+  both env vars are UNSET in prod; add a one-time marker.
 
-## Suggested next-session order
-A11Y-1 + A11Y-3 together (one builder pass on the messaging surface) → A11Y-2
-(safety-relevant) → A11Y-4/5 → the S-tier product wins (PROD-1,3,4) batched into
-one lint/build/smoke/ship cycle → re-run the 4 unreported reviewers.
+---
+
+## Hygiene
+- [ ] **HYG-1 — STATUS.md is dangerous:** its "CURRENT STATE" header still
+  instructs the retired `npm run deploy` + `vercel alias` path CLAUDE.md forbids,
+  and lags git. Refresh on a 15-min cadence or delete in favor of CLAUDE.md.
+
+---
+
+## Pending (3 reviewers re-running against the fixed branch)
+- [~] QA-functional-tester — full-flow harness pass, 390px + desktop, both themes.
+- [~] user-journey-tester — first-time autistic user on a phone.
+- [~] design-UX-reviewer — real-screenshot visual/layout pass, both themes.
+
+Feature-gap backlog (F1–F29) lives separately in `audit/FEATURE_BACKLOG.md` —
+unchanged this session; it tracks missing features, not production bugs.
