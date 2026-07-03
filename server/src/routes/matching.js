@@ -94,6 +94,16 @@ router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
     return res.status(404).json({ error: 'Candidate not found.' });
   }
 
+  // Block gate: if EITHER party has blocked the other, silently no-op. A blocked
+  // pair must never form a match (nor fire a push), and we don't reveal the
+  // block's existence/direction — the swipe just resolves as a non-match.
+  const blocked = db.prepare(
+    'SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)'
+  ).get(userId, candidateId, candidateId, userId);
+  if (blocked) {
+    return res.json({ matched: false });
+  }
+
   const now = Date.now();
   const swipeId = newId();
 

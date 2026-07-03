@@ -50,7 +50,15 @@ export function getCandidates(db, viewerId, viewerInterests) {
     'SELECT CASE WHEN user_a_id = ? THEN user_b_id ELSE user_a_id END as other_id FROM matches WHERE user_a_id = ? OR user_b_id = ?'
   ).all(viewerId, viewerId, viewerId).map(r => r.other_id);
 
-  const excludeIds = new Set([viewerId, ...swipedIds, ...matchedIds]);
+  // Get IDs blocked in EITHER direction (viewer blocked them OR they blocked the
+  // viewer). A block must fully hide both people from each other's Discover — a
+  // blocked pair should never resurface as candidates or be able to mutual-like.
+  const blockedIds = db.prepare(
+    `SELECT CASE WHEN blocker_id = ? THEN blocked_id ELSE blocker_id END as other_id
+     FROM blocks WHERE blocker_id = ? OR blocked_id = ?`
+  ).all(viewerId, viewerId, viewerId).map(r => r.other_id);
+
+  const excludeIds = new Set([viewerId, ...swipedIds, ...matchedIds, ...blockedIds]);
 
   // Get all eligible profiles, then exclude in JS. We DO NOT inline the exclude
   // set as `NOT IN (?,?,…)`: a heavy swiper's swiped+matched list grows without

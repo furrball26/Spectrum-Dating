@@ -41,6 +41,11 @@ export function verifyPurposeToken(token, purpose) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload.purpose !== purpose) return null;
+    // Purpose tokens carry the user's token_version at mint time. Re-run the
+    // shared version/suspension/existence check so a purpose token minted before
+    // the user signed out / was suspended / bumped their token_version is no
+    // longer honored within its (short) validity window.
+    if (!checkTokenVersion(payload)) return null;
     return payload;
   } catch {
     return null;
@@ -61,6 +66,9 @@ export function requireAuth(req, res, next) {
   if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    // Reject purpose-scoped tokens (reset/export/etc.) — they must never be
+    // accepted as a full session credential (mirrors verifyToken's guard).
+    if (payload.purpose) return res.status(401).json({ error: 'Unauthorized' });
     if (!checkTokenVersion(payload)) return res.status(401).json({ error: 'Unauthorized' });
     req.user = { id: payload.sub };
     next();
@@ -74,7 +82,9 @@ export function optionalAuth(req, _res, next) {
   if (header?.startsWith('Bearer ')) {
     try {
       const payload = jwt.verify(header.slice(7), JWT_SECRET);
-      if (checkTokenVersion(payload)) {
+      // Purpose-scoped tokens (reset/export/etc.) are never a full session —
+      // don't populate req.user from one (mirrors verifyToken's guard).
+      if (!payload.purpose && checkTokenVersion(payload)) {
         req.user = { id: payload.sub };
       }
     } catch { /* no-op */ }

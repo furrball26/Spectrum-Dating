@@ -21,11 +21,18 @@ router.post('/subscribe', requireAuth, mutationLimiter, (req, res) => {
     return res.status(400).json({ error: 'endpoint and keys (p256dh, auth) are required.' });
   }
 
-  // Upsert by endpoint
-  const existing = db.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').get(endpoint);
+  // Upsert by endpoint, but NEVER reassign an endpoint that already belongs to a
+  // DIFFERENT user. Endpoints are effectively bearer-ish (a leaked victim
+  // endpoint could otherwise be re-pointed at the attacker's user_id to hijack
+  // the victim's push channel). On a cross-user collision we reject; a same-user
+  // re-subscribe just refreshes the keys.
+  const existing = db.prepare('SELECT id, user_id FROM push_subscriptions WHERE endpoint = ?').get(endpoint);
   if (existing) {
-    db.prepare('UPDATE push_subscriptions SET user_id = ?, p256dh = ?, auth = ? WHERE endpoint = ?')
-      .run(userId, keys.p256dh, keys.auth, endpoint);
+    if (existing.user_id !== userId) {
+      return res.status(409).json({ error: 'This subscription endpoint is already registered.' });
+    }
+    db.prepare('UPDATE push_subscriptions SET p256dh = ?, auth = ? WHERE endpoint = ? AND user_id = ?')
+      .run(keys.p256dh, keys.auth, endpoint, userId);
   } else {
     db.prepare('INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(newId(), userId, endpoint, keys.p256dh, keys.auth, Date.now());

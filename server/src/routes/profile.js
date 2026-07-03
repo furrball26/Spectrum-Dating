@@ -487,7 +487,9 @@ router.get('/:userId', requireAuth, (req, res) => {
 
   if (targetId !== userId) {
     const matched = db.prepare(
-      `SELECT 1 FROM matches WHERE (user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?)`
+      `SELECT 1 FROM matches
+       WHERE ((user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?))
+         AND ended_at IS NULL`
     ).get(userId, targetId, targetId, userId);
     if (!matched) {
       return res.status(403).json({ error: 'You can only view the profile of someone you have matched with.' });
