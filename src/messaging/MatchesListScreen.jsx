@@ -58,7 +58,7 @@ function formatRowDate(iso, fallback) {
 // archived rows keep their visible Restore button (showUnarchive/onUnarchive).
 // No message preview — the row is just who + when (calm, glanceable), with the
 // full name always shown whole (wrapping instead of truncating).
-function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, selected, onStartConversation, startingMatchId, rowMenuProps }) {
+function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, selected, onStartConversation, startingMatchId, rowMenuProps, first, last }) {
   const f = useFocusable();
   const fRestore = useFocusable(); // for the unarchive / "Restore" button
   const { otherUser, lastMessageLabel, lastMessageAt, unread, started, ended } = match;
@@ -84,7 +84,13 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
           borderLeft: selected
             ? `3px solid ${t.accent}`
             : unread ? `3px solid ${t.accent}` : "3px solid transparent",
-          borderBottom: `1px solid ${t.borderLight}`,
+          // FE-3: the parent <ul> no longer clips with overflow:hidden (that
+          // was hiding the row ⋯ menu popover), so each row rounds its own
+          // outer corners to nest inside the list's 14px rounded border. Last
+          // row drops its divider — the container's own bottom border closes it.
+          borderBottom: last ? "none" : `1px solid ${t.borderLight}`,
+          ...(first ? { borderTopLeftRadius: 13, borderTopRightRadius: 13 } : {}),
+          ...(last ? { borderBottomLeftRadius: 13, borderBottomRightRadius: 13 } : {}),
           boxSizing: "border-box",
         }}
       >
@@ -305,13 +311,17 @@ function SectionList({ title, subtitle, matches, onSelectConversation, selectedC
           background: t.surface,
           border: `1px solid ${t.border}`,
           borderRadius: 14,
-          overflow: "hidden",
+          // FE-3: no overflow:hidden here — it clipped the per-row ⋯ popover
+          // (z-index can't escape an overflow clip). Rows round their own
+          // corners instead (see MatchRow first/last), preserving the look.
         }}
       >
-        {matches.map((m) => (
+        {matches.map((m, i) => (
           <MatchRow
             key={m.conversationId || m.matchId}
             match={m}
+            first={i === 0}
+            last={i === matches.length - 1}
             onSelectConversation={onSelectConversation}
             selected={selectedConversationId != null && m.conversationId === selectedConversationId}
             onStartConversation={onStartConversation}
@@ -454,13 +464,17 @@ export default function MatchesListScreen({
                   background: t.surface,
                   border: `1px solid ${t.border}`,
                   borderRadius: 14,
-                  overflow: "hidden",
+                  // FE-3: rows self-round (see MatchRow first/last); no
+                  // overflow:hidden so the list stays consistent with the
+                  // active list and never clips row-level popovers.
                 }}
               >
-                {archivedConversations.map((m) => (
+                {archivedConversations.map((m, i) => (
                   <MatchRow
                     key={m.conversationId || m.matchId}
                     match={m}
+                    first={i === 0}
+                    last={i === archivedConversations.length - 1}
                     onSelectConversation={onSelectConversation}
                     showUnarchive
                     onUnarchive={onUnarchive}
