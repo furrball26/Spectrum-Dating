@@ -100,16 +100,18 @@ Computed white-text contrast **dim 2.10→6.27, navy 1.89→7.82** (accent);
 
 ---
 
-## Open — JOURNEY / product (from user-journey pass)
+## JOURNEY / product (from user-journey pass)
 - [ ] **JRN-1 (MED) — Junk profile served as newcomer's first Discover card**
   ("Kinda Stupid, 34", "Bla bla bla"). Bad trust signal at the trust-critical moment.
   Screen abusive display names from the deck or curate the first-session deck.
-  (Data/moderation — likely backend `server/`.)
-- [ ] **JRN-2 (LOW) — Duplicate "Pause my profile" controls** (top card
-  `ProfileScreen.jsx:3090` + collapsed section `:4034`). Remove the redundant one.
-- [ ] **JRN-3 (LOW) — Match Moment has no explicit × close** (`MatchMoment.jsx`).
-- [ ] **JRN-4 (LOW) — Signup 429 message is mildly urgency-flavored** ("try again in
-  15 minutes"); calmer non-countdown phrasing if it surfaces on the signup screen.
+  (Data/moderation — backend `server/`.)
+- [x] **JRN-2 — Duplicate "Pause my profile" controls — FIXED, SHIPPED (`0ae1120`).**
+  Removed the redundant collapsed section; top "Take a break" card is the single
+  control. (Also cleared the pre-existing `deep_profile_settings` failure → 26/26.)
+- [x] **JRN-3 — Match Moment explicit × close — SHIPPED (`0ae1120`).** 44×44 Close
+  button in the focus trap; Escape still works.
+- [x] **JRN-4 — Calmer signup 429 copy — SHIPPED (`0ae1120`).** `safeErrorMessage`
+  maps 429 to a non-countdown message.
 
 ---
 
@@ -145,17 +147,22 @@ harness at 390px before/after.
   - FE-6: theme picker `role="radio"` → buttons with `aria-pressed` + identity
     disclosure tied via `aria-describedby` (`SettingsScreen.jsx`).
   - FE-7: archive Undo 40→44, clear-filter × `minWidth:44`, collapse pills →14px.
-- [ ] **KNOWN (pre-existing, not a regression) — `deep_profile_settings.mjs:19`
-  fails:** the Profile-screen pause switch isn't visible (behind the collapsed
-  duplicate pause section). Same switch passes in `deep_hub` (10/10). Resolves when
-  JRN-2 (remove the duplicate collapsed pause control) is done.
-- [ ] **FE-8 (LOW, low-confidence) — Text-send has no explicit in-flight guard.**
-  `ConversationScreen.jsx:2037` relies on `setComposeValue("")` to prevent
-  double-send; a `sending` ref would make it bulletproof. No reliable repro.
-- [ ] **PROD-1..6** (product opportunities — carried forward, unchanged): legal
-  links inside the app; self-host fonts; push-click navigation; ReactionPicker
-  keyboard semantics; calm PWA offline fallback; viewer-side photo gallery
-  (needs backend `photos[]`). Detail in git history of this file.
+- [x] **KNOWN driver failure — RESOLVED by JRN-2.** `deep_profile_settings.mjs` now
+  targets the top "Take a break" card → 26/26. (Builder also fixed 2 masked latent
+  driver bugs: stale anchored hub-row selectors + wrong localStorage key.)
+- [x] **FE-8 — Text-send in-flight guard — FIXED, SHIPPED (master `0ae1120`).**
+  `ConversationScreen.jsx` `sendingRef` guard around the plain-text send path.
+- [x] **PROD-1 — In-app legal links — SHIPPED (`0ae1120`).** "About & legal" nav in
+  Settings → `/privacy.html` + `/terms.html`.
+- [x] **PROD-4 — ReactionPicker semantics — SHIPPED (`0ae1120`).** `role="toolbar"`
+  → `role="group"` + aria-label.
+- [ ] **PROD-2 (S/M) — Self-host the two fonts** (drop render-blocking Google Fonts).
+- [ ] **PROD-3 (S) — Push-notification clicks land nowhere** (`public/sw.js` never
+  navigates on click). Needs the backend push payload's `data.url`.
+- [ ] **PROD-5 (M, careful) — Calm PWA offline fallback** (navigation-only
+  network-first → one precached offline.html; do NOT cache hashed assets).
+- [ ] **PROD-6 (OUT — needs backend) — Viewer-side photo gallery** (`/matching/
+  candidates` returns only `photoUrl`; backend must expose `photos[]` first).
 
 ---
 
