@@ -34,6 +34,22 @@ export function listPhotos(db, userId, { includePending = false } = {}) {
   }));
 }
 
+// PROD-6: the APPROVED-ONLY gallery served to a VIEWER (Discover deck, matched
+// profile). Built on listPhotos' approved-only default — never hand-roll a query
+// that could leak pending photos. Ordered primary-first, then by position, and
+// capped at MAX_PHOTOS. Returns the minimal viewer shape { url, description,
+// isPrimary } — owner-only fields (id/position/reviewStatus/pending) are dropped.
+export function listPublicPhotos(db, userId) {
+  return listPhotos(db, userId) // approved-only default
+    .slice()
+    .sort((a, b) => {
+      if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+      return a.position - b.position;
+    })
+    .slice(0, MAX_PHOTOS)
+    .map((p) => ({ url: p.url, description: p.description, isPrimary: p.isPrimary }));
+}
+
 // SAFETY-2: keep profiles.photo_url (the PUBLIC avatar every candidate/match/
 // conversation payload reads) pointed at the user's best APPROVED photo — primary
 // preferred, else the lowest-position approved photo, else '' when none are

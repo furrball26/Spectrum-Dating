@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { abuseReportLimiter } from '../middleware/rateLimits.js';
 import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
-import { listPhotos } from './photos.js';
+import { listPhotos, listPublicPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
 import { coarseCity, isGeocodable } from '../utils/metros.js';
 import { containsSlur } from '../utils/nameScreen.js';
@@ -606,7 +606,8 @@ router.get('/:userId', requireAuth, (req, res) => {
     distCity,
     verified: !!profile.identity_verified,
     photoUrl: profile.photo_url || '',
-    photos: listPhotos(db, targetId),
+    // PROD-6: approved-only gallery, primary-first (SAFETY-2 approved default).
+    photos: listPublicPhotos(db, targetId),
     interests,
     relationshipGoal: profile.relationship_goal || '',
     commNote: profile.comm_note || '',

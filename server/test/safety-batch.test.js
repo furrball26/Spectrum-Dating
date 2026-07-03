@@ -224,6 +224,54 @@ describe('JRN-1: abusive display-name screening', () => {
   });
 });
 
+describe('PROD-6: viewer photo gallery is approved-only and primary-first', () => {
+  it('exposes approved photos primary-first and excludes pending on /profile/:id', async () => {
+    const subject = makeUser({ photoUrl: '' });
+    // approved, NON-primary, low position — should come SECOND.
+    addPhotoRow(subject, { status: 'approved', primary: 0, pos: 0, url: 'https://p6/a.jpg' });
+    // pending — must be excluded entirely.
+    addPhotoRow(subject, { status: 'pending_review', primary: 0, pos: 1, url: 'https://p6/pending.jpg' });
+    // approved PRIMARY at a HIGHER position — must sort FIRST regardless.
+    addPhotoRow(subject, { status: 'approved', primary: 1, pos: 2, url: 'https://p6/primary.jpg' });
+
+    const viewer = makeUser();
+    match(viewer, subject);
+    const r = await api(`/profile/${subject}`, { token: signToken(viewer, 0) });
+    expect(r.status).toBe(200);
+    const urls = r.json.photos.map((p) => p.url);
+    // Pending excluded (approved-only), primary first, then by position.
+    expect(urls).not.toContain('https://p6/pending.jpg');
+    expect(urls).toEqual(['https://p6/primary.jpg', 'https://p6/a.jpg']);
+    expect(r.json.photos[0].isPrimary).toBe(true);
+    // Minimal viewer shape — no id/position/reviewStatus/pending leak.
+    expect(Object.keys(r.json.photos[0]).sort()).toEqual(['description', 'isPrimary', 'url']);
+  });
+
+  it('exposes the same approved-only, primary-first gallery on the Discover deck', async () => {
+    const subject = makeUser({ photoUrl: '' });
+    addPhotoRow(subject, { status: 'approved', primary: 0, pos: 0, url: 'https://p6d/a.jpg' });
+    addPhotoRow(subject, { status: 'pending_review', primary: 0, pos: 1, url: 'https://p6d/pending.jpg' });
+    addPhotoRow(subject, { status: 'approved', primary: 1, pos: 2, url: 'https://p6d/primary.jpg' });
+    // Candidate eligibility requires photo_url != '' (the approved primary).
+    db.prepare('UPDATE profiles SET photo_url = ? WHERE user_id = ?').run('https://p6d/primary.jpg', subject);
+
+    const viewer = makeUser();
+    // Paginate the whole deck to find the subject (the endpoint caps each page).
+    let hit = null;
+    for (let offset = 0; offset < 400 && !hit; offset += 20) {
+      const r = await api(`/matching/candidates?limit=20&offset=${offset}`, { token: signToken(viewer, 0) });
+      const page = Array.isArray(r.json) ? r.json : [];
+      hit = page.find((c) => c.memberId === subject) || null;
+      if (page.length < 20) break;
+    }
+    expect(hit).not.toBeNull();
+    const urls = hit.photos.map((p) => p.url);
+    expect(urls).not.toContain('https://p6d/pending.jpg');
+    expect(urls).toEqual(['https://p6d/primary.jpg', 'https://p6d/a.jpg']);
+    expect(hit.photos[0].isPrimary).toBe(true);
+  });
+});
+
 describe('G4: locationGeocodable flag on /profile/me', () => {
   it('is true for a supported metro and false for an ungeocodable city', async () => {
     const u = makeUser();

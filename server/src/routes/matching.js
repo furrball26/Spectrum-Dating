@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { mutationLimiter } from '../middleware/rateLimits.js';
 import { getCandidates } from '../matching/candidates.js';
 import { listPrompts, parseFacetList } from './profile.js';
+import { listPublicPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
 import { coarseCity } from '../utils/metros.js';
 import { newId } from '../utils/ids.js';
@@ -70,6 +71,9 @@ router.get('/candidates', requireAuth, (req, res) => {
     prompts: listPrompts(db, c.user_id),
     photoUrl: c.photo_url || null,
     photoDescription: c.primary_photo_description || '',
+    // PROD-6: approved-only gallery, primary-first (capped 6). photoUrl stays
+    // for backward-compat as the single primary avatar.
+    photos: listPublicPhotos(db, c.user_id),
     matchedAt: null,
   }));
 

@@ -563,6 +563,13 @@
          (the message log): scrolling still works by touch/wheel/keys. */
       .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
       .hide-scrollbar::-webkit-scrollbar { display: none; }
+      /* PROD-6 photo-gallery swap: a gentle opacity fade (no slide/movement).
+         The carousel gates this behind prefers-reduced-motion in JS; the media
+         query here is defense-in-depth so reduced-motion users never see it. */
+      @keyframes spectrumPhotoFade { from { opacity: 0.4; } to { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        [style*="spectrumPhotoFade"] { animation: none !important; }
+      }
       /* Visually-hidden but exposed to assistive tech (accessible-name helpers). */
       .sr-only {
         position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

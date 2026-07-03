@@ -4,6 +4,7 @@ import { getUserProfile } from "./api.js";
 import { commChips } from "./commChips.js";
 import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
+import PhotoCarousel from "./PhotoCarousel.jsx";
 
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
@@ -105,7 +106,11 @@ export default function MatchProfileModal({ userId, onClose }) {
             <p role="alert" style={{ color: t.textSoft, padding: "16px 0" }}>{error}</p>
           ) : profile ? (
             <>
-              {profile.photoUrl ? (
+              {/* PROD-6 — approved photo gallery (primary first). Swipe is fine
+                  here (this is not a like/skip card); dots + tap zones too. */}
+              {Array.isArray(profile.photos) && profile.photos.length > 0 ? (
+                <PhotoCarousel photos={profile.photos} name={profile.displayName} height={300} swipe />
+              ) : profile.photoUrl ? (
                 <img src={profile.photoUrl} alt={`Photo of ${profile.displayName}`} style={{ width: "100%", height: 300, objectFit: "cover", borderRadius: 16, display: "block", background: t.surfaceAlt }} />
               ) : (
                 <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 4px" }}>

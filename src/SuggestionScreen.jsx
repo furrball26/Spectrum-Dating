@@ -10,6 +10,7 @@ import SpectrumMark from "./SpectrumMark.jsx";
 import ReportModal from "./ReportModal.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
+import PhotoCarousel from "./PhotoCarousel.jsx";
 
 // The current viewer's identity for the match moment — name/photo from the
 // cached profile, id from auth. Best-effort: the monogram avatar degrades
@@ -383,6 +384,13 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           relationshipGoal: c.relationshipGoal || '',
           sharedInterests: c.sharedInterests || [],
           photoUrl: c.photoUrl || c.photo_url || null,
+          // PROD-6 — approved-only gallery (primary-first). Falls back to a
+          // single-element list from photoUrl if the backend omitted photos[].
+          photos: Array.isArray(c.photos) && c.photos.length > 0
+            ? c.photos
+            : ((c.photoUrl || c.photo_url)
+                ? [{ url: c.photoUrl || c.photo_url, description: c.photoDescription || '', isPrimary: true }]
+                : []),
           verified: !!c.verified,
           commDirectness: c.commDirectness || '',
           commLiteral: c.commLiteral || '',
@@ -908,31 +916,23 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             <div style={card}>
               <SpectrumStrip />
 
-              {/* Hero photo when the person has one — real faces get prominence
-                  instead of a tiny circle. Decorative (name is in the adjacent
-                  heading). Falls back to the gradient-monogram lockup below. */}
-              {person.photoUrl && (
-                <img
-                  src={person.photoUrl}
-                  alt={person.photoDescription || `Photo of ${person.displayName}`}
-                  width={640}
+              {/* Hero photo gallery (PROD-6) — approved photos, primary first.
+                  One photo renders exactly like the old single hero image; more
+                  than one adds calm dot indicators + left/right tap zones (NOT a
+                  horizontal swipe — that gesture belongs to the like/skip card).
+                  Falls back to the gradient-monogram lockup below when there are
+                  no photos. */}
+              {person.photos && person.photos.length > 0 && (
+                <PhotoCarousel
+                  photos={person.photos}
+                  name={person.displayName}
                   height={380}
-                  fetchpriority="high"
-                  decoding="async"
-                  style={{
-                    width: "100%",
-                    height: 380,
-                    objectFit: "cover",
-                    borderRadius: 16,
-                    display: "block",
-                    marginBottom: 18,
-                    background: t.surfaceAlt,
-                  }}
+                  containerStyle={{ marginBottom: 18 }}
                 />
               )}
               {/* Name lockup — the monogram avatar shows only when there's no photo. */}
               <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20 }}>
-                {!person.photoUrl && (
+                {(!person.photos || person.photos.length === 0) && (
                   <Avatar
                     name={person.displayName}
                     userId={person.memberId}

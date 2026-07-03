@@ -4,6 +4,7 @@ import { t } from "./tokens.js";
 import { ShieldIcon, GearIcon, LockIcon } from "./icons.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
+import PhotoCarousel from "./PhotoCarousel.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 
 // ProfileScreen — Spectrum Dating
@@ -1806,9 +1807,16 @@ function ProfilePreviewModal({
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  // Primary photo URL — first photo with isPrimary, else first photo, else null.
-  const primaryPhoto = (photos || []).find((p) => p.isPrimary) || (photos || [])[0] || null;
-  const photoUrl = primaryPhoto?.url || null;
+  // PROD-6 — "how others see you" shows only APPROVED photos (pending ones are
+  // invisible to viewers), ordered primary-first, matching the viewer surfaces.
+  const approvedPhotos = (photos || [])
+    .filter((p) => p && p.url && !p.pending && p.reviewStatus !== "pending_review" && p.reviewStatus !== "rejected")
+    .slice()
+    .sort((a, b) => {
+      if (!!a.isPrimary !== !!b.isPrimary) return a.isPrimary ? -1 : 1;
+      return (a.position ?? 0) - (b.position ?? 0);
+    });
+  const hasPhoto = approvedPhotos.length > 0;
 
   // Comms/sensory chips — mirrors SuggestionScreen's commStyleChips helper.
   // Defined inline so we don't import from another screen.
@@ -1936,26 +1944,21 @@ function ProfilePreviewModal({
           {/* Main profile card */}
           <div style={card}>
 
-            {/* Hero photo when available */}
-            {photoUrl && (
-              <img
-                src={photoUrl}
-                alt={`Your photo`}
-                style={{
-                  width: "100%",
-                  height: 380,
-                  objectFit: "cover",
-                  borderRadius: 16,
-                  display: "block",
-                  marginBottom: 18,
-                  background: t.surfaceAlt,
-                }}
+            {/* Hero photo gallery when available (PROD-6) — same carousel the
+                viewer surfaces use, so the preview matches "how others see you". */}
+            {hasPhoto && (
+              <PhotoCarousel
+                photos={approvedPhotos}
+                name={displayName || "you"}
+                height={380}
+                swipe
+                containerStyle={{ marginBottom: 18 }}
               />
             )}
 
             {/* Name lockup — gradient avatar when no photo */}
             <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20 }}>
-              {!photoUrl && (
+              {!hasPhoto && (
                 <Avatar name={displayName} userId={null} size={88} />
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
