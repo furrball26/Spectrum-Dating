@@ -3,6 +3,7 @@ import { updateProfile, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
+import { useViewport } from "./useViewport.js";
 
 
 function usePrefersReduced() {
@@ -968,6 +969,8 @@ export default function OnboardingScreen({ onComplete }) {
   // Focus management
   const headingRef = useRef(null);
   const prefersReduced = usePrefersReduced();
+  const viewport = useViewport();
+  const isMobile = viewport === "mobile";
 
   // Focus heading on step change
   useEffect(() => {
@@ -1084,7 +1087,12 @@ export default function OnboardingScreen({ onComplete }) {
     minHeight: "100vh",
     background: t.bg,
     display: "flex",
-    alignItems: "flex-start",
+    // DT-5: center the step card on tablet/desktop where the tall viewport
+    // otherwise top-anchors it above a large empty space. minHeight (not a fixed
+    // height) means a card taller than the viewport still grows the page and
+    // scrolls normally — centering only takes effect when there's spare room.
+    // Mobile stays top-anchored (unchanged).
+    alignItems: isMobile ? "flex-start" : "center",
     justifyContent: "center",
     padding: "32px 16px 60px",
     boxSizing: "border-box",

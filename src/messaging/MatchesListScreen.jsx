@@ -229,11 +229,34 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
 // Quiet per-row ⋯ menu — archive, block/report/unmatch (and the private note)
 // reachable without opening the conversation. Focus returns to the trigger on
 // close; destructive items last, visually separated (a11y adjacency spec).
+// Rough popover height (5 items × ~48px + a little chrome) used to decide
+// whether there's room below the trigger before flipping the menu upward.
+const ROW_MENU_EST_HEIGHT = 264;
+
 function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnmatch }) {
   const [open, setOpen] = useState(false);
+  // DT-2: flip the menu UPWARD for bottom rows. In the short desktop rail the
+  // downward-only popover pushed Block/report + Unmatch past the viewport, where
+  // the rail's overflowY:auto clipped them. We measure the trigger's room below
+  // when opening and open upward when there isn't enough (standard popover flip).
+  const [openUp, setOpenUp] = useState(false);
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
   const f = useFocusable();
+  const openMenu = () => {
+    setOpen((v) => {
+      const next = !v;
+      if (next && triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        // Flip up only when below is too tight AND there's genuinely more room
+        // above — otherwise stay downward (unchanged behavior for top rows and
+        // the tall mobile list).
+        setOpenUp(spaceBelow < ROW_MENU_EST_HEIGHT && rect.top > spaceBelow);
+      }
+      return next;
+    });
+  };
   useEffect(() => {
     if (!open) return;
     function onKey(e) { if (e.key === "Escape") { setOpen(false); triggerRef.current?.focus(); } }
@@ -264,7 +287,7 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
         aria-label={`More options for ${name}`}
         aria-haspopup="true"
         aria-expanded={open}
-        onClick={() => setOpen(v => !v)}
+        onClick={openMenu}
         style={{ background: "transparent", border: "none", color: t.textMuted, fontSize: 18, cursor: "pointer", padding: "4px 8px", borderRadius: 8, minHeight: 44, minWidth: 44, ...f.style }}
         onFocus={f.onFocus}
         onBlur={f.onBlur}
@@ -276,7 +299,7 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
           so we don't claim them. Escape + click-outside close and focus-return-
           to-trigger (FE-2, via runItem) are preserved below. */}
       {open && (
-        <div role="group" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
+        <div role="group" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, ...(openUp ? { bottom: "calc(100% + 4px)" } : { top: "calc(100% + 4px)" }), background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
           <button type="button" style={{ ...itemStyle, color: t.text }} onClick={() => runItem(() => onViewProfile(row.otherUser?.userId))}>
             View profile
           </button>

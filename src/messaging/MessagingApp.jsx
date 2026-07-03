@@ -551,6 +551,10 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       onInterested={handleLikeBack}
       onNotNow={handleDismissLiker}
       onReport={setReportingLiker}
+      // DT-1: only the desktop two-pane view renders this in the fixed 340px
+      // rail, where the single-row layout truncates names. Mobile/tablet keep
+      // the full-column single-row layout (compact stays false).
+      compact={isDesktop}
     />
   );
 

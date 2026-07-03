@@ -11,7 +11,13 @@ import Spectrum from "./Spectrum.jsx";
 // you to Discover, which never surfaced the liker — a dead end). "Not right now"
 // declines quietly, and each person can be blocked or reported. No swipe stack,
 // no counters, no urgency.
-export default function LikedYouSection({ people, plainLanguage = false, busyId, onInterested, onNotNow, onReport }) {
+// `compact` — set by the narrow desktop Messages rail (fixed 340px). There the
+// name column and the fixed-width "I'm interested" button can't share row 1
+// without the button starving the name into an ellipsis ("Cal QA" → "Cal …").
+// In compact mode the name owns row 1 and the primary button drops to its own
+// full-width line above the quiet actions. The full-width Likes tab leaves this
+// false, keeping the good single-row layout.
+export default function LikedYouSection({ people, plainLanguage = false, busyId, onInterested, onNotNow, onReport, compact = false }) {
   if (!people || people.length === 0) return null;
   const linkStyle = {
     background: "none",
@@ -42,6 +48,22 @@ export default function LikedYouSection({ people, plainLanguage = false, busyId,
         {people.map((person) => {
           const busy = busyId === person.userId;
           const name = person.displayName || "Someone";
+          const interestedBtn = (
+            <Button
+              variant="primary"
+              onClick={() => onInterested(person)}
+              disabled={busy}
+              aria-label={`I'm interested in ${name}`}
+              style={{ flexShrink: 0, cursor: busy ? "wait" : undefined, ...(compact ? { width: "100%" } : {}) }}
+            >
+              {busy ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <Spectrum variant="loader" size={6} gap={3} />
+                  …
+                </span>
+              ) : (plainLanguage ? "Yes" : "I'm interested")}
+            </Button>
+          );
           return (
             <li key={person.userId} style={{ marginBottom: 12 }}>
               <div
@@ -61,22 +83,12 @@ export default function LikedYouSection({ people, plainLanguage = false, busyId,
                     </div>
                     {person.age && <div style={{ fontSize: 14, color: t.textMuted }}>{person.age}</div>}
                   </div>
-                  <Button
-                    variant="primary"
-                    onClick={() => onInterested(person)}
-                    disabled={busy}
-                    aria-label={`I'm interested in ${name}`}
-                    style={{ flexShrink: 0, cursor: busy ? "wait" : undefined }}
-                  >
-                    {busy ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        <Spectrum variant="loader" size={6} gap={3} />
-                        …
-                      </span>
-                    ) : (plainLanguage ? "Yes" : "I'm interested")}
-                  </Button>
+                  {/* Full-width rail: the name has room, so the primary button sits
+                      on row 1. In the compact rail it drops below (see next). */}
+                  {!compact && interestedBtn}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, marginLeft: 66 }}>
+                {compact && <div style={{ marginTop: 12 }}>{interestedBtn}</div>}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: compact ? 8 : 4, marginLeft: compact ? 0 : 66 }}>
                   <button type="button" style={linkStyle} disabled={busy} onClick={() => onNotNow(person)}>
                     Not right now
                   </button>

@@ -9,6 +9,7 @@ import { AllCaughtUp } from "./illustrations.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
 import ReportModal from "./ReportModal.jsx";
 import { useFocusable } from "./useFocusable.js";
+import { useViewport } from "./useViewport.js";
 
 // The current viewer's identity for the match moment — name/photo from the
 // cached profile, id from auth. Best-effort: the monogram avatar degrades
@@ -330,6 +331,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const liveRef = useRef(null);
   const doneHeadingRef = useRef(null);
   const endHeadingRef = useRef(null);
+  const viewport = useViewport();
+  const isMobile = viewport === "mobile";
 
   // Fetch fresh viewer interests from API on mount; fall back to localStorage cache
   useEffect(() => {
@@ -634,7 +637,11 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
 
   const page = {
     minHeight: "100%",
-    background: t.bgGradient,
+    // DT-3: on tablet/desktop Discover sits inside App's surface "panel"; a
+    // self-painted bgGradient here double-paints and leaves a band of panel
+    // surface under short content. Inherit the panel off mobile; keep the
+    // mobile full-bleed gradient.
+    background: isMobile ? t.bgGradient : "transparent",
     color: t.text,
     fontFamily: t.sans,
     fontSize: 17,

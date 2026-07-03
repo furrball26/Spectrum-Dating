@@ -8,6 +8,7 @@ import Skeleton from "./Skeleton.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
 import { getViewerIdentity } from "./viewerIdentity.js";
+import { useViewport } from "./useViewport.js";
 
 // Likes — the decision queue: people who said they're interested in you.
 // (Phase 2 of the Matches/Messages merge: everyone you've MATCHED with now
@@ -22,6 +23,8 @@ export default function LikesScreen({ onOpenConversation, onActivityCount, plain
   const [matchMoment, setMatchMoment] = useState(null);
   const [reportingLiker, setReportingLiker] = useState(null);
   const headingRef = useRef(null);
+  const viewport = useViewport();
+  const isMobile = viewport === "mobile";
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -81,7 +84,11 @@ export default function LikesScreen({ onOpenConversation, onActivityCount, plain
 
   const page = {
     minHeight: "100%",
-    background: t.bgGradient,
+    // DT-3: on tablet/desktop this screen sits inside App's surface "panel", so
+    // painting its own bgGradient here double-paints — short content left a
+    // stark band of the panel's surface showing beneath (worst in Light). Go
+    // transparent to inherit the panel; mobile keeps its full-bleed gradient.
+    background: isMobile ? t.bgGradient : "transparent",
     color: t.text,
     fontFamily: t.sans,
     fontSize: 16,

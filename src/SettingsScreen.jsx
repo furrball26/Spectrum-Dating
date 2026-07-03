@@ -86,6 +86,10 @@ function ThemeSegmented({ value, onChange }) {
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
         gap: 10,
+        // DT-4: stretch cards to a uniform height per row so the ones carrying a
+        // description line don't leave the note-less cards short with ragged
+        // row bottoms (worst on the 4-col desktop grid).
+        alignItems: "stretch",
       }}
     >
       {THEME_CARDS.map((c) => (
@@ -126,6 +130,12 @@ function ThemeCard({ card, active, onClick, describedBy }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
       style={{
+        // DT-4: fill the grid cell (align-items:stretch on the grid) and stack
+        // as a column so cards line up to an equal height per row regardless of
+        // whether they carry a description note.
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
         padding: 0,
         border: active ? `2px solid ${t.accentStrong}` : `1px solid ${t.border}`,
         borderRadius: 12,
