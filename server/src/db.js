@@ -55,6 +55,7 @@ const MIGRATIONS = [
   '035_azcaco_photos.sql',
   '036_profile_photo_review.sql',
   '037_drop_notification_preferences.sql',
+  '038_about_facets.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't

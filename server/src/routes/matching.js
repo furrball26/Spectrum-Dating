@@ -2,7 +2,7 @@
 import { requireAuth } from '../middleware/auth.js';
 import { mutationLimiter } from '../middleware/rateLimits.js';
 import { getCandidates } from '../matching/candidates.js';
-import { listPrompts } from './profile.js';
+import { listPrompts, parseFacetList } from './profile.js';
 import { ageFromDob } from '../utils/time.js';
 import { coarseCity } from '../utils/metros.js';
 import { newId } from '../utils/ids.js';
@@ -47,6 +47,11 @@ router.get('/candidates', requireAuth, (req, res) => {
     sensoryEnvironment: c.sensory_environment || '',
     sensoryLighting: c.sensory_lighting || '',
     socialDuration: c.social_duration || '',
+    // F28 — lightweight scannable facts on the Discover card. occupation +
+    // languages only; the "helps me / hard for me" lists stay on the full
+    // profile view (post-match) to keep the deck card calm.
+    occupation: c.occupation || '',
+    languages: c.languages || '',
     // contextCard ("how to talk to me", free-text personal disclosure) is
     // GATED to post-match only — see GET /matching/matches otherUser. It must
     // NOT be returned here, where any stranger browsing Discover would see it
@@ -285,7 +290,8 @@ router.get('/matches', requireAuth, (req, res) => {
     const p = db.prepare(
       `SELECT display_name, tagline, photo_url, identity_verified, dist_city, pronouns,
               comm_directness, comm_literal, comm_cadence,
-              sensory_environment, sensory_lighting, social_duration, context_card
+              sensory_environment, sensory_lighting, social_duration, context_card,
+              occupation, languages, helps_me, hard_for_me
        FROM profiles WHERE user_id = ?`
     ).get(otherId);
     return {
@@ -312,6 +318,10 @@ router.get('/matches', requireAuth, (req, res) => {
         sensoryLighting: p?.sensory_lighting || '',
         socialDuration: p?.social_duration || '',
         contextCard: p?.context_card || '',
+        occupation: p?.occupation || '',
+        languages: p?.languages || '',
+        helpsMe: parseFacetList(p?.helps_me),
+        hardForMe: parseFacetList(p?.hard_for_me),
         prompts: listPrompts(db, otherId),
       },
     };

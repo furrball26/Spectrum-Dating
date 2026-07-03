@@ -391,6 +391,9 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           sensoryLighting: c.sensoryLighting || '',
           socialDuration: c.socialDuration || '',
           contextCard: c.contextCard || '',
+          // F28 — lightweight scannable facts on the Discover card.
+          occupation: c.occupation || '',
+          languages: c.languages || '',
           photoDescription: c.photoDescription || '',
           prompts: Array.isArray(c.prompts) ? c.prompts : [],
         })));
@@ -968,6 +971,20 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 500, letterSpacing: "0.02em" }}>
                     {person.distanceLabel}
                   </span>
+                  {/* F28 — calm scannable facets (occupation · languages). Each
+                      renders only when present; empty facets show nothing. */}
+                  {(person.occupation || person.languages) && (
+                    <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+                      {person.occupation && (
+                        <span style={{ fontSize: 14, color: t.textSoft }}>{person.occupation}</span>
+                      )}
+                      {person.languages && (
+                        <span style={{ fontSize: 14, color: t.textMuted }}>
+                          Speaks {person.languages}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

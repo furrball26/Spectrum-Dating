@@ -77,7 +77,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
            p.identity_verified, p.paused,
            p.comm_directness, p.comm_literal, p.comm_cadence,
            p.sensory_environment, p.sensory_lighting, p.social_duration,
-           p.context_card,
+           p.context_card, p.occupation, p.languages,
            (SELECT pp.description FROM profile_photos pp
             WHERE pp.user_id = p.user_id AND pp.review_status = 'approved'
             ORDER BY pp.is_primary DESC, pp.position ASC, pp.created_at ASC

@@ -145,6 +145,34 @@ export default function MatchProfileModal({ userId, onClose }) {
                 </div>
               )}
 
+              {/* F28 — structured "about me" facets. Each renders only when
+                  present; the whole block is skipped when all four are empty. */}
+              {(() => {
+                const occ = (profile.occupation || "").trim();
+                const langs = (profile.languages || "").trim();
+                const helps = (Array.isArray(profile.helpsMe) ? profile.helpsMe : []).filter((s) => s && s.trim());
+                const hard = (Array.isArray(profile.hardForMe) ? profile.hardForMe : []).filter((s) => s && s.trim());
+                if (!occ && !langs && helps.length === 0 && hard.length === 0) return null;
+                const rowLabel = { fontSize: 13, fontWeight: 600, color: t.textMuted, marginBottom: 4 };
+                const pill = { padding: "5px 13px", borderRadius: 24, fontSize: 14, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` };
+                const pillRow = (items) => (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {items.map((it, i) => (<span key={i} style={pill}>{it}</span>))}
+                  </div>
+                );
+                return (
+                  <div style={{ margin: "14px 0" }}>
+                    <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>About</h2>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {occ && (<div><div style={rowLabel}>Occupation</div><div style={{ fontSize: 15, color: t.text }}>{occ}</div></div>)}
+                      {langs && (<div><div style={rowLabel}>Languages</div><div style={{ fontSize: 15, color: t.text }}>{langs}</div></div>)}
+                      {helps.length > 0 && (<div><div style={rowLabel}>Things that help me</div>{pillRow(helps)}</div>)}
+                      {hard.length > 0 && (<div><div style={rowLabel}>Things that are hard for me</div>{pillRow(hard)}</div>)}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {profile.contextCard && profile.contextCard.trim() && (
                 <div style={{ margin: "14px 0", padding: "12px 16px", background: t.green50, borderRadius: 12 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>

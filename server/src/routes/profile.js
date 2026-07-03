@@ -31,6 +31,51 @@ export function listPrompts(db, userId) {
   return out;
 }
 
+// F28 — structured "about me" facets. The two list facets are persisted as a
+// JSON array string; '' means "unset". parseFacetList('') → []; an empty list
+// serialises back to '' so "unset" and "empty list" are indistinguishable.
+const MAX_OCCUPATION = 80;
+const MAX_LANGUAGES = 120;
+const MAX_FACET_ITEMS = 5;
+const MAX_FACET_ITEM_LEN = 60;
+
+// Parse a stored facet-list column ('' or JSON array text) back into a string[].
+// Tolerant of malformed/legacy values — never throws, always returns an array.
+export function parseFacetList(str) {
+  if (!str || typeof str !== 'string') return [];
+  try {
+    const arr = JSON.parse(str);
+    return Array.isArray(arr) ? arr.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+// Serialise a client-supplied facet list for storage: trim, drop empties, cap to
+// MAX_FACET_ITEMS. An empty result stores as '' (not '[]') so unset === empty.
+function serializeFacetList(arr) {
+  const cleaned = arr
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean)
+    .slice(0, MAX_FACET_ITEMS);
+  return cleaned.length ? JSON.stringify(cleaned) : '';
+}
+
+// Validate a client-supplied facet list, pushing calm 400 copy on any violation.
+function validateFacetList(val, label, errors) {
+  if (!Array.isArray(val)) { errors.push(`${label} must be a list.`); return; }
+  if (val.length > MAX_FACET_ITEMS) {
+    errors.push(`${label} can have at most ${MAX_FACET_ITEMS} items.`);
+  }
+  for (const item of val) {
+    if (typeof item !== 'string') { errors.push(`Each ${label} item must be text.`); break; }
+    if (item.length > MAX_FACET_ITEM_LEN) {
+      errors.push(`Each ${label} item must be ${MAX_FACET_ITEM_LEN} characters or fewer.`);
+      break;
+    }
+  }
+}
+
 const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
 const VALID_RADII = [0, 25, 50, 100, 250]; // miles; 0 = anywhere (no radius filter)
 const VALID_GENDERS = ['', 'woman', 'man', 'nonbinary', 'other'];
@@ -126,6 +171,11 @@ router.get('/me', requireAuth, (req, res) => {
     sensoryLighting: profile.sensory_lighting || '',
     socialDuration: profile.social_duration || '',
     contextCard: profile.context_card || '',
+    // F28 — structured "about me" facets (all optional).
+    occupation: profile.occupation || '',
+    languages: profile.languages || '',
+    helpsMe: parseFacetList(profile.helps_me),
+    hardForMe: parseFacetList(profile.hard_for_me),
     interests,
     prompts: listPrompts(db, userId),
     onboardingComplete,
@@ -293,6 +343,17 @@ router.put('/me', requireAuth, (req, res) => {
     if (typeof body.contextCard !== 'string') errors.push('contextCard must be a string.');
     else if (body.contextCard.length > 300) errors.push('contextCard must be 300 characters or fewer.');
   }
+  // F28 facets
+  if (body.occupation !== undefined) {
+    if (typeof body.occupation !== 'string') errors.push('occupation must be a string.');
+    else if (body.occupation.length > MAX_OCCUPATION) errors.push(`occupation must be ${MAX_OCCUPATION} characters or fewer.`);
+  }
+  if (body.languages !== undefined) {
+    if (typeof body.languages !== 'string') errors.push('languages must be a string.');
+    else if (body.languages.length > MAX_LANGUAGES) errors.push(`languages must be ${MAX_LANGUAGES} characters or fewer.`);
+  }
+  if (body.helpsMe !== undefined) validateFacetList(body.helpsMe, 'helpsMe', errors);
+  if (body.hardForMe !== undefined) validateFacetList(body.hardForMe, 'hardForMe', errors);
   if (body.interests !== undefined) {
     if (!Array.isArray(body.interests)) {
       errors.push('interests must be an array.');
@@ -350,6 +411,10 @@ router.put('/me', requireAuth, (req, res) => {
     sensoryLighting: 'sensory_lighting',
     socialDuration: 'social_duration',
     contextCard: 'context_card',
+    // F28 short free-text facets (the two list facets are handled separately
+    // below because they need JSON serialisation).
+    occupation: 'occupation',
+    languages: 'languages',
   };
 
   // Boolean flags stored as 0/1, coerced from any truthy/falsy value.
@@ -378,6 +443,17 @@ router.put('/me', requireAuth, (req, res) => {
       setClauses.push(`${dbCol} = ?`);
       values.push(body[jsKey] ? 1 : 0);
     }
+  }
+
+  // F28 list facets — serialise array → JSON string ('' when empty). Kept in
+  // lock-step with setClauses/values ordering (both arrays grow together).
+  if (body.helpsMe !== undefined) {
+    setClauses.push('helps_me = ?');
+    values.push(serializeFacetList(body.helpsMe));
+  }
+  if (body.hardForMe !== undefined) {
+    setClauses.push('hard_for_me = ?');
+    values.push(serializeFacetList(body.hardForMe));
   }
 
   const now = Date.now();
@@ -437,6 +513,10 @@ router.put('/me', requireAuth, (req, res) => {
     sensoryLighting: profile.sensory_lighting || '',
     socialDuration: profile.social_duration || '',
     contextCard: profile.context_card || '',
+    occupation: profile.occupation || '',
+    languages: profile.languages || '',
+    helpsMe: parseFacetList(profile.helps_me),
+    hardForMe: parseFacetList(profile.hard_for_me),
     interests: interestRows.map(r => r.interest),
   });
 });
@@ -537,6 +617,11 @@ router.get('/:userId', requireAuth, (req, res) => {
     sensoryLighting: profile.sensory_lighting || '',
     socialDuration: profile.social_duration || '',
     contextCard: profile.context_card || '', // post-match disclosure — they're matched
+    // F28 facets — low-stakes, fine to expose on a matched profile.
+    occupation: profile.occupation || '',
+    languages: profile.languages || '',
+    helpsMe: parseFacetList(profile.helps_me),
+    hardForMe: parseFacetList(profile.hard_for_me),
     prompts: listPrompts(db, targetId),
   });
 });

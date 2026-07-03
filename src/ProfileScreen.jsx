@@ -51,6 +51,7 @@ const SECTIONS_STORAGE_KEY = "spectrum_profile_sections";
 // absent from this list — it is always open and rendered as a plain <h2>.
 const COLLAPSIBLE_SECTIONS = [
   "prompts",
+  "about",
   "interests",
   "search",
   "lifestyle",
@@ -204,6 +205,11 @@ const DEFAULT_PROFILE = {
   sensoryLighting: "",    // "" | "dim" | "bright" | "either"
   socialDuration: "",     // "" | "short" | "medium" | "long"
   contextCard: "",        // free text (≤300)
+  // F28 — structured "about me" facets (all optional)
+  occupation: "",         // short free text (≤80)
+  languages: "",          // short free text (≤120)
+  helpsMe: [],            // string[] (≤5 items, each ≤60)
+  hardForMe: [],          // string[] (≤5 items, each ≤60)
 };
 
 const SUGGESTED_INTERESTS = [
@@ -1182,6 +1188,101 @@ function RemovePromptButton({ onRemove, promptText }) {
   );
 }
 
+// ─── F28: "About me" facets ────────────────────────────────────────────────────
+// Two short free-text facets (occupation, languages) live inline in the section.
+// The two list facets ("Things that help me" / "…are hard for me") use the
+// repeatable editor below. All optional and clearly skippable.
+const FACET_ITEM_MAX = 60;   // per-item char cap (matches server MAX_FACET_ITEM_LEN)
+const FACET_MAX_ITEMS = 5;   // max rows (matches server MAX_FACET_ITEMS)
+
+// One editable list row: text input (≤60) + Remove. useFocusable lives at the
+// component top level (never inside a parent .map) so hook order stays stable —
+// React #310 house rule.
+function FacetRow({ id, value, index, label, onChange, onRemove }) {
+  const fRemove = useFocusable();
+  const inputId = `${id}-item-${index}`;
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+      <label htmlFor={inputId} style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}>
+        {label} — item {index + 1}
+      </label>
+      <input
+        id={inputId}
+        type="text"
+        maxLength={FACET_ITEM_MAX}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+        onBlur={(e) => { e.target.style.outline = "none"; }}
+        style={{ ...inputStyle(false), flex: 1, minWidth: 0 }}
+        placeholder="Add one thing"
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${label} item ${index + 1}`}
+        {...fRemove}
+        style={{
+          flexShrink: 0, minHeight: 44, minWidth: 44, padding: "8px 12px",
+          borderRadius: 8, border: `1px solid ${t.formBorder}`, background: t.surface,
+          color: t.textSoft, fontSize: 14, fontWeight: 600, cursor: "pointer", ...fRemove.style,
+        }}
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
+
+// Repeatable short-list editor. `items` is a string[]; `onChange` receives the
+// full next array. Caps at FACET_MAX_ITEMS. Empty rows are allowed while editing
+// (they're trimmed/dropped by the save payload builder + the backend).
+function FacetListEditor({ id, label, helper, items, onChange, addLabel }) {
+  const fAdd = useFocusable();
+  const atCap = items.length >= FACET_MAX_ITEMS;
+  const setItem = (i, val) => onChange(items.map((it, idx) => (idx === i ? val : it)));
+  const removeItem = (i) => onChange(items.filter((_, idx) => idx !== i));
+  const addItem = () => { if (!atCap) onChange([...items, ""]); };
+
+  return (
+    <div style={{ marginBottom: 20 }} role="group" aria-label={label}>
+      <div style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4 }}>{label}</div>
+      <HelperText id={`${id}-hint`}>{helper}</HelperText>
+      <div style={{ marginTop: 8 }}>
+        {items.map((it, i) => (
+          <FacetRow
+            key={i}
+            id={id}
+            index={i}
+            value={it}
+            label={label}
+            onChange={(val) => setItem(i, val)}
+            onRemove={() => removeItem(i)}
+          />
+        ))}
+      </div>
+      {atCap ? (
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: t.textMuted }}>
+          That's the most you can add ({FACET_MAX_ITEMS}).
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={addItem}
+          {...fAdd}
+          style={{
+            minHeight: 44, padding: "8px 14px", borderRadius: 10,
+            border: `1px solid ${t.formBorder}`, background: t.surface,
+            color: t.accentStrong, fontSize: 15, fontWeight: 600, cursor: "pointer", ...fAdd.style,
+          }}
+        >
+          {addLabel || "Add another"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Chooser shown when adding a prompt: a select of catalog prompts not already
 // chosen, then a textarea for the answer.
 function PromptChooser({ available, onAdd, onCancel }) {
@@ -1590,6 +1691,64 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
   );
 }
 
+// ─── F28: read-only "About me" facets card ───────────────────────────────────
+// occupation + languages render as calm labelled rows; the two lists render as
+// small pill rows. Empty facets render nothing; the whole card is hidden when
+// all four are empty (no empty labels — calm-by-design).
+function FacetPreviewCard({ occupation, languages, helpsMe, hardForMe, cardStyle }) {
+  const occ = (occupation || "").trim();
+  const langs = (languages || "").trim();
+  const helps = (helpsMe || []).filter((s) => s && s.trim());
+  const hard = (hardForMe || []).filter((s) => s && s.trim());
+  if (!occ && !langs && helps.length === 0 && hard.length === 0) return null;
+
+  const rowLabel = {
+    fontSize: 13, fontWeight: 600, color: t.textMuted,
+    textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4, lineHeight: 1.4,
+  };
+  const pill = {
+    padding: "5px 13px", borderRadius: 24, fontSize: 14,
+    background: t.surface, color: t.textSoft, border: `1px solid ${t.border}`,
+  };
+  const pillRow = (items) => (
+    <ul style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}>
+      {items.map((it, i) => (<li key={i} style={pill}>{it}</li>))}
+    </ul>
+  );
+
+  return (
+    <div style={cardStyle}>
+      <h4 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>About me</h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {occ && (
+          <div>
+            <div style={rowLabel}>Occupation</div>
+            <p style={{ margin: 0, color: t.text, fontSize: 15, lineHeight: 1.5 }}>{occ}</p>
+          </div>
+        )}
+        {langs && (
+          <div>
+            <div style={rowLabel}>Languages</div>
+            <p style={{ margin: 0, color: t.text, fontSize: 15, lineHeight: 1.5 }}>{langs}</p>
+          </div>
+        )}
+        {helps.length > 0 && (
+          <div>
+            <div style={rowLabel}>Things that help me</div>
+            {pillRow(helps)}
+          </div>
+        )}
+        {hard.length > 0 && (
+          <div>
+            <div style={rowLabel}>Things that are hard for me</div>
+            {pillRow(hard)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Profile preview modal (backlog #8) ──────────────────────────────────────
 // Read-only card view of how the user's profile appears to candidates on
 // Discover. Mirrors the SuggestionScreen card layout without importing it.
@@ -1597,7 +1756,8 @@ function ProfilePreviewModal({
   displayName, tagline, bio, pronouns, commNote, interests,
   commDirectness, commLiteral, commCadence,
   sensoryEnvironment, sensoryLighting, socialDuration,
-  contextCard, photos, prompts, promptTextFor, verified, onClose,
+  contextCard, occupation, languages, helpsMe, hardForMe,
+  photos, prompts, promptTextFor, verified, onClose,
 }) {
   const headingRef = useRef(null);
   const panelRef = useRef(null);
@@ -1856,6 +2016,16 @@ function ProfilePreviewModal({
             )}
           </div>
 
+          {/* About me — F28 facets (calm scannable rows; empty facets render
+              nothing, and the whole card is hidden when all four are empty). */}
+          <FacetPreviewCard
+            occupation={occupation}
+            languages={languages}
+            helpsMe={helpsMe}
+            hardForMe={hardForMe}
+            cardStyle={{ ...card, background: t.surfaceAlt, boxShadow: "none", border: `1px solid ${t.borderLight}` }}
+          />
+
           {/* Interests card */}
           <div style={{
             ...card,
@@ -2081,6 +2251,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [contextCard, setContextCard]             = useState(DEFAULT_PROFILE.contextCard);
   const [contextCardTouched, setContextCardTouched] = useState(false);
 
+  // F28 — "about me" facets (all optional). Declared with the other hooks,
+  // BEFORE the loading/error early returns (React #310 — no hook-after-return).
+  const [occupation, setOccupation]   = useState(DEFAULT_PROFILE.occupation);
+  const [languages, setLanguages]     = useState(DEFAULT_PROFILE.languages);
+  const [helpsMe, setHelpsMe]         = useState(DEFAULT_PROFILE.helpsMe);
+  const [hardForMe, setHardForMe]     = useState(DEFAULT_PROFILE.hardForMe);
+
   // Hinge-style prompts (max 3). `prompts` is [{ promptKey, answer }];
   // `promptCatalog` is [{ key, text }]. Both declared with the other hooks,
   // BEFORE the loading/error early returns (no hook-after-return).
@@ -2187,6 +2364,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           sensoryLighting: data.sensoryLighting || '',
           socialDuration: data.socialDuration || '',
           contextCard: data.contextCard || '',
+          occupation: data.occupation || '',
+          languages: data.languages || '',
+          helpsMe: Array.isArray(data.helpsMe) ? data.helpsMe : [],
+          hardForMe: Array.isArray(data.hardForMe) ? data.hardForMe : [],
         };
         setDisplayName(merged.displayName);
         setTagline(merged.tagline);
@@ -2217,6 +2398,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setSensoryLighting(merged.sensoryLighting);
         setSocialDuration(merged.socialDuration);
         setContextCard(merged.contextCard);
+        setOccupation(merged.occupation);
+        setLanguages(merged.languages);
+        setHelpsMe(merged.helpsMe);
+        setHardForMe(merged.hardForMe);
         setSavedProfile(merged);
         setHasEverSaved(!!merged.displayName);
         setVerified(!!data.verified);
@@ -2251,7 +2436,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         wantsChildren || smoking || drinking ||
         dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused ||
         commDirectness || commLiteral || commCadence ||
-        sensoryEnvironment || sensoryLighting || socialDuration || contextCard;
+        sensoryEnvironment || sensoryLighting || socialDuration || contextCard ||
+        occupation || languages || helpsMe.length > 0 || hardForMe.length > 0;
       setIsDirty(hasContent);
     } else {
       const dirty =
@@ -2282,11 +2468,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         sensoryLighting  !== savedProfile.sensoryLighting ||
         socialDuration   !== savedProfile.socialDuration ||
         contextCard      !== savedProfile.contextCard ||
+        occupation       !== savedProfile.occupation ||
+        languages        !== savedProfile.languages ||
+        // List facets: order is meaningful, so compare as-is (no sort).
+        JSON.stringify(helpsMe) !== JSON.stringify(savedProfile.helpsMe || []) ||
+        JSON.stringify(hardForMe) !== JSON.stringify(savedProfile.hardForMe || []) ||
         JSON.stringify([...interests].sort()) !==
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
 
   // ── Initialise collapsible-section open state once the profile has loaded.
   // Persisted manual choices win; otherwise apply the state-aware defaults from
@@ -2636,6 +2827,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     }
 
     setSaveErrorSummary("");
+    // F28 — trim + drop empty facet rows before saving (matches server cleanup);
+    // reflect the cleaned lists back into the editor so blank rows collapse.
+    const cleanFacet = (arr) => arr.map((s) => s.trim()).filter(Boolean).slice(0, FACET_MAX_ITEMS);
+    const cleanHelpsMe = cleanFacet(helpsMe);
+    const cleanHardForMe = cleanFacet(hardForMe);
     const currentProfile = {
       displayName: displayName.trim(),
       tagline,
@@ -2665,6 +2861,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       sensoryLighting,
       socialDuration,
       contextCard,
+      occupation,
+      languages,
+      helpsMe: cleanHelpsMe,
+      hardForMe: cleanHardForMe,
     };
 
     try {
@@ -2697,6 +2897,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         sensoryLighting: currentProfile.sensoryLighting,
         socialDuration: currentProfile.socialDuration,
         contextCard: currentProfile.contextCard,
+        occupation: currentProfile.occupation,
+        languages: currentProfile.languages,
+        helpsMe: currentProfile.helpsMe,
+        hardForMe: currentProfile.hardForMe,
       });
       // Save prompts alongside the main profile (best-effort). Only send valid,
       // non-empty entries. Errors surface but don't block the profile save.
@@ -2711,6 +2915,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       }
       cacheProfile(currentProfile);  // keep localStorage in sync for SuggestionScreen
       setSavedProfile(currentProfile);
+      // Collapse any blank/trimmed facet rows to match what was actually saved.
+      setHelpsMe(cleanHelpsMe);
+      setHardForMe(cleanHardForMe);
       setHasEverSaved(true);
       setIsDirty(false);
       setSaveStatus("Saved.");
@@ -2840,6 +3047,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     ? `${interests.length} added`
     : NOT_SET;
 
+  // About me (F28 facets)
+  const helpsMeFilled = helpsMe.filter((s) => s.trim()).length;
+  const hardForMeFilled = hardForMe.filter((s) => s.trim()).length;
+  const aboutHasContent = !!(occupation.trim() || languages.trim() || helpsMeFilled || hardForMeFilled);
+  const aboutParts = [
+    occupation.trim(),
+    languages.trim(),
+    helpsMeFilled ? `${helpsMeFilled} thing${helpsMeFilled > 1 ? "s" : ""} that help` : "",
+    hardForMeFilled ? `${hardForMeFilled} that's hard` : "",
+  ];
+  const aboutSummary = aboutHasContent ? joinParts(aboutParts) : NOT_SET;
+
   // Prompts
   const answeredPrompts = prompts.filter((p) => p.promptKey && p.answer.trim());
   const promptsHasContent = answeredPrompts.length > 0;
@@ -2928,6 +3147,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           sensoryLighting={sensoryLighting}
           socialDuration={socialDuration}
           contextCard={contextCard}
+          occupation={occupation}
+          languages={languages}
+          helpsMe={helpsMe}
+          hardForMe={hardForMe}
           photos={photos}
           prompts={prompts}
           promptTextFor={promptTextFor}
@@ -3305,6 +3528,84 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 />
               )
             )}
+          </CollapsibleSection>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — About me (F28: structured facets)
+          ══════════════════════════════════════════════════════ */}
+          <CollapsibleSection
+            id="about"
+            title="About me"
+            summary={aboutSummary}
+            hasContent={aboutHasContent}
+            open={!!sectionOpen.about}
+            onToggle={() => toggleSection("about")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
+              A few optional details that give people predictable context. Share as much or as little as you like.
+            </p>
+
+            {/* Occupation / study */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="occupation">Occupation or study</FieldLabel>
+              <input
+                id="occupation"
+                type="text"
+                maxLength={80}
+                aria-describedby="occupation-hint"
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. Librarian · Studying biology"
+              />
+              <HelperText id="occupation-hint">
+                80 characters maximum. Optional.
+              </HelperText>
+            </div>
+
+            {/* Languages */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="languages">Languages</FieldLabel>
+              <input
+                id="languages"
+                type="text"
+                maxLength={120}
+                aria-describedby="languages-hint"
+                value={languages}
+                onChange={(e) => setLanguages(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. English, ASL"
+              />
+              <HelperText id="languages-hint">
+                120 characters maximum. Optional.
+              </HelperText>
+            </div>
+
+            {/* Things that help me / are hard for me */}
+            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <FacetListEditor
+                id="helps-me"
+                label="Things that help me"
+                helper="Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."
+                items={helpsMe}
+                onChange={setHelpsMe}
+                addLabel={helpsMe.length === 0 ? "Add something that helps" : "Add another"}
+              />
+              <FacetListEditor
+                id="hard-for-me"
+                label="Things that are hard for me"
+                helper="Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."
+                items={hardForMe}
+                onChange={setHardForMe}
+                addLabel={hardForMe.length === 0 ? "Add something that's hard" : "Add another"}
+              />
+            </div>
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
