@@ -164,6 +164,10 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
   const f = useFocusable();
   return (
     <div
+      // UX-TAP — the whole row is the tap target (label + description), not just
+      // the tiny switch. The switch button stops propagation so a tap on it
+      // toggles once, not twice. Keyboard/focus stays on the role="switch" button.
+      onClick={() => onChange(!checked)}
       style={{
         display: "flex",
         alignItems: "center",
@@ -171,6 +175,7 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
         gap: 16,
         padding: "16px 0",
         borderTop: first ? "none" : `1px solid ${t.borderLight}`,
+        cursor: "pointer",
       }}
     >
       <div style={{ minWidth: 0 }}>
@@ -186,7 +191,7 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
         role="switch"
         aria-checked={checked}
         aria-labelledby={`${id}-label`}
-        onClick={() => onChange(!checked)}
+        onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
         {...f}
         style={{
           position: "relative",

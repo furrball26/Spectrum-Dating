@@ -1076,7 +1076,13 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
 function PauseToggle({ checked, onChange }) {
   const f = useFocusable();
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+    <div
+      // UX-TAP — tap anywhere on the row (label included) toggles; the switch
+      // button stops propagation so a tap on it doesn't double-fire. Keyboard
+      // focus stays on the role="switch" button.
+      onClick={() => onChange(!checked)}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}
+    >
       <p id="pause-profile-label" style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
         Pause my profile
       </p>
@@ -1085,7 +1091,7 @@ function PauseToggle({ checked, onChange }) {
         role="switch"
         aria-checked={checked}
         aria-labelledby="pause-profile-label"
-        onClick={() => onChange(!checked)}
+        onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
         {...f}
         style={{
           position: "relative",

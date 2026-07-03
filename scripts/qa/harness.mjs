@@ -88,9 +88,12 @@ export async function seedConversation(pair, texts = []) {
 
 // ── Browser (local preview + API forwarding) ─────────────────────────────────
 // Returns { browser, ctx, page, errors } — errors collects console pageerrors.
-export async function launch({ viewport = { width: 390, height: 844 } } = {}) {
+export async function launch({ viewport = { width: 390, height: 844 }, hasTouch = false } = {}) {
   const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
-  const ctx = await browser.newContext({ viewport });
+  // hasTouch makes `(pointer: coarse)` / `(hover: none)` match and enables the
+  // touchscreen API — needed to test touch-only UX (long-press, coarse-pointer
+  // reveals). Default off so existing desktop-pointer drivers are unaffected.
+  const ctx = await browser.newContext({ viewport, hasTouch });
   const apiHost = new URL(API).host;
   await ctx.route("**/*", async (route) => {
     const req = route.request();

@@ -24,6 +24,21 @@ function usePrefersReduced() {
   return prefersReduced;
 }
 
+// CHAT-3 — coarse pointer (touch) detection. On touch there is no hover, so the
+// reaction ＋ can't rely on hover to become visible; we resting-show it instead.
+function useCoarsePointer() {
+  const [coarse, setCoarse] = useState(
+    () => window.matchMedia("(pointer: coarse)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const handler = (e) => setCoarse(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return coarse;
+}
+
 
 // Shared frozen empty-reactions object. Passed to every bubble that has no
 // reactions so React.memo(MessageBubble) sees a STABLE reference (an inline `{}`
@@ -613,6 +628,7 @@ const MessageBubble = memo(function MessageBubble({
   otherPhotoUrl,
 }) {
   const prefersReduced = usePrefersReduced();
+  const coarsePointer = useCoarsePointer();
   const isOwn = message.senderId === currentUserId;
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -627,6 +643,55 @@ const MessageBubble = memo(function MessageBubble({
   ).length;
   const reactionCapReached = reactionCount >= MAX_REACTION_TYPES;
   const showReactBtn = !message.deleted && !reactionCapReached;
+
+  // CHAT-2 — hold-to-react (long-press) on the bubble. A touchstart arms a
+  // ~450ms timer; a touchmove past a small threshold (i.e. a scroll) or an early
+  // touchend cancels it, so scrolling the thread never fires. On fire we open the
+  // same ReactionPicker (reusing `pickerOpen`) and suppress the next contextmenu
+  // (native long-press menu / text selection). Touch-only; the ＋ button and
+  // keyboard path are untouched. All refs live above the early return (React #310).
+  const longPressTimer = useRef(null);
+  const touchStart = useRef(null);
+  const longPressFired = useRef(false);
+  const LONG_PRESS_MS = 450;
+  const LONG_PRESS_MOVE_TOL = 10;
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    touchStart.current = null;
+  }, []);
+  const handleBubbleTouchStart = useCallback((e) => {
+    if (!showReactBtn) return;
+    if (!e.touches || e.touches.length !== 1) return;
+    longPressFired.current = false;
+    const tch = e.touches[0];
+    touchStart.current = { x: tch.clientX, y: tch.clientY };
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      longPressTimer.current = null;
+      if (typeof navigator !== "undefined" && navigator.vibrate && !prefersReduced) {
+        try { navigator.vibrate(8); } catch { /* haptics optional */ }
+      }
+      setPickerOpen(true);
+    }, LONG_PRESS_MS);
+  }, [showReactBtn, prefersReduced]);
+  const handleBubbleTouchMove = useCallback((e) => {
+    if (!touchStart.current || !e.touches || !e.touches[0]) return;
+    const tch = e.touches[0];
+    const dx = Math.abs(tch.clientX - touchStart.current.x);
+    const dy = Math.abs(tch.clientY - touchStart.current.y);
+    if (dx > LONG_PRESS_MOVE_TOL || dy > LONG_PRESS_MOVE_TOL) clearLongPress();
+  }, [clearLongPress]);
+  const handleBubbleContextMenu = useCallback((e) => {
+    // Suppress the native long-press menu only when our long-press just fired.
+    if (longPressFired.current) e.preventDefault();
+  }, []);
+  useEffect(() => () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }, []);
 
   // Own → right, other → left. The other side reserves an avatar gutter so
   // subsequent bubbles in a run line up under the first bubble (which shows the
@@ -647,12 +712,13 @@ const MessageBubble = memo(function MessageBubble({
           flexDirection: "column",
           alignItems: isOwn ? "flex-end" : "flex-start",
           marginBottom: 8,
+          minWidth: 0,
         }}
       >
         {!isOwn && showSender && (
           <div style={{ ...senderLabelStyle, marginLeft: OTHER_GUTTER }}>{senderName}</div>
         )}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, maxWidth: "min(88%, 34rem)" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, maxWidth: "min(88%, 34rem)", minWidth: 0 }}>
           {!isOwn && (
             <div style={{ width: OTHER_AVATAR_SIZE, flexShrink: 0 }}>
               {showAvatar && (
@@ -692,6 +758,9 @@ const MessageBubble = memo(function MessageBubble({
         // (showSender) opens a turn break (12px). The parent sets showSender.
         marginBottom: 3,
         marginTop: showSender ? 9 : 0,
+        // House rule — flex rows that can shrink need minWidth:0 so long unbroken
+        // content wraps instead of pushing the row wider than the log (CHAT-1).
+        minWidth: 0,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -710,7 +779,14 @@ const MessageBubble = memo(function MessageBubble({
           // bubble sizes this box; hover controls float ABSOLUTELY on the outer
           // edge so they never widen the row (which previously stopped own
           // bubbles from hugging the right at narrow widths).
-          maxWidth: "min(88%, 34rem)",
+          // CHAT-1: those floated controls sit at the bubble's OUTER edge, so on a
+          // narrow screen a max-width bubble pushed them ~44px past the viewport →
+          // horizontal overflow (scrollWidth > clientWidth). Reserve their footprint
+          // in the cap so nothing overflows: own can show ⋯+＋ (~96px), other just
+          // ＋ beyond the avatar gutter. On wide panes the 34rem cap still wins.
+          maxWidth: isOwn
+            ? "min(88%, 34rem, calc(100% - 96px))"
+            : `min(88%, 34rem, calc(100% - ${OTHER_GUTTER + 52}px))`,
           width: "fit-content",
           // Reserve the avatar gutter on the other side so run bubbles align.
           marginLeft: isOwn ? 0 : OTHER_GUTTER,
@@ -790,8 +866,9 @@ const MessageBubble = memo(function MessageBubble({
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: t.textMuted,
-                  fontSize: 16,
+                  // CHAT-3 — stronger contrast than textMuted so it reads clearly.
+                  color: t.textSoft,
+                  fontSize: 20,
                   cursor: "pointer",
                   padding: "4px 6px",
                   borderRadius: 6,
@@ -800,7 +877,15 @@ const MessageBubble = memo(function MessageBubble({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  opacity: hovered || pickerOpen || fReact.style.outline !== "none" ? 1 : 0,
+                  // CHAT-3 — touch has no hover, so gate on coarse pointer: rest at a
+                  // low-but-visible 0.7 (the discoverable fallback for hold-to-react),
+                  // full on press/focus. Fine pointers keep the hover-reveal behavior.
+                  opacity:
+                    hovered || pickerOpen || fReact.style.outline !== "none"
+                      ? 1
+                      : coarsePointer
+                        ? 0.7
+                        : 0,
                   transition: prefersReduced ? "none" : "opacity 120ms",
                   flexShrink: 0,
                   ...fReact.style,
@@ -830,6 +915,11 @@ const MessageBubble = memo(function MessageBubble({
         </div>
 
         <div
+          onTouchStart={handleBubbleTouchStart}
+          onTouchMove={handleBubbleTouchMove}
+          onTouchEnd={clearLongPress}
+          onTouchCancel={clearLongPress}
+          onContextMenu={handleBubbleContextMenu}
           style={{
             // own = green-tinted bubble (tail lower-right), other = surface bubble
             // (tail lower-left). Other bubble needs a visible border (≥3:1 vs the
@@ -2644,6 +2734,10 @@ export default function ConversationScreen({
             style={{
               flex: 1,
               overflowY: "auto",
+              // CHAT-1 — thread scrolls vertically ONLY. Clip any stray horizontal
+              // overflow (e.g. absolutely-anchored hover controls at the bubble's
+              // outer edge) so a touch drag can't drift the whole thread sideways.
+              overflowX: "hidden",
               padding: "16px 0 8px",
               minHeight: 0,
               ...logFocus.style,
