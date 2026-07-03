@@ -100,33 +100,21 @@ Computed white-text contrast **dim 2.10→6.27, navy 1.89→7.82** (accent);
 
 ---
 
-## Open — DESKTOP / TABLET (from the desktop responsive review; the mobile panel missed these)
-Reviewed 768/1024/1280/1440 in dim+light + navy/pride/trans. All 14 shipped fixes
-verified HOLDING at desktop. New defects:
-- [ ] **DT-1 (HIGH) — Liked-you card names truncate in the 340px desktop messages
-  rail** — even 6-char names ("Cal QA"→"Cal …"). `LikedYouSection.jsx:56-77`: the
-  fixed-width "I'm interested" button on row 1 starves the `minWidth:0` name column.
-  Same component in the full-width Likes tab renders fine — it's the 340px rail
-  (`MessagingApp.jsx:732`). Fix: in narrow containers move "I'm interested" to the
-  actions row (row 2) or render a compact rail variant.
-- [ ] **DT-2 (HIGH, safety) — Conversation-row ⋯ menu is downward-only; clips Block
-  or report / Unmatch below the fold on the desktop rail.**
-  `MatchesListScreen.jsx:279` positions the menu `top:calc(100%+4px)` with no upward
-  flip; bottom rows in the short viewport-height rail push the safety items past the
-  viewport (rail `overflowY:auto` clips). The thread-HEADER ⋯ menu (top-anchored) is
-  fine. NOTE: distinct from FE-3 (that removed the `<ul>` `overflow:hidden`); this is
-  the positioning gap. Fix: flip the menu upward when the trigger sits low in its
-  scroll container (mirror the header menu).
-- [ ] **DT-3 (MED) — Nested-background white band under short content (Likes tab).**
-  `LikesScreen.jsx:82-91` paints its own `t.bgGradient` at `minHeight:100%` inside
-  the desktop surface panel (`App.jsx:1394`); short content leaves the panel's
-  `t.surface` showing beneath as a stark white band (worst in light) on tablet +
-  desktop. Fix: make the screen bg transparent (inherit the panel) or fill it on
-  tablet/desktop. Audit SuggestionScreen for the same pattern.
-- [ ] **DT-4 (LOW-MED, polish) — Ragged theme-grid card heights** in the 4-col
-  desktop layout (cards with a description line are taller). Equal-height per row.
-- [ ] **DT-5 (LOW, polish) — Onboarding card top-anchored** with large empty space
-  below on tall desktop/tablet viewports; vertically center it.
+## ✅ DESKTOP / TABLET — FIXED, SHIPPED TO PROD (master `331fb13`, bundle `index-CpK0F2xu.js` live-verified)
+From the desktop responsive review (coverage gap the mobile panel missed).
+Driver `desktop_tablet_capture.mjs` exit 0 (asserts DT-1/2/3 at 1024/1280/1440
+dim+light); all 9 regression drivers green (deep_messaging 30/30, a11y-fe4-7 37/37,
+messaging-safety-a11y 13/13, flows_mobile 33/33, etc.) — no 390px regressions.
+- [x] **DT-1 (HIGH) — Liked-you names truncated in the 340px rail.** `LikedYouSection`
+  got a `compact` prop (rail caller passes `compact={isDesktop}`); name owns row 1,
+  "I'm interested" drops to its own line. Likes-tab layout unchanged. Names now whole.
+- [x] **DT-2 (HIGH, safety) — Row ⋯ menu now flips UPWARD for bottom rows.**
+  `MatchesListScreen` measures `getBoundingClientRect`; at 1024×560 all 5 items
+  (incl. Block or report / Unmatch) render, 0 clipped. FE-2/FE-5/Escape preserved.
+- [x] **DT-3 (MED) — Nested-bg band gone.** `LikesScreen` + `SuggestionScreen` use
+  transparent bg on tablet/desktop (inherit panel); mobile full-bleed unchanged.
+- [x] **DT-4 — Equal-height theme cards** (grid `alignItems:stretch` + card flex).
+- [x] **DT-5 — Onboarding card vertically centered** on desktop/tablet; mobile unchanged.
 
 ## JOURNEY / product (from user-journey pass)
 - [ ] **JRN-1 (MED) — Junk profile served as newcomer's first Discover card**
