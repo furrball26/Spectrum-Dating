@@ -61,11 +61,16 @@ Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
   (80/120 chars, ≤5 items × ≤60); editor + list editors in ProfileScreen; calm rows
   on MatchProfileModal/preview; occupation+languages on the Discover card (pre-match),
   the two lists post-match/own only. Backend tests 60/60, smoke 11/11, F28 driver 10/10.
-- **PROD-6 — Viewer-side photo gallery.** Members curate ≤6 photos; every viewing
-  surface renders ONE. `candidates` returns only `photoUrl`. **Backend must expose
-  `photos[]` first**, then S–M frontend.
+- [x] **PROD-6 — Viewer-side photo gallery — SHIPPED TO PROD (master `04417d9`,
+  backend + frontend, live-verified).** `listPublicPhotos` (approved-only, primary-first,
+  cap 6) on the Discover deck + `GET /profile/:userId`; new `PhotoCarousel` — dots +
+  tap-zones on the deck (swipe OFF so it never fights like/skip; driver confirmed
+  `swipeCalls=0`), swipe carousel on the matched profile; a11y buttons ("Photo N of M",
+  aria-current, arrow keys), reduced-motion = opacity fade only (JS+CSS gated). Backend
+  tests 62/62 (pending-photo-excluded + primary-first), smoke 11/11, driver 12/12.
 - **Onboarding arrival moment** — no "you're all set" confirmation beat before landing
-  in Discover (data collection itself is complete). Tiny **frontend** polish.
+  in Discover (data collection itself is complete). Tiny **frontend** polish — the last
+  remaining feature-ish item.
 
 ### LOW — tech-debt (parked)
 - **E12** — two socket.io connections/user + per-thread-switch churn (consolidation).
