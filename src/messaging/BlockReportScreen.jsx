@@ -125,8 +125,20 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
 
   return (
     <div
+      data-testid="block-report-scroll"
       style={{
-        minHeight: "100%",
+        // Bug fix: this full-page screen mounts inside the height-locked
+        // Messages tab (body.scrollHeight === innerHeight; the conversation
+        // [role="log"] is the only page scroller). With minHeight:"100%" and no
+        // overflow, content taller than the viewport was clipped behind the
+        // bottom nav and Submit was unreachable. Become our own bounded scroll
+        // container instead — height:100% + minHeight:0 so we stay flex-item
+        // sized (not content-sized) inside the mobile flex column, and scroll
+        // internally. Body must NOT scroll (keeps the Messages-tab invariant).
+        height: "100%",
+        minHeight: 0,
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
         background: t.bgGradient,
         color: t.text,
         fontFamily: t.sans,

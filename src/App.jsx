@@ -1035,6 +1035,11 @@ export default function App() {
 
   // Unread count — driven by live conversations list via onUnreadCount callback from MessagingApp
   const [unreadCount, setUnreadCount] = useState(0);
+  // Messages "home" reset signal — incremented on every Messages nav tap so
+  // MessagingApp can drop back to its conversation list even when the Messages
+  // tab is already active (tapping the nav from a conversation/block-report
+  // sub-screen otherwise does nothing, since activeTab doesn't change).
+  const [messagesHomeSignal, setMessagesHomeSignal] = useState(0);
   // Activity count — incoming likes from the activity inbox (drives the Matches tab badge)
   const [activityCount, setActivityCount] = useState(0);
   // Stable so MatchesScreen's activity effect doesn't re-run (and re-fetch) on
@@ -1368,6 +1373,7 @@ export default function App() {
                   initialConversation={typeof pendingConversation === "object" && pendingConversation ? pendingConversation : null}
                   initialConversationId={typeof pendingConversation === "string" ? pendingConversation : null}
                   onConsumedInitial={() => setPendingConversation(null)}
+                  homeSignal={messagesHomeSignal}
                   plainLanguage={!!a11y.plainLanguage}
                 />
               )}
@@ -1489,7 +1495,7 @@ export default function App() {
                 label="Messages"
                 icon={(a, s) => <MessageBubbleIcon size={s} filled={a} />}
                 active={activeTab === "messages"}
-                onClick={() => { setPrevTab(activeTab); setPendingConversation(null); setActiveTab("messages"); setUnreadCount(0); }}
+                onClick={() => { setPrevTab(activeTab); setPendingConversation(null); setActiveTab("messages"); setUnreadCount(0); setMessagesHomeSignal((n) => n + 1); }}
                 badgeCount={activeTab === "messages" ? 0 : unreadCount}
               />
               <BottomNavTab

@@ -147,7 +147,7 @@ function NoteSheet({ row, initialNote, onSaved, onClose }) {
 // data the caller already had. `initialConversationId` remains as the id-only
 // legacy path. `onConsumedInitial` lets App clear the pending deep-link so a
 // later visit to Messages doesn't re-open the same thread (stale-pending bug).
-export default function MessagingApp({ onUnreadCount, onActivityCount, initialConversation, initialConversationId, onConsumedInitial, plainLanguage = false }) {
+export default function MessagingApp({ onUnreadCount, onActivityCount, initialConversation, initialConversationId, onConsumedInitial, homeSignal = 0, plainLanguage = false }) {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
   const isDesktop = viewport === "desktop";
   // Seed usable only when it carries enough to render a thread header.
@@ -196,6 +196,20 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
   // Warm the (lazy) ConversationScreen chunk as soon as Messages mounts, so
   // the first thread-open doesn't pay a JS download mid-gesture.
   useEffect(() => { import("./ConversationScreen.jsx"); }, []);
+
+  // Bug fix: the Messages nav tap can't return you to the list when the tab is
+  // already active (activeTab doesn't change, so nothing re-renders). App bumps
+  // `homeSignal` on every Messages tap; here we drop back to the conversation
+  // list on each bump (skipping the initial mount so a fresh Messages open isn't
+  // yanked out of a seeded/deep-linked conversation). Idempotent from the list.
+  const homeSignalMounted = useRef(false);
+  useEffect(() => {
+    if (!homeSignalMounted.current) { homeSignalMounted.current = true; return; }
+    setScreen("list");
+    setSelectedConversationId(null);
+    setShowUnmatchSheet(false);
+    setShowingArchived(false);
+  }, [homeSignal]);
 
   // Consume the deep-link once; App clears it so revisiting Messages later
   // shows the list instead of silently re-opening the last thread.
