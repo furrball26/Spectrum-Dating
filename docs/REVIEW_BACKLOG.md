@@ -132,16 +132,12 @@ harness at 390px before/after.
   modal snapshots `activeElement` as `<body>` and restores focus there on close —
   keyboard users get dumped to the top of the list. Restore focus to the ⋯
   `triggerRef` on item-activation (mirror the Escape branch at `:233`).
-- [ ] **FE-3 (SERIOUS — UPGRADED — top remaining functional bug) — Row ⋯ menu
-  is COMPLETELY INVISIBLE on the Matches list.** `MatchesListScreen.jsx:300-309`
-  `<ul>` `overflow:hidden` clips the row popover (`:257`, opens downward). QA
-  measured 390px both themes: `clippedPx=201`, **zero menu items visible**, last
-  item hit-tests covered. For the common single-match/last-row case, View profile /
-  Add private note / Archive / Block or report / Unmatch are ALL unreachable from
-  the list — and "Add private note" has NO other entry point; a pending match with
-  no conversation loses its only pre-chat block/report path. Fix: drop
-  `overflow:hidden` (round rows individually), portal the menu, or flip upward for
-  last rows. **Re-gate with `scripts/qa/deep_messaging.mjs` (the row-⋯ checks).**
+- [x] **FE-3 — Row ⋯ menu was COMPLETELY INVISIBLE on the Matches list — FIXED,
+  SHIPPED TO PROD (master `e8d6fa7`).** Removed `overflow:hidden` from the `<ul>`
+  and moved corner-rounding onto the rows (first/last props); the popover no longer
+  gets clipped. `deep_messaging.mjs` row-⋯ checks: `clippedPx 201→0`,
+  `covered:false, visible:true` in dim AND light; 28/28. All 5 items reachable.
+  Live bundle marker confirmed.
 - [ ] **FE-4 (SERIOUS a11y = old A11Y-2) — Identity-theme quick revert is
   gesture-only.** `src/App.jsx:1224,1446` bind revert only to `onDoubleClick` on a
   `div`; no keyboard/SR path and it's silent. While an identity theme is active,
