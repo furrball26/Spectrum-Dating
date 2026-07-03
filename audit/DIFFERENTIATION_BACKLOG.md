@@ -27,6 +27,14 @@ gamification/urgency/streaks/read-receipts).
 ## Wave A — Surface the moat + amplify the brand (FRONTEND-ONLY, Vercel, zero backend risk)
 Highest leverage, lowest risk — moves the "feels generic" needle immediately.
 
+> **A-1 (D-1..D-5) SHIPPED TO PROD — master `d9e948e`, live-verified.** Flipped Discover
+> card ("Why you fit" + comms/sensory chips above the bio), ✓ reserved for true mutual
+> signals, "What to expect" open on new threads + "Conversation helpers" relabel,
+> onboarding Step 5 reframed, landing compatibility-promise hero + arrival beat. Gates:
+> eslint 0, smoke 11/11, deep_messaging 30/30, flows_mobile 35/35. (Deferred post-ship:
+> contrast-fills/a11y-fe4-7/deep_onboarding — 429-cooldown-gated. Design review in flight.)
+> **A-2 (D-6..D-10 brand amplification) is the next pass.**
+
 - **D-1 (S) Flip the Discover card — moat above the fold.** Put the top "why you match"
   reasons + 2–3 comms/sensory chips ABOVE the bio, under the name; make the spectrum ramp a
   deliberate framing element (ramp spine/underline, not a 4px top strip) and color-code the
