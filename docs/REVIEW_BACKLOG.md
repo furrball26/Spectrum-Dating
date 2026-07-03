@@ -84,22 +84,19 @@ report-modal 9/9 · clean ff-merge (no force) · live bundle markers confirmed.
 
 ---
 
-## Open — DESIGN contrast (systemic; own builder pass)
-
-One root cause: hand-rolled buttons use `t.accentStrong`/`t.danger` as a SOLID FILL
-under white text, but those tokens are light tints in dark themes (`dim` default,
-`navy`) → fail AA. The `*Fill` variants exist for white-on-fill and pass; `Button.jsx`
-already documents the 2.10:1 failure. Mechanical swaps:
-- [ ] **DSGN-1 — Landing "Create your profile"** `LandingScreen.jsx:49` (hero + bottom
-  CTA) → `accentFill`/shared Button. **First screen, default theme, fails twice.**
-- [ ] **DSGN-2 — Auth "Sign in / Create account"** `AuthScreen.jsx:441` → `accentFill`.
-- [ ] **DSGN-3 — Profile "Pause my profile"** `ProfileScreen.jsx:3121` → `accentFill`.
-- [ ] **DSGN-4 — Block/Report submit** `BlockReportScreen.jsx:383` → `dangerFill`
-  (ReportModal already uses dangerFill — fix the inconsistency).
-- [ ] **DSGN-5 — Profile photo "Remove"** `ProfileScreen.jsx:684` → `dangerFill`.
-- [ ] **DSGN-6 — Profile save-error toast** `ProfileScreen.jsx:2981` → `dangerFill`.
-- [ ] **DSGN-7 (MED) — Match Moment muddy + subline fails contrast in `light`.**
-  `MatchMoment.jsx:156,250`: darker/opaque panel behind white text so AA passes.
+## ✅ DESIGN contrast (systemic) — SHIPPED TO PROD (master `070081c`, live-verified)
+White text on `accentStrong`/`danger` light-tint fills → `accentFill`/`dangerFill`.
+Computed white-text contrast **dim 2.10→6.27, navy 1.89→7.82** (accent);
+**dim 2.67→6.68, navy 2.43→6.50** (danger). Driver `scripts/qa/contrast-fills.mjs`
+20/20 · smoke 11/11 · all drivers green · markers grep-confirmed in live bundles.
+- [x] **DSGN-1** Landing "Create your profile" (hero + bottom CTA) → accentFill.
+- [x] **DSGN-2** Auth submit → accentFill.
+- [x] **DSGN-3** Profile "Pause my profile" (filled branch) → accentFill.
+- [x] **DSGN-4** Block/Report submit → dangerFill (now matches ReportModal).
+- [x] **DSGN-5** Profile photo "Remove" → dangerFill.
+- [x] **DSGN-6** Profile save-error toast → dangerFill.
+- [x] **DSGN-7** MatchMoment scrim 0.55→0.70 + opaque subline → white passes AA in light.
+- [x] **DSGN-8 (found in sweep)** AccountSecurityScreen delete-account confirm → dangerFill.
 
 ---
 
@@ -135,11 +132,16 @@ harness at 390px before/after.
   modal snapshots `activeElement` as `<body>` and restores focus there on close —
   keyboard users get dumped to the top of the list. Restore focus to the ⋯
   `triggerRef` on item-activation (mirror the Escape branch at `:233`).
-- [ ] **FE-3 (SERIOUS a11y = old A11Y-3) — Row ⋯ menu clipped by list
-  `overflow:hidden`.** `MatchesListScreen.jsx:257` popup inside the `<ul>` at
-  `:300-309`; for a single-match/last-row list the menu is clipped and keyboard
-  users tab into invisible controls (worst at 390px). Drop `overflow:hidden`
-  (round rows individually), portal the menu, or flip it upward for last rows.
+- [ ] **FE-3 (SERIOUS — UPGRADED — top remaining functional bug) — Row ⋯ menu
+  is COMPLETELY INVISIBLE on the Matches list.** `MatchesListScreen.jsx:300-309`
+  `<ul>` `overflow:hidden` clips the row popover (`:257`, opens downward). QA
+  measured 390px both themes: `clippedPx=201`, **zero menu items visible**, last
+  item hit-tests covered. For the common single-match/last-row case, View profile /
+  Add private note / Archive / Block or report / Unmatch are ALL unreachable from
+  the list — and "Add private note" has NO other entry point; a pending match with
+  no conversation loses its only pre-chat block/report path. Fix: drop
+  `overflow:hidden` (round rows individually), portal the menu, or flip upward for
+  last rows. **Re-gate with `scripts/qa/deep_messaging.mjs` (the row-⋯ checks).**
 - [ ] **FE-4 (SERIOUS a11y = old A11Y-2) — Identity-theme quick revert is
   gesture-only.** `src/App.jsx:1224,1446` bind revert only to `onDoubleClick` on a
   `div`; no keyboard/SR path and it's silent. While an identity theme is active,
@@ -207,10 +209,14 @@ applied everywhere). These are the real gaps:
 
 ---
 
-## Reviewer panel status
-- [x] user-journey-tester — done (findings folded into JRN-1..4 + UX-TAP above).
-- [x] design-UX-reviewer — done (findings folded into DSGN-1..7 above).
-- [~] QA-functional-tester — still running (full-flow harness pass, 390px + desktop).
+## Reviewer panel status — COMPLETE (7/7)
+- [x] accessibility-auditor, trust-safety-specialist, backend-security-auditor,
+  code-reviewer — done (folded into FE-*/BE-*/DSGN-* above).
+- [x] user-journey-tester — done (JRN-1..4 + UX-TAP).
+- [x] design-UX-reviewer — done (DSGN-1..8).
+- [x] QA-functional-tester — done. Post-fix regression pass: all shipped fixes
+  hold; one functional bug found → FE-3 (row-⋯ clip, upgraded). Regression drivers
+  added: `scripts/qa/deep_{messaging,onboarding,hub,profile_settings}.mjs`.
 
 Feature-gap backlog (F1–F29) lives separately in `audit/FEATURE_BACKLOG.md` —
 unchanged this session; it tracks missing features, not production bugs.
