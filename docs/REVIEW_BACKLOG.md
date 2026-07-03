@@ -119,19 +119,16 @@ Grouped as the a11y auditor recommended: items on the messaging surface
 (`MatchesListScreen.jsx` / `MessagingApp.jsx`) ship together; verify each in the
 harness at 390px before/after.
 
-- [ ] **FE-1 (MEDIUM trust&safety) — Failed report silently dropped when block
-  succeeds.** `src/ReportModal.jsx` (+ mirrored in `messaging/MessagingApp.jsx`,
-  `messaging/BlockReportScreen.jsx`): when a user ticks BOTH block + report and the
-  block lands but `reportUser` throws, the flow reports success ("Blocked") and the
-  report is lost with no retry prompt — the retry path only exists for the
-  block-free report case. Surface a calm non-blocking notice when
-  `doReport && !reported` even if the block succeeded.
-- [ ] **FE-2 (SERIOUS a11y, NEW) — Row ⋯ safety menu loses keyboard focus to
-  `<body>` after any modal closes.** `MatchesListScreen.jsx:258-273`: menu items
-  call `setOpen(false)` (unmounts the trigger) *before* firing the callback, so the
-  modal snapshots `activeElement` as `<body>` and restores focus there on close —
-  keyboard users get dumped to the top of the list. Restore focus to the ⋯
-  `triggerRef` on item-activation (mirror the Escape branch at `:233`).
+- [x] **FE-1 — Failed report silently dropped when block succeeds — FIXED, SHIPPED
+  (master `2966e1c`).** All three surfaces (ReportModal `:113`, BlockReportScreen
+  `:98`, MessagingApp `:505`) now emit an honest "You've blocked {name}. We couldn't
+  send your report — try again from Safety Center." — block preserved, no false
+  "reported". Verified with a forced report-endpoint 500.
+- [x] **FE-2 — Row ⋯ menu focus dumped to `<body>` — FIXED, SHIPPED (master
+  `2966e1c`).** `MatchesListScreen.jsx:246` new `runItem()` moves focus to the ⋯
+  trigger synchronously before the modal mounts, so the modal restores to the
+  trigger. Verified: after Block/report modal Escape-close, `activeElement` is the ⋯
+  button (`isBody=false`). Driver `messaging-safety-a11y.mjs` 13/13.
 - [x] **FE-3 — Row ⋯ menu was COMPLETELY INVISIBLE on the Matches list — FIXED,
   SHIPPED TO PROD (master `e8d6fa7`).** Removed `overflow:hidden` from the `<ul>`
   and moved corner-rounding onto the rows (first/last props); the popover no longer
