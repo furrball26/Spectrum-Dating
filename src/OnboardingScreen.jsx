@@ -879,19 +879,23 @@ function Step5({
 }) {
   return (
     <>
+      <p style={{ margin: "0 0 8px", fontSize: 16, color: t.text, lineHeight: 1.55, fontWeight: 600 }}>
+        This is how Spectrum matches you differently.
+      </p>
       <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
-        A couple of taps that help matches know how to talk with you. Totally
-        optional — skip if you'd rather add this later.
+        We match on how you communicate and what your senses need — not just
+        photos. It's optional and you can change it anytime, but this is the part
+        that helps us find people who genuinely fit how you connect.
       </p>
 
       <LabelledSelect
         id="ob-comm-directness"
         label="Directness"
-        helper="Optional — shown on your profile."
+        helper="Shown on your profile. Change it anytime."
         value={commDirectness}
         onChange={setCommDirectness}
         options={[
-          { value: "", label: "Prefer not to say" },
+          { value: "", label: "I'll add this later" },
           { value: "direct", label: "I prefer direct" },
           { value: "softened", label: "I prefer softened" },
         ]}
@@ -900,11 +904,11 @@ function Step5({
       <LabelledSelect
         id="ob-comm-cadence"
         label="Reply pace"
-        helper="Optional — shown on your profile."
+        helper="Shown on your profile. Change it anytime."
         value={commCadence}
         onChange={setCommCadence}
         options={[
-          { value: "", label: "Prefer not to say" },
+          { value: "", label: "Open to any pace" },
           { value: "instant", label: "I like quick replies" },
           { value: "daily", label: "Once a day is great" },
           { value: "whenever", label: "Whenever works" },
@@ -914,11 +918,11 @@ function Step5({
       <LabelledSelect
         id="ob-sensory-environment"
         label="Preferred setting"
-        helper="Optional — shown on your profile."
+        helper="Shown on your profile. Change it anytime."
         value={sensoryEnvironment}
         onChange={setSensoryEnvironment}
         options={[
-          { value: "", label: "Prefer not to say" },
+          { value: "", label: "Open to any setting" },
           { value: "quiet", label: "Quiet" },
           { value: "lively", label: "Lively" },
           { value: "either", label: "Either is fine" },
@@ -1167,8 +1171,26 @@ export default function OnboardingScreen({ onComplete }) {
           >
             You're all set{firstName ? `, ${firstName}` : ""}.
           </h1>
-          <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 28px", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.6 }}>
             Your profile is ready. Take your time — there's no rush here.
+          </p>
+          {/* D-5 — a quiet "made for you" beat: name the promise, tying the
+              forms they just filled to why Spectrum is different. Calm, framed. */}
+          <p
+            style={{
+              margin: "0 0 28px",
+              padding: "14px 16px",
+              background: t.surfaceAlt,
+              border: `1px solid ${t.borderLight}`,
+              borderRadius: 14,
+              fontSize: 15,
+              color: t.textSoft,
+              lineHeight: 1.6,
+              textAlign: "left",
+            }}
+          >
+            You told us how you communicate and what your senses need. From here,
+            that's what we match on — not just photos.
           </p>
           <button
             type="button"
@@ -1365,7 +1387,7 @@ export default function OnboardingScreen({ onComplete }) {
               onFocus={fSkip.onFocus}
               onBlur={fSkip.onBlur}
             >
-              {isLastStep ? "Skip for now" : "Skip this step"}
+              {isLastStep ? "I'll add this later" : "Skip this step"}
             </button>
           )}
 

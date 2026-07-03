@@ -43,6 +43,10 @@ if (await c3.count()) { await c3.click(); await page.waitForTimeout(500); }
 const c4 = page.getByRole("button", { name: /^continue$/i });
 if (await c4.count()) { await c4.click(); await page.waitForTimeout(500); }
 
+// Step 5 (D-4) — the moat step is reframed as the point, not an afterthought.
+check("D-4 step 5 reframed ('matches you differently')",
+  (await page.getByText(/matches you differently/i).count()) > 0);
+
 // Step 5: final submit
 const save = page.getByRole("button", { name: /save & start exploring/i }).first();
 check("final submit button reachable", (await save.count()) > 0);
@@ -67,6 +71,9 @@ if (await save.count()) {
   check("arrival beat is a confirmation, not the app shell yet", stillStep === 0 && navBeforeEnter === 0,
     `step=${stillStep} nav=${navBeforeEnter}`);
   check("arrival beat offers a single 'enter' button", (await enterBtn.count()) > 0);
+  // D-5 — the arrival beat names the promise, tying the forms filled to why it's different.
+  check("D-5 arrival beat names the promise ('what your senses need')",
+    (await page.getByText(/what your senses need/i).count()) > 0);
   await page.screenshot({ path: `${OUT}/onboarding-allset.png` });
 
   // Click through the arrival button → land in the app shell.

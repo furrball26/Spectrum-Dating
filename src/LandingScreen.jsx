@@ -238,7 +238,7 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               color: t.text,
             }}
           >
-            Meet people at your own pace.
+            Matched on how you communicate and what your senses need — not just photos.
           </h1>
           <p
             style={{

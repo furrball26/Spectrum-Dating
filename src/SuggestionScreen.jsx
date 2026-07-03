@@ -151,41 +151,95 @@ function commStyleChips(person) {
   return chips;
 }
 
-function CommStyleArea({ person }) {
-  const chips = commStyleChips(person);
-  if (chips.length === 0) return null;
+// A small uppercase eyebrow label, matching the prompt-card label treatment —
+// used to introduce the compact "why you fit" moat block above the bio.
+const eyebrowStyle = {
+  margin: "0 0 8px",
+  fontSize: 13,
+  fontWeight: 600,
+  color: t.textMuted,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  lineHeight: 1.4,
+};
 
+// D-2 — a reason is a TRUE mutual signal only when it's phrased as a shared
+// ("You both…" / "You're both…") fact. One-sided context the backend echoes
+// from the candidate ("About talking: …", relationship-goal notes) is NOT a
+// mutual signal and must not wear the same green ✓ — that dilutes real fit.
+function isMutualReason(reason) {
+  return /^(you both|you'?re both)\b/i.test((reason || "").trim());
+}
+
+// Sort reasons so real mutual signals lead, preserving order within each group.
+// Used to pick the strongest 1–2 for the above-the-fold "why you fit" hook.
+function sortReasonsMutualFirst(reasons) {
+  const list = Array.isArray(reasons) ? reasons : [];
+  const mutual = list.filter(isMutualReason);
+  const other = list.filter((r) => !isMutualReason(r));
+  return [...mutual, ...other];
+}
+
+// D-2 — one reason row. Mutual signals get the green ✓ (it now MEANS "you both");
+// one-sided "about them" context gets a quieter, neutral marker + muted text so
+// it reads as helpful colour, not a compatibility claim.
+function WhyReason({ reason }) {
+  const mutual = isMutualReason(reason);
   return (
-    <div style={{ marginTop: 0 }}>
-      <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
-        How I communicate
-      </h2>
-      <ul
-        role="list"
-        aria-label="Communication and sensory preferences"
-        style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}
+    <li style={{
+      display: "flex",
+      gap: 10,
+      alignItems: "flex-start",
+      marginBottom: 8,
+      fontSize: 16,
+      color: mutual ? t.textSoft : t.textMuted,
+    }}>
+      <span
+        aria-hidden="true"
+        style={{
+          color: mutual ? t.accentStrong : t.textMuted,
+          flexShrink: 0,
+          marginTop: 1,
+          fontWeight: 700,
+        }}
       >
-        {chips.map((label) => (
-          <li
-            key={label}
-            role="listitem"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "5px 13px",
-              borderRadius: 24,
-              fontSize: 14,
-              fontWeight: 400,
-              background: t.surface,
-              color: t.textSoft,
-              border: `1px solid ${t.border}`,
-            }}
-          >
-            {label}
-          </li>
-        ))}
-      </ul>
-    </div>
+        {mutual ? "✓" : "·"}
+      </span>
+      {reason}
+    </li>
+  );
+}
+
+// A compact, low-stimulation chip row for the comms/sensory prefs — surfaced
+// above the bio (D-1) so "how they connect" is answered before the scroll.
+function CommChipRow({ chips }) {
+  if (!chips || chips.length === 0) return null;
+  return (
+    <ul
+      role="list"
+      aria-label="Communication and sensory preferences"
+      style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: 0, padding: 0, listStyle: "none" }}
+    >
+      {chips.map((label) => (
+        <li
+          key={label}
+          role="listitem"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "5px 13px",
+            borderRadius: 24,
+            fontSize: 14,
+            fontWeight: 400,
+            background: t.surface,
+            color: t.textSoft,
+            border: `1px solid ${t.border}`,
+          }}
+        >
+          {label}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -446,6 +500,15 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
 
   const person = queue[index];
   const atEnd = index >= queue.length;
+
+  // D-1/D-2 — surface the moat above the fold. Mutual "you both…" signals lead;
+  // the top 1–2 become the quiet "why you fit" hook under the name (above the
+  // bio), and the remainder falls to the fuller list below. `commChips` is the
+  // compact comms/sensory row, also lifted above the bio.
+  const sortedWhy = person ? sortReasonsMutualFirst(person.whyReasons) : [];
+  const topWhy = sortedWhy.slice(0, 2);
+  const restWhy = sortedWhy.slice(2);
+  const commChips = person ? commStyleChips(person) : [];
 
   // Perceived-speed: warm the next 1–2 candidates' hero photos so the next card
   // doesn't stall on a fresh fetch after a swipe. The deck advances by dropping
@@ -988,6 +1051,35 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                 </div>
               </div>
 
+              {/* D-1 — the moat, above the fold: a quiet "why you fit" hook (top
+                  1–2 reasons, mutual signals first) plus the compact comms/
+                  sensory chip row, directly under the name and BEFORE the bio, so
+                  the first thing seen answers "why is this a good match for how I
+                  connect?" All data is already fetched; this is a render order. */}
+              {(topWhy.length > 0 || commChips.length > 0) && (
+                <div style={{ marginTop: 4 }}>
+                  {topWhy.length > 0 && (
+                    <div style={{ marginBottom: commChips.length > 0 ? 16 : 0 }}>
+                      {/* Only claim "Why you fit" when a real mutual signal leads;
+                          a candidate with only one-sided context reads as "About
+                          them" so the framing never overpromises (D-2). */}
+                      <p style={eyebrowStyle}>{topWhy.some(isMutualReason) ? "Why you fit" : "About them"}</p>
+                      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                        {topWhy.map((r, i) => (
+                          <WhyReason key={i} reason={r} />
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {commChips.length > 0 && (
+                    <div>
+                      <p style={eyebrowStyle}>How they communicate</p>
+                      <CommChipRow chips={commChips} />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Divider />
 
               {/* Bio */}
@@ -1018,41 +1110,24 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               </div>
               <InterestPills interests={person.interests} viewerInterests={viewerInterests} />
 
-              <Divider />
-
-              <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
-                Why you're seeing {person.displayName}
-              </h2>
-              <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                {person.whyReasons.map((r, i) => (
-                  <li key={i} style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-start",
-                    marginBottom: 8,
-                    fontSize: 16,
-                    color: t.textSoft,
-                  }}>
-                    <span aria-hidden="true" style={{ color: t.accentStrong, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
-                    {r}
-                  </li>
-                ))}
-              </ul>
+              {/* The rest of the "why" — the top 1–2 lead above the bio; the
+                  remainder (further mutual signals + any one-sided "about them"
+                  context) lands here. D-2: mutual signals keep the ✓; one-sided
+                  context reads quieter, so the ✓ still MEANS real compatibility. */}
+              {restWhy.length > 0 && (
+                <>
+                  <Divider />
+                  <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 12px", fontWeight: 700 }}>
+                    More on {person.displayName}
+                  </h2>
+                  <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                    {restWhy.map((r, i) => (
+                      <WhyReason key={i} reason={r} />
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
-
-            {/* How I communicate — moat comms/sensory prefs. The free-text
-                context card is withheld pre-match, so this renders only when the
-                candidate has set any comms/sensory prefs. */}
-            {commStyleChips(person).length > 0 && (
-              <div style={{
-                ...card,
-                background: t.surfaceAlt,
-                boxShadow: "none",
-                border: `1px solid ${t.borderLight}`,
-              }}>
-                <CommStyleArea person={person} />
-              </div>
-            )}
 
             {/* Hinge-style prompts — only when the candidate has answered any. */}
             {Array.isArray(person.prompts) &&

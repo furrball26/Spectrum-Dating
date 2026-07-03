@@ -1372,7 +1372,7 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
       </div>
       <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.55, margin: "0 0 12px" }}>
         There's no rush and no right way to begin. When you're ready, you can write your
-        own message, use one of these openers as a starting point, or open Word prompts for more.
+        own message, use one of these openers as a starting point, or open Conversation helpers for more.
       </p>
 
       {/* The F11 "what to expect" guidance, elevated here for a new thread. */}
@@ -1416,7 +1416,7 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
           onBlur={f.onBlur}
         >
           <span aria-hidden="true" style={{ fontSize: 16 }}>💬</span>
-          <span>More Word prompts</span>
+          <span>Conversation helpers</span>
         </button>
       </div>
     </section>
@@ -1792,9 +1792,15 @@ export default function ConversationScreen({
   // MatchProfileModal (getUserProfile), so no redundant/extra data plumbing.
   const [expectProfile, setExpectProfile] = useState(null);
   const expectStorageKey = `spectrum_expect_collapsed_${conversationId}`;
-  const [expectCollapsed, setExpectCollapsed] = useState(() => {
-    try { return localStorage.getItem(`spectrum_expect_collapsed_${conversationId}`) === "1"; }
-    catch { return false; }
+  // D-3 — collapse choice. null = no explicit choice yet; the effective state is
+  // then derived from newThread at render (brand-new thread → EXPANDED so the
+  // "what to expect" moat is the first thing seen; an existing/older thread →
+  // collapsed, i.e. never auto-expanded). A stored manual toggle always wins.
+  const [expectChoice, setExpectChoice] = useState(() => {
+    try {
+      const v = localStorage.getItem(`spectrum_expect_collapsed_${conversationId}`);
+      return v === null ? null : v === "1";
+    } catch { return null; }
   });
 
   // F12 (light) — suggested openers for a brand-new thread. Reuses the SAME
@@ -1921,11 +1927,10 @@ export default function ConversationScreen({
     return () => { active = false; };
   }, [otherUser?.userId]);
 
-  // Persist the collapsed state per-conversation so a dismissed card stays hidden.
-  useEffect(() => {
-    try { localStorage.setItem(expectStorageKey, expectCollapsed ? "1" : "0"); }
-    catch { /* ignore storage failures */ }
-  }, [expectStorageKey, expectCollapsed]);
+  // D-3 — persistence now happens only on an explicit user toggle (toggleExpect),
+  // mirroring the slow-start region: we intentionally do NOT persist the derived
+  // default, so a fresh thread stays EXPANDED and an existing one stays collapsed
+  // until the user actually chooses otherwise.
 
   // F12 (light) — fetch a few personalised openers for the new-thread framing.
   // Same route the empty-state uses, so language stays consistent. Non-blocking.
@@ -2522,12 +2527,20 @@ export default function ConversationScreen({
   // F11 — first name for the gentle framing; the card renders itself null when
   // there's no comms/context data to show.
   const expectFirstName = (otherUser.displayName || "").trim().split(/\s+/)[0] || otherUser.displayName;
+  // D-3 — new thread defaults EXPANDED, existing thread defaults collapsed; a
+  // stored manual choice (expectChoice !== null) always wins over the default.
+  const expectCollapsed = expectChoice !== null ? expectChoice : !newThread;
+  const toggleExpect = () => {
+    const next = !expectCollapsed;
+    setExpectChoice(next);
+    try { localStorage.setItem(expectStorageKey, next ? "1" : "0"); } catch { /* ignore storage failures */ }
+  };
   const whatToExpectCard = (
     <WhatToExpectCard
       profile={expectProfile}
       firstName={expectFirstName}
       collapsed={expectCollapsed}
-      onToggle={() => setExpectCollapsed((v) => !v)}
+      onToggle={toggleExpect}
     />
   );
 
@@ -3113,7 +3126,7 @@ export default function ConversationScreen({
             onBlur={fHelper.onBlur}
           >
             <span aria-hidden="true" style={{ fontSize: 18 }}>💬</span>
-            <span>Word prompts</span>
+            <span>Conversation helpers</span>
           </button>
         </div>
 
