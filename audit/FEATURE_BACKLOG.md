@@ -34,25 +34,25 @@ no-candidates vs seen-everyone · F24 paused-Discover reminder · F25 badge rela
 
 ---
 
+## ✅ SAFETY BATCH — SHIPPED TO PROD (backend Railway `/health 4445cdd` + frontend Vercel)
+Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
+- [x] **SAFETY-2 — Profile-photo human review (review-BEFORE serving, user-chosen).**
+  Migration 036 adds `review_status` (existing photos backfilled `approved`); new
+  photos `pending_review` and not served to viewers until an admin approves; `photo_url`
+  kept approved-only; admin "Profile photos" review queue (`AdminScreen`) + owner
+  "Pending review" badge. Vendor NSFW/CSAM (option b) is the client's later setup.
+  *Operational note: new users aren't discoverable until their first photo is approved
+  — the admin queue must be worked.*
+- [x] **JRN-1 — Display-name screening** (`nameScreen.js`): slur/profanity rejected at
+  save + excluded from candidates.
+- [x] **G4 — Honest radius feedback:** `/profile/me` returns `locationGeocodable`;
+  ProfileScreen shows a calm "distance doesn't apply for your area yet" note. (Real
+  geocoding for arbitrary cities left as a vendor/data TODO.)
+- [x] **Hardening:** strict server-side size check + Content-Type pinning (signed
+  Content-Length deliberately dropped — fragile 403s); socket drops room on block.
+- [x] **F29 — orphaned `notification_preferences` table dropped** (migration 037).
+
 ## GENUINELY OPEN
-
-### 🟠 Safety / trust (highest value — backend/ops)
-- **SAFETY-2 — Profile photos served with ZERO screening.** `ATTACHMENTS_ENABLED` is
-  now `true`; message attachments are human-gated, but `photos.js addGalleryPhoto`
-  applies no automated/human review and `candidates.js` serves `photo_url` straight
-  onto Discover cards. No NSFW/CSAM hash-matching anywhere; no CSAM escalation runbook.
-  Reactive user-reporting is the only protection. **Backend + ops.**
-- **JRN-1 — No abusive display-name screening.** A junk profile ("Kinda Stupid") can
-  be a newcomer's first Discover card (`profile.js` / `candidates.js:71-88` screen for
-  presence of name/bio/photo but not content). Trust-critical first-session moment.
-  **Backend / moderation.**
-
-### 🟠 Product / UX
-- **G4 — Search radius silently no-ops outside ~7 hard-coded metros.**
-  `metros.js distanceMiles()` returns `null` for ungeocodable cities and
-  `candidates.js` lets unknown-distance candidates through, with no UI feedback — a
-  control that looks functional but silently fails for most real locations.
-  **Backend (geocoding) + frontend (feedback).**
 
 ### 🟡 Features / richness
 - **F28 — Structured "about me" facets** (occupation/study, languages, "things that
@@ -65,19 +65,12 @@ no-candidates vs seen-everyone · F24 paused-Discover reminder · F25 badge rela
 - **Onboarding arrival moment** — no "you're all set" confirmation beat before landing
   in Discover (data collection itself is complete). Tiny **frontend** polish.
 
-### 🟡 Backend hardening (defense-in-depth)
-- `/photos/upload-intent` doesn't enforce `file_size_bytes` / pin `Content-Length` +
-  `Content-Type` on the presigned PUT (`photos.js:188+`) — 10 MB cap is advisory.
-- Socket `join_conversation` doesn't drop the room on block (`socket/index.js`) —
-  inert today (HTTP send is consent-gated), latent if a future emit path bypasses it.
-
 ### LOW — tech-debt (parked)
 - **E12** — two socket.io connections/user + per-thread-switch churn (consolidation).
 - **E20** — `getCandidates` loads all eligible profiles + N+1 interest queries, scores
   in JS (accepted tradeoff until scale; needs SQL-side score/join).
-- **F29** — orphaned `notification_preferences` table (`003_messaging.sql`) still
-  dangling; drop or repurpose (backend cleanup migration).
 - No frontend unit tests (harness `scripts/qa/*` + ESLint cover it today).
+- Real geocoding for arbitrary cities (G4 residual — currently ~7 metros; vendor/data).
 
 ### ⚪ Minor a11y (advisory, not AA failures)
 - SuggestionScreen "why" ✓ checkmark uses `t.accent` ~3.4:1 (aria-hidden/decorative).
@@ -88,10 +81,7 @@ no-candidates vs seen-everyone · F24 paused-Discover reminder · F25 badge rela
 ---
 
 ## Suggested execution order
-1. **Backend safety batch (needs Railway deploy — now unblocked):** SAFETY-2 photo
-   screening (biggest), JRN-1 name screening, G4 geocoding + radius feedback, the two
-   backend-hardening items, F29 cleanup. One backend pass + one `npm run deploy`.
-2. **Frontend polish batch (Vercel):** the 3 minor a11y items + onboarding arrival
-   moment. One build + ship.
-3. **F28 facets** (backend + frontend) as its own feature slice.
-4. **PROD-6 photo gallery** after backend exposes `photos[]`.
+1. ~~Backend safety batch~~ — ✅ SHIPPED (SAFETY-2/JRN-1/G4/hardening/F29, master 4445cdd).
+2. **F28 facets** (backend migration + read/write + frontend editor + card) — NEXT.
+3. **PROD-6 photo gallery** — naturally follows F28 (photo pipeline fresh from SAFETY-2).
+4. **Frontend polish batch (Vercel):** the 3 minor a11y items + onboarding arrival moment.
