@@ -13,6 +13,13 @@ import { fileURLToPath } from 'url';
 
 const BUILD_INFO_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'build-info.json');
 
+// Monorepo: the Railway service's Root Directory is `server`, so `railway up`
+// MUST run from the repo root (uploading server/ from inside server/ makes
+// Railway look for server/server and the build fails). Also pass --service
+// explicitly since the project has more than one service.
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const SERVICE = process.env.RAILWAY_SERVICE || 'spectrum-dating-server';
+
 const HEALTH_URL =
   process.env.HEALTH_URL ||
   'https://spectrum-dating-server-production.up.railway.app/health';
@@ -66,8 +73,9 @@ async function main() {
     log('stamped src/build-info.json');
   }
 
-  log('uploading to Railway (railway up --detach)...');
-  const up = spawnSync('railway', ['up', '--detach'], {
+  log(`uploading to Railway (railway up --detach --service ${SERVICE}, from repo root)...`);
+  const up = spawnSync('railway', ['up', '--detach', '--service', SERVICE], {
+    cwd: REPO_ROOT,
     stdio: 'inherit',
     shell: true,
   });

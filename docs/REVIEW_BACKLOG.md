@@ -194,26 +194,30 @@ harness at 390px before/after.
 
 ---
 
-## ⏸ Backend security — FIXED ON BRANCH, AWAITING RAILWAY DEPLOY GO-AHEAD
-Now in the monorepo `server/`. All five fixed on `claude/production-bugs-backlog-okvown`
-(commit `02da7d2`); **master untouched (`0ae1120`), NOT deployed to Railway** — held
-for explicit human go-ahead. Backend `npm test` **31/31** (22 existing + 9 new in
-`server/test/security.test.js`), 0 lint errors.
+## ✅ Backend security — DEPLOYED TO PRODUCTION (Railway `/health` sha `608f639`)
+All five on `master 608f639`, `npm test` 31/31, deployed via `railway up` and
+health-gated — new SHA live in ~40s. **Live in prod.**
 
-- [~] **BE-1 (MEDIUM) — Blocked users excluded from Discover/swipe/matching.**
+> ⚠️ Deploy-path bug found + fixed en route (`server/scripts/deploy.mjs`): the
+> RUNBOOK's `npm run deploy` ran `railway up` from `server/`, but the monorepo
+> service Root Directory is `server`, so Railway looked for `server/server` and the
+> build FAILED — this had silently broken the last ~3 deploys. Fixed: the script now
+> runs `railway up --detach --service spectrum-dating-server` from the REPO ROOT.
+> `RESET_PASSWORD_*` confirmed unset (BE-OPS clear).
+
+- [x] **BE-1 (MEDIUM) — Blocked users excluded from Discover/swipe/matching.**
   `candidates.js` folds bidirectional `blocks` into the exclude set; `/swipe`
   (`matching.js`) silently no-ops across a block (no match, no push, no disclosure).
-- [~] **BE-2 (MEDIUM) — Purpose tokens no longer accepted as full sessions.**
+- [x] **BE-2 (MEDIUM) — Purpose tokens no longer accepted as full sessions.**
   `auth.js` `requireAuth`/`optionalAuth` reject `payload.purpose`.
-- [~] **BE-3 (LOW-MED) — `GET /profile/:userId` now filters `ended_at IS NULL`.**
+- [x] **BE-3 (LOW-MED) — `GET /profile/:userId` now filters `ended_at IS NULL`.**
   Unmatched pair loses full-profile + `context_card` access.
-- [~] **BE-4 (LOW) — `verifyPurposeToken` now runs `checkTokenVersion`** (honors
+- [x] **BE-4 (LOW) — `verifyPurposeToken` now runs `checkTokenVersion`** (honors
   suspension / sign-out for export/reset tokens).
-- [~] **BE-5 (LOW) — `/push/subscribe` returns 409 on cross-user endpoint
+- [x] **BE-5 (LOW) — `/push/subscribe` returns 409 on cross-user endpoint
   collision** instead of reassigning; same-user re-subscribe still refreshes keys.
-- [ ] **BE-OPS (ops, not code) — admin reset-password hook re-runs every boot** if
-  `RESET_PASSWORD_EMAIL`/`_VALUE` stay set in Railway (`reset-password.js`,
-  `index.js:143`). Confirm both env vars are UNSET in prod; add a one-time marker.
+- [x] **BE-OPS — `RESET_PASSWORD_EMAIL`/`_VALUE` confirmed UNSET in Railway** (user
+  verified). Optional follow-up: add a one-time marker so the hook can't re-fire.
 
 ---
 
