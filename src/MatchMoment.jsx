@@ -65,6 +65,7 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
   const headingRef = useRef(null);
   const helloRef = useRef(null);
   const keepRef = useRef(null);
+  const closeRef = useRef(null);
 
   // Kick off the choreography on the next frame so the initial (pre-enter)
   // styles paint first, then transition to the entered state.
@@ -88,7 +89,7 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
         return;
       }
       if (e.key === "Tab") {
-        const focusable = [helloRef.current, keepRef.current].filter(Boolean);
+        const focusable = [closeRef.current, helloRef.current, keepRef.current].filter(Boolean);
         if (focusable.length === 0) return;
         const idx = focusable.indexOf(document.activeElement);
         if (e.shiftKey) {
@@ -164,6 +165,39 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
         fontFamily: t.sans,
       }}
     >
+      {/* JRN-3 — explicit close affordance. Dismissal was previously only via
+          "Keep looking" or Escape; some people scan for a familiar × first. It
+          calls the SAME dismiss handler (onContinue) as "Keep looking", keeps a
+          ≥44px target, and fades in with the rest of the overlay. Escape still
+          works (see the keydown effect above). */}
+      <button
+        ref={closeRef}
+        type="button"
+        aria-label="Close"
+        onClick={onContinue}
+        style={{
+          ...buttonsStyle,
+          position: "absolute",
+          top: 12,
+          right: 12,
+          width: 44,
+          height: 44,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 12,
+          border: "none",
+          background: "transparent",
+          color: "#FFFFFF",
+          fontSize: 24,
+          lineHeight: 1,
+          cursor: "pointer",
+          fontFamily: t.sans,
+        }}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+
       <div
         style={{
           width: "100%",

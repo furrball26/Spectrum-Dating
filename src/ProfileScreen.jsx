@@ -57,7 +57,6 @@ const COLLAPSIBLE_SECTIONS = [
   "communicate",
   "sensory",
   "notifications",
-  "pause",
   "verification",
 ];
 
@@ -1075,58 +1074,6 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
 }
 
 // ─── Pause toggle (backlog #8 — reuses the switch pattern) ────────────────────
-function PauseToggle({ checked, onChange }) {
-  const f = useFocusable();
-  return (
-    <div
-      // UX-TAP — tap anywhere on the row (label included) toggles; the switch
-      // button stops propagation so a tap on it doesn't double-fire. Keyboard
-      // focus stays on the role="switch" button.
-      onClick={() => onChange(!checked)}
-      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}
-    >
-      <p id="pause-profile-label" style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
-        Pause my profile
-      </p>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-labelledby="pause-profile-label"
-        onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
-        {...f}
-        style={{
-          position: "relative",
-          width: 48,
-          height: 28,
-          borderRadius: 14,
-          background: checked ? t.accentStrong : t.border,
-          border: "none",
-          cursor: "pointer",
-          flexShrink: 0,
-          transition: `background ${t.motion.base} ${t.motion.standard}`,
-          ...f.style,
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: 3,
-            left: checked ? 23 : 3,
-            width: 22,
-            height: 22,
-            borderRadius: "50%",
-            background: "#fff",
-            transition: `left ${t.motion.base} ${t.motion.gentle}`,
-            boxShadow: t.shadow.sm,
-          }}
-        />
-      </button>
-    </div>
-  );
-}
-
 // ─── Prompts (Hinge-style) ────────────────────────────────────────────────────
 const MAX_PROMPTS = 3;
 const PROMPT_ANSWER_MAX = 200;
@@ -2911,8 +2858,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const notificationsHasContent = true; // always has a value
 
   // Pause
-  const pauseSummary = paused ? "Paused" : "Active";
-  const pauseHasContent = paused;
 
   // Identity verification
   const verificationSummary = verified
@@ -4037,34 +3982,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             </fieldset>
           </CollapsibleSection>
 
-          {/* ══════════════════════════════════════════════════════
-              CARD — Pause my profile (backlog #8)
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="pause"
-            title="Pause my profile"
-            summary={pauseSummary}
-            hasContent={pauseHasContent}
-            open={!!sectionOpen.pause}
-            onToggle={() => toggleSection("pause")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
-            <PauseToggle checked={paused} onChange={setPaused} />
-            {paused && (
-              <p
-                style={{
-                  margin: "16px 0 0",
-                  fontSize: 16,
-                  color: t.textSoft,
-                  lineHeight: 1.7,
-                }}
-              >
-                Your profile is paused. You won't appear in Discover, and you can
-                turn this back on anytime. Your matches and messages stay.
-              </p>
-            )}
-          </CollapsibleSection>
+          {/* JRN-2 — the redundant collapsed "Pause my profile" section was
+              removed. The single, discoverable "Take a break" card near the top
+              of Profile (handleInstantPauseToggle) is now the ONE pause control,
+              so there's no duplicate/confusing second switch here. */}
 
           {/* ══════════════════════════════════════════════════════
               CARD — Identity verification

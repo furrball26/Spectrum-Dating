@@ -137,8 +137,11 @@ function ReactionPicker({ onSelect, onClose, reactButtonRef, isOwn = false }) {
   return (
     <div
       ref={containerRef}
-      role="toolbar"
-      aria-label="Add reaction"
+      // PROD-4 — role="group" (NOT toolbar): a toolbar promises arrow-key roving
+      // focus we don't implement; each emoji is its own Tab stop. The honest role
+      // is a labelled group. Escape closes and restores focus (see effect above).
+      role="group"
+      aria-label="React with an emoji"
       style={{
         display: "flex",
         flexWrap: "wrap",
@@ -1852,6 +1855,10 @@ export default function ConversationScreen({
   // --- Feature 2: Photo attachment state ---
   const fileInputRef = useRef(null);
   const attachButtonRef = useRef(null);
+  // FE-8 — guards the plain-text send path against a rapid double-fire (e.g.
+  // Enter pressed twice before setComposeValue("") flushes). A ref, not state,
+  // so the check is synchronous within one send.
+  const sendingRef = useRef(false);
   const [attachment, setAttachment] = useState({
     file: null,
     previewUrl: null,
@@ -2216,6 +2223,12 @@ export default function ConversationScreen({
       return;
     }
 
+    // FE-8 — in-flight guard: a rapid double-fire (Enter twice) could re-enter
+    // here before setComposeValue("") flushes, sending the same text twice. Bail
+    // if a plain-text send is already mid-flight; cleared in `finally`.
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+
     // Optimistic: add message immediately
     const tempId = `temp-${Date.now()}`;
     const tempMsg = {
@@ -2254,6 +2267,9 @@ export default function ConversationScreen({
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, failed: true } : m));
         setSendStatus("Message didn't send. Tap Retry.");
       }
+    } finally {
+      // FE-8 — release the guard once the send settles (success or handled error).
+      sendingRef.current = false;
     }
   }
 

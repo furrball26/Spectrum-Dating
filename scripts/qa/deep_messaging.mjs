@@ -126,8 +126,17 @@ async function run(theme) {
     await btn.scrollIntoViewIfNeeded();
     await btn.click({ force: true });
     await page.waitForTimeout(400);
-    const picker = page.getByRole("toolbar", { name: /add reaction/i }).first();
+    // PROD-4 — the picker is an honest role="group" with a descriptive label
+    // (was role="toolbar", which promises arrow-key roving focus we don't ship).
+    const picker = page.getByRole("group", { name: /react with an emoji/i }).first();
     if (await picker.count()) {
+      const semantics = await picker.evaluate((el) => ({
+        role: el.getAttribute("role"),
+        label: el.getAttribute("aria-label"),
+      }));
+      check(`[${theme}] PROD-4 reaction picker is role=group with aria-label`,
+        semantics.role === "group" && !!semantics.label,
+        JSON.stringify(semantics));
       const box = await picker.evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, vw: window.innerWidth, vh: window.innerHeight };
@@ -148,7 +157,7 @@ async function run(theme) {
         check(`[${theme}] reaction pill appears after selecting`, pill > 0, `pills=${pill}`);
       }
     } else {
-      check(`[${theme}] reaction picker opened`, false, "toolbar not found");
+      check(`[${theme}] reaction picker opened`, false, "group not found");
     }
   }
 

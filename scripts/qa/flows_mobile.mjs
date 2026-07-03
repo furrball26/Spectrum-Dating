@@ -74,6 +74,15 @@ const VP = { width: 390, height: 844 };
   const dtext = momentShown ? await dialog.innerText() : "";
   check("C2 MatchMoment dialog appears with Say hello", momentShown && /Say hello/.test(dtext), dtext.slice(0, 60).replace(/\n/g, " "));
   await page.screenshot({ path: `${OUT}/flows_matchmoment.png` });
+  // JRN-3 — the moment now has an explicit "Close" affordance (aria-label="Close",
+  // ≥44px) in addition to "Keep looking"/Escape. Measure it without dismissing, so
+  // the Say hello → thread path below still runs.
+  const closeBtn = dialog.getByRole("button", { name: /^close$/i }).first();
+  const hasClose = (await closeBtn.count()) > 0;
+  const closeBox = hasClose ? await closeBtn.boundingBox() : null;
+  check("C2a MatchMoment has an explicit Close button ≥44px",
+    hasClose && closeBox && closeBox.width >= 44 && closeBox.height >= 44,
+    JSON.stringify(closeBox));
   await page.getByRole("button", { name: /Say hello/ }).click();
   await page.waitForTimeout(3000);
   const composer = await page.getByPlaceholder(/Write a message/i).count();
@@ -81,6 +90,31 @@ const VP = { width: 390, height: 844 };
   check("C3 Say hello opens the thread (composer + name)", composer > 0 && /Liam QA/.test(bodyC));
   await page.screenshot({ path: `${OUT}/flows_sayhello_thread.png` });
   check("C4 no pageerrors on like-back golden path", errors.length === 0, errors.slice(0, 2).join(" | "));
+  await browser.close();
+}
+
+// ── C'. JRN-3: the explicit Close button DISMISSES the MatchMoment ────────────
+// Fresh like-back pair (dismissing consumes the moment), so section C's Say hello
+// path stays intact above.
+{
+  const m3 = await makeAccount("clmain", { displayName: "Remy QA", gender: "woman", pronouns: "she/her", seeking: "man" });
+  const liker2 = await makeAccount("cliker", { displayName: "Theo QA", gender: "man", pronouns: "he/him", seeking: "woman" });
+  await api("/matching/swipe", { method: "POST", body: { candidateId: m3.userId, decision: "like" } }, liker2.token);
+  const { browser, page, errors } = await launch({ viewport: VP });
+  await login(page, m3);
+  await page.getByRole("button", { name: /Likes/ }).click();
+  await page.waitForTimeout(2200);
+  await page.getByRole("button", { name: /I'm interested in Theo QA/ }).first().click();
+  const dialog = page.getByRole("dialog");
+  let shown = false;
+  try { await dialog.waitFor({ timeout: 8000 }); shown = true; } catch { /* absent */ }
+  check("C'1 MatchMoment shown for close-dismiss test", shown);
+  const closeBtn = dialog.getByRole("button", { name: /^close$/i }).first();
+  check("C'2 Close button present", (await closeBtn.count()) > 0);
+  await closeBtn.click();
+  await page.waitForTimeout(900);
+  check("C'3 Close dismisses the MatchMoment (dialog gone)", (await page.getByRole("dialog").count()) === 0);
+  check("C'4 no pageerrors during close-dismiss test", errors.length === 0, errors.slice(0, 2).join(" | "));
   await browser.close();
 }
 

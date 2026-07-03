@@ -102,7 +102,9 @@ async function touchEnd(locator) {
 
 const bubble = page.getByText("React to me please — QA seed.").first();
 check("Target bubble located", (await bubble.count()) > 0);
-const picker = page.getByRole("toolbar", { name: /^Add reaction$/ });
+// PROD-4 — the picker is now role="group" labelled "React with an emoji"
+// (was role="toolbar"). The ＋ trigger button keeps its "Add reaction" label.
+const picker = page.getByRole("group", { name: /react with an emoji/i });
 
 // Negative: a touch that moves (a scroll) must NOT open the picker.
 await touchStart(bubble);

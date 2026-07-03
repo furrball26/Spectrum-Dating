@@ -585,6 +585,33 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
           Send feedback
         </h2>
         <FeedbackSection />
+
+        {/* PROD-1 — quiet "About & legal" block. The privacy/terms pages were
+            only reachable from the logged-OUT landing/auth footers; this gives a
+            calm in-app path to them. Same low-emphasis link style as the auth
+            footer (accentStrong, underlined), not a loud CTA. */}
+        <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
+          About &amp; legal
+        </h2>
+        <nav aria-label="Legal" style={{ margin: "0 2px" }}>
+          <p style={{ margin: 0, fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+            <a
+              href="/privacy.html"
+              rel="noopener"
+              style={{ color: t.accentStrong, fontWeight: 600, textUnderlineOffset: 3 }}
+            >
+              Privacy Policy
+            </a>
+            <span aria-hidden="true" style={{ color: t.textMuted, margin: "0 10px" }}>·</span>
+            <a
+              href="/terms.html"
+              rel="noopener"
+              style={{ color: t.accentStrong, fontWeight: 600, textUnderlineOffset: 3 }}
+            >
+              Terms of Service
+            </a>
+          </p>
+        </nav>
       </div>
     </div>
   );

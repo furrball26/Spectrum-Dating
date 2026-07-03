@@ -120,6 +120,12 @@ const SAFE_ERROR_MESSAGES = new Set([
 // or allowlisted text), else the provided calm fallback. Never leaks a raw
 // developer/validation string.
 export function safeErrorMessage(err, fallback = "Something went wrong. Please try again.") {
+  // JRN-4 — a 429 (rate limit) from any endpoint. The backend's own copy names a
+  // specific "15 minutes" window (mild urgency/countdown); we never surface a
+  // countdown. Calm, non-urgent phrasing instead — display copy only.
+  if (err && err.status === 429) {
+    return "You've tried a few times in a row. Please take a short break and try again a little later.";
+  }
   if (err && err.code && KNOWN_ERROR_CODES.has(err.code)) return err.message || fallback;
   if (err && typeof err.message === "string" && SAFE_ERROR_MESSAGES.has(err.message)) return err.message;
   return fallback;
