@@ -68,9 +68,11 @@ Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
   `swipeCalls=0`), swipe carousel on the matched profile; a11y buttons ("Photo N of M",
   aria-current, arrow keys), reduced-motion = opacity fade only (JS+CSS gated). Backend
   tests 62/62 (pending-photo-excluded + primary-first), smoke 11/11, driver 12/12.
-- **Onboarding arrival moment** — no "you're all set" confirmation beat before landing
-  in Discover (data collection itself is complete). Tiny **frontend** polish — the last
-  remaining feature-ish item.
+- [x] **Onboarding arrival moment — SHIPPED (master `8f8f1ec`).** Calm "You're all set"
+  confirmation step before Discover; onboarding drivers updated to click through it.
+- [x] **Minor a11y polish — SHIPPED (`8f8f1ec`):** SuggestionScreen why-✓ → accentFill;
+  AgeRangeSlider gains Home/End/PageUp/PageDown; banner dismiss targets ≥44px +
+  offline-banner overlap fixed.
 
 ### LOW — tech-debt (parked)
 - **E12** — two socket.io connections/user + per-thread-switch churn (consolidation).
