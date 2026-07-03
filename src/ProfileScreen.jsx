@@ -559,6 +559,33 @@ function PhotoEditorPanel({
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: t.text }}>{heading}</h3>
       </div>
 
+      {/* Pending human review — so a new photo that isn't visible to others yet
+          doesn't just look broken. Existing (approved) photos are unaffected. */}
+      {photo.pending && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            background: t.warningSurface,
+            color: t.warningSurfaceText,
+            border: `1px solid ${t.warningBorder}`,
+            borderRadius: 10,
+            padding: "10px 12px",
+            marginBottom: 14,
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          <span aria-hidden="true">⏳</span>
+          <span>
+            Pending review — a member of our team will take a look before others can
+            see this photo. There's no rush, and your other photos stay visible.
+          </span>
+        </div>
+      )}
+
       {/* Alt-text description */}
       <div>
         <label htmlFor={descId} style={{ display: "block", fontWeight: 600, fontSize: 14, color: t.textSoft, marginBottom: 4 }}>
