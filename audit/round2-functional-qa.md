@@ -64,7 +64,7 @@ network capture (the blocked requests do not appear) and by post-test API reads.
 - where: API `POST /auth/forgot-password`; observed via direct fetch from the logged-in page context.
 - repro (live): 12 rapid `POST /auth/forgot-password` for the same/neutral address → **all 200, no 429**. By contrast `POST /auth/login` trips **429 after 8 attempts**, and `/auth/register` is also throttled.
 - expected vs actual: An unauthenticated endpoint that triggers email sends + account-existence DB lookups should be throttled. Actual: unthrottled → enables email-bombing of a target address and timing-based enumeration at volume. Extends E8 (no rate limiting on account endpoints) and E18 (enumeration).
-- file:line: forgot-password handler in `Server/src/routes/auth.js` (limiter present on login/register, absent here).
+- file:line: forgot-password handler in `server/src/routes/auth.js` (limiter present on login/register, absent here).
 
 ### [DESIGN] ⚪ — Consent-gate (403) disables the send button but the text input still looks/acts enabled
 - where: /?tab=messages, conversation in a 403 (consent-gate) state; desktop

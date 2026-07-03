@@ -14,22 +14,22 @@ Severity legend: 🔴 real bug · 🟠 likely bug / fragile · 🟡 smell · ⚪
 ## NEW findings (not in R1 / ERROR_ISSUE_LOG)
 
 ### [ERROR] 🟠 — App-level badge socket never receives `new_match`; the server's realtime match event is dead on the client
-- where: server `Spectrum-Dating-Server/src/socket/emitters.js:28-33` (`emitNewMatch` → `io.to('user:<id>').emit('new_match', …)`); client `Spectrum-Dating/src/App.jsx:869-891` (app-level socket subscribes ONLY to `new_message`). A repo-wide grep for `"new_match"` / `new_match` in `Spectrum-Dating/src` returns **zero client listeners**.
+- where: server `server/src/socket/emitters.js:28-33` (`emitNewMatch` → `io.to('user:<id>').emit('new_match', …)`); client `src/App.jsx:869-891` (app-level socket subscribes ONLY to `new_message`). A repo-wide grep for `"new_match"` / `new_match` in `Spectrum-Dating/src` returns **zero client listeners**.
 - issue: The backend goes to the trouble of emitting `new_match` to both parties' personal rooms, but no client code ever listens for it. The Matches/activity badge (`activityCount`, `App.jsx:862`) is only refreshed when `MatchesScreen` mounts and calls `getActivity()` (`MatchesScreen.jsx:284`). So a brand-new mutual match produces **no realtime signal** — the user only finds out by navigating to Matches and triggering a refetch. This compounds R1 E11 (only the winning insert emits `new_match` at all): even when the event *is* emitted, it lands in the void. The "you have a new match" moment — a core product surface — has no live path.
 - fix: Add a `new_match` handler to the app-level socket in `App.jsx` that bumps `activityCount` (and optionally triggers a `getActivity()` refresh / match-moment). Mirror the `new_message` pattern already there.
 
 ### [ERROR] 🟠 — App-level unread badge counts the user's OWN sent messages
-- where: `Spectrum-Dating/src/App.jsx:880-884`.
+- where: `src/App.jsx:880-884`.
 - issue: The app-level socket's `new_message` handler increments `unreadCount` whenever `activeTabRef.current !== "messages"`, with **no `senderId === currentUserId` filter**. The server emits `new_message` to the whole `conv:<id>` room (`emitters.js:4-10`), which includes the sender. So if the user sends a message from the conversation view and then switches to a non-messages tab (or sends while the app-level socket fires), their own message inflates their unread badge. The ConversationScreen socket correctly filters self (`ConversationScreen.jsx:889`), but the badge socket does not. Result: a phantom unread count that disagrees with the conversation list's server-computed `hasUnread` (which *does* exclude self, `messaging.js:75`).
 - fix: Pass `senderId` through to the app-level handler (the payload already carries `message.senderId`) and skip the increment when `payload?.message?.senderId === getUserId()`.
 
 ### [ERROR] 🟠 — App-level / badge socket misses conversations created after connect (stale room membership)
-- where: server `Spectrum-Dating-Server/src/socket/index.js:21-33` (rooms joined once, at connection time, from the *current* active-conversation set); client `App.jsx:869-891` (app-level socket never emits `join_conversation`).
+- where: server `server/src/socket/index.js:21-33` (rooms joined once, at connection time, from the *current* active-conversation set); client `App.jsx:869-891` (app-level socket never emits `join_conversation`).
 - issue: On connect the server joins the socket to `conv:<id>` for every conversation active **at that instant**. The app-level badge socket never emits `join_conversation` afterward, so any conversation created later in the same session (a fresh match → first conversation) is **not** in the badge socket's rooms. New messages in that conversation won't bump the badge until the socket reconnects (page reload). The ConversationScreen socket papers over this for the *open* thread by emitting `join_conversation` on connect (`ConversationScreen.jsx:879`), but the badge socket has no equivalent, so background unread for newly-created conversations is silently missed.
 - fix: Either re-join rooms server-side when a conversation is created (emit to both `user:` rooms an instruction to join, or have the server `io.in('user:<id>').socketsJoin('conv:<newId>')`), or have the app-level socket re-emit `join_conversation` for new conversations. Simplest: server calls `socketsJoin` on conversation create.
 
 ### [ERROR] 🟠 — Photo-attachment optimistic message is appended even when the *text* `sendMessage` fails partway
-- where: `Spectrum-Dating/src/messaging/ConversationScreen.jsx:1062-1077`.
+- where: `src/messaging/ConversationScreen.jsx:1062-1077`.
 - issue: In the attachment send path, after a successful `confirmAttachment`, if `capturedBody` is non-empty the code `await sendMessage(...)`. If that call throws (network/rate-limit/consent-gate), control jumps to the `catch` at 1084 and the attachment is marked `rejected` — good — **but** the photo was already uploaded + confirmed server-side (orphaned row, R1 E2) and the user's typed text is lost with only a generic "Photo could not be sent." This is a partial-failure split-brain: the image exists on R2, the text never persisted, and the optimistic bubble is never shown. Distinct from R1 E2 (which is about the happy-path orphan); this is the failure-path data loss. Still masked by `ATTACHMENTS_ENABLED=false`, but live code.
 - fix: Bundle attachment + body into one server call (the real fix R1 E2 demands), or at minimum preserve `composeValue` on failure so the user can retry the text. Don't confirm the attachment until the message that references it is persisted.
 
@@ -39,12 +39,12 @@ Severity legend: 🔴 real bug · 🟠 likely bug / fragile · 🟡 smell · ⚪
 - fix: Drop `?? r.youReacted` at all sites; read `r.userReacted` directly. The server contract is already consistent — pin it.
 
 ### [ERROR] 🟡 — `getConversation` client drops `limit=0` / falsy params via truthiness checks
-- where: `Spectrum-Dating/src/api.js:231-237` (`if (limit) params.set('limit', …)`).
+- where: `src/api.js:231-237` (`if (limit) params.set('limit', …)`).
 - issue: `if (limit)` and `if (before)` use truthiness. `limit=0` (a legitimate "give me none / count only" request, or a computed value that lands on 0) is silently dropped and the server falls back to its default 50. Harmless today because the only caller passes `{ limit: 50 }` (`ConversationScreen.jsx:845`), but it's a latent foot-gun the moment pagination math produces a 0 or a caller passes `before: ''`. Same truthiness trap the codebase otherwise avoids with explicit `!= null` checks server-side (`messaging.js:147`).
 - fix: Use `if (limit != null)` / `if (before)` only where empty string is genuinely meaningless; prefer `Number.isFinite(limit)` for the numeric one.
 
 ### [ERROR] 🟡 — Coarse-location ZIP-strip regex now duplicated SEVEN times; `metros.js` has a clean helper that's NOT used for the strip
-- where: the inline `replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim()` appears at `routes/matching.js:218, 290, 321` (this round) plus the R1-noted `:60`, and the same shape recurs in profile/public surfaces. `Spectrum-Dating-Server/src/utils/metros.js` already exists with `metroKey`/`distanceMiles` but exposes **no** `coarseCity()` — so the privacy-critical strip is still copy-pasted, not centralised.
+- where: the inline `replace(/[\s,]*\d{4,}(-\d+)?\s*$/, '').replace(/[\s,]+$/, '').trim()` appears at `routes/matching.js:218, 290, 321` (this round) plus the R1-noted `:60`, and the same shape recurs in profile/public surfaces. `server/src/utils/metros.js` already exists with `metroKey`/`distanceMiles` but exposes **no** `coarseCity()` — so the privacy-critical strip is still copy-pasted, not centralised.
 - issue: This is the stated house rule "coarse location only — never expose precise ZIP," enforced by hand-copied regex across 5+ sites. One missed/edited copy leaks a precise ZIP (a privacy regression, not a smell). The regex also only strips a *trailing* digit run, so `"85004 Phoenix"` or `"Phoenix 85004 AZ"` passes a ZIP straight through. R1 flagged this (E17); R2 confirms the count grew and that the natural home (`metros.js`) still lacks the helper.
 - fix: Add `export function coarseCity(distCity)` to `utils/metros.js`, route every public surface through it, and unit-test it (incl. the leading/embedded-ZIP cases). Normalise coarsely at write time so the strip isn't the only line of defence.
 
@@ -54,17 +54,17 @@ Severity legend: 🔴 real bug · 🟠 likely bug / fragile · 🟡 smell · ⚪
 - fix: Server is the source of truth — it already returns `activeCap` in `GET /conversations` (`messaging.js:90`). Have the client consume that value instead of the hardcoded `CONVERSATION_CAP`. Centralise body length similarly.
 
 ### [ERROR] 🟡 — `Step2.handleAddCustom` lowercases custom interests but suggestion chips are already lowercase — silent dedupe gap on case
-- where: `Spectrum-Dating/src/OnboardingScreen.jsx:307-314`.
+- where: `src/OnboardingScreen.jsx:307-314`.
 - issue: `handleAddCustom` does `customInput.trim().toLowerCase()` then `if (interests.includes(val)) return;`. The suggestion chips are all lowercase so this works, but `toggleInterest` (`:291`) stores the tag verbatim. There's no normalisation barrier preventing a user from typing `"Hiking"` (becomes `"hiking"`, dedupes fine) vs the data layer ever receiving mixed case from elsewhere. Minor today, but the interest set's case-canonicalisation lives only in the custom-add path; the matching join (`user_interests`, `candidates.js:72`, `starters.js:39-48`) is case-sensitive (`Set` membership), so any case drift silently reduces shared-interest scoring.
 - fix: Normalise interest case at one boundary (ideally server-side on write to `user_interests`), so scoring/starters can't silently miss `"Reading"` vs `"reading"`.
 
 ### [ERROR] ⚪ — `export.js` re-exports full display names but labels timestamps "coarse" — inconsistent privacy framing (not a leak of the user's own data)
-- where: `Spectrum-Dating-Server/src/routes/export.js:38, 69, 74`.
+- where: `server/src/routes/export.js:38, 69, 74`.
 - issue: The conversation export carefully coarsens every timestamp via `coarseLabel` (no raw times — matches the platform rule) yet exports the other party's full `display_name` and the user's own messages verbatim. That's defensible (it's the requesting user's own conversation data, GDPR-style export), but the file mixes a privacy-preserving timestamp policy with full-fidelity content with no comment explaining why one is coarsened and the other isn't. A future reader may "fix" the inconsistency in the wrong direction.
 - fix: Add a one-line comment: timestamps are coarsened per the no-raw-time product rule; names/bodies are the requester's own conversation data and intentionally full-fidelity.
 
 ### [ERROR] ⚪ — Onboarding validation runs `validateStep1/2` up to 3× per render with no memoisation
-- where: `Spectrum-Dating/src/OnboardingScreen.jsx:660, 704-705` plus inside `handleContinue`.
+- where: `src/OnboardingScreen.jsx:660, 704-705` plus inside `handleContinue`.
 - issue: `validateStep1`/`validateStep2` are recomputed on every render via the inline `step1Errors`/`step2Errors` derivations and again inside `handleContinue`. Cheap here (a few string checks), so purely a smell — but it's the kind of recompute-on-every-render that the codebase elsewhere guards with `useCallback`/`useMemo`. Noted for consistency, not urgency.
 - fix: Acceptable as-is; if touched, memoise on the relevant field deps.
 
@@ -72,7 +72,7 @@ Severity legend: 🔴 real bug · 🟠 likely bug / fragile · 🟡 smell · ⚪
 
 ## Confirms of R1 criticals / serious (re-verified this round)
 
-- **CONFIRMED 🔴 E1 — Migration runner not idempotent.** `Spectrum-Dating-Server/src/db.js:57-70` unchanged: `db.exec(sql)` runs each file as one batch; the `catch` swallows `duplicate column name` and `continue`s to the **next file**, so a 2nd+ `ADD COLUMN` appended to an already-partly-applied multi-ALTER file (e.g. `014`, `018`, `023`, `026`) will never apply on existing DBs → `no such column` at query time. No `schema_migrations` bookkeeping. Fix: per-statement exec/catch or a migrations table inside a txn; a boot-twice test would catch it.
+- **CONFIRMED 🔴 E1 — Migration runner not idempotent.** `server/src/db.js:57-70` unchanged: `db.exec(sql)` runs each file as one batch; the `catch` swallows `duplicate column name` and `continue`s to the **next file**, so a 2nd+ `ADD COLUMN` appended to an already-partly-applied multi-ALTER file (e.g. `014`, `018`, `023`, `026`) will never apply on existing DBs → `no such column` at query time. No `schema_migrations` bookkeeping. Fix: per-statement exec/catch or a migrations table inside a txn; a boot-twice test would catch it.
 
 - **CONFIRMED 🔴 E2 — Attachment send path dead/unsafe.** `ConversationScreen.jsx:1062-1077` still fabricates `savedId = \`msg-${Date.now()}\`` and pushes a client-only message; `confirmAttachment` flips status with no real scan and never links `message_attachments.message_id`. Gated by `ATTACHMENTS_ENABLED=false`. The only `TODO` in either codebase documents it (`:1059`). NEW corollary above: the failure path also loses the user's text.
 
@@ -96,7 +96,7 @@ Severity legend: 🔴 real bug · 🟠 likely bug / fragile · 🟡 smell · ⚪
 
 Re-ran `TODO|FIXME|HACK|XXX|@deprecated` across both `src` trees:
 
-- `Spectrum-Dating/src/messaging/ConversationScreen.jsx:1059` — `// TODO: backend message-attachment linking — sendMessage does not yet accept an attachmentId …` (the R1 attachment TODO; still the **only** debt marker in either codebase).
+- `src/messaging/ConversationScreen.jsx:1059` — `// TODO: backend message-attachment linking — sendMessage does not yet accept an attachmentId …` (the R1 attachment TODO; still the **only** debt marker in either codebase).
 
 No `FIXME`, `HACK`, `XXX`, or `@deprecated` anywhere in `Spectrum-Dating/src` or `Spectrum-Dating-Server/src`. (Matches in `package-lock.json`, `STATUS.md`, and `audit/*.md` are not source markers.) Many `// Security Fix N` / `// A11y Blocker N` / `// backlog #N` inline notes exist but are not TODO-style debt markers.
 

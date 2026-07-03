@@ -82,17 +82,17 @@ Severity: 🔴 exploitable / data-loss · 🟠 serious · 🟡 hardening · ⚪ 
 - fix: Add a `schema_migrations(filename, applied_at)` table; skip applied files. Run each statement individually (split on `;` or one statement per `db.exec`) inside a transaction per file, or guard ALTERs with `PRAGMA table_info` checks. A boot-twice integration test catches the whole class.
 
 ### [ERROR] 🟠 NEW — `message_attachments` was created in 004 without `public_url`; the column only exists because of the 005 ALTER — and `/upload-intent` would 500 if 005's tail were ever skipped
-- where: `migrations/004_reactions_photos.sql:14-24` (no `public_url`), `005_profile_photos.sql:5` (adds it), `photos.js:209-212` (INSERTs into `public_url`, `file_size_bytes`)
+- where: `server/src/migrations/004_reactions_photos.sql:14-24` (no `public_url`), `005_profile_photos.sql:5` (adds it), `photos.js:209-212` (INSERTs into `public_url`, `file_size_bytes`)
 - risk: This is the concrete coupling between the migration bug above and a live endpoint. `/photos/upload-intent` writes `public_url`. That column is added by the **second** statement of `005`, i.e. exactly the "tail statement after a duplicate-column ALTER" that the runner will skip on any DB where `005`'s first ALTER is already applied. On a fresh DB it's fine (both run first time). But this is the precise latent break: a DB that ever loses/rebuilds and re-runs migrations after `photo_url` exists would skip `public_url`, and every `/upload-intent` call would then 500 on `no such column: public_url`. Documents *why* the migration bug is not merely theoretical.
 - fix: Same as the migration fix. Separately, fold the `public_url` column into `004`'s `CREATE TABLE` (or its own single-ALTER migration) so it isn't the tail of a multi-statement file.
 
 ### [ERROR] 🟠 NEW — `message_attachments.mime_type` CHECK constraint omits `image/gif`, contradicting the code's allowlist
-- where: `migrations/004_reactions_photos.sql:19` (`CHECK (mime_type IN ('image/jpeg','image/png','image/webp'))`) vs `photos.js:9` `ALLOWED_MIME` includes `'image/gif'`
+- where: `server/src/migrations/004_reactions_photos.sql:19` (`CHECK (mime_type IN ('image/jpeg','image/png','image/webp'))`) vs `photos.js:9` `ALLOWED_MIME` includes `'image/gif'`
 - risk: `/upload-intent` accepts `image/gif` (passes the `ALLOWED_MIME` check at `photos.js:192`), then the `INSERT` violates the table's CHECK constraint → throws → generic **500** instead of a clean 400. A user uploading a GIF attachment gets an opaque server error. (The CHECK lists only jpeg/png/webp; profile-photo uploads don't hit this table so they're unaffected.)
 - fix: Add `'image/gif'` to the CHECK constraint (new migration) or drop gif from `ALLOWED_MIME` for attachments. Reconcile the two allowlists.
 
 ### [ERROR] 🟠 confirmed (R1, E6) — Report evidence cascades away on account deletion
-- where: `account.js:70-81`; `migrations/010_moderation.sql:4-5` (`reporter_id`/`reported_id` both `ON DELETE CASCADE`)
+- where: `account.js:70-81`; `server/src/migrations/010_moderation.sql:4-5` (`reporter_id`/`reported_id` both `ON DELETE CASCADE`)
 - risk: Re-verified. `DELETE /account/me` doesn't touch `reports` explicitly, and the FK cascade deletes (a) every report the deleting user **filed** and (b) every report filed **against** them. An abuser can self-delete to erase their own moderation trail. The explicit-delete block in `account.js` cleans push/interests/matches/conversations/swipes/blocks/profile/users but deliberately leaves `reports` to the cascade → evidence loss by design.
 - fix: Change `reports.reporter_id`/`reported_id` to `ON DELETE SET NULL` (keep the row + reason/details for audit), or snapshot into `moderation_log` before deleting.
 

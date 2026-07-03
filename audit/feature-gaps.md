@@ -1,7 +1,7 @@
 # Feature-Gap / Product Audit — Spectrum Dating
 
 Dimension: missing features, functionality gaps, half-built/orphaned capabilities.
-Method: cross-referenced backend routes (`Spectrum-Dating-Server/src/routes`) + migrations 001–029 against the frontend (`Spectrum-Dating/src`), and read the full STATUS.md backlog so already-shipped items are excluded. Calm-by-design respected: no typing indicators, online-now, read receipts, streaks, or urgency/gamification mechanics are proposed.
+Method: cross-referenced backend routes (`server/src/routes`) + migrations 001–029 against the frontend (`Spectrum-Dating/src`), and read the full STATUS.md backlog so already-shipped items are excluded. Calm-by-design respected: no typing indicators, online-now, read receipts, streaks, or urgency/gamification mechanics are proposed.
 
 Priority key: 🔴 launch-blocking / trust / safety · 🟠 high value · 🟡 nice-to-have · ⚪ future.
 

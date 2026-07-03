@@ -11,7 +11,7 @@ Overall the backend is in noticeably good shape: parameterized queries everywher
 ## Security
 
 ### [FEATURE] 🔴 — Message photo-attachment flow is half-wired; "scan" is a no-op and attachments never link to a message
-- where: `routes/photos.js:188-242` (`/upload-intent`, `/confirm/:attachmentId`), `migrations/004_reactions_photos.sql:14-24`; `messaging.js` (no attachment handling anywhere)
+- where: `routes/photos.js:188-242` (`/upload-intent`, `/confirm/:attachmentId`), `server/src/migrations/004_reactions_photos.sql:14-24`; `messaging.js` (no attachment handling anywhere)
 - risk: `POST /photos/confirm/:attachmentId` flips `upload_status` from `pending` → `scanned` with **no actual content scan** (no AV/NSFW/CSAM check exists anywhere in the repo — grep for scan/clamav/nsfw/moderate finds nothing). The column name and `scanned_at` imply safety that does not exist. Worse, `message_attachments.message_id` is **never set by any code path** — there is no endpoint that associates an attachment with a message, so the whole feature is dead/orphaned: users can presign + upload arbitrary image bytes to R2 (publicly served via `getPublicUrl`) and obtain a permanent public URL via `GET /photos/:attachmentId/url`, but it can never appear in a conversation. Net effect: an unmoderated public image host bolted to authenticated accounts, with zero delivery.
 - fix: Either (a) finish the flow — add a message-send path that sets `message_id`, gate `GET /:attachmentId/url` strictly, and integrate a real scan before flipping to `approved`; or (b) if attachments are out of scope for launch, remove `/upload-intent`, `/confirm`, `/:attachmentId/url` so there is no unauthenticated-content surface. Do not name a status `scanned` until something scans.
 
@@ -21,7 +21,7 @@ Overall the backend is in noticeably good shape: parameterized queries everywher
 - fix: Mirror `/report`: reject `blockedUserId === userId` with 400, and `SELECT 1 FROM users WHERE id = ?` → 404 before inserting. Return 400/404 rather than letting the FK throw a 500.
 
 ### [ERROR] 🟠 — Account deletion cascades destroy moderation evidence (reports filed BY the deleted user)
-- where: `routes/account.js:64-90`; `migrations/010_moderation.sql:4-5` (`reporter_id ... ON DELETE CASCADE`)
+- where: `routes/account.js:64-90`; `server/src/migrations/010_moderation.sql:4-5` (`reporter_id ... ON DELETE CASCADE`)
 - risk: `DELETE /account/me` removes the user; `reports.reporter_id` is `ON DELETE CASCADE`, so every report the user filed is silently deleted. A harasser who was *reported* can also be the *reporter* on other open cases; more importantly an abuser can self-delete to wipe their own outbound report trail, and reports *against* a deleted abuser also vanish (`reported_id` cascades too). Moderators lose history. The handler also does not delete `verification_requests`, `feedback` (SET NULL — fine), `reports`, `moderation_log`, `message_attachments`, `email_verifications`, `profile_photos`, `profile_prompts` explicitly — it relies entirely on cascade, which is correct for most but means evidence loss is by-design rather than considered.
 - fix: For `reports`, change `reporter_id`/`reported_id` to `ON DELETE SET NULL` (keep the row for audit) and retain `reason/details`. Consider soft-deletion of users involved in open reports, or snapshot report context into `moderation_log` before deletion.
 

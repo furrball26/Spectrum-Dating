@@ -22,8 +22,8 @@ Tags: **NEW** (not in R1) · **CONFIRMS-R1** (re-verified, still open) · **CORR
 ## A. Orphaned / half-built (backend or DB exists, no UI — or vice versa)
 
 ### `[FEATURE] 🟠 — Orphaned `notification_preferences` table; the live tier lives elsewhere` · **NEW**
-- rationale: A whole table was built for notification preferences and then bypassed. `notification_preferences(user_id, tier DEFAULT 'in_app')` is created in `migrations/003_messaging.sql:31-34` but is referenced by **zero** server code (grep across `src` returns only the migration). The tier actually in use is `profiles.notification_tier` (`routes/profile.js:32,93,319`). Dead schema is a correctness/clarity trap for the next dev and signals the notification-prefs model was half-rebuilt. Also a foundation that *should* have become the email-digest prefs store (see F6) but didn't.
-- state: orphaned (DB table with no reader/writer) — `migrations/003_messaging.sql:31-34`.
+- rationale: A whole table was built for notification preferences and then bypassed. `notification_preferences(user_id, tier DEFAULT 'in_app')` is created in `server/src/migrations/003_messaging.sql:31-34` but is referenced by **zero** server code (grep across `src` returns only the migration). The tier actually in use is `profiles.notification_tier` (`routes/profile.js:32,93,319`). Dead schema is a correctness/clarity trap for the next dev and signals the notification-prefs model was half-rebuilt. Also a foundation that *should* have become the email-digest prefs store (see F6) but didn't.
+- state: orphaned (DB table with no reader/writer) — `server/src/migrations/003_messaging.sql:31-34`.
 - scope: S — either delete the dead table in a new migration, or repurpose it as the multi-channel prefs store F6 needs (don't leave it dangling).
 
 ### `[FEATURE] 🔴 — Admin can't approve/reject verification requests` · **CONFIRMS-R1 (F1)**

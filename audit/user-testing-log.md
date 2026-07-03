@@ -31,7 +31,7 @@ Tested live against https://spectrum-dating-eta.vercel.app as the sample user **
 - **Repro:** Tap "I'm interested" on a Discover card → calm confirmation screen with only "Next person". There is no undo on that screen, and nowhere else in the product to take an "interested" back (before a mutual match exists).
 - **Expected:** A user who mis-taps "I'm interested" (very plausible for this audience, and consistent with the calm/in-control ethos) can take it back, the same way a skip can be undone.
 - **Actual:** `undo-skip` *by design* only deletes the most recent `decision='skip'` and "Never touches 'like' swipes" (server comment). The like persists with no user-facing reversal.
-- **file:line:** `Spectrum-Dating-Server/src/routes/matching.js:164-183` (undo-skip likes-excluded); `:99-114` (swipe insert, 409 on repeat so it can't even be re-set).
+- **file:line:** `server/src/routes/matching.js:164-183` (undo-skip likes-excluded); `:99-114` (swipe insert, 409 on repeat so it can't even be re-set).
 - **Severity:** 🟠 (asymmetric reversibility; mis-tap is unrecoverable, which clashes with the "no dark patterns / at your own pace" promise).
 
 ### 2. [FEATURE-GAP] "Pause my profile" is buried mid-form and gated behind the global "Save changes" 🟡
@@ -39,7 +39,7 @@ Tested live against https://spectrum-dating-eta.vercel.app as the sample user **
 - **Repro:** A user who just wants to step away must scroll deep into the long profile-edit form, flip the toggle, then scroll to the bottom and press "Save changes" for it to apply.
 - **Expected:** For an audience explicitly served the option to "leave whenever you like", pausing should be quick to find and ideally apply instantly (like Archive conversation does), not require finding + committing the whole profile form.
 - **Actual:** Pause is one field inside the big profile form; it doesn't take effect until the form-level Save. Easy to miss / feels heavy for a "take a break" action.
-- **file:line:** `Spectrum-Dating/src/ProfileScreen.jsx:3219-3233` (PauseToggle in form), `:735-760` (PauseToggle component).
+- **file:line:** `src/ProfileScreen.jsx:3219-3233` (PauseToggle in form), `:735-760` (PauseToggle component).
 - **Severity:** 🟡 (works, but discoverability + friction for a calm-by-design audience).
 
 ### 3. [FEATURE-GAP / minor] "Set who you're looking for" completeness chip doesn't visibly jump to the section 🟡
@@ -47,7 +47,7 @@ Tested live against https://spectrum-dating-eta.vercel.app as the sample user **
 - **Repro:** Clicking the pill produced no visible scroll/jump for me to the "Who do you want to meet?" checkboxes (which is the actual missing item — `seeking` is empty).
 - **Expected:** The completeness chip should scroll to / focus the relevant field so the user knows where to go.
 - **Actual:** No observable navigation on click; the user must manually hunt down the "About your search → Who do you want to meet?" checkboxes.
-- **file:line:** `Spectrum-Dating/src/ProfileScreen.jsx:1149` (completeness item def). Suspected missing/failed scroll-to-anchor; not deeply confirmed.
+- **file:line:** `src/ProfileScreen.jsx:1149` (completeness item def). Suspected missing/failed scroll-to-anchor; not deeply confirmed.
 - **Severity:** 🟡 (minor wayfinding nit; goal still achievable).
 
 ---

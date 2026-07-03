@@ -39,7 +39,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** With a single photo, click Remove → confirm shows only "Remove / Cancel", no warning. Confirm → `photo_url` set to `''`. Profile stays in Discover.
 - **Expected:** A "Replace this photo" action (upload-in-place), and a warning/block when removing your *last* photo ("You'll have no photo and may be hidden / harder to match").
 - **Actual:** No replace path; no last-photo guard; photoless profiles still surface in Discover.
-- **file:line:** `Spectrum-Dating-Server/src/routes/photos.js:153-183` (delete sets `photo_url=''`, no last-photo check); `Spectrum-Dating-Server/src/matching/candidates.js:50-67` (candidate filter requires name+bio+interest, **not** a photo); `Spectrum-Dating/src/ProfileScreen.jsx:284-488` (`PhotoCell` — confirm step at :422-464 has no warning copy).
+- **file:line:** `server/src/routes/photos.js:153-183` (delete sets `photo_url=''`, no last-photo check); `server/src/matching/candidates.js:50-67` (candidate filter requires name+bio+interest, **not** a photo); `src/ProfileScreen.jsx:284-488` (`PhotoCell` — confirm step at :422-464 has no warning copy).
 - **Severity:** 🟠 (self-inflicted invisibility / blank-card matching; mis-step is easy and unguided).
 
 ### G2. [FEATURE-GAP] No way to withdraw / cancel a filed report 🟠 (NEW)
@@ -47,7 +47,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** Open Safety Center, scroll to "Your reports". Cards are read-only — zero action buttons (verified in DOM). No withdraw endpoint exists (`/messaging/report` create + `/messaging/my-reports` read only).
 - **Expected:** A "Withdraw / This was a mistake" action on an *open* report (and ideally a confirm). Especially important for a cohort that may report impulsively when overwhelmed and later regret it.
 - **Actual:** Reports are permanent and one-directional; the reporter can never retract.
-- **file:line:** `Spectrum-Dating-Server/src/routes/messaging.js:466-534` (report create + my-reports read; no delete/withdraw); `Spectrum-Dating/src/SafetyScreen.jsx:662-700` ("Your reports" card, no action).
+- **file:line:** `server/src/routes/messaging.js:466-534` (report create + my-reports read; no delete/withdraw); `src/SafetyScreen.jsx:662-700` ("Your reports" card, no action).
 - **Severity:** 🟠 (trust/agency for a vulnerable audience; pollutes the mod queue with un-retractable false reports).
 
 ### G3. [FEATURE-GAP] Reported outcome is opaque — status only, no plain-language result 🟡 (NEW · confirms backlog F9)
@@ -55,7 +55,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** The Ana Beltran report shows "Reviewed" with no detail about what happened (actioned? dismissed?). No tap-through, `moderator_note` is intentionally hidden.
 - **Expected:** A plain-language outcome ("We reviewed this and took action" / "We reviewed this and didn't find a violation") so a vulnerable reporter knows reporting *did something*.
 - **Actual:** Bare status word; reporter left uncertain.
-- **file:line:** `Spectrum-Dating-Server/src/routes/messaging.js:507-534` (returns `status` only).
+- **file:line:** `server/src/routes/messaging.js:507-534` (returns `status` only).
 - **Severity:** 🟡 (reassurance gap). Matches backlog **F9**.
 
 ### G4. [FEATURE-GAP / latent ERROR] Search radius silently no-ops outside ~7 hard-coded metros 🟠 (NEW)
@@ -63,7 +63,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** Set "Where are you based?" to any city not in the curated metro map (e.g. "Cleveland, OH", "Miami, FL", anywhere outside the US) and pick "Within 25 miles". `distanceMiles` returns `null` → candidate is *not* excluded → you still see distant people, with no indication the radius isn't applying.
 - **Expected:** Either real geocoding, or honest UI feedback when a location can't be resolved ("We couldn't pin your location, so distance isn't being used"), and/or validated city input.
 - **Actual:** Free-text city, no validation; radius appears active but silently does nothing for most real inputs.
-- **file:line:** `Spectrum-Dating-Server/src/utils/metros.js:68-112` (only ~7 metros + Tucson have coords; `distanceMiles` returns `null` otherwise); `Spectrum-Dating-Server/src/matching/candidates.js:93-99` ("unknown distance always passes"); `Spectrum-Dating/src/ProfileScreen.jsx:2855-2901` (free-text city + radius select, help text says "Set your location above for this to apply" but doesn't warn when it can't resolve).
+- **file:line:** `server/src/utils/metros.js:68-112` (only ~7 metros + Tucson have coords; `distanceMiles` returns `null` otherwise); `server/src/matching/candidates.js:93-99` ("unknown distance always passes"); `src/ProfileScreen.jsx:2855-2901` (free-text city + radius select, help text says "Set your location above for this to apply" but doesn't warn when it can't resolve).
 - **Severity:** 🟠 (a control that looks functional but silently fails for the majority of locations).
 
 ### G5. [FEATURE-GAP] Unmatch makes the conversation vanish with no notice or tombstone 🟠 (NEW)
@@ -71,7 +71,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** When the *other* user unmatches, the match + conversation are hard-deleted for both. The thread disappears from your list on next load with no message; if you had it open, you learn only on a failed send ("This conversation is no longer available").
 - **Expected:** A gentle, predictable acknowledgement — a tombstone or a one-line "This conversation has ended" so the disappearance isn't silent/confusing (without naming/blaming the other person).
 - **Actual:** Silent deletion; no notification; history gone.
-- **file:line:** `Spectrum-Dating-Server/src/routes/matching.js:235-249` (hard-deletes conversation + match); `Spectrum-Dating/src/messaging/ConversationScreen.jsx:1527-1543` (notice only on send-failure, not proactively).
+- **file:line:** `server/src/routes/matching.js:235-249` (hard-deletes conversation + match); `src/messaging/ConversationScreen.jsx:1527-1543` (notice only on send-failure, not proactively).
 - **Severity:** 🟠 (predictability/comfort gap for the target audience; lost history with no closure).
 
 ### G6. [FEATURE-GAP] "You've seen everyone" shown even when there were zero candidates 🟡 (NEW)
@@ -79,7 +79,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** With 0 candidates returned (filters too tight, empty area, or `seeking` empty), `atEnd = index(0) >= queue.length(0)` is true → identical "You're all caught up / You've seen everyone who matches your search" screen as a genuine exhaustion.
 - **Expected:** Distinguish "we couldn't find anyone matching your current filters" from "you've gone through everyone," and ideally name the active filters (seeking / radius / age) so the why-no-matches user can self-diagnose.
 - **Actual:** One conflated message; user told they've "seen everyone" when they've seen no one.
-- **file:line:** `Spectrum-Dating/src/SuggestionScreen.jsx:491` (`atEnd` definition), `:670-707` (single empty state). The "Adjust your search" hint at :689-690 is good and should be preserved.
+- **file:line:** `src/SuggestionScreen.jsx:491` (`atEnd` definition), `:670-707` (single empty state). The "Adjust your search" hint at :689-690 is good and should be preserved.
 - **Severity:** 🟡 (misleading copy; the goal is still partly served by the adjust hint).
 
 ### G7. [FEATURE-GAP] Conversation list lacks last-message / who-replied-last wayfinding 🟡 (NEW)
@@ -87,7 +87,7 @@ were permission-denied again (as R1); worked around with screenshots + page JS +
 - **Repro:** Row shows only "{name} · {Verified} · Today" (verified in DOM: `"Eli BrennerVerifiedToday"`). No snippet, no "you / they replied last".
 - **Expected:** A last-message snippet or a neutral "You replied last / They replied last" cue (not an unread *count* — that stays excluded by design) to help users managing several threads know where they left off.
 - **Actual:** No content/sender cue at the list level.
-- **file:line:** `Spectrum-Dating/src/messaging/MessagingApp.jsx` (conversation list rows).
+- **file:line:** `src/messaging/MessagingApp.jsx` (conversation list rows).
 - **Severity:** 🟡 (multi-conversation wayfinding; consistent with calm-by-design since it's not an urgency signal).
 
 ---

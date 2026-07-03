@@ -1,16 +1,16 @@
 # Status
 
 ---
-## ⭐ CURRENT STATE — READ THIS FIRST (living shared-memory for all agents) · updated 2026-07-01
+## ⭐ CURRENT STATE — READ THIS FIRST (living shared-memory for all agents) · updated 2026-07-03
 
 **Product law — calm-by-design:** never add (or flag as missing) typing indicators, online-now/last-seen, read receipts, streaks, urgency, or gamification.
 
-**Deploy pipeline (AUTHORITATIVE — the backend path changed):**
-- **Backend** (`Spectrum-Dating-Server`): deploy = **`git push origin master`** → GitHub → Railway. Poll `https://spectrum-dating-server-production.up.railway.app/health` until `{sha}` == commit. **NEVER `railway up`/`npm run deploy`** (Defender false-positive quarantines `profile.js` → crash). A ~30s `502` rollover blip is normal.
-- **Frontend** (`Spectrum-Dating`): **Vercel only, NO git remote.** `npm run deploy` THEN `npx vercel alias set <url> spectrum-dating-eta.vercel.app`. Vercel rebuilds → **live hash differs from local**; verify by a distinctive STRING, not hash.
-- Commit to `master`, never a feature branch. When a FE change needs a new endpoint, deploy BACKEND first. In orchestrated runs builders commit locally; the orchestrator pushes + verifies.
+**Deploy pipeline (AUTHORITATIVE — NOW A MONOREPO):** frontend and backend live in the single `Spectrum-Dating` repo — frontend at the root, backend under `server/` (merged via `git subtree`, full history preserved). Both deploy from `master` via Git integration:
+- **Backend** (`server/`): push to `master` → **Railway** builds from root directory `server/` (nixpacks, `npm start`, `/health`). Poll `https://spectrum-dating-server-production.up.railway.app/health` until `{sha}` == commit. **NEVER `railway up`/`npm run deploy`** (Defender false-positive quarantined `profile.js`; server-side Git build avoids it). A ~30s `502` rollover blip is normal.
+- **Frontend** (repo root): push to `master` → **Vercel** Git integration auto-deploys. **NO `npm run deploy` / `vercel alias`** (retired). Vercel rebuilds → **live hash differs from local**; verify by a distinctive STRING, not hash.
+- Ship = ff-merge your branch to `master` and push. Commit to `master` via the branch, never leave work on a feature branch. When a FE change needs a new endpoint, land the BACKEND change first. In orchestrated runs builders commit locally; the orchestrator pushes + verifies.
 
-**Serialization:** one builder per repo; FE + BE builders (different repos) run in parallel; read-only reviewers compose freely. Same-repo parallel = worktree isolation + disjoint files.
+**Serialization:** one builder per side (FE root / BE `server/`); FE + BE builders touch disjoint paths so they run in parallel; read-only reviewers compose freely. Same-side parallel = worktree isolation + disjoint files.
 
 **Gotchas:** live browser won't narrow below ~1920px → verify ~375px in a **same-origin 375px iframe**. `/auth/register` rate-limit ~20/15min (seed in START/COUNT batches). Photos set via a **migration** (`randomuser.me` URLs, see `021/022/035`), not the profile API. R2 CORS set via Cloudflare dashboard only.
 
@@ -456,7 +456,7 @@ Method: live Chrome-driving MCP was **permission-denied** this run (and computer
 - *(none)* — auth, register, onboarding 18+ gate (client AND server), candidates, matches, send/delete, swipe/undo, 409-open-existing, pause, and admin authz all functioned on the live API.
 
 🟠 High
-- **Message reactions do not persist — they vanish when a conversation is reopened or reloaded.** · Repro (API-confirmed): `POST /reactions/messages/:id/reactions {emoji:"♥"}` → `200 {reactions:[{emoji,count,userReacted}],action:"added"}` and the row IS written to `message_reactions`; but immediately re-fetching `GET /messaging/conversations/:id` returns each message with keys only `[id, senderId, body, deleted, timeLabel]` — **no `reactions` field**. · Expected: a previously-added reaction shows as a filled pill after reopening the thread. · Actual: reactions render only optimistically (on click) and via the live `reaction_update` socket event for the *current* session; on reload/reopen they disappear even though they're stored server-side. · Location / root cause: **backend** `Spectrum-Dating-Server/src/routes/messaging.js:99-112` — the conversation-detail query selects only `id, sender_id, body, deleted, sent_at` and never attaches reactions. The helper `getReactionSummary(db,messageId,userId)` already exists (`routes/reactions.js:10-26`) but conversation-detail calls neither it nor the per-message GET. The **frontend is already correct and waiting**: `src/messaging/ConversationScreen.jsx:821-830` hydrates from `msg.reactions` on load — so the fix is purely server-side (attach `reactions: getReactionSummary(db, m.id, userId)` per message in the `.map`). · Why the prior pass missed it: in-session testing shows the optimistic/socket state, which masks the reload gap. Reactions are a shipped, advertised feature — fix or consciously accept before launch.
+- **Message reactions do not persist — they vanish when a conversation is reopened or reloaded.** · Repro (API-confirmed): `POST /reactions/messages/:id/reactions {emoji:"♥"}` → `200 {reactions:[{emoji,count,userReacted}],action:"added"}` and the row IS written to `message_reactions`; but immediately re-fetching `GET /messaging/conversations/:id` returns each message with keys only `[id, senderId, body, deleted, timeLabel]` — **no `reactions` field**. · Expected: a previously-added reaction shows as a filled pill after reopening the thread. · Actual: reactions render only optimistically (on click) and via the live `reaction_update` socket event for the *current* session; on reload/reopen they disappear even though they're stored server-side. · Location / root cause: **backend** `server/src/routes/messaging.js:99-112` — the conversation-detail query selects only `id, sender_id, body, deleted, sent_at` and never attaches reactions. The helper `getReactionSummary(db,messageId,userId)` already exists (`routes/reactions.js:10-26`) but conversation-detail calls neither it nor the per-message GET. The **frontend is already correct and waiting**: `src/messaging/ConversationScreen.jsx:821-830` hydrates from `msg.reactions` on load — so the fix is purely server-side (attach `reactions: getReactionSummary(db, m.id, userId)` per message in the `.map`). · Why the prior pass missed it: in-session testing shows the optimistic/socket state, which masks the reload gap. Reactions are a shipped, advertised feature — fix or consciously accept before launch.
 
 🟡 Medium
 - **Prior 🟠 "Moderation discrepancy" is now PARTIALLY RESOLVED — but two stale comments remain.** · Update to QA pass #1: the dead `ModerationButton` and the unused `isAdmin`/`onOpenModeration` props have since been **removed from `ProfileScreen.jsx`** (grep returns zero matches) and `App.jsx` renders `<ProfileScreen/>` without them. The canonical design is now unambiguously "Moderation = admin-only 5th nav tab" (`App.jsx:804-810` top, `:951-957` bottom) and it works. **However**, two comments still falsely claim the abandoned design — `App.jsx:772` and `App.jsx:910` both say "Moderation lives in Profile" — and the 2026-06-29 "Responsive overhaul" entry above describes a Profile-button design that did not ship. Fix: correct those two comments + that STATUS entry. Pure doc/comment drift, no user impact; the dead-code half is fixed.
@@ -651,7 +651,7 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 
 **What was built:** Activity inbox — a "Liked you" section inside the Matches screen showing people who swiped 'like' on you that you haven't acted on yet, plus a nav badge on the Matches tab.
 
-**Backend** (`Spectrum-Dating-Server/src/routes/matching.js`):
+**Backend** (`server/src/routes/matching.js`):
 - New `GET /matching/activity` endpoint. Returns `incomingLikes[]` (people who liked you, you haven't swiped on, no match exists) and `recentMatches[]` (mutual matches from last 7 days). Query uses existing `swipes`, `matches`, `profiles` tables — no migration needed. Each person includes `userId`, `displayName`, `age`, `photoUrl`, `pronouns`, `distCity`, `verified`, `likedAt`. Capped at 20 incoming likes. Live-verified: `{"incomingLikes":[],"recentMatches":[{"matchId":"…","displayName":"Eli Brenner",…}]}` ✅
 
 **Frontend** (`src/api.js`, `src/MatchesScreen.jsx`, `src/App.jsx`):
@@ -688,14 +688,14 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 
 **What was built:** Cursor-based "load earlier messages" support so conversations no longer render their full history at once.
 
-**Backend** (`Spectrum-Dating-Server/src/routes/messaging.js`):
+**Backend** (`server/src/routes/messaging.js`):
 - `GET /messaging/conversations/:id` now accepts `?limit` (default 50, max 100) and `?before=<messageId>`. Without `?before` it returns the most-recent N messages (DESC then reversed to ASC). With `?before` it fetches the page of messages older than that message's `sent_at`, validated to the same conversation (prevents info-leak). Returns `hasMore: bool` alongside `messages`. Backend deployed; health check confirmed SHA `85ca6dd`.
 
 **Frontend** (`src/api.js`, `src/messaging/ConversationScreen.jsx`):
 - `api.js`: `getConversation(id, { limit, before } = {})` — builds query-string; backward-compatible (existing callers pass no options).
 - `ConversationScreen`: initial load now fetches `?limit=50`; tracks `hasMore`, `oldestCursor`, `isLoadingEarlier`, and a `scrollRestorationRef`. When `hasMore`, a calm "Load earlier messages" button renders at the top of the message log. Clicking prepends the older page, saves the pre-prepend `scrollHeight`, and the scroll `useEffect` restores relative position instead of snapping to bottom. Reactions are hydrated for the loaded page. All three new `useState` calls and the new `useRef` are declared before early returns — no hook-after-return.
 
-**Files touched:** `Spectrum-Dating-Server/src/routes/messaging.js`, `src/api.js`, `src/messaging/ConversationScreen.jsx`
+**Files touched:** `server/src/routes/messaging.js`, `src/api.js`, `src/messaging/ConversationScreen.jsx`
 
 **Deploy:** Build clean (90 modules). Backend health-gated deploy passed. Frontend deployed to Vercel (`spectrum-dating-9hotgward-spectrum-dating.vercel.app`); alias re-pointed to `spectrum-dating-eta.vercel.app`. ✅
 
@@ -777,7 +777,7 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 
 **What was built:** Full archived-conversations view in Messages — users can see conversations they've previously archived and restore them to their active list with one tap.
 
-**Backend** (`Spectrum-Dating-Server/src/routes/messaging.js`):
+**Backend** (`server/src/routes/messaging.js`):
 - `GET /messaging/conversations`: added `archivedCount` to response so the "Archived (N)" entry-point badge shows without a separate API call.
 - `GET /messaging/conversations/archived` (new, declared BEFORE the `/:id` wildcard to avoid routing collision): returns archived conversations for the current user, newest first. Shape matches the active list (`id`, `matchId`, `otherUser`, `lastMessageGroup`, `hasUnread:false`).
 - `POST /messaging/conversations/:id/unarchive` (new): clears `archived_by_a` or `archived_by_b` flag for the requesting user. Always allowed — no cap enforcement on restoring (cap only gates NEW conversations). Backend deployed; health-gated pass confirmed SHA `218ea36`.
@@ -787,7 +787,7 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 - `MessagingApp`: added `showingArchived`, `archivedConversations`, `archivedLoading`, `archivedCount` state — all declared with other hooks, before any conditional. `handleToggleArchived` lazy-loads archived list on first open. `handleUnarchive` calls the API, removes from archived list optimistically, decrements count, and refreshes active list via `refreshKey`. `currentConvo` now looks in both active and archived lists so archived threads can be opened and read.
 - `MatchesListScreen`: new `showingArchived` early-return (before the `loadFailed`/`loading` paths, all hooks unconditionally above it) renders: "← Messages" back link, "Archived" `h1` (auto-focused), skeleton while loading, calm empty state, and archived rows with "Restore" button (`showUnarchive`/`onUnarchive`/`fRestore` added to `MatchRow` — `fRestore = useFocusable()` called unconditionally). In the active view, a quiet "Archived conversations (N)" link at the bottom gives the entry point; zero-count shows "Archived conversations" without the number.
 
-**Files touched:** `Spectrum-Dating-Server/src/routes/messaging.js`, `src/api.js`, `src/messaging/MessagingApp.jsx`, `src/messaging/MatchesListScreen.jsx`
+**Files touched:** `server/src/routes/messaging.js`, `src/api.js`, `src/messaging/MessagingApp.jsx`, `src/messaging/MatchesListScreen.jsx`
 
 **Deploy:** Build clean (91 modules). Backend health-gated deploy passed (SHA `218ea36`). Frontend deployed to Vercel (`spectrum-dating-oppksmxv5-spectrum-dating.vercel.app`); alias re-pointed to `spectrum-dating-eta.vercel.app`. ✅
 
@@ -982,7 +982,7 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
   - `verificationRequested === null` → "Get a verified badge…" copy + **"Request verification"** button
   - Button shows "Submitting…" while in flight; surfaces server error inline via `role="alert"`. On success sets `verificationRequested='pending'` in local state immediately (no reload needed).
 
-**Files touched:** `Spectrum-Dating-Server/src/migrations/028_verification_requests.sql` (new), `Spectrum-Dating-Server/src/db.js`, `Spectrum-Dating-Server/src/routes/profile.js`, `Spectrum-Dating-Server/src/routes/admin.js`, `src/api.js`, `src/ProfileScreen.jsx`
+**Files touched:** `server/src/migrations/028_verification_requests.sql` (new), `server/src/db.js`, `server/src/routes/profile.js`, `server/src/routes/admin.js`, `src/api.js`, `src/ProfileScreen.jsx`
 
 **Deploy:** Build clean (91 modules). Backend health-gated deploy passed after 5 checks (Railway SHA `62e9029`). Frontend deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
 
@@ -1007,7 +1007,7 @@ POLL of MISSING / half-built **functional** items (absent or partial states, flo
 - **`SuggestionScreen.jsx`**: `photoDescription` threaded from the API response through the candidate queue mapping (`c.photoDescription || ''`); used as the hero card `<img alt>` (`person.photoDescription || "Photo of {name}"`).
 - **`api.js`**: `updatePhotoDescription(id, description)` → `PUT /photos/profile-photos/:id/description`.
 
-**Files touched:** `Spectrum-Dating-Server/src/migrations/029_photo_alt_text.sql` (new), `Spectrum-Dating-Server/src/db.js`, `Spectrum-Dating-Server/src/routes/photos.js`, `Spectrum-Dating-Server/src/matching/candidates.js`, `Spectrum-Dating-Server/src/routes/matching.js`, `src/api.js`, `src/Avatar.jsx`, `src/ProfileScreen.jsx`, `src/SuggestionScreen.jsx`
+**Files touched:** `server/src/migrations/029_photo_alt_text.sql` (new), `server/src/db.js`, `server/src/routes/photos.js`, `server/src/matching/candidates.js`, `server/src/routes/matching.js`, `src/api.js`, `src/Avatar.jsx`, `src/ProfileScreen.jsx`, `src/SuggestionScreen.jsx`
 
 **Deploy:** Build clean (91 modules). Backend health-gated deploy passed after 4 checks (Railway). Frontend deployed to Vercel; alias `spectrum-dating-eta.vercel.app` re-pointed. ✅
 
@@ -1121,7 +1121,7 @@ Tested live as the sample user `mira.k.1` and (read-only) as admin `ttitleman`. 
 
 **Backend only** — no frontend changes needed.
 
-- **`Spectrum-Dating-Server/src/routes/messaging.js`**: Updated all three conversation-reading routes to SELECT `photo_url` (and `identity_verified` where missing) from `profiles`:
+- **`server/src/routes/messaging.js`**: Updated all three conversation-reading routes to SELECT `photo_url` (and `identity_verified` where missing) from `profiles`:
   - `GET /conversations` (active list): `otherUser` now includes `photoUrl`, `verified`
   - `GET /conversations/archived`: `otherUser` now includes `photoUrl`, `verified`
   - `GET /conversations/:id` (single detail): `otherUser` now includes `photoUrl`, `verified`
