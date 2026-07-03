@@ -55,10 +55,12 @@ Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
 ## GENUINELY OPEN
 
 ### 🟡 Features / richness
-- **F28 — Structured "about me" facets** (occupation/study, languages, "things that
-  help me / things that are hard for me"). The one genuinely-unbuilt profile feature;
-  scannable structured context this audience reads more easily than free-text bio.
-  Size M. **Backend (migration + read/write) + frontend (editor + card).**
+- [x] **F28 — Structured "about me" facets — SHIPPED TO PROD (master `7424946`,
+  backend + frontend, live-verified).** Migration 038 adds occupation/languages/
+  helps_me/hard_for_me (lists as JSON-array text, `''`=unset); server-side caps
+  (80/120 chars, ≤5 items × ≤60); editor + list editors in ProfileScreen; calm rows
+  on MatchProfileModal/preview; occupation+languages on the Discover card (pre-match),
+  the two lists post-match/own only. Backend tests 60/60, smoke 11/11, F28 driver 10/10.
 - **PROD-6 — Viewer-side photo gallery.** Members curate ≤6 photos; every viewing
   surface renders ONE. `candidates` returns only `photoUrl`. **Backend must expose
   `photos[]` first**, then S–M frontend.
