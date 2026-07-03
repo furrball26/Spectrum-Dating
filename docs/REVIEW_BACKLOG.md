@@ -135,24 +135,20 @@ harness at 390px before/after.
   gets clipped. `deep_messaging.mjs` row-⋯ checks: `clippedPx 201→0`,
   `covered:false, visible:true` in dim AND light; 28/28. All 5 items reachable.
   Live bundle marker confirmed.
-- [ ] **FE-4 (SERIOUS a11y = old A11Y-2) — Identity-theme quick revert is
-  gesture-only.** `src/App.jsx:1224,1446` bind revert only to `onDoubleClick` on a
-  `div`; no keyboard/SR path and it's silent. While an identity theme is active,
-  render the logo cluster as a real `<button aria-label="Switch back to Warm dim">`
-  (keep double-tap for pointer) + announce via the polite `role="status"` region;
-  update Settings copy.
-- [ ] **FE-5 (MOD a11y = old A11Y-4) — `role="menu"` without menu keyboard
-  behavior.** `MatchesListScreen.jsx:226-278`: no focus-into-menu, no Arrow/Home/End.
-  Add roving focus + restore, OR downgrade honestly to a disclosure (drop
-  role=menu/menuitem) — calmer/smaller.
-- [ ] **FE-6 (MOD a11y = old A11Y-5) — Theme picker radio semantics without radio
-  behavior.** `src/SettingsScreen.jsx:73-158`: every card is a Tab stop, arrows do
-  nothing. Roving tabindex + arrow selection OR plain buttons with `aria-pressed`;
-  tie the identity disclosure via `aria-describedby`.
-- [ ] **FE-7 (MINOR a11y = old A11Y-6) — Sub-44px targets + type-floor slips.**
-  Archive Undo `minHeight:40` (`MatchesListScreen.jsx:616`→44); clear-filter ×
-  `width:32` (`:704`→add `minWidth:44`); collapse pills `fontSize:13`
-  (`ConversationScreen.jsx:1101,:1234`→14).
+- [x] **FE-4..FE-7 — a11y semantics + target sizes — FIXED, SHIPPED (master
+  `2994dbe`).** Driver `a11y-fe4-7.mjs` 37/37; all regressions green.
+  - FE-4: identity-theme revert now has a real `<button aria-label="Switch back to
+    Warm dim">` + polite announcement (`App.jsx` `LogoRevertShell`); double-tap +
+    logout-reset invariants re-verified intact.
+  - FE-5: fake `role="menu"` → honest `role="group"` disclosure
+    (`MatchesListScreen.jsx`); FE-2 focus behavior preserved.
+  - FE-6: theme picker `role="radio"` → buttons with `aria-pressed` + identity
+    disclosure tied via `aria-describedby` (`SettingsScreen.jsx`).
+  - FE-7: archive Undo 40→44, clear-filter × `minWidth:44`, collapse pills →14px.
+- [ ] **KNOWN (pre-existing, not a regression) — `deep_profile_settings.mjs:19`
+  fails:** the Profile-screen pause switch isn't visible (behind the collapsed
+  duplicate pause section). Same switch passes in `deep_hub` (10/10). Resolves when
+  JRN-2 (remove the duplicate collapsed pause control) is done.
 - [ ] **FE-8 (LOW, low-confidence) — Text-send has no explicit in-flight guard.**
   `ConversationScreen.jsx:2037` relies on `setComposeValue("")` to prevent
   double-send; a `sending` ref would make it bulletproof. No reliable repro.
