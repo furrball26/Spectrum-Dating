@@ -935,7 +935,7 @@ export default function OnboardingScreen({ onComplete }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // D33 — brief "You're all set" arrival beat after a successful save, before
-  // the Discover feed. Optional/auto-advancing and low-stimulation.
+  // the Discover feed. Low-stimulation confirmation; the user taps to enter.
   const [celebrating, setCelebrating] = useState(false);
 
   // Step 1 fields
@@ -977,17 +977,15 @@ export default function OnboardingScreen({ onComplete }) {
     headingRef.current?.focus();
   }, [step]);
 
-  // D33 — auto-advance the "You're all set" beat into Discover. A calm, fixed
-  // dwell (a touch shorter when reduced-motion is on) so it never lingers or
-  // feels like a gate; the user can also tap "Enter Spectrum" to go immediately.
+  // D33 — the "You're all set" beat is entered on the user's own terms via the
+  // "Enter Spectrum" button — no auto-advance/timed transition (a countdown into
+  // the app would read as urgency, against calm-by-design). We only move focus
+  // to the welcome heading so keyboard/SR users land on the confirmation.
   const welcomeRef = useRef(null);
   useEffect(() => {
     if (!celebrating) return;
     welcomeRef.current?.focus();
-    const ms = prefersReduced ? 1400 : 2600;
-    const id = setTimeout(() => onComplete(), ms);
-    return () => clearTimeout(id);
-  }, [celebrating, prefersReduced, onComplete]);
+  }, [celebrating]);
 
   // ── Validation per step ──────────────────────────────────────────────────────
 
@@ -1140,8 +1138,8 @@ export default function OnboardingScreen({ onComplete }) {
   const isOptionalStep = step >= 4; // steps 4 & 5 are optional / skippable
 
   // D33 — "You're all set" arrival beat. Calm, low-stimulation: a soft spectrum
-  // mark, a warm line, and a quiet auto-advance. No confetti / sound / motion
-  // (reduced-motion shortens the dwell). Fully skippable via the button.
+  // mark, a warm line, and a single clear button to enter. No confetti / sound /
+  // motion / countdown — the user decides when to continue.
   if (celebrating) {
     const firstName = (displayName.trim().split(/\s+/)[0]) || "";
     return (

@@ -11,17 +11,61 @@ import { makeAccount, makeMatchedPair, seedConversation, api, launch, login, che
 mkdirSync(OUT, { recursive: true });
 const VP = { width: 390, height: 844 };
 
-// ── A. Onboarding-fresh account ───────────────────────────────────────────────
+// ── A. Onboarding-fresh account → walk to the "You're all set" arrival beat ────
 {
   const acct = await makeAccount("onbfresh", { onboardingComplete: false, bio: "", displayName: "" });
   const { browser, page, errors } = await launch({ viewport: VP });
   await login(page, acct);
+  await page.waitForTimeout(800);
   const body = await page.locator("body").innerText();
   const hasNav = await page.locator('nav[aria-label="Primary"]').count();
   check("A1 fresh account does NOT land in the app shell", hasNav === 0, `navCount=${hasNav}`);
   check("A2 fresh account sees onboarding content", body.length > 80 && !/Something went wrong/i.test(body), body.slice(0, 60).replace(/\n/g, " "));
   await page.screenshot({ path: `${OUT}/flows_onboarding.png` });
-  check("A3 no pageerrors on onboarding-fresh boot", errors.length === 0, errors.slice(0, 2).join(" | "));
+
+  // Step 1 — display name (+ DOB fallback)
+  const nameInput = page.locator('input[autocomplete="name"]').first();
+  if (await nameInput.count()) await nameInput.fill("Onboarding Flow QA");
+  else await page.locator('input[type="text"]').first().fill("Onboarding Flow QA");
+  const dob = page.locator('input[type="date"]').first();
+  if (await dob.count()) { const v = await dob.inputValue(); if (!v) await dob.fill("1990-05-15"); }
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await page.waitForTimeout(500);
+  // Step 2 — bio + one interest
+  await page.locator("textarea").first().fill("I enjoy calm hikes, board games, and quiet cafes on weekends.");
+  const custom = page.getByPlaceholder(/type an interest/i).first();
+  if (await custom.count()) {
+    await custom.fill("hiking");
+    await page.getByRole("button", { name: /add interest/i }).click();
+    await page.waitForTimeout(250);
+  }
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await page.waitForTimeout(500);
+  // Steps 3 & 4 — accept calm defaults
+  for (let i = 0; i < 2; i++) {
+    const cont = page.getByRole("button", { name: /^continue$/i });
+    if (await cont.count()) { await cont.first().click(); await page.waitForTimeout(450); }
+  }
+  // Step 5 — save
+  const save = page.getByRole("button", { name: /save & start exploring/i }).first();
+  if (await save.count()) { await save.click(); await page.waitForTimeout(2200); }
+
+  // A3 — the calm "You're all set" arrival beat appears: a single button to
+  // enter, and NOT the app shell yet (no auto-advance).
+  const arrival = page.getByText(/you're all set/i);
+  const enterBtn = page.getByRole("button", { name: /enter spectrum|start exploring/i });
+  const navBeforeEnter = await page.locator('nav[aria-label="Primary"]').count();
+  check("A3 arrival beat 'You're all set' appears (not app shell yet)",
+    (await arrival.count()) > 0 && (await enterBtn.count()) > 0 && navBeforeEnter === 0,
+    `arrival=${await arrival.count()} enter=${await enterBtn.count()} nav=${navBeforeEnter}`);
+  await page.screenshot({ path: `${OUT}/flows_onboarding_allset.png` });
+
+  // A4 — clicking the arrival button enters the app shell.
+  if (await enterBtn.count()) { await enterBtn.first().click(); await page.waitForTimeout(2500); }
+  const navAfter = await page.locator('nav[aria-label="Primary"]').count();
+  check("A4 arrival button enters the app shell", navAfter > 0, `nav=${navAfter}`);
+
+  check("A5 no pageerrors across onboarding completion", errors.length === 0, errors.slice(0, 2).join(" | "));
   await browser.close();
 }
 

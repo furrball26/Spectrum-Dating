@@ -14,6 +14,27 @@ async function run(acct, theme) {
   await page.waitForTimeout(1500);
   check(`[${theme}] Profile screen loaded`, (await page.getByText(/pause my profile/i).count()) > 0);
 
+  // AgeRangeSlider now supports Home/End/PageUp/PageDown (not just arrows).
+  // Assert Home jumps the min thumb to the floor (18) and End jumps the max
+  // thumb to the ceiling (99), respecting the two-thumb clamp + aria-valuenow.
+  const minThumb = page.getByRole("slider", { name: /minimum age/i }).first();
+  const maxThumb = page.getByRole("slider", { name: /maximum age/i }).first();
+  if ((await minThumb.count()) && (await maxThumb.count())) {
+    await minThumb.scrollIntoViewIfNeeded();
+    await minThumb.focus();
+    await page.keyboard.press("Home");
+    await page.waitForTimeout(150);
+    const minNow = await minThumb.getAttribute("aria-valuenow");
+    check(`[${theme}] AgeRangeSlider Home jumps min thumb to 18`, minNow === "18", `valuenow=${minNow}`);
+    await maxThumb.focus();
+    await page.keyboard.press("End");
+    await page.waitForTimeout(150);
+    const maxNow = await maxThumb.getAttribute("aria-valuenow");
+    check(`[${theme}] AgeRangeSlider End jumps max thumb to 99`, maxNow === "99", `valuenow=${maxNow}`);
+  } else {
+    check(`[${theme}] AgeRangeSlider present`, false, "sliders not found");
+  }
+
   // JRN-2 — the redundant collapsed "Pause my profile" section was removed; the
   // single discoverable top "Take a break" card is now the ONLY pause control.
   // Its button is an aria-pressed toggle labelled "Pause my profile" /

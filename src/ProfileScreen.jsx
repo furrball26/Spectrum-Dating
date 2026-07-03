@@ -1432,15 +1432,26 @@ function AgeRangeSlider({ low, high, onChange }) {
   function handlePointerUp() { setDragging(null); }
 
   function handleKeyDown(e, which) {
-    let delta = 0;
-    if (e.key === "ArrowLeft"  || e.key === "ArrowDown") delta = -1;
-    if (e.key === "ArrowRight" || e.key === "ArrowUp")   delta =  1;
-    if (!delta) return;
+    const cur = which === "low" ? low : high;
+    let next = cur;
+    const PAGE = 5;
+    switch (e.key) {
+      case "ArrowLeft":
+      case "ArrowDown":  next = cur - 1;    break;
+      case "ArrowRight":
+      case "ArrowUp":    next = cur + 1;    break;
+      case "PageDown":   next = cur - PAGE; break;
+      case "PageUp":     next = cur + PAGE; break;
+      case "Home":       next = AGE_SLIDER_MIN; break;
+      case "End":        next = AGE_SLIDER_MAX; break;
+      default: return;
+    }
     e.preventDefault();
+    // Clamp to the track and preserve two-thumb ordering (low < high).
     if (which === "low") {
-      onChange(Math.max(AGE_SLIDER_MIN, Math.min(low + delta, high - 1)), high);
+      onChange(Math.max(AGE_SLIDER_MIN, Math.min(next, high - 1)), high);
     } else {
-      onChange(low, Math.min(AGE_SLIDER_MAX, Math.max(high + delta, low + 1)));
+      onChange(low, Math.min(AGE_SLIDER_MAX, Math.max(next, low + 1)));
     }
   }
 

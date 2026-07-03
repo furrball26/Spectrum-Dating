@@ -1033,7 +1033,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                     fontSize: 16,
                     color: t.textSoft,
                   }}>
-                    <span aria-hidden="true" style={{ color: t.accent, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
+                    <span aria-hidden="true" style={{ color: t.accentStrong, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
                     {r}
                   </li>
                 ))}

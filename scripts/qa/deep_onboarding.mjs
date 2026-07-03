@@ -54,11 +54,26 @@ if (await save.count()) {
   });
   check("final submit not covered/clipped", reach.visible && !reach.covered, JSON.stringify(reach));
   await save.click();
-  await page.waitForTimeout(3500);
+  await page.waitForTimeout(2200);
+
+  // D33 — a calm "You're all set" arrival beat now sits between the save and the
+  // app shell. It must APPEAR (with a single button to enter) and must NOT
+  // auto-advance — the user enters on their own tap.
+  const arrival = page.getByText(/you're all set/i);
+  const enterBtn = page.getByRole("button", { name: /enter spectrum|start exploring/i });
+  check("arrival beat appears after save (You're all set)", (await arrival.count()) > 0);
+  const stillStep = await page.getByText(/step \d of \d/i).count();
+  const navBeforeEnter = await page.getByRole("navigation", { name: /primary/i }).count();
+  check("arrival beat is a confirmation, not the app shell yet", stillStep === 0 && navBeforeEnter === 0,
+    `step=${stillStep} nav=${navBeforeEnter}`);
+  check("arrival beat offers a single 'enter' button", (await enterBtn.count()) > 0);
+  await page.screenshot({ path: `${OUT}/onboarding-allset.png` });
+
+  // Click through the arrival button → land in the app shell.
+  await enterBtn.first().click();
+  await page.waitForTimeout(2500);
   const inApp = await page.getByRole("navigation", { name: /primary/i }).count();
-  const stillOnboarding = await page.getByText(/step \d of \d/i).count();
-  check("onboarding completes → app shell (or celebration then shell)", inApp > 0 || stillOnboarding === 0,
-    `nav=${inApp} stepText=${stillOnboarding}`);
+  check("arrival button enters the app shell", inApp > 0, `nav=${inApp}`);
   await page.screenshot({ path: `${OUT}/onboarding-done.png` });
 }
 

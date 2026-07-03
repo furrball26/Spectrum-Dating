@@ -1184,6 +1184,10 @@ export default function App() {
             // D32 — warningBorder ≥3:1 on surfaceAlt (was t.warning at 2.86:1).
             background: t.surfaceAlt, borderBottom: `2px solid ${t.warningBorder}`,
             color: t.text, textAlign: "center", padding: "8px 16px",
+            // D7 — reserve the iOS notch/status-bar area (as the header does) so the
+            // fixed banner reads as its own bar and never clips under / collides with
+            // the header's top edge on notched devices.
+            paddingTop: "calc(8px + env(safe-area-inset-top, 0px))",
             fontSize: 14, fontWeight: 600,
           }}
         >
