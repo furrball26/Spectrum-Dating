@@ -131,7 +131,7 @@ await page.getByRole("button", { name: /^profile$/i }).first().click();
 await page.waitForTimeout(1500);
 await page.getByRole("button", { name: /Appearance, accessibility, feedback/i }).first().click();
 await page.waitForTimeout(1200);
-check("Settings screen opened", (await page.getByRole("radiogroup", { name: /theme/i }).count()) > 0);
+check("Settings screen opened", (await page.getByRole("group", { name: /theme/i }).count()) > 0);
 
 function readPlainLanguage(p) {
   return p.evaluate(() => {

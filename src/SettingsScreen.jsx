@@ -71,9 +71,16 @@ const THEME_CARDS = [
 const IDENTITY_KEYS = ["pride", "trans"];
 
 function ThemeSegmented({ value, onChange }) {
+  // FE-6: the identity disclosure paragraph (rendered only while pride/trans is
+  // active) is associated to the identity cards via aria-describedby.
+  const identityActive = IDENTITY_KEYS.includes(value);
   return (
     <div
-      role="radiogroup"
+      // FE-6: role="group", NOT role="radiogroup". These cards are plain
+      // aria-pressed toggle buttons (each its own Tab stop), so we don't claim
+      // radiogroup keyboard semantics (roving tabindex / Arrow selection) we
+      // don't implement.
+      role="group"
       aria-label="Theme"
       style={{
         display: "grid",
@@ -82,29 +89,38 @@ function ThemeSegmented({ value, onChange }) {
       }}
     >
       {THEME_CARDS.map((c) => (
-        <ThemeCard key={c.key} card={c} active={value === c.key} onClick={() => onChange(c.key)} />
+        <ThemeCard
+          key={c.key}
+          card={c}
+          active={value === c.key}
+          onClick={() => onChange(c.key)}
+          describedBy={IDENTITY_KEYS.includes(c.key) && identityActive ? "identity-theme-note" : undefined}
+        />
       ))}
       {/* Plain, non-alarming disclosure for the identity themes (shown while
           one is selected): screen visibility, the instant revert gesture, and
           the sign-out reset. Honest information, no fear framing. */}
-      {IDENTITY_KEYS.includes(value) && (
-        <p style={{ gridColumn: "1 / -1", margin: "2px 2px 0", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
+      {identityActive && (
+        <p id="identity-theme-note" style={{ gridColumn: "1 / -1", margin: "2px 2px 0", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
           This changes how the app looks to anyone who can see your screen. You can
-          switch back anytime — double-tap the Spectrum logo to return to Warm dim
-          instantly. It also switches back to Warm dim when you sign out.
+          switch back anytime — double-tap the Spectrum logo, or (with a keyboard or
+          screen reader) select it, where it reads as a &ldquo;Switch back to Warm
+          dim&rdquo; button, to return to Warm dim instantly. It also switches back to
+          Warm dim when you sign out.
         </p>
       )}
     </div>
   );
 }
 
-function ThemeCard({ card, active, onClick }) {
+function ThemeCard({ card, active, onClick, describedBy }) {
   const f = useFocusable();
   return (
     <button
       type="button"
-      role="radio"
-      aria-checked={active}
+      // FE-6: honest aria-pressed toggle (no role="radio" without radio behavior).
+      aria-pressed={active}
+      aria-describedby={describedBy}
       aria-label={`${card.label} theme${card.note ? ` — ${card.note.toLowerCase()}` : ""}`}
       onClick={onClick}
       onFocus={f.onFocus}

@@ -97,7 +97,7 @@ const VP = { width: 390, height: 844 };
 
   // Archive via the row ⋯ menu
   await page.getByRole("button", { name: /More options for Ben QA/ }).click();
-  await page.getByRole("menuitem", { name: /Archive conversation/ }).click();
+  await page.getByRole("button", { name: /Archive conversation/ }).click();
   await page.waitForTimeout(1500);
   check("D2 row disappears after archive", (await page.getByRole("button", { name: /^Ben QA/ }).count()) === 0);
   const undo = page.getByRole("button", { name: /^Undo$/ });
@@ -109,7 +109,7 @@ const VP = { width: 390, height: 844 };
 
   // Archive again -> Archived view -> Restore
   await page.getByRole("button", { name: /More options for Ben QA/ }).click();
-  await page.getByRole("menuitem", { name: /Archive conversation/ }).click();
+  await page.getByRole("button", { name: /Archive conversation/ }).click();
   await page.waitForTimeout(1200);
   await page.getByRole("button", { name: /Archived conversations/ }).click();
   await page.waitForTimeout(1800);
@@ -144,7 +144,7 @@ const VP = { width: 390, height: 844 };
   await page.waitForTimeout(2000);
   await page.getByRole("button", { name: /Settings/ }).first().click();
   await page.waitForTimeout(2000);
-  const prideCard = page.getByRole("radio", { name: /Pride theme/ });
+  const prideCard = page.getByRole("button", { name: /Pride theme/ });
   check("E1 theme picker shows Pride card", (await prideCard.count()) > 0);
   await prideCard.first().scrollIntoViewIfNeeded();
   await prideCard.first().click();
@@ -160,7 +160,7 @@ const VP = { width: 390, height: 844 };
   check("E4 double-tap logo reverts identity theme to dim", (await page.evaluate(() => document.documentElement.dataset.theme)) === "dim");
 
   // Trans theme + sign out -> reset to dim (shared-device safety)
-  const transCard = page.getByRole("radio", { name: /Trans pride theme/ });
+  const transCard = page.getByRole("button", { name: /Trans pride theme/ });
   await transCard.first().scrollIntoViewIfNeeded();
   await transCard.first().click();
   await page.waitForTimeout(800);

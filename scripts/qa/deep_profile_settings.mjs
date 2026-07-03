@@ -52,8 +52,8 @@ async function run(acct, theme) {
     await settingsRow.scrollIntoViewIfNeeded();
     await settingsRow.click();
     await page.waitForTimeout(1200);
-    check(`[${theme}] Settings screen opened`, (await page.getByRole("radiogroup", { name: /theme/i }).count()) > 0);
-    const navy = page.getByRole("radio", { name: /navy/i }).first();
+    check(`[${theme}] Settings screen opened`, (await page.getByRole("group", { name: /theme/i }).count()) > 0);
+    const navy = page.getByRole("button", { name: /navy/i }).first();
     if (await navy.count()) {
       await navy.click();
       await page.waitForTimeout(800);

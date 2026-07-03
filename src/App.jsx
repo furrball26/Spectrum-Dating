@@ -420,6 +420,46 @@ const srOnly = {
   border: 0,
 };
 
+// FE-4: while an identity theme (pride/trans) is active, the logo cluster is a
+// real <button aria-label="Switch back to Warm dim"> — a keyboard/screen-reader
+// path to the quick revert (a safety "panic-off" affordance). Otherwise it's the
+// plain <div> carrying ONLY the existing pointer double-tap gesture. Both paths
+// call the same revert handler; the button keeps double-tap too. Purely additive:
+// no identity-theme trust&safety invariant (logout reset, double-tap, client-only)
+// changes here.
+function LogoRevertShell({ active, onRevert, style, children }) {
+  if (active) {
+    return (
+      <button
+        type="button"
+        aria-label="Switch back to Warm dim"
+        onClick={onRevert}
+        onDoubleClick={onRevert}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          background: "none",
+          border: "none",
+          padding: 0,
+          margin: 0,
+          font: "inherit",
+          color: "inherit",
+          cursor: "pointer",
+          textAlign: "left",
+          ...style,
+        }}
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <div style={style} onDoubleClick={onRevert}>
+      {children}
+    </div>
+  );
+}
+
 function VerifyResultBanner({ result, onDismiss }) {
   const f = useFocusable();
   const isSuccess = result === "success";
@@ -797,6 +837,15 @@ export default function App() {
   // Accessibility prefs (frontend-only, persisted in localStorage). Read once on
   // mount; applied globally via the effect below + inline wrapper styles.
   const [a11y, setA11y] = useState(() => readA11y());
+  // FE-4: polite SR announcement when the identity theme is reverted (keyboard,
+  // pointer double-tap, or click all route through revertIdentityTheme). A
+  // monotonic tick guarantees the live region re-announces even on repeat reverts.
+  const [themeRevertNote, setThemeRevertNote] = useState("");
+  const revertTickRef = useRef(0);
+  // Mirror of the live theme so revertIdentityTheme (deps []) can guard the
+  // announcement on the pre-revert theme without going stale.
+  const themeRef = useRef(a11y.theme);
+  useEffect(() => { themeRef.current = a11y.theme; }, [a11y.theme]);
 
   // applyA11y — updates state + localStorage + re-applies the global stylesheet.
   // Passed to SettingsScreen as onChange so toggles apply live.
@@ -823,12 +872,21 @@ export default function App() {
   // navigation through Settings needed when someone walks into the room.
   // Silent by design; the tip is disclosed at selection time in Settings.
   const revertIdentityTheme = useCallback(() => {
+    // Guard on the live theme so a stray double-tap/click on the plain (non-
+    // identity) logo neither reverts nor announces anything.
+    if (themeRef.current !== "pride" && themeRef.current !== "trans") return;
     setA11y((prev) => {
       if (prev.theme !== "pride" && prev.theme !== "trans") return prev;
       const next = { ...prev, theme: "dim" };
       try { localStorage.setItem("spectrum_a11y", JSON.stringify(next)); } catch { /* state still applies */ }
       return next;
     });
+    // FE-4: announce via the polite live region. Trailing NBSPs keyed off a
+    // monotonic tick keep the text node changing so repeat reverts still fire
+    // (an identical string wouldn't re-announce), while the visible/read text
+    // stays "Switched back to Warm dim."
+    revertTickRef.current += 1;
+    setThemeRevertNote("Switched back to Warm dim." + " ".repeat(revertTickRef.current % 2));
   }, []);
 
   // Handle ?verify=TOKEN URL param on mount — verify regardless of auth state
@@ -1110,6 +1168,11 @@ export default function App() {
       <div role="status" aria-live="assertive" aria-atomic="true" style={srOnly}>
         {authMessage}
       </div>
+      {/* FE-4: polite SR announcement for the identity-theme quick-revert
+          (keyboard button, click, and pointer double-tap all route here). */}
+      <div role="status" aria-live="polite" aria-atomic="true" style={srOnly}>
+        {themeRevertNote}
+      </div>
       {isOffline && (
         // D29 — the offline banner sits BELOW the inactivity "Still here?" dialog
         // (zIndex 200) so it can never cover the "I'm still here" button. Two
@@ -1232,7 +1295,11 @@ export default function App() {
                     marginBottom: 12,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }} onDoubleClick={revertIdentityTheme}>
+                  <LogoRevertShell
+                    active={a11y.theme === "pride" || a11y.theme === "trans"}
+                    onRevert={revertIdentityTheme}
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
                     {/* On desktop the left rail already carries the brand lockup,
                         so the header omits its own to avoid a double logo. */}
                     {viewport !== "desktop" && (a11y.reducedSensory
@@ -1255,7 +1322,7 @@ export default function App() {
                         Spectrum
                       </div>
                     )}
-                  </div>
+                  </LogoRevertShell>
                   {/* Utility cluster is desktop-only; on mobile it moves into the
                       Profile account hub (see ProfileScreen). */}
                   {!isMobile && (
@@ -1455,13 +1522,17 @@ export default function App() {
             }
           >
             {viewport === "desktop" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 18px" }} onDoubleClick={revertIdentityTheme}>
+              <LogoRevertShell
+                active={a11y.theme === "pride" || a11y.theme === "trans"}
+                onRevert={revertIdentityTheme}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 18px" }}
+              >
                 {/* mark 13 keeps the full lockup inside the 224px rail */}
                 <SpectrumMark height={13} />
                 <span style={{ fontFamily: t.serif, fontWeight: 700, fontSize: 19, color: t.text }}>
                   Spectrum
                 </span>
-              </div>
+              </LogoRevertShell>
             )}
             <div
               style={

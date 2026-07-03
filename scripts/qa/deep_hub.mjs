@@ -32,8 +32,8 @@ if (await settingsRow.count()) {
   await settingsRow.scrollIntoViewIfNeeded().catch(() => {});
   await settingsRow.click();
   await page.waitForTimeout(1200);
-  check("Settings screen opened (theme radiogroup)", (await page.getByRole("radiogroup", { name: /theme/i }).count()) > 0);
-  const navy = page.getByRole("radio", { name: /navy/i }).first();
+  check("Settings screen opened (theme group)", (await page.getByRole("group", { name: /theme/i }).count()) > 0);
+  const navy = page.getByRole("button", { name: /navy/i }).first();
   if (await navy.count()) {
     await navy.click(); await page.waitForTimeout(700);
     const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem("spectrum_a11y") || "{}").theme);

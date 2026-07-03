@@ -30,7 +30,9 @@ async function run(theme) {
   if (hasRowMenu > 0) {
     await rowMenuBtn.click();
     await page.waitForTimeout(400);
-    const menu = page.getByRole("menu", { name: /options for/i }).first();
+    // FE-5: the row ⋯ popover is now an honest disclosure — role="group" (a
+    // labelled cluster of plain buttons), not role="menu".
+    const menu = page.getByRole("group", { name: /options for/i }).first();
     const clip = await menu.evaluate((el) => {
       // find nearest ancestor <ul> with overflow hidden
       let p = el.parentElement;
@@ -41,7 +43,7 @@ async function run(theme) {
         p = p.parentElement;
       }
       const mr = el.getBoundingClientRect();
-      const lastItem = el.querySelector('[role="menuitem"]:last-child');
+      const lastItem = el.querySelector('button:last-child');
       const lir = lastItem ? lastItem.getBoundingClientRect() : mr;
       const out = { menuBottom: mr.bottom, lastItemBottom: lir.bottom, vh: window.innerHeight };
       if (clipper) {
@@ -59,7 +61,7 @@ async function run(theme) {
       `lastItemBottom=${Math.round(clip.lastItemBottom)} vh=${clip.vh}`);
     // Is the last menu item actually clickable (topmost at its point)?
     const lastItemHittable = await page.evaluate(() => {
-      const items = document.querySelectorAll('[role="menu"] [role="menuitem"]');
+      const items = document.querySelectorAll('[role="group"][aria-label^="Options for"] button');
       if (!items.length) return null;
       const el = items[items.length - 1];
       const r = el.getBoundingClientRect();
@@ -80,7 +82,7 @@ async function run(theme) {
   if (hasRowMenu > 0) {
     await rowMenuBtn.click();
     await page.waitForTimeout(300);
-    const noteItem = page.getByRole("menuitem", { name: /private note/i }).first();
+    const noteItem = page.getByRole("button", { name: /private note/i }).first();
     if (await noteItem.count()) {
       await noteItem.click();
       await page.waitForTimeout(400);

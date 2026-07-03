@@ -37,7 +37,7 @@ check("Row ⋯ menu trigger present", (await trigger.count()) > 0);
 // ── FE-2: focus returns to the ⋯ trigger after a menu-opened modal closes ──────
 await trigger.click();
 await page.waitForTimeout(250);
-const reportItem = page.getByRole("menuitem", { name: /Block or report/ });
+const reportItem = page.getByRole("button", { name: /^Block or report$/ });
 check("⋯ menu opened with 'Block or report' item", (await reportItem.count()) > 0);
 await reportItem.click();
 await page.waitForTimeout(400);
@@ -70,7 +70,7 @@ check(
 );
 check(
   "FE-2: focus restored to the row's ⋯ trigger",
-  focusAfterClose.label === "More options for Ben QA" && focusAfterClose.haspopup === "menu",
+  focusAfterClose.label === "More options for Ben QA" && focusAfterClose.haspopup === "true",
   `label=${JSON.stringify(focusAfterClose.label)} haspopup=${focusAfterClose.haspopup}`
 );
 
@@ -87,7 +87,7 @@ await page.route("**/messaging/report", (route) =>
 
 await trigger.click();
 await page.waitForTimeout(250);
-await page.getByRole("menuitem", { name: /Block or report/ }).click();
+await page.getByRole("button", { name: /Block or report/ }).click();
 await page.waitForTimeout(400);
 check("Re-opened the ReportModal for the forced-failure case", (await page.getByRole("dialog").count()) > 0);
 

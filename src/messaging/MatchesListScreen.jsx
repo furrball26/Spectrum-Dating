@@ -254,11 +254,15 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
   const runItem = (fn) => { setOpen(false); triggerRef.current?.focus(); fn(); };
   return (
     <span ref={rootRef} style={{ position: "relative", flexShrink: 0, marginRight: 4 }}>
+      {/* FE-5: aria-haspopup="true" (generic "opens a popup"), NOT "menu" — this
+          is a disclosure without APG menu keyboard semantics (roving focus /
+          Arrow / Home / End / focus-trap), so it doesn't claim the "menu" it
+          never implemented. */}
       <button
         ref={triggerRef}
         type="button"
         aria-label={`More options for ${name}`}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen(v => !v)}
         style={{ background: "transparent", border: "none", color: t.textMuted, fontSize: 18, cursor: "pointer", padding: "4px 8px", borderRadius: 8, minHeight: 44, minWidth: 44, ...f.style }}
@@ -267,23 +271,27 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
       >
         ⋯
       </button>
+      {/* FE-5: an honest disclosure — role="group" (a labelled cluster of plain
+          buttons), NOT role="menu". We don't ship APG menu keyboard semantics,
+          so we don't claim them. Escape + click-outside close and focus-return-
+          to-trigger (FE-2, via runItem) are preserved below. */}
       {open && (
-        <div role="menu" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text }} onClick={() => runItem(() => onViewProfile(row.otherUser?.userId))}>
+        <div role="group" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
+          <button type="button" style={{ ...itemStyle, color: t.text }} onClick={() => runItem(() => onViewProfile(row.otherUser?.userId))}>
             View profile
           </button>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => runItem(() => onNote(row))}>
+          <button type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => runItem(() => onNote(row))}>
             {note ? "Edit private note" : "Add private note"}
           </button>
           {onArchive && row.conversationId && row.started && (
-            <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => runItem(() => onArchive(row.conversationId))}>
+            <button type="button" style={{ ...itemStyle, color: t.textSoft, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => runItem(() => onArchive(row.conversationId))}>
               Archive conversation
             </button>
           )}
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.danger, paddingTop: 14 }} onClick={() => runItem(() => onReport(row))}>
+          <button type="button" style={{ ...itemStyle, color: t.danger, paddingTop: 14 }} onClick={() => runItem(() => onReport(row))}>
             Block or report
           </button>
-          <button role="menuitem" type="button" style={{ ...itemStyle, color: t.textSoft }} onClick={() => runItem(() => onUnmatch(row))}>
+          <button type="button" style={{ ...itemStyle, color: t.textSoft }} onClick={() => runItem(() => onUnmatch(row))}>
             Unmatch
           </button>
         </div>
@@ -635,7 +643,8 @@ export default function MatchesListScreen({
                 fontWeight: 600,
                 cursor: "pointer",
                 padding: "6px 16px",
-                minHeight: 40,
+                // FE-7 — ≥44px touch target (was 40).
+                minHeight: 44,
                 flexShrink: 0,
                 fontFamily: t.sans,
               }}
@@ -725,7 +734,9 @@ export default function MatchesListScreen({
                     padding: 0,
                     width: 32,
                     height: 32,
+                    // FE-7 — ≥44px hit area in BOTH axes (minWidth was missing).
                     minHeight: 44,
+                    minWidth: 44,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",

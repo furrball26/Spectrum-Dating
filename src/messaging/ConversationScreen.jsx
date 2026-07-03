@@ -1188,7 +1188,8 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
         borderRadius: 20,
         color: t.accentStrong,
         padding: collapsed ? "8px 18px" : "6px 14px",
-        fontSize: collapsed ? 14 : 13,
+        // FE-7 — type floor: both states ≥14px (the expanded "Hide" pill was 13).
+        fontSize: 14,
         fontFamily: t.sans,
         cursor: "pointer",
         minHeight: 44,
@@ -1321,7 +1322,8 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
         borderRadius: 20,
         color: t.accentStrong,
         padding: "8px 18px",
-        fontSize: collapsed ? 14 : 13,
+        // FE-7 — type floor: both states ≥14px (the expanded "Hide" pill was 13).
+        fontSize: 14,
         fontFamily: t.sans,
         cursor: "pointer",
         minHeight: 44,
