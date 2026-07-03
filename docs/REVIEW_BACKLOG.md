@@ -172,11 +172,15 @@ harness at 390px before/after.
   Settings → `/privacy.html` + `/terms.html`.
 - [x] **PROD-4 — ReactionPicker semantics — SHIPPED (`0ae1120`).** `role="toolbar"`
   → `role="group"` + aria-label.
-- [ ] **PROD-2 (S/M) — Self-host the two fonts** (drop render-blocking Google Fonts).
-- [ ] **PROD-3 (S) — Push-notification clicks land nowhere** (`public/sw.js` never
-  navigates on click). Needs the backend push payload's `data.url`.
-- [ ] **PROD-5 (M, careful) — Calm PWA offline fallback** (navigation-only
-  network-first → one precached offline.html; do NOT cache hashed assets).
+- [x] **PROD-2 — Self-hosted fonts — SHIPPED (master `0ab6edc`).** 6 woff2 in
+  `public/fonts/` + inline `@font-face` (font-display:swap) + preload; Google Fonts
+  preconnects/link removed. Live: 0 googleapis/gstatic requests, woff2 200.
+- [x] **PROD-3 — Push-click navigates — SHIPPED (`0ab6edc`).** `sw.js` focus branch
+  now `client.navigate(urlToOpen)` (guarded). (Backend sends `data.url:'/'` → lands
+  on root; deep-link to the conversation is an optional ~2-line backend follow-up.)
+- [x] **PROD-5 — Calm PWA offline fallback — SHIPPED (`0ab6edc`).** `offline.html`
+  precached; navigation-only network-first; NEVER caches hashed `/assets/*`
+  (redeploys serve fresh). Driver `pwa_fonts_sw.mjs` 21/21. Live offline.html 200.
 - [ ] **PROD-6 (OUT — needs backend) — Viewer-side photo gallery** (`/matching/
   candidates` returns only `photoUrl`; backend must expose `photos[]` first).
 
