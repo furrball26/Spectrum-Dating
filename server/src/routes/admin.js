@@ -3,6 +3,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail } from '../middleware/admin.js';
 import { newId } from '../utils/ids.js';
 import { disconnectUser } from '../socket/index.js';
+import { syncPrimaryPhotoUrl } from './photos.js';
+import { deleteObject } from '../storage/r2.js';
 
 const router = Router();
 
@@ -336,6 +338,84 @@ router.post('/attachments/:id/review', requireAuth, requireAdmin, (req, res) => 
   logMod(db, userId, decision === 'approved' ? 'approve_attachment' : 'reject_attachment', req.params.id);
 
   res.json({ ok: true, status: decision });
+});
+
+// ---------------------------------------------------------------------------
+// GET /admin/profile-photos/pending — profile-photo review queue (SAFETY-2).
+// Lists profile_photos awaiting moderation with owner context, newest first.
+// Mirrors GET /admin/attachments.
+// ---------------------------------------------------------------------------
+router.get('/profile-photos/pending', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+
+  const rows = db.prepare(`
+    SELECT pp.id, pp.user_id, pp.url, pp.description, pp.created_at,
+           u.email AS owner_email, p.display_name AS owner_display_name
+    FROM profile_photos pp
+    LEFT JOIN users u ON u.id = pp.user_id
+    LEFT JOIN profiles p ON p.user_id = pp.user_id
+    WHERE pp.review_status = 'pending_review'
+    ORDER BY pp.created_at DESC
+  `).all();
+
+  const photos = rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    ownerEmail: r.owner_email || null,
+    ownerDisplayName: r.owner_display_name || '',
+    url: r.url,
+    description: r.description || '',
+    createdAt: r.created_at,
+  }));
+
+  res.json({ photos });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/profile-photos/:id/review — body { decision: 'approve'|'reject' }
+// Approve: mark approved + reviewer bookkeeping, then re-sync the owner's public
+// photo_url so the newly-approved photo becomes servable. Reject: mark rejected
+// (no longer served — listPhotos/photo_url both ignore non-approved rows) and
+// best-effort soft-delete the object from R2. Writes a moderation_log row.
+// ---------------------------------------------------------------------------
+router.post('/profile-photos/:id/review', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  const { decision } = req.body ?? {};
+
+  if (decision !== 'approve' && decision !== 'reject') {
+    return res.status(400).json({ error: "decision must be 'approve' or 'reject'." });
+  }
+
+  const photo = db.prepare(
+    'SELECT id, user_id, review_status, storage_key FROM profile_photos WHERE id = ?'
+  ).get(req.params.id);
+  if (!photo) return res.status(404).json({ error: 'Photo not found.' });
+  if (photo.review_status !== 'pending_review') {
+    return res.status(409).json({ error: `Cannot review: status is '${photo.review_status}'.` });
+  }
+
+  const now = Date.now();
+  const nextStatus = decision === 'approve' ? 'approved' : 'rejected';
+
+  db.transaction(() => {
+    db.prepare(
+      'UPDATE profile_photos SET review_status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
+    ).run(nextStatus, now, userId, photo.id);
+    // Re-derive the owner's public photo_url from their approved photos. On
+    // approve this surfaces the newly-approved photo; on reject it's a safe no-op
+    // (a rejected photo was pending and never mirrored) that also cleans up if the
+    // approved set is now empty.
+    syncPrimaryPhotoUrl(db, photo.user_id, now);
+  })();
+
+  logMod(db, userId, decision === 'approve' ? 'approve_profile_photo' : 'reject_profile_photo', photo.id);
+
+  // On reject, best-effort remove the object from R2 (skip empty/legacy keys).
+  if (decision === 'reject' && photo.storage_key) {
+    deleteObject(photo.storage_key).catch(() => {});
+  }
+
+  res.json({ ok: true, status: nextStatus });
 });
 
 // ---------------------------------------------------------------------------

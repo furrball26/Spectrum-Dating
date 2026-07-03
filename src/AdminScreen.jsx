@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, verifyUser, getAuditLog, getAdminFeedback, getVerificationRequests } from "./api.js";
+import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog, getAdminFeedback, getVerificationRequests } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
@@ -587,6 +587,143 @@ function PhotoReviewQueue({ onStatus }) {
   );
 }
 
+// --- Profile-photo review queue (SAFETY-2) ---
+// Lists profile photos awaiting moderation and lets a moderator approve or
+// reject each. Mirrors the message-attachment PhotoReviewQueue above; decisions
+// are 'approve' | 'reject' (the profile-photo endpoint's contract).
+function ProfilePhotoReviewCard({ item, onReviewed, onStatus }) {
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  async function decide(decision) {
+    setBusy(true);
+    setLocalError("");
+    try {
+      await reviewProfilePhoto(item.id, decision);
+      onStatus(decision === "approve" ? "Profile photo approved." : "Profile photo rejected.");
+      onReviewed(item.id);
+    } catch {
+      setLocalError("Couldn't update this photo. Please try again.");
+      setBusy(false);
+    }
+  }
+
+  const owner = item.ownerDisplayName || item.ownerEmail || "Unknown member";
+
+  return (
+    <li
+      style={{
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 16,
+        padding: 12,
+        width: 240,
+        listStyle: "none",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        boxShadow: t.shadow.sm,
+      }}
+    >
+      <img
+        src={item.url}
+        alt={`Profile photo submitted by ${owner}, awaiting review`}
+        loading="lazy"
+        decoding="async"
+        style={{
+          display: "block",
+          width: "100%",
+          height: 180,
+          objectFit: "cover",
+          borderRadius: 10,
+          border: `1px solid ${t.borderLight}`,
+          background: t.surfaceAlt,
+        }}
+      />
+      <div style={{ fontSize: 14, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>
+        {owner}
+      </div>
+      {item.ownerDisplayName && item.ownerEmail && (
+        <div style={{ fontSize: 13, color: t.textMuted, wordBreak: "break-word" }}>{item.ownerEmail}</div>
+      )}
+      <div style={{ fontSize: 13, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</div>
+
+      {localError && (
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: 0 }}>{localError}</p>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+        <PlainButton kind="accent" onClick={() => decide("approve")} disabled={busy}>
+          Approve
+        </PlainButton>
+        <PlainButton kind="quiet" onClick={() => decide("reject")} disabled={busy}>
+          Reject
+        </PlainButton>
+      </div>
+    </li>
+  );
+}
+
+function ProfilePhotoReviewQueue({ onStatus }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError("");
+    getPendingProfilePhotos()
+      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .catch(() => setError("Couldn't load profile photos. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleReviewed = useCallback((id) => {
+    setItems((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  if (loading) return <PhotoReviewSkeleton />;
+  if (error) {
+    return (
+      <ErrorState
+        title="Couldn't load profile photos"
+        message="Something went wrong on our end. Please try again."
+        onRetry={load}
+      />
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div
+        style={{
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 16,
+          padding: "28px 24px",
+          textAlign: "center",
+          color: t.textSoft,
+        }}
+      >
+        No profile photos awaiting review.
+      </div>
+    );
+  }
+  return (
+    <ul style={{ margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 14 }}>
+      {items.map((item) => (
+        <ProfilePhotoReviewCard
+          key={item.id}
+          item={item}
+          onReviewed={handleReviewed}
+          onStatus={onStatus}
+        />
+      ))}
+    </ul>
+  );
+}
+
 // --- Activity log (F2) ---
 // Read-only moderation audit trail. Newest first. Calm rows: action · actor ·
 // target · time · detail. Reuses the shared skeleton / error / empty patterns.
@@ -934,6 +1071,7 @@ const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "verification", label: "Verification" },
   { value: "photos", label: "Photos" },
+  { value: "profile-photos", label: "Profile photos" },
   { value: "feedback", label: "Feedback" },
   { value: "activity", label: "Activity" },
 ];
@@ -1083,6 +1221,8 @@ export default function AdminScreen() {
           <VerificationQueue onStatus={setStatusMsg} />
         ) : activeTab === "photos" ? (
           <PhotoReviewQueue onStatus={setStatusMsg} />
+        ) : activeTab === "profile-photos" ? (
+          <ProfilePhotoReviewQueue onStatus={setStatusMsg} />
         ) : activeTab === "feedback" ? (
           <FeedbackInbox />
         ) : activeTab === "activity" ? (

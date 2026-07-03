@@ -18,19 +18,32 @@ export function setupSocketIO(httpServer, db) {
     next();
   });
 
+  // Defense-in-depth: true iff a block exists in EITHER direction between the
+  // pair. Mirrors the HTTP message-send gate so a blocked pair can never share a
+  // socket room (and thus never live-receive each other's events).
+  const blockExists = (a, b) => !!db.prepare(
+    `SELECT 1 FROM blocks
+     WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)
+     LIMIT 1`
+  ).get(a, b, b, a);
+
   io.on('connection', (socket) => {
     const userId = socket.userId;
 
     // Join personal room — for match notifications and DM delivery
     socket.join(`user:${userId}`);
 
-    // Join conversation rooms for all this user's active conversations
+    // Join conversation rooms for all this user's active conversations, skipping
+    // any conversation with a user this member has blocked (or been blocked by).
     const convos = db.prepare(`
-      SELECT id FROM conversations
+      SELECT id, user_a_id, user_b_id FROM conversations
       WHERE (user_a_id = ? AND archived_by_a = 0)
          OR (user_b_id = ? AND archived_by_b = 0)
     `).all(userId, userId);
-    convos.forEach(c => socket.join(`conv:${c.id}`));
+    convos.forEach(c => {
+      const otherId = c.user_a_id === userId ? c.user_b_id : c.user_a_id;
+      if (!blockExists(userId, otherId)) socket.join(`conv:${c.id}`);
+    });
 
     // Client joins a specific conversation room (e.g. when opening a thread).
     // Wrapped in try/catch — a malformed payload must NEVER crash the process.
@@ -43,6 +56,14 @@ export function setupSocketIO(httpServer, db) {
           'SELECT user_a_id, user_b_id FROM conversations WHERE id = ?'
         ).get(convId);
         if (conv && (conv.user_a_id === userId || conv.user_b_id === userId)) {
+          // Defense-in-depth: refuse (and proactively leave) if a block exists
+          // between the pair — mirror the HTTP send gate so a block fully severs
+          // the live channel.
+          const otherId = conv.user_a_id === userId ? conv.user_b_id : conv.user_a_id;
+          if (blockExists(userId, otherId)) {
+            socket.leave(`conv:${convId}`);
+            return;
+          }
           socket.join(`conv:${convId}`);
         }
       } catch (e) {

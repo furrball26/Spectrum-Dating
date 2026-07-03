@@ -53,6 +53,8 @@ const MIGRATIONS = [
   '033_weekly_digest.sql',
   '034_match_ended.sql',
   '035_azcaco_photos.sql',
+  '036_profile_photo_review.sql',
+  '037_drop_notification_preferences.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't
@@ -82,6 +84,17 @@ const GUARDED_MIGRATIONS = {
       .get();
     if (!row || !row.sql) return false; // table missing (004 always creates it) → nothing to rebuild
     return !/pending_review/.test(row.sql);
+  },
+  // SAFETY-2: profile-photo review columns + one-time backfill to 'approved'.
+  // The migration blanket-UPDATEs every row to 'approved', which is ONLY correct
+  // as a one-shot at add-time — re-running it on a later boot would wipe out
+  // moderation decisions (re-approving rejected/pending photos). So it is guarded
+  // to run exactly once: only while profile_photos lacks the review_status column
+  // (011 always creates the table first, so table_info is non-empty).
+  '036_profile_photo_review.sql': (db) => {
+    const cols = db.pragma('table_info(profile_photos)');
+    if (!cols.length) return false; // table missing → nothing to do
+    return !cols.some((c) => c.name === 'review_status');
   },
 };
 

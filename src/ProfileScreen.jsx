@@ -2017,6 +2017,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [relGoal, setRelGoal]         = useState(DEFAULT_PROFILE.relationshipGoal);
   const [distCity, setDistCity]       = useState(DEFAULT_PROFILE.distanceCity);
   const [searchRadius, setSearchRadius] = useState(DEFAULT_PROFILE.searchRadiusMiles);
+  // G4: whether the backend can place this user's city on the map (radius/distance
+  // only works for supported metros). Defaults true so we never flash the note
+  // before the profile loads. Set from GET /profile/me's locationGeocodable.
+  const [locationGeocodable, setLocationGeocodable] = useState(true);
   const [gender, setGender]           = useState(DEFAULT_PROFILE.gender);
   const [pronouns, setPronouns]       = useState(DEFAULT_PROFILE.pronouns);
   const [seeking, setSeeking]         = useState(DEFAULT_PROFILE.seeking);
@@ -2165,6 +2169,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setRelGoal(merged.relationshipGoal);
         setDistCity(merged.distanceCity);
         setSearchRadius(merged.searchRadiusMiles ?? 0);
+        setLocationGeocodable(data.locationGeocodable !== false);
         setGender(merged.gender || '');
         setPronouns(merged.pronouns || '');
         setSeeking(merged.seeking || '');
@@ -3637,6 +3642,24 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               >
                 Only show people within this distance. Set your location above for this to apply.
               </span>
+              {/* G4: honest note when we can't place this city on the map, so the
+                  radius won't silently do nothing. Calm, no urgency. */}
+              {distCity.trim() && !locationGeocodable && (
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    fontSize: 14,
+                    color: t.textSoft,
+                    background: t.surfaceAlt,
+                    border: `1px solid ${t.borderLight}`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  We can’t apply distance for your area yet — you’ll see people from everywhere.
+                </p>
+              )}
             </div>
           </CollapsibleSection>
 

@@ -568,6 +568,20 @@ export async function reviewAttachment(id, decision) {
   return apiFetch(`/admin/attachments/${id}/review`, { method: 'POST', body: { decision } });
 }
 
+// ─── Admin: profile-photo review (SAFETY-2) ─────────────────────────────────────
+
+// GET /admin/profile-photos/pending
+// → { photos: [{ id, userId, ownerEmail, ownerDisplayName, url, description, createdAt }] }
+export async function getPendingProfilePhotos() {
+  const d = await apiFetch('/admin/profile-photos/pending');
+  return Array.isArray(d?.photos) ? d.photos : [];
+}
+
+// POST /admin/profile-photos/:id/review { decision: 'approve'|'reject' } → { ok, status }
+export async function reviewProfilePhoto(id, decision) {
+  return apiFetch(`/admin/profile-photos/${id}/review`, { method: 'POST', body: { decision } });
+}
+
 // ─── Account ───────────────────────────────────────────────────────────────────
 
 export async function deleteAccount() {

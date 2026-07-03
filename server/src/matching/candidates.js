@@ -1,6 +1,7 @@
 ﻿import { scoreCandidate } from './score.js';
 import { ageFromDob } from '../utils/time.js';
 import { metroKey, distanceMiles, isGeocodable } from '../utils/metros.js';
+import { containsSlur } from '../utils/nameScreen.js';
 
 // Returns an array of candidate profiles the viewer hasn't swiped on yet,
 // ordered by score (shared interests) descending.
@@ -78,7 +79,9 @@ export function getCandidates(db, viewerId, viewerInterests) {
            p.sensory_environment, p.sensory_lighting, p.social_duration,
            p.context_card,
            (SELECT pp.description FROM profile_photos pp
-            WHERE pp.user_id = p.user_id AND pp.is_primary = 1 LIMIT 1) AS primary_photo_description
+            WHERE pp.user_id = p.user_id AND pp.review_status = 'approved'
+            ORDER BY pp.is_primary DESC, pp.position ASC, pp.created_at ASC
+            LIMIT 1) AS primary_photo_description
     FROM profiles p
     WHERE p.display_name != ''
       AND p.bio != ''
@@ -100,6 +103,10 @@ export function getCandidates(db, viewerId, viewerInterests) {
       const age = ageFromDob(profile.date_of_birth);
       return age !== null && age >= 18;
     })
+    // JRN-1 (defense in depth): never surface a candidate whose display name is
+    // an unambiguous slur/profanity, even if the row predates name screening at
+    // save time. The PUT /profile/me gate is the primary block; this is a backstop.
+    .filter(profile => !containsSlur(profile.display_name))
     // Hard deal-breaker filters: apply the viewer's ACTIVE flags as exclusions,
     // but only on a KNOWN conflict. Empty/unknown candidate values always pass
     // (most profiles haven't set these yet — excluding unknowns would empty out

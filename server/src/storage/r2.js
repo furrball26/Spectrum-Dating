@@ -21,10 +21,17 @@ export function r2Configured() {
   return !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_PUBLIC_URL);
 }
 
-export async function getPresignedUploadUrl(key, contentType, expiresInSeconds = 300) {
+export async function getPresignedUploadUrl(key, contentType, expiresInSeconds = 300, contentLength = null) {
   const client = getR2Client();
   if (!client) throw new Error('R2 not configured');
-  const command = new PutObjectCommand({ Bucket: BUCKET(), Key: key, ContentType: contentType });
+  // ContentType is baked into the signature so the client can't upload a
+  // different mime than we authorized. When a contentLength is supplied it is
+  // signed too (SignableHeaders includes content-length), so the presigned PUT
+  // only accepts a body of EXACTLY that size — the 10MB cap stops being merely
+  // advisory and can't be exceeded by a lying client.
+  const params = { Bucket: BUCKET(), Key: key, ContentType: contentType };
+  if (contentLength != null) params.ContentLength = contentLength;
+  const command = new PutObjectCommand(params);
   return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
 }
 

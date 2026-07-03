@@ -12,9 +12,43 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_PHOTOS = 6;
 
 // Serialize a user's gallery, ordered by position.
-export function listPhotos(db, userId) {
-  const rows = db.prepare('SELECT id, url, description, is_primary, position FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC').all(userId);
-  return rows.map(r => ({ id: r.id, url: r.url, description: r.description || '', isPrimary: !!r.is_primary, position: r.position }));
+//
+// SAFETY-2: profile photos go through a human-review queue. Photos served to
+// ANYONE OTHER than the owner must be admin-approved. Pass { includePending:true }
+// ONLY when serving the gallery back to its owner (their own editor / profile) —
+// the owner sees their pending photos with a `pending` flag. The default
+// (approved-only) is what every public surface must use.
+export function listPhotos(db, userId, { includePending = false } = {}) {
+  const rows = db.prepare(
+    'SELECT id, url, description, is_primary, position, review_status FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC'
+  ).all(userId);
+  const visible = includePending ? rows : rows.filter(r => r.review_status === 'approved');
+  return visible.map(r => ({
+    id: r.id,
+    url: r.url,
+    description: r.description || '',
+    isPrimary: !!r.is_primary,
+    position: r.position,
+    reviewStatus: r.review_status,
+    pending: r.review_status === 'pending_review',
+  }));
+}
+
+// SAFETY-2: keep profiles.photo_url (the PUBLIC avatar every candidate/match/
+// conversation payload reads) pointed at the user's best APPROVED photo — primary
+// preferred, else the lowest-position approved photo, else '' when none are
+// approved. Pending/rejected photos are NEVER mirrored here, so a photo only
+// becomes visible to others once a moderator approves it, and a user with only
+// pending photos has photo_url='' and simply doesn't surface (never a broken img).
+export function syncPrimaryPhotoUrl(db, userId, now = Date.now()) {
+  const best = db.prepare(
+    `SELECT url FROM profile_photos
+     WHERE user_id = ? AND review_status = 'approved'
+     ORDER BY is_primary DESC, position ASC, created_at ASC
+     LIMIT 1`
+  ).get(userId);
+  db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?')
+    .run(best ? best.url : '', now, userId);
 }
 
 // Shared "add a gallery photo" logic used by /profile-add and /profile-confirm.
@@ -38,17 +72,17 @@ function addGalleryPhoto(db, userId, key) {
   const position = nextPosRow.pos;
   const now = Date.now();
 
-  db.transaction(() => {
-    db.prepare(
-      'INSERT INTO profile_photos (id, user_id, storage_key, url, position, is_primary, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(newId(), userId, key, url, position, isFirst ? 1 : 0, now);
+  // SAFETY-2: new uploads enter the review queue as 'pending_review'. We do NOT
+  // mirror them to profiles.photo_url — that only happens once a moderator
+  // approves the photo (admin.js -> syncPrimaryPhotoUrl). So a brand-new user's
+  // first photo stays invisible to others (and they stay off Discover) until it
+  // clears review, rather than serving an unreviewed image.
+  db.prepare(
+    'INSERT INTO profile_photos (id, user_id, storage_key, url, position, is_primary, review_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(newId(), userId, key, url, position, isFirst ? 1 : 0, 'pending_review', now);
 
-    if (isFirst) {
-      db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run(url, now, userId);
-    }
-  })();
-
-  return { ok: true, photos: listPhotos(db, userId) };
+  // The gallery is returned to its OWNER here, so include pending photos.
+  return { ok: true, photos: listPhotos(db, userId, { includePending: true }) };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,10 +154,13 @@ router.put('/profile-photos/:id/primary', requireAuth, (req, res) => {
   db.transaction(() => {
     db.prepare('UPDATE profile_photos SET is_primary = 0 WHERE user_id = ?').run(userId);
     db.prepare('UPDATE profile_photos SET is_primary = 1 WHERE id = ?').run(photo.id);
-    db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run(photo.url, now, userId);
+    // SAFETY-2: don't blindly mirror the chosen photo — if it's still pending
+    // review, photo_url must stay on an APPROVED photo. syncPrimaryPhotoUrl picks
+    // the best approved photo (this one if approved, else falls back).
+    syncPrimaryPhotoUrl(db, userId, now);
   })();
 
-  res.json({ photos: listPhotos(db, userId) });
+  res.json({ photos: listPhotos(db, userId, { includePending: true }) });
 });
 
 // ---------------------------------------------------------------------------
@@ -163,15 +200,15 @@ router.delete('/profile-photos/:id', requireAuth, (req, res) => {
 
     if (photo.is_primary) {
       const next = db.prepare(
-        'SELECT id, url FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC LIMIT 1'
+        'SELECT id FROM profile_photos WHERE user_id = ? ORDER BY position ASC, created_at ASC LIMIT 1'
       ).get(userId);
       if (next) {
         db.prepare('UPDATE profile_photos SET is_primary = 1 WHERE id = ?').run(next.id);
-        db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run(next.url, now, userId);
-      } else {
-        db.prepare('UPDATE profiles SET photo_url = ?, updated_at = ? WHERE user_id = ?').run('', now, userId);
       }
     }
+    // SAFETY-2: re-derive photo_url from the remaining APPROVED photos ('' if
+    // none left approved).
+    syncPrimaryPhotoUrl(db, userId, now);
   })();
 
   // Best-effort delete from R2 (skip empty/legacy keys).
@@ -179,7 +216,7 @@ router.delete('/profile-photos/:id', requireAuth, (req, res) => {
     deleteObject(photo.storage_key).catch(() => {});
   }
 
-  res.json({ photos: listPhotos(db, userId) });
+  res.json({ photos: listPhotos(db, userId, { includePending: true }) });
 });
 
 // ---------------------------------------------------------------------------
@@ -192,8 +229,12 @@ router.post('/upload-intent', requireAuth, mutationLimiter, async (req, res) => 
   if (!ALLOWED_MIME.has(mimeType)) {
     return res.status(400).json({ error: `mimeType must be one of: ${[...ALLOWED_MIME].join(', ')}` });
   }
-  if (!fileSizeBytes || fileSizeBytes <= 0 || fileSizeBytes > MAX_FILE_SIZE) {
-    return res.status(400).json({ error: 'fileSizeBytes must be between 1 and 10485760' });
+  // Server-side size cap: reject a client-declared size that is missing, non-
+  // positive, non-integer, or over the 10MB max. This is enforced BEFORE we mint
+  // a presigned URL, and the size is also pinned into the presign below so the
+  // cap can't be bypassed by declaring a small size and uploading a large body.
+  if (!Number.isInteger(fileSizeBytes) || fileSizeBytes <= 0 || fileSizeBytes > MAX_FILE_SIZE) {
+    return res.status(400).json({ error: `fileSizeBytes must be an integer between 1 and ${MAX_FILE_SIZE}` });
   }
 
   if (!r2Configured()) {
@@ -212,7 +253,7 @@ router.post('/upload-intent', requireAuth, mutationLimiter, async (req, res) => 
   `).run(attachmentId, userId, storageKey, publicUrl, mimeType, fileSizeBytes, now);
 
   try {
-    const uploadUrl = await getPresignedUploadUrl(storageKey, mimeType, 300);
+    const uploadUrl = await getPresignedUploadUrl(storageKey, mimeType, 300, fileSizeBytes);
     res.status(201).json({ attachmentId, storageKey, uploadUrl, publicUrl });
   } catch (e) {
     console.error('R2 presign error:', e);

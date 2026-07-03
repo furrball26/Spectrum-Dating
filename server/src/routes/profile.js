@@ -5,7 +5,8 @@ import { isAdminEmail } from '../middleware/admin.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
-import { coarseCity } from '../utils/metros.js';
+import { coarseCity, isGeocodable } from '../utils/metros.js';
+import { containsSlur } from '../utils/nameScreen.js';
 import { newId } from '../utils/ids.js';
 import { PROMPTS, PROMPT_KEYS, PROMPT_TEXT_BY_KEY } from '../data/prompts.js';
 
@@ -101,7 +102,14 @@ router.get('/me', requireAuth, (req, res) => {
     notificationTier: profile.notification_tier,
     weeklyDigest: !!profile.weekly_digest,
     photoUrl: profile.photo_url || '',
-    photos: listPhotos(db, userId),
+    // Owner viewing their OWN profile: include pending photos (each carries a
+    // `pending` flag) so they can see photos still awaiting review (SAFETY-2).
+    photos: listPhotos(db, userId, { includePending: true }),
+    // G4: honest signal for the radius/distance UI. True iff metros.js can place
+    // this user's city on the map (one of the supported metros). When false, the
+    // radius filter can't apply, so the frontend shows a calm note instead of
+    // letting distance silently no-op.
+    locationGeocodable: isGeocodable(profile.dist_city),
     dateOfBirth: profile.date_of_birth || '',
     age: dobAge,
     wantsChildren: profile.wants_children || '',
@@ -170,6 +178,11 @@ router.put('/me', requireAuth, (req, res) => {
   if (body.displayName !== undefined) {
     if (typeof body.displayName !== 'string') errors.push('displayName must be a string.');
     else if (body.displayName.length > 30) errors.push('displayName must be 30 characters or fewer.');
+    // JRN-1: screen display names for unambiguous slurs/profanity. Calm, non-
+    // shaming copy — we don't quote the word back or explain the list.
+    else if (containsSlur(body.displayName)) {
+      errors.push('Please choose a display name without offensive language.');
+    }
   }
   if (body.tagline !== undefined) {
     if (typeof body.tagline !== 'string') errors.push('tagline must be a string.');
