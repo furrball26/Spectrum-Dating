@@ -166,35 +166,26 @@ harness at 390px before/after.
 
 ---
 
-## Open — backend-owned (server repo `spectrum-dating-server`, NOT fixable from this frontend repo)
+## ⏸ Backend security — FIXED ON BRANCH, AWAITING RAILWAY DEPLOY GO-AHEAD
+Now in the monorepo `server/`. All five fixed on `claude/production-bugs-backlog-okvown`
+(commit `02da7d2`); **master untouched (`0ae1120`), NOT deployed to Railway** — held
+for explicit human go-ahead. Backend `npm test` **31/31** (22 existing + 9 new in
+`server/test/security.test.js`), 0 lint errors.
 
-Confirmed by the backend-security + trust-safety auditors. Overall backend posture
-is strong (no SQLi, tenant scoping correct, admin authZ uniform, coarse-location
-applied everywhere). These are the real gaps:
-
-- [ ] **BE-1 (MEDIUM) — Blocked users not excluded from Discover/swipe/matching.**
-  `candidates.js:41-53` never consults the `blocks` table; a blocked person still
-  appears in the deck, can re-like, and a mutual like still creates a match + fires
-  a "New match" push. Chat *is* block-gated (masks it). Exclude blocked pairs from
-  `getCandidates` and reject `/swipe` across a block. (Harass-around-a-block.)
-- [ ] **BE-2 (MEDIUM) — `requireAuth` accepts purpose-scoped tokens.**
-  `auth.js:59-70` never checks `payload.purpose`, so a leaked password-reset link
-  can be replayed as a full 1-hour `Bearer` session — silently (no token_version
-  bump). Reject `payload.purpose` in `requireAuth`/`optionalAuth`.
-- [ ] **BE-3 (LOW-MED) — `GET /profile/:userId` doesn't filter ended matches.**
-  `profile.js:488-495` lacks `AND ended_at IS NULL`; after an unmatch both parties
-  keep permanent read access to each other's full profile incl. the post-match-only
-  `context_card`.
-- [ ] **BE-4 (LOW) — `verifyPurposeToken` skips version/suspension checks.**
-  `export.js:44-56` honors a 5-min export token even if the user was suspended /
-  signed out in the window, returning full message bodies.
-- [ ] **BE-5 (LOW) — `POST /push/subscribe` reassigns a subscription by endpoint.**
-  `push.js:24-32` overwrites `user_id` on endpoint collision — an attacker who
-  learns a victim's push endpoint could hijack it. Reject on collision instead.
-- [ ] **BE-OPS — admin reset-password hook re-runs every boot** if
+- [~] **BE-1 (MEDIUM) — Blocked users excluded from Discover/swipe/matching.**
+  `candidates.js` folds bidirectional `blocks` into the exclude set; `/swipe`
+  (`matching.js`) silently no-ops across a block (no match, no push, no disclosure).
+- [~] **BE-2 (MEDIUM) — Purpose tokens no longer accepted as full sessions.**
+  `auth.js` `requireAuth`/`optionalAuth` reject `payload.purpose`.
+- [~] **BE-3 (LOW-MED) — `GET /profile/:userId` now filters `ended_at IS NULL`.**
+  Unmatched pair loses full-profile + `context_card` access.
+- [~] **BE-4 (LOW) — `verifyPurposeToken` now runs `checkTokenVersion`** (honors
+  suspension / sign-out for export/reset tokens).
+- [~] **BE-5 (LOW) — `/push/subscribe` returns 409 on cross-user endpoint
+  collision** instead of reassigning; same-user re-subscribe still refreshes keys.
+- [ ] **BE-OPS (ops, not code) — admin reset-password hook re-runs every boot** if
   `RESET_PASSWORD_EMAIL`/`_VALUE` stay set in Railway (`reset-password.js`,
-  `index.js:143`): re-hashes admin password + force-logout each deploy. Confirm
-  both env vars are UNSET in prod; add a one-time marker.
+  `index.js:143`). Confirm both env vars are UNSET in prod; add a one-time marker.
 
 ---
 
