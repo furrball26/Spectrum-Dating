@@ -139,8 +139,12 @@ additive by construction and *cannot* break the mutual filter.
 - **D-18 (S) Make safety a visible identity** — one calm trust affordance at first contact
   referencing the protections already running (anti-scam signals, human photo review).
   Reassuring, never alarming. [strategy#8]
-- **D-19 (S) Honest "Sent"/"Delivered" reassurance** — verify the existing F4 micro-state is
-  own-side-only (never "seen by them"). [strategy#7]
+- [x] **D-19 (S) Honest "Sent" reassurance — VERIFIED (no change needed).** F4's "Sent"
+  micro-state (`ConversationScreen.jsx:1007`, `:2534`) is own-side-only by construction:
+  gated on `isOwn && showSent`, and `sentMessageId` requires `senderId === currentUserId`
+  + a real (non-`temp-`) server id. It means "reached the server," NOT seen/delivered by
+  the other person. No `read_at`/`seen`/`deliveredAt` fields exist in the messaging UI —
+  no read-receipt plumbing to leak. Calm-by-design compliant. [strategy#7]
 
 ---
 
