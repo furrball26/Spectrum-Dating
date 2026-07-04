@@ -1,6 +1,6 @@
 # Spectrum Dating — autonomous frontend team
 
-Ten agents + a shared brain + a real QA gate. Designed so a session needs one
+Eleven agents + a shared brain + a real QA gate. Designed so a session needs one
 sentence of direction ("fix X", "build Y") and ships verified work without
 burning the session on coordination.
 
@@ -16,6 +16,7 @@ burning the session on coordination.
 | `user-journey-tester` | First-time autistic-user friction | Planned reviews |
 | `code-reviewer` | Latent bugs pre-merge | Planned reviews |
 | `product-strategist` | Backlog/priority | Decisions |
+| `growth-monetization-strategist` | Brand mission, marketing, retention, ethical paid tiers (own competitor research) | Monetization / growth decisions |
 | `backend-security-auditor` | Exploitability lens | Safety-critical work |
 | `trust-safety-specialist` | User-harm lens | Safety-critical work |
 
