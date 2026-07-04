@@ -377,6 +377,46 @@ describe('B-A / B-B /admin/stats', () => {
 });
 
 // ---------------------------------------------------------------------------
+// v3 — GET /admin/queue-counts: the counts-only sibling the "Live counts" poll
+// hits. Admin-gated; returns ONLY the triage depths + oldest-pending epochs, and
+// tracks the queue exactly like /admin/stats (so a merge is faithful).
+// ---------------------------------------------------------------------------
+describe('v3 /admin/queue-counts', () => {
+  it('requires an admin (401 without a token)', async () => {
+    const r = await api('/admin/queue-counts');
+    expect(r.status).toBe(401);
+  });
+
+  it('returns the four triage depths + oldest epochs, and NOT the heavy fields', async () => {
+    const r = await api('/admin/queue-counts', { token: adminToken() });
+    expect(r.status).toBe(200);
+    expect(r.json.reports).toHaveProperty('open');
+    expect(r.json).toHaveProperty('pendingAttachments');
+    expect(r.json).toHaveProperty('pendingProfilePhotos');
+    expect(r.json).toHaveProperty('pendingVerifications');
+    expect(r.json).toHaveProperty('oldestOpenReportAt');
+    expect(r.json).toHaveProperty('oldestPendingVerificationAt');
+    // Counts-only: none of /admin/stats's member/activity scans leak in.
+    expect(r.json).not.toHaveProperty('members');
+    expect(r.json).not.toHaveProperty('totalMessages');
+    expect(r.json).not.toHaveProperty('totalMatches');
+  });
+
+  it('open-report depth agrees with /admin/stats and grows with a new open report', async () => {
+    const before = (await api('/admin/queue-counts', { token: adminToken() })).json;
+    const stats = (await api('/admin/stats', { token: adminToken() })).json;
+    expect(before.reports.open).toBe(stats.reports.open);
+
+    const t0 = Date.now();
+    makeReport(makeUser(), makeUser(), { status: 'open' });
+
+    const after = (await api('/admin/queue-counts', { token: adminToken() })).json;
+    expect(after.reports.open).toBe(before.reports.open + 1);
+    expect(after.oldestOpenReportAt).toBeLessThanOrEqual(t0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // B-F: verified badge join.
 // ---------------------------------------------------------------------------
 describe('B-F verified join', () => {

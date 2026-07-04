@@ -811,6 +811,57 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /admin/queue-counts — the triage DEPTHS only (moderation redesign v3).
+// A deliberately-tiny sibling of /admin/stats: just the four "Needs attention"
+// integers + their oldest-pending timestamps (for the age subtext / past-SLA
+// amber tone). It runs NO member/matches/messages COUNT(*) full-table scans, so
+// the frontend's optional 60s "Live counts" background poll is cheap. These
+// depths are demo-INDEPENDENT (the queues aren't filtered by member type), so
+// there's no ?demo param. Admin-gated + rate-limited by the shared adminApiLimiter
+// mounted at /admin. Numbers only — never a live push; the client polls calmly.
+// ---------------------------------------------------------------------------
+router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+
+  const openReports = db.prepare(
+    "SELECT COUNT(*) AS c FROM reports WHERE status = 'open'"
+  ).get().c;
+  const pendingAttachments = db.prepare(
+    "SELECT COUNT(*) AS c FROM message_attachments WHERE upload_status = 'pending_review'"
+  ).get().c;
+  const pendingProfilePhotos = db.prepare(
+    "SELECT COUNT(*) AS c FROM profile_photos WHERE review_status = 'pending_review'"
+  ).get().c;
+  const pendingVerifications = db.prepare(
+    "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
+  ).get().c;
+
+  const oldestOpenReportAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
+  ).get().t ?? null;
+  const oldestPendingAttachmentAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM message_attachments WHERE upload_status = 'pending_review'"
+  ).get().t ?? null;
+  const oldestPendingProfilePhotoAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM profile_photos WHERE review_status = 'pending_review'"
+  ).get().t ?? null;
+  const oldestPendingVerificationAt = db.prepare(
+    "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
+  ).get().t ?? null;
+
+  res.json({
+    reports: { open: openReports },
+    pendingAttachments,
+    pendingProfilePhotos,
+    pendingVerifications,
+    oldestOpenReportAt,
+    oldestPendingAttachmentAt,
+    oldestPendingProfilePhotoAt,
+    oldestPendingVerificationAt,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /admin/purge-test-accounts — bulk-delete automated-test accounts.
 // Deletes every user whose email ends with @spectrum-test.dev via the shared
 // account-deletion cascade, in one transaction. Body flag { includeDemo } (default

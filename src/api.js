@@ -660,6 +660,25 @@ export async function getAdminStats(demo = false) {
     oldestPendingVerificationAt: s.oldestPendingVerificationAt ?? null,
   };
 }
+
+// Moderation redesign v3 — the counts-only sibling of getAdminStats, for the
+// optional "Live counts" background poll. Hits the cheap GET /admin/queue-counts
+// (no member/matches/messages scans) and normalises to the SAME field names the
+// triage cards read, so the poll can merge these into `stats` verbatim. Returns
+// ONLY the queue depths + oldest-pending epochs — never the case list.
+export async function getQueueCounts() {
+  const s = await apiFetch('/admin/queue-counts');
+  return {
+    reports: s.reports || { open: 0 },
+    pendingAttachments: s.pendingAttachments ?? 0,
+    pendingProfilePhotos: s.pendingProfilePhotos ?? 0,
+    pendingVerifications: s.pendingVerifications ?? 0,
+    oldestOpenReportAt: s.oldestOpenReportAt ?? null,
+    oldestPendingAttachmentAt: s.oldestPendingAttachmentAt ?? null,
+    oldestPendingProfilePhotoAt: s.oldestPendingProfilePhotoAt ?? null,
+    oldestPendingVerificationAt: s.oldestPendingVerificationAt ?? null,
+  };
+}
 // `messageId` (optional) pins the SPECIFIC offending message the reporter
 // flagged (Needed #10). The server validates it belongs to the reported
 // conversation AND was sent by the reported user, ignoring it otherwise — so a

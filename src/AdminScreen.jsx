@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  getAdminStats, getAdminReports, reportAction, suspendUser, warnUser, banUser, unbanUser, getPendingAttachments,
+  getAdminStats, getQueueCounts, getAdminReports, reportAction, suspendUser, warnUser, banUser, unbanUser, getPendingAttachments,
   reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog,
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
@@ -1614,6 +1614,26 @@ function DemoToggle({ value, onChange }) {
         style={{ width: 18, height: 18, cursor: "pointer" }}
       />
       Demo data
+    </label>
+  );
+}
+
+// Moderation redesign v3 — "Live counts" opt-in. A plain labeled checkbox (real
+// control, keyboard/SR-accessible, carries the word — never color-only). When
+// ON, the triage "Needs attention" numbers refresh quietly every ~60s (counts
+// only; it never moves the case you're reading). Default OFF (opt-in — calmest);
+// the choice persists in localStorage so it stays put across visits. No motion,
+// no badge, no sound — a quiet number change, nothing more.
+function LiveCountsToggle({ value, onChange }) {
+  return (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, color: t.textSoft, cursor: "pointer", whiteSpace: "nowrap" }}>
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: 18, height: 18, cursor: "pointer" }}
+      />
+      Live counts
     </label>
   );
 }
@@ -3439,6 +3459,13 @@ export default function AdminScreen() {
   // @sample demo dataset is included everywhere.
   const [demo, setDemo] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  // Moderation redesign v3 — the optional "Live counts" background poll. OFF by
+  // default (opt-in is calmest); the admin's choice persists so the console stays
+  // predictable across visits. Read once, lazily, from localStorage.
+  const [liveCounts, setLiveCounts] = useState(() => {
+    try { return typeof localStorage !== "undefined" && localStorage.getItem("spectrum-admin-live-counts") === "on"; }
+    catch { return false; }
+  });
   const [reports, setReports] = useState([]);
   const [statusFilter, setStatusFilter] = useState("open");
   const [loadingReports, setLoadingReports] = useState(true);
@@ -3518,6 +3545,64 @@ export default function AdminScreen() {
     focusHeading();
   }, [loadStats, focusHeading]);
 
+  // v3 — merge ONLY the four triage depths + their oldest-pending epochs into
+  // `stats`. A functional update that spreads `prev`, so members/matches/messages
+  // and every other field are untouched. Crucially it never touches the `reports`
+  // list state or any open ReportCard, so the poll can't move the case the admin
+  // is reading. No-op until the first full stats load has populated `prev`.
+  const applyQueueCounts = useCallback((c) => {
+    setStats((prev) => (prev ? {
+      ...prev,
+      reports: { ...prev.reports, open: c.reports?.open ?? prev.reports?.open ?? 0 },
+      pendingAttachments: c.pendingAttachments,
+      pendingProfilePhotos: c.pendingProfilePhotos,
+      pendingVerifications: c.pendingVerifications,
+      oldestOpenReportAt: c.oldestOpenReportAt,
+      oldestPendingAttachmentAt: c.oldestPendingAttachmentAt,
+      oldestPendingProfilePhotoAt: c.oldestPendingProfilePhotoAt,
+      oldestPendingVerificationAt: c.oldestPendingVerificationAt,
+    } : prev));
+  }, []);
+
+  // Persist the "Live counts" choice so the console opens the same way next time.
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem("spectrum-admin-live-counts", liveCounts ? "on" : "off");
+    } catch { /* private mode / storage disabled — the toggle still works in-session */ }
+  }, [liveCounts]);
+
+  // The gentle counts-only poll (v3). Runs ONLY while "Live counts" is on. Every
+  // 60s it refetches the cheap /admin/queue-counts and quietly merges the depths
+  // — no motion, no sound, no badge, no announce; just the numbers change. It
+  // PAUSES when the tab is hidden (document.hidden) to avoid pointless polling,
+  // and catches up once on return-to-visible. A single-flight guard prevents
+  // overlapping requests; a failed poll stays silent and keeps the last-known
+  // counts (manual Refresh remains primary). Cleanup clears the interval and the
+  // visibility listener on unmount / when the toggle flips off — no leak, no
+  // orphaned timer. It never calls loadReports, so the open case never moves.
+  useEffect(() => {
+    if (!liveCounts) return undefined;
+    let cancelled = false;
+    let inFlight = false;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return; // paused while hidden
+      if (inFlight) return; // no overlapping polls
+      inFlight = true;
+      getQueueCounts()
+        .then((c) => { if (!cancelled) applyQueueCounts(c); })
+        .catch(() => { /* stay calm — keep last-known counts, surface nothing */ })
+        .finally(() => { inFlight = false; });
+    };
+    const intervalId = setInterval(tick, 60000);
+    const onVisibility = () => { if (typeof document !== "undefined" && !document.hidden) tick(); };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [liveCounts, applyQueueCounts]);
+
   // One refresh truth (F-C): refetch the stamped counts + the reports queue and
   // bump the active queue token (the photo/verification queues refetch on the
   // bump). No per-panel refresh chrome competes with this at the page level.
@@ -3568,13 +3653,23 @@ export default function AdminScreen() {
           {statusMsg}
         </div>
 
-        {/* Freshness bar (F-C): grounded "Updated HH:MM" + a real Refresh button */}
+        {/* Freshness bar (F-C): grounded "Updated HH:MM" + a real Refresh button.
+            v3 adds the opt-in "Live counts" toggle — manual Refresh stays primary;
+            Live counts only refreshes the triage numbers quietly in the background. */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <span style={{ fontSize: 13, color: t.textMuted, minWidth: 0 }}>
             {lastUpdatedAt ? `Updated ${formatClock(lastUpdatedAt)}` : "Loading…"}
           </span>
-          <PlainButton kind="neutral" onClick={handleRefresh}>Refresh</PlainButton>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", minWidth: 0 }}>
+            <LiveCountsToggle value={liveCounts} onChange={setLiveCounts} />
+            <PlainButton kind="neutral" onClick={handleRefresh}>Refresh</PlainButton>
+          </div>
         </div>
+        {liveCounts && (
+          <p style={{ margin: "-8px 0 16px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+            The “Needs attention” counts refresh quietly about once a minute. Pauses when this tab is in the background. The case you’re reading never moves — turn off any time.
+          </p>
+        )}
 
         {statsError && (
           <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "0 0 16px" }}>
