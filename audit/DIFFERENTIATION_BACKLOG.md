@@ -136,9 +136,16 @@ additive by construction and *cannot* break the mutual filter.
 ## Wave C — Moat depth (later)
 - **D-17 (S–M) Neurodivergent "special interests"** — elevate the `talk_for_hours` prompt /
   a matchable deep-dive-topic field; reframe the generic hobby cloud. [strategy#6, journey]
-- **D-18 (S) Make safety a visible identity** — one calm trust affordance at first contact
-  referencing the protections already running (anti-scam signals, human photo review).
-  Reassuring, never alarming. [strategy#8]
+- [x] **D-18 (S) Make safety a visible identity — SHIPPED TO PROD (master `53d862d`,
+  live-verified).** `SafetyProtectionsDisclosure` — a calm, collapsed-by-default
+  disclosure inside `NewThreadStart` (first contact only), BELOW the moat so it never
+  pushes "what to expect" down. Leaf glyph + "How we keep this space calm and safe",
+  expanding to 4 plain-language bullets, each mapped to a REAL running protection
+  (human photo review 036/photos.js; in-chat off-platform/money flag safetySignals.js;
+  name screening nameScreen.js; private report/block messaging.js — no notify). No
+  fabricated metrics, no alarm styling. Closing pointer to the Safety Center check-in
+  tools (verified real, SafetyScreen.jsx:647). Gates: eslint 0, smoke 11/11,
+  deep_messaging 30/30; live bundle markers confirmed. [strategy#8]
 - [x] **D-19 (S) Honest "Sent" reassurance — VERIFIED (no change needed).** F4's "Sent"
   micro-state (`ConversationScreen.jsx:1007`, `:2534`) is own-side-only by construction:
   gated on `isOwn && showSent`, and `sentMessageId` requires `senderId === currentUserId`
