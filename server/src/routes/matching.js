@@ -2,6 +2,7 @@
 import { requireAuth } from '../middleware/auth.js';
 import { mutationLimiter } from '../middleware/rateLimits.js';
 import { getCandidates } from '../matching/candidates.js';
+import { requirePaid } from '../billing/entitlements.js';
 import { listPrompts, parseFacetList } from './profile.js';
 import { listPublicPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
@@ -12,6 +13,49 @@ import { emitNewMatch } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
 
 const router = Router();
+
+// Shared candidate → card mapping. The ONE place a scored candidate row from
+// getCandidates() becomes the public "card" shape, so /candidates and the
+// Companion-gated /best-fits can never drift apart. IMPORTANT: contextCard
+// ("how to talk to me", a free-text personal disclosure) is GATED to post-match
+// only (see GET /matching/matches otherUser) and is deliberately NEVER included
+// here — any pre-match surface (Discover, best-fits) that leaked it would be a
+// weaponized-disclosure abuse surface. The coarse-city helper strips the ZIP so
+// strangers see "Phoenix, AZ", never a precise location.
+function mapCandidateToCard(db, c) {
+  return {
+    memberId: c.user_id,
+    displayName: c.display_name,
+    tagline: c.tagline,
+    bio: c.bio,
+    commNote: c.comm_note,
+    relationshipGoal: c.relationship_goal,
+    commDirectness: c.comm_directness || '',
+    commLiteral: c.comm_literal || '',
+    commCadence: c.comm_cadence || '',
+    sensoryEnvironment: c.sensory_environment || '',
+    sensoryLighting: c.sensory_lighting || '',
+    socialDuration: c.social_duration || '',
+    occupation: c.occupation || '',
+    languages: c.languages || '',
+    specialInterests: parseFacetList(c.special_interests),
+    age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
+    verified: !!c.identity_verified,
+    pronouns: c.pronouns || '',
+    gender: c.gender || '',
+    genderCustom: c.gender_custom || '',
+    orientation: c.orientation || '',
+    distCity: coarseCity(c.dist_city),
+    interests: c.interests,
+    sharedInterests: c.sharedInterests,
+    whyReasons: c.whyReasons,
+    prompts: listPrompts(db, c.user_id),
+    photoUrl: c.photo_url || null,
+    photoDescription: c.primary_photo_description || '',
+    photos: listPublicPhotos(db, c.user_id),
+    matchedAt: null,
+  };
+}
 
 // GET /matching/candidates
 // Returns top 10 scored candidates the viewer hasn't swiped on yet.
@@ -36,57 +80,48 @@ router.get('/candidates', requireAuth, (req, res) => {
   const candidates = scored.slice(offset, offset + limit);
   res.set('X-Has-More', String(scored.length > offset + limit));
 
-  const result = candidates.map(c => ({
-    memberId: c.user_id,
-    displayName: c.display_name,
-    tagline: c.tagline,
-    bio: c.bio,
-    commNote: c.comm_note,
-    relationshipGoal: c.relationship_goal,
-    commDirectness: c.comm_directness || '',
-    commLiteral: c.comm_literal || '',
-    commCadence: c.comm_cadence || '',
-    sensoryEnvironment: c.sensory_environment || '',
-    sensoryLighting: c.sensory_lighting || '',
-    socialDuration: c.social_duration || '',
-    // F28 — lightweight scannable facts on the Discover card. occupation +
-    // languages only; the "helps me / hard for me" lists stay on the full
-    // profile view (post-match) to keep the deck card calm.
-    occupation: c.occupation || '',
-    languages: c.languages || '',
-    // D-17 — deep "special interests" (display + soft-score). Fine on the deck
-    // card: it's a low-stakes conversation hook, not a gated disclosure.
-    specialInterests: parseFacetList(c.special_interests),
-    // contextCard ("how to talk to me", free-text personal disclosure) is
-    // GATED to post-match only — see GET /matching/matches otherUser. It must
-    // NOT be returned here, where any stranger browsing Discover would see it
-    // before any mutual match (weaponized-disclosure abuse surface). Keep the
-    // structured comm/sensory fields above — those are matching signals.
-    age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
-    verified: !!c.identity_verified,
-    pronouns: c.pronouns || '',
-    // D-11/D-13 display: expanded gender (+ self-describe when set) + orientation.
-    // gender_group stays internal to matching and is NEVER sent to the client.
-    gender: c.gender || '',
-    genderCustom: c.gender_custom || '',
-    orientation: c.orientation || '',
-    // Coarse location for the "Near …" label — the ZIP/postal code is STRIPPED
-    // so strangers browsing Discover see "Phoenix, AZ", never a precise ZIP
-    // (privacy/safety; the full value stays on the owner's own profile).
-    distCity: coarseCity(c.dist_city),
-    interests: c.interests,
-    sharedInterests: c.sharedInterests,
-    whyReasons: c.whyReasons,
-    prompts: listPrompts(db, c.user_id),
-    photoUrl: c.photo_url || null,
-    photoDescription: c.primary_photo_description || '',
-    // PROD-6: approved-only gallery, primary-first (capped 6). photoUrl stays
-    // for backward-compat as the single primary avatar.
-    photos: listPublicPhotos(db, c.user_id),
-    matchedAt: null,
-  }));
+  // Map via the shared helper so Discover and best-fits carry identical fields
+  // and the same post-match contextCard gating (see mapCandidateToCard above).
+  const result = candidates.map(c => mapCandidateToCard(db, c));
 
   return res.json(result);
+});
+
+// GET /matching/best-fits — "Your best fits", the first Companion-gated feature
+// (audit/MONETIZATION_STRATEGY.md §5 #4). A small, calm shortlist of the viewer's
+// highest-compatibility people. requirePaid returns 402 { error:'upgrade_required',
+// upgrade:true } for free/non-Companion callers — the gate lives HERE on the
+// backend; the frontend lock is UX only.
+//
+// Calm-by-design (product law / the memo's hard red lines): this is a plain list
+// the user can look at whenever. NO expiry, NO countdown, NO counter, NO "act
+// now", NO "X people viewed you", NO scarcity. A manual re-fetch (Refresh) is
+// fine. It reuses the SAME honest getCandidates() scoring the deck uses — no new
+// "match %" vanity metric — and returns the top ~5 (default 5, clamped) in the
+// SAME per-card shape /candidates uses (contextCard stays post-match-gated).
+router.get('/best-fits', requireAuth, requirePaid, (req, res) => {
+  const { db, userId } = req.ctx;
+
+  // Mirror /candidates' onboarding gate: an incomplete profile has no meaningful
+  // fits to compute, so return an empty list rather than a half-scored one.
+  const viewerProfile = db.prepare('SELECT display_name, bio FROM profiles WHERE user_id = ?').get(userId);
+  const viewerInterests = db.prepare(
+    'SELECT interest FROM user_interests WHERE user_id = ?'
+  ).all(userId).map(r => r.interest);
+
+  const onboardingComplete = !!(viewerProfile?.display_name?.trim() && viewerProfile?.bio?.trim() && viewerInterests.length > 0);
+  if (!onboardingComplete) {
+    return res.json({ bestFits: [] });
+  }
+
+  // getCandidates already returns candidates scored + sorted desc, and already
+  // excludes the viewer's own profile, swiped, matched (incl. ended), and blocked
+  // pairs. Take the top few — clamp to 5, default 5.
+  const limit = Math.min(5, Math.max(1, parseInt(req.query.limit, 10) || 5));
+  const scored = getCandidates(db, userId, viewerInterests);
+  const bestFits = scored.slice(0, limit).map(c => mapCandidateToCard(db, c));
+
+  return res.json({ bestFits });
 });
 
 // POST /matching/swipe

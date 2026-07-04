@@ -287,6 +287,21 @@ export async function getMatches() {
   return Array.isArray(data) ? data : (Array.isArray(data?.matches) ? data.matches : []);
 }
 
+// "Your best fits" — the Companion-gated shortlist (audit/MONETIZATION_STRATEGY
+// §5 #4). The paid gate lives on the BACKEND (requirePaid → 402); this helper
+// translates that 402 into a distinct { locked: true } result so the UI can show
+// the calm locked state rather than a generic error. Every other error still
+// throws. Cards carry the SAME per-card shape /matching/candidates returns.
+export async function getBestFits() {
+  try {
+    const d = await apiFetch("/matching/best-fits");
+    return { locked: false, bestFits: Array.isArray(d?.bestFits) ? d.bestFits : [] };
+  } catch (err) {
+    if (err && err.status === 402) return { locked: true, bestFits: [] };
+    throw err;
+  }
+}
+
 // Permanently unmatch: removes the match AND its conversation. The other person
 // is not notified.
 export async function unmatchConversation(matchId) {

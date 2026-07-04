@@ -184,7 +184,7 @@ function TierCard({ tier, current }) {
 // Companion members see each capability marked "included ✓"; free members see a
 // calm locked state (muted, "Included with Companion") + the Upgrade CTA. No
 // shaming, no urgency — just a clear, gentle difference the client can point at.
-function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, comingSoon }) {
+function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, comingSoon, onOpenBestFits }) {
   const features = companionTier?.features || [];
   return (
     <div
@@ -242,6 +242,19 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
         ))}
       </ul>
 
+      {/* "Your best fits" — the first implemented Companion surface. A clear entry
+          from the Companion area: Companion members open the live shortlist; free
+          members land on its calm locked state. No urgency, no counter. */}
+      {onOpenBestFits && (
+        <div style={{ marginTop: 18 }}>
+          {isCompanion ? (
+            <PrimaryButton onClick={onOpenBestFits}>Open your best fits</PrimaryButton>
+          ) : (
+            <QuietButton onClick={onOpenBestFits}>See “Your best fits”</QuietButton>
+          )}
+        </div>
+      )}
+
       {!isCompanion && (
         <div style={{ marginTop: 18 }}>
           <PrimaryButton onClick={onUpgrade} disabled={checkoutBusy}>
@@ -270,7 +283,7 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
   );
 }
 
-export default function MembershipScreen({ onBack, tier: initialTier, onTierChange }) {
+export default function MembershipScreen({ onBack, tier: initialTier, onTierChange, onOpenBestFits }) {
   const [tiers, setTiers] = useState([]);
   const [entitlement, setEntitlement] = useState(
     initialTier ? { tier: initialTier, status: "active", source: "none" } : null
@@ -453,6 +466,7 @@ export default function MembershipScreen({ onBack, tier: initialTier, onTierChan
                   onUpgrade={handleUpgrade}
                   checkoutBusy={checkoutBusy}
                   comingSoon={comingSoon}
+                  onOpenBestFits={onOpenBestFits}
                 />
                 {checkoutError && (
                   <p role="alert" style={{ margin: "12px 2px 0", fontSize: 14, color: t.danger, lineHeight: 1.5 }}>

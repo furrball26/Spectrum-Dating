@@ -21,6 +21,7 @@ const SettingsScreen = lazy(() => import("./SettingsScreen.jsx"));
 const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
 const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
 const MembershipScreen = lazy(() => import("./MembershipScreen.jsx"));
+const BestFits = lazy(() => import("./BestFits.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview, getRegionSafety, updateProfile } from "./api.js";
@@ -80,6 +81,7 @@ const SCREEN_NAMES = {
   settings: "Settings",
   account: "Account & security",
   membership: "Membership",
+  bestFits: "Your best fits",
 };
 
 // Skip-to-content link — the first focusable element. Visibility is handled by
@@ -822,7 +824,7 @@ export default function App() {
   const initialTab = (() => {
     try {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "membership"];
+      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "membership", "bestFits"];
       return allowed.includes(tab) ? tab : "suggestions";
     } catch { return "suggestions"; }
   })();
@@ -1672,6 +1674,21 @@ export default function App() {
                   onBack={() => setActiveTab(prevTab || "settings")}
                   tier={tier}
                   onTierChange={setTier}
+                  onOpenBestFits={() => { setPrevTab("membership"); setActiveTab("bestFits"); }}
+                />
+              )}
+              {activeTab === "bestFits" && (
+                <BestFits
+                  onBack={() => setActiveTab(prevTab || "membership")}
+                  onOpenMessages={() => setActiveTab("messages")}
+                  onOpenConversation={(conversationId, seedInfo) => {
+                    setPendingConversation(seedInfo ? { id: conversationId, ...seedInfo } : conversationId);
+                    setPrevTab("bestFits");
+                    setActiveTab("messages");
+                    setUnreadCount(0);
+                  }}
+                  tier={tier}
+                  plainLanguage={!!a11y.plainLanguage}
                 />
               )}
               </Suspense>
