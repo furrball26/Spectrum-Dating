@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo, Fragment } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
 import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, getStarters, uploadAttachmentIntent, confirmAttachment } from "../api.js";
 import { onSocket, joinConversation, leaveConversation, subscribeConnection } from "../socketClient.js";
@@ -1925,13 +1925,21 @@ function SenderSafetyNudge({ onConfirm, onKeepEditing }) {
 // Tapping a phrase INSERTS it into the composer (never clipboard — the app has a
 // known unguarded-clipboard bug), so the user can edit and send in their own
 // words. Grouped by intent, plain-language, low-pressure.
+// Grouped by intent, with two calm sections: phrases for opening/steering a
+// chat, and reply-oriented scaffolds for answering a message you've received.
+// A `section` field on the FIRST category of a section renders a lightweight
+// sub-heading inside the same tray (no new component/modal — a11y unchanged).
+// Reply scaffolds are deliberately GENERIC and reusable — they never read the
+// last message (content-aware reply is a separate future feature).
 const HELPER_CATEGORIES = [
   {
     id: "clarity",
+    section: "Ways to open or set your pace",
     label: "Ask for clarity",
     phrases: [
       "Could you say that more directly? I understand plain wording best.",
       "I'm not totally sure what you mean — could you rephrase that?",
+      "I want to make sure I follow — could you give me a bit more detail?",
     ],
   },
   {
@@ -1948,6 +1956,7 @@ const HELPER_CATEGORIES = [
     phrases: [
       "Would a quiet café or a short walk work for you?",
       "Could we do a short video call first?",
+      "Whenever you're ready, we could pick a quiet time to meet.",
     ],
   },
   {
@@ -1955,6 +1964,32 @@ const HELPER_CATEGORIES = [
     label: "Gentle wrap-up",
     phrases: [
       "I've really enjoyed chatting — I need a break for now, but I'll be in touch.",
+      "I'm going to log off for now, but I'm glad we talked — talk soon.",
+    ],
+  },
+  {
+    id: "acknowledge",
+    section: "Ways you might reply",
+    label: "Acknowledge what they said",
+    phrases: [
+      "That makes sense — thanks for explaining.",
+      "I hadn't thought of it that way — I appreciate you sharing that.",
+    ],
+  },
+  {
+    id: "shareback",
+    label: "Share something back",
+    phrases: [
+      "Something similar for me is…",
+      "On my side, I…",
+    ],
+  },
+  {
+    id: "buytime",
+    label: "Buy yourself time, kindly",
+    phrases: [
+      "I want to give this a proper reply — I'll come back to it later today.",
+      "This deserves a real answer; I'll write more when I have a calm moment.",
     ],
   },
 ];
@@ -2082,16 +2117,23 @@ function HelperTray({ onInsert, onClose, triggerRef }) {
         </p>
 
         {HELPER_CATEGORIES.map((cat) => (
-          <div key={cat.id} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
-              {cat.label}
+          <Fragment key={cat.id}>
+            {cat.section && (
+              <div style={{ fontFamily: t.serif, fontSize: 15, fontWeight: 700, color: t.text, margin: "8px 0 12px" }}>
+                {cat.section}
+              </div>
+            )}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
+                {cat.label}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {cat.phrases.map((phrase) => (
+                  <HelperPhraseButton key={phrase} phrase={phrase} onInsert={onInsert} />
+                ))}
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {cat.phrases.map((phrase) => (
-                <HelperPhraseButton key={phrase} phrase={phrase} onInsert={onInsert} />
-              ))}
-            </div>
-          </div>
+          </Fragment>
         ))}
       </div>
     </>

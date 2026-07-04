@@ -122,6 +122,43 @@ async function run(theme) {
   const logRows = await page.locator('[role="log"]').count();
   check(`[${theme}] thread opened`, logRows > 0);
 
+  // ---- Conversation Companion: reply-scaffolding tray (F27 extension) ----
+  // The composer "Conversation helpers" trigger opens a calm focus-trapped
+  // dialog. Assert the NEW reply section + a new reply scaffold render, and that
+  // tapping a phrase INSERTS it into the composer WITHOUT sending (no new bubble).
+  const helperTrigger = page.getByRole("button", { name: /conversation helpers/i }).first();
+  check(`[${theme}] Conversation helpers trigger present`, (await helperTrigger.count()) > 0);
+  if (await helperTrigger.count()) {
+    await helperTrigger.click({ force: true });
+    await page.waitForTimeout(300);
+    const tray = page.getByRole("dialog", { name: /conversation helpers/i }).first();
+    check(`[${theme}] helper tray opens as a labelled dialog`, (await tray.count()) > 0);
+    // New reply-oriented section heading + a new reply intent + scaffold phrase.
+    const replySection = page.getByText(/ways you might reply/i).first();
+    check(`[${theme}] new "Ways you might reply" section renders`, (await replySection.count()) > 0);
+    const scaffoldBtn = page.getByRole("button", { name: /I want to give this a proper reply/i }).first();
+    check(`[${theme}] new reply scaffold phrase renders`, (await scaffoldBtn.count()) > 0);
+    // Focus trap: heading receives focus on open.
+    const trayFocus = await page.evaluate(() => document.activeElement?.id);
+    check(`[${theme}] helper tray traps focus (heading focused)`, trayFocus === "helper-tray-heading", `active=${trayFocus}`);
+    const logCountBefore = await page.locator('[role="log"] [data-message], [role="log"] li').count();
+    if (await scaffoldBtn.count()) {
+      await scaffoldBtn.click();
+      await page.waitForTimeout(400);
+      const trayGone = (await page.getByRole("dialog", { name: /conversation helpers/i }).count()) === 0;
+      check(`[${theme}] tapping a scaffold closes the tray`, trayGone);
+      const composerVal = await page.getByRole("textbox").first().inputValue();
+      check(`[${theme}] scaffold inserts into composer (not sent)`,
+        /give this a proper reply/i.test(composerVal), `value="${composerVal.slice(0, 48)}"`);
+      const logCountAfter = await page.locator('[role="log"] [data-message], [role="log"] li').count();
+      check(`[${theme}] scaffold does NOT auto-send (no new bubble)`, logCountAfter === logCountBefore,
+        `before=${logCountBefore} after=${logCountAfter}`);
+      // Clear composer so later nudge tests start clean.
+      await page.getByRole("textbox").first().fill("");
+    }
+    await page.screenshot({ path: `${OUT}/dm-helper-tray-${theme}.png` });
+  }
+
   // ---- Reaction picker clip test on an OWN message (right-aligned, opens left) ----
   // hover a bubble to reveal + button; use the last own message
   const addReactBtns = page.getByRole("button", { name: /^add reaction$/i });
