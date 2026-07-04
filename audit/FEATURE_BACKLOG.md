@@ -85,8 +85,8 @@ Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
   cross-thread render leak (handlers now filter on `payload.conversationId`).
   Gates: unit 6/6, eslint 0 errors, smoke 11/11, deep_messaging 30/30,
   touch-chat-ux 15/15, a11y 37/37. **Real-time paths (live delivery, badge
-  increment, room scoping, block-severs-channel, reconnect re-join) need a live
-  two-device human smoke — sandbox stubs sockets 503.**
+  increment, room scoping, block-severs-channel, reconnect re-join) VERIFIED via
+  a live two-device human smoke 2026-07-04 — passed. Fully done.**
 - **E20** — `getCandidates` loads all eligible profiles + N+1 interest queries, scores
   in JS (accepted tradeoff until scale; needs SQL-side score/join).
 - [x] **Frontend unit tests — SHIPPED TO PROD (master `700eb6b`).** `node --test`
