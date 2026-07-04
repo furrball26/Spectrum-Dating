@@ -103,6 +103,47 @@ function ActionButton({ label, kind, onClick, icon, ariaLabel, disabled }) {
   );
 }
 
+// A calm pill button that opens the Top Picks (best-fits) surface. Mirrors the
+// Filters pill's size/shape/idiom exactly, adds a real focus ring (useFocusable)
+// and an aria-label. Own component so its hook stays unconditional (React #310).
+// Calm-by-design: no badge, no counter, no "new" flag — just a quiet entry.
+function TopPicksButton({ onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Top Picks"
+      {...f}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 999,
+        color: t.text,
+        fontSize: 16,
+        fontWeight: 600,
+        cursor: "pointer",
+        padding: "8px 16px",
+        minHeight: 44,
+        ...f.style,
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <path
+          d="M12 4l2.06 4.18 4.61.67-3.34 3.25.79 4.59L12 14.77l-4.12 2.17.79-4.59-3.34-3.25 4.61-.67L12 4z"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+      </svg>
+      Top Picks
+    </button>
+  );
+}
+
 function Divider() {
   return <div aria-hidden="true" style={{ height: 1, background: t.borderLight, margin: "20px 0" }} />;
 }
@@ -341,7 +382,7 @@ function PausedBanner({ onGoToProfile, plainLanguage = false }) {
   );
 }
 
-export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, plainLanguage = false, reducedSensory = false }) {
+export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, onOpenTopPicks, plainLanguage = false, reducedSensory = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
   const [viewerSpecialInterests, setViewerSpecialInterests] = useState(() => getViewerSpecialInterests());
   const [queue, setQueue] = useState([]);
@@ -778,30 +819,35 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // renders its own "Spectrum" header (was a duplicate landmark) or the dead
   // "#help" link. Just the real "Done for now" action, as a proper button.
   const Header = () => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-      <button
-        type="button"
-        onClick={() => setFiltersOpen(true)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 7,
-          background: t.surface,
-          border: `1px solid ${t.border}`,
-          borderRadius: 999,
-          color: t.text,
-          fontSize: 16,
-          fontWeight: 600,
-          cursor: "pointer",
-          padding: "8px 16px",
-          minHeight: 44,
-        }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-          <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-        Filters
-      </button>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      {/* minWidth:0 so this action group can shrink/wrap next to "Done for now"
+          on narrow screens (flex-row truncation invariant). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 999,
+            color: t.text,
+            fontSize: 16,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "8px 16px",
+            minHeight: 44,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Filters
+        </button>
+        {onOpenTopPicks && <TopPicksButton onClick={onOpenTopPicks} />}
+      </div>
       <button
         type="button"
         onClick={() => setStage("done")}

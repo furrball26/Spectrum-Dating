@@ -486,7 +486,7 @@ function CompanionMarker() {
   );
 }
 
-export default function SettingsScreen({ onBack, onChange, onOpenAccount, onOpenMembership, tier }) {
+export default function SettingsScreen({ onBack, onChange, onOpenAccount, tier }) {
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
 
@@ -601,22 +601,9 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount, onOpen
           isn't large enough, your browser or device zoom can enlarge it further.
         </p>
 
-        {onOpenMembership && (
-          <>
-            <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
-              Membership
-            </h2>
-            <LinkRow
-              title="Membership"
-              description={
-                tier === "companion"
-                  ? "You're on Spectrum Companion. View or manage your plan."
-                  : "You're on Spectrum (Free). See what Spectrum Companion adds."
-              }
-              onClick={onOpenMembership}
-            />
-          </>
-        )}
+        {/* Membership now lives in its own section on the Profile screen (its
+            home), so it isn't duplicated here. The calm Companion marker beside
+            the Settings heading still reflects the current tier. */}
 
         {onOpenAccount && (
           <>

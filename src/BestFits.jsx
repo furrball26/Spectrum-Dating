@@ -7,7 +7,7 @@ import VerifiedBadge from "./VerifiedBadge.jsx";
 import MatchMoment from "./MatchMoment.jsx";
 import { isMutualReason, isCommNoteReason, sortReasonsMutualFirst } from "./discoverReasons.js";
 
-// "Your best fits" — the first PAID (Spectrum Companion) surface
+// "Top Picks" — the first PAID (Spectrum Companion) surface
 // (audit/MONETIZATION_STRATEGY.md §5 #4). A small, calm, curated shortlist of the
 // viewer's highest-compatibility people, using the SAME honest compatibility
 // scoring as the deck (no new "match %" vanity metric).
@@ -19,7 +19,9 @@ import { isMutualReason, isCommNoteReason, sortReasonsMutualFirst } from "./disc
 // 402); the lock here is UX only.
 //
 // A marker string used verbatim so the change is greppable in the live bundle.
-const BEST_FITS_TITLE = "Your best fits";
+// User-facing name is "Top Picks" (the code identifiers keep the best-fits name;
+// only copy changed). The backend endpoint /matching/best-fits is unchanged.
+const BEST_FITS_TITLE = "Top Picks";
 
 // The current viewer's identity for the match moment (name/photo from the cached
 // profile, id from auth) — mirrors SuggestionScreen.getViewerIdentity.
@@ -340,21 +342,21 @@ export default function BestFits({ onBack, onOpenConversation, onOpenMessages, t
         {locked ? (
           <LockedPanel onUpgrade={onBack} />
         ) : loading ? (
-          <p style={{ fontSize: 15, color: t.textMuted }}>Finding your best fits…</p>
+          <p style={{ fontSize: 15, color: t.textMuted }}>Finding your top picks…</p>
         ) : loadError ? (
           <div style={cardStyle}>
             <p style={{ margin: "0 0 12px", fontSize: 15, color: t.text }}>
-              We couldn't load your best fits just now.
+              We couldn't load your top picks just now.
             </p>
             <QuietButton onClick={load}>Try again</QuietButton>
           </div>
         ) : queue.length === 0 ? (
           <div style={cardStyle}>
             <p style={{ margin: "0 0 6px", fontSize: 16, color: t.text, fontWeight: 600 }}>
-              {plainLanguage ? "No best fits right now." : "Nothing new here right now."}
+              {plainLanguage ? "No top picks right now." : "Nothing new here right now."}
             </p>
             <p style={{ margin: "0 0 16px", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
-              You've seen your current best fits. As more people join, new ones will appear.
+              You've seen your current top picks. As more people join, new ones will appear.
               There's nothing you need to do.
             </p>
             <QuietButton onClick={load}>Refresh</QuietButton>
@@ -374,7 +376,7 @@ export default function BestFits({ onBack, onOpenConversation, onOpenMessages, t
             </div>
             {/* Calm manual refresh — a re-fetch, never a timer/countdown. */}
             <div style={{ marginTop: 18 }}>
-              <QuietButton onClick={load}>Refresh your best fits</QuietButton>
+              <QuietButton onClick={load}>Refresh your top picks</QuietButton>
             </div>
           </>
         )}

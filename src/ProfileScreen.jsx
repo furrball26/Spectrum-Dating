@@ -66,6 +66,7 @@ const COLLAPSIBLE_SECTIONS = [
   "sensory",
   "notifications",
   "verification",
+  "membership",
 ];
 
 function loadPersistedSections() {
@@ -2433,7 +2434,7 @@ function ProfilePreviewModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
+export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -3404,6 +3405,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         ? "Not approved — you can re-request"
         : NOT_SET;
   const verificationHasContent = verified;
+
+  // Membership — reflects the current tier from app state (backend-owned; this is
+  // display + a link to the Membership screen only, never client-side gating).
+  const isCompanion = tier === "companion";
+  const membershipSummary = isCompanion ? "Spectrum Companion" : "Spectrum (Free)";
+  const membershipHasContent = isCompanion;
 
   // ── Header
   return (
@@ -4754,6 +4761,46 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 </button>
               </>
             )}
+          </CollapsibleSection>
+
+          {/* ══════════════════════════════════════════════════════
+              CARD — Membership (its home; the Settings row was retired).
+              Shows the current tier + a link into the Membership screen.
+              Entitlement stays backend-owned — this is display + navigation only.
+          ══════════════════════════════════════════════════════ */}
+          <CollapsibleSection
+            id="membership"
+            title="Membership"
+            summary={membershipSummary}
+            hasContent={membershipHasContent}
+            open={!!sectionOpen.membership}
+            onToggle={() => toggleSection("membership")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
+            <p style={{ margin: "0 0 14px", fontSize: 16, color: t.textSoft, lineHeight: 1.7 }}>
+              {isCompanion
+                ? "You're on Spectrum Companion. Matching, messaging, and safety always stay free — Companion only adds comfort and capability on top."
+                : "You're on Spectrum (Free). Everything you use every day is free forever. Spectrum Companion is one optional plan that adds comfort and capability."}
+            </p>
+            <button
+              type="button"
+              onClick={onOpenMembership}
+              style={{
+                minHeight: 44,
+                padding: "10px 20px",
+                borderRadius: 10,
+                border: `1px solid ${t.accentStrong}`,
+                background: "transparent",
+                color: t.accentStrong,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: t.sans,
+              }}
+            >
+              Manage membership
+            </button>
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════

@@ -242,15 +242,15 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
         ))}
       </ul>
 
-      {/* "Your best fits" — the first implemented Companion surface. A clear entry
+      {/* "Top Picks" — the first implemented Companion surface. A clear entry
           from the Companion area: Companion members open the live shortlist; free
           members land on its calm locked state. No urgency, no counter. */}
       {onOpenBestFits && (
         <div style={{ marginTop: 18 }}>
           {isCompanion ? (
-            <PrimaryButton onClick={onOpenBestFits}>Open your best fits</PrimaryButton>
+            <PrimaryButton onClick={onOpenBestFits}>Open your Top Picks</PrimaryButton>
           ) : (
-            <QuietButton onClick={onOpenBestFits}>See “Your best fits”</QuietButton>
+            <QuietButton onClick={onOpenBestFits}>See “Top Picks”</QuietButton>
           )}
         </div>
       )}

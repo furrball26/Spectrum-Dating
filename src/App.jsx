@@ -81,7 +81,7 @@ const SCREEN_NAMES = {
   settings: "Settings",
   account: "Account & security",
   membership: "Membership",
-  bestFits: "Your best fits",
+  bestFits: "Top Picks",
 };
 
 // Skip-to-content link — the first focusable element. Visibility is handled by
@@ -1600,6 +1600,7 @@ export default function App() {
                     setUnreadCount(0);
                   }}
                   onGoToProfile={() => setActiveTab("profile")}
+                  onOpenTopPicks={() => { setPrevTab("suggestions"); setActiveTab("bestFits"); }}
                   plainLanguage={!!a11y.plainLanguage}
                   reducedSensory={!!a11y.reducedSensory}
                 />
@@ -1634,6 +1635,8 @@ export default function App() {
                   onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
                   onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
                   onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
+                  onOpenMembership={() => { setPrevTab("profile"); setActiveTab("membership"); }}
+                  tier={tier}
                   pushEnabled={pushEnabled}
                   pushSupported={pushSupported}
                   onEnablePush={enablePush}
@@ -1665,7 +1668,6 @@ export default function App() {
                   onBack={() => setActiveTab(prevTab || "suggestions")}
                   onChange={applyA11y}
                   onOpenAccount={() => { setPrevTab("settings"); setActiveTab("account"); }}
-                  onOpenMembership={() => { setPrevTab("settings"); setActiveTab("membership"); }}
                   tier={tier}
                 />
               )}
