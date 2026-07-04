@@ -22,6 +22,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register" | "forgot" | "check-email"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   // D13 — split errors: field-level validation renders INLINE under the offending
   // field (calm, associated via aria-describedby); form-level errors (server
@@ -35,15 +36,18 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const errorRef = useRef(null);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
   // Move focus to the offending field (inline error) or the form-level notice so
   // the problem is announced and reachable (M2 / D13).
   useEffect(() => {
     if (fieldErrors.email && emailRef.current) emailRef.current.focus();
     else if (fieldErrors.password && passwordRef.current) passwordRef.current.focus();
+    else if (fieldErrors.confirmPassword && confirmPasswordRef.current) confirmPasswordRef.current.focus();
     else if (error && errorRef.current) errorRef.current.focus();
   }, [error, fieldErrors]);
   const fEmail = useFocusable();
   const fPassword = useFocusable();
+  const fConfirm = useFocusable();
   const fSubmit = useFocusable();
   const fToggle = useFocusable();
   const fBack = useFocusable();
@@ -81,6 +85,12 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     }
 
     if (password.length < 8) { setFieldErrors({ password: "Password must be at least 8 characters." }); return; }
+    // Sign-up requires confirming the password so a typo can't lock someone out
+    // of the account they just created. Run alongside the strength check above.
+    if (mode === "register") {
+      if (!confirmPassword) { setFieldErrors({ confirmPassword: "Please confirm your password." }); return; }
+      if (confirmPassword !== password) { setFieldErrors({ confirmPassword: "Passwords don't match." }); return; }
+    }
     setLoading(true);
     try {
       let data;
@@ -121,7 +131,15 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     setError("");
     setFieldErrors({});
     setForgotSent(false);
+    // Never let a stale confirm value block a later login/reset submit.
+    setConfirmPassword("");
   }
+
+  // Live confirm-password feedback (sign-up only): once they've started typing a
+  // confirmation, warn calmly the moment it diverges and clear it as they fix it.
+  // The submit-time check writes fieldErrors.confirmPassword (empty / mismatch).
+  const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
+  const confirmErr = fieldErrors.confirmPassword || (confirmMismatch ? "Passwords don't match." : null);
 
   return (
     <div
@@ -410,6 +428,42 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                   style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 5 }}
                 >
                   At least 8 characters.
+                </span>
+              )}
+            </div>
+            )}
+
+            {/* Confirm password (sign-up only) — a typo'd password would otherwise
+                lock someone out of the account they just made. */}
+            {mode === "register" && (
+            <div style={{ marginBottom: 24 }}>
+              <label
+                htmlFor="auth-confirm-password"
+                style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}
+              >
+                Confirm password
+              </label>
+              <input
+                id="auth-confirm-password"
+                ref={confirmPasswordRef}
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={e => { setConfirmPassword(e.target.value); if (fieldErrors.confirmPassword) setFieldErrors((p) => ({ ...p, confirmPassword: undefined })); }}
+                style={{ ...inputStyle(!!confirmErr), ...fConfirm.style }}
+                onFocus={fConfirm.onFocus}
+                onBlur={fConfirm.onBlur}
+                aria-required="true"
+                aria-invalid={confirmErr ? "true" : undefined}
+                aria-describedby={confirmErr ? "auth-confirm-password-error" : undefined}
+              />
+              {confirmErr && (
+                <span
+                  id="auth-confirm-password-error"
+                  role="alert"
+                  style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 6 }}
+                >
+                  {confirmErr}
                 </span>
               )}
             </div>
