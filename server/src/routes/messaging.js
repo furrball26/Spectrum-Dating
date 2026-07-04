@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { safetyActionLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
+import { classifySafetySignal } from '../utils/safetySignals.js';
 
 // F23 — conversation-list wayfinding. Server-side truncation of the last-message
 // snippet so the client never receives more than it renders (and so we don't leak
@@ -440,6 +441,23 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
       return res.status(409).json({ error: 'Attachment is already attached to a message' });
     }
     throw e;
+  }
+
+  // Gap-analysis Needed #4 — OBSERVE-ONLY grooming/scam signal. If the sent
+  // message trips an off-platform/money pattern, append ONE row attributed to the
+  // SENDER so a repeat off-platform/money pusher accrues a real, reviewable
+  // moderation signal. The message is NEVER blocked or altered (calm-by-design);
+  // best-effort so a logging hiccup can never break a send.
+  if (body) {
+    try {
+      const signalKind = classifySafetySignal(body);
+      if (signalKind) {
+        db.prepare(
+          `INSERT INTO chat_safety_signals (id, user_id, conversation_id, message_id, signal_kind, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        ).run(newId(), userId, req.params.id, messageId, signalKind, now);
+      }
+    } catch { /* observe-only — a signal-log failure must never break a send */ }
   }
 
   const timeLabel = coarseLabel(now);

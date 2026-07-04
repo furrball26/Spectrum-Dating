@@ -74,7 +74,8 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
            rbu.email AS resolver_email, rbp.display_name AS resolver_display_name,
            (SELECT COUNT(*) FROM reports r2 WHERE r2.reported_id = r.reported_id) AS reported_report_count,
            (SELECT COUNT(*) FROM reports r3 WHERE r3.reported_id = r.reported_id AND r3.status = 'actioned') AS reported_actioned_count,
-           (SELECT COUNT(DISTINCT b.blocker_id) FROM blocks b WHERE b.blocked_id = r.reported_id) AS reported_block_count
+           (SELECT COUNT(DISTINCT b.blocker_id) FROM blocks b WHERE b.blocked_id = r.reported_id) AS reported_block_count,
+           (SELECT COUNT(*) FROM chat_safety_signals cs WHERE cs.user_id = r.reported_id) AS reported_chat_signal_count
     FROM reports r
     LEFT JOIN users ru ON ru.id = r.reporter_id
     LEFT JOIN profiles rp ON rp.user_id = r.reporter_id
@@ -754,6 +755,9 @@ router.get('/users/:id/history', requireAuth, requireAdmin, (req, res) => {
   const distinctBlockers = db.prepare(
     'SELECT COUNT(DISTINCT blocker_id) AS c FROM blocks WHERE blocked_id = ?'
   ).get(req.params.id).c;
+  const chatSignalCount = db.prepare(
+    'SELECT COUNT(*) AS c FROM chat_safety_signals WHERE user_id = ?'
+  ).get(req.params.id).c;
 
   res.json({
     userId: user.id,
@@ -763,6 +767,7 @@ router.get('/users/:id/history', requireAuth, requireAdmin, (req, res) => {
     reportsAgainst,
     reportsActioned,
     distinctBlockers,
+    chatSignalCount,
   });
 });
 
@@ -802,6 +807,9 @@ function serializeReport(r) {
       reportCount: r.reported_report_count ?? 0,
       actionedCount: r.reported_actioned_count ?? 0,
       blockedByCount: r.reported_block_count ?? 0,
+      // Needed #4: observe-only off-platform/money chat signals attributed to
+      // this user — a "repeat off-platform/money pusher" grooming indicator.
+      chatSignalCount: r.reported_chat_signal_count ?? 0,
     },
   };
 }

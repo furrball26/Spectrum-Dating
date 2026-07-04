@@ -541,6 +541,7 @@ function RepeatOffenderLine({ report }) {
   const prior = Math.max(0, total - 1); // exclude the current report
   const actioned = report.reportedActionedCount ?? 0;
   const blocked = report.reportedBlockedByCount ?? 0;
+  const signals = report.reportedChatSignalCount ?? 0;
   const age = accountAgeLabel(report.reportedCreatedAt);
   const parts = [
     `${prior} prior report${prior === 1 ? "" : "s"} against this member (${actioned} actioned)`,
@@ -550,6 +551,16 @@ function RepeatOffenderLine({ report }) {
   return (
     <p style={{ margin: "10px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
       {parts.join(" · ")}
+      {signals > 0 && (
+        <>
+          {" · "}
+          {/* Needed #4 — off-platform/money chat signals: calm muted amber, never
+              alarm-red. Only shown when present. */}
+          <span style={{ color: t.warningFill }}>
+            ⚠ {signals} off-platform/money signal{signals === 1 ? "" : "s"} in chats
+          </span>
+        </>
+      )}
     </p>
   );
 }

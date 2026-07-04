@@ -446,6 +446,7 @@ export async function getAdminReports(status = 'open') {
     reportedReportCount: r.reported?.reportCount ?? 0,
     reportedActionedCount: r.reported?.actionedCount ?? 0,
     reportedBlockedByCount: r.reported?.blockedByCount ?? 0,
+    reportedChatSignalCount: r.reported?.chatSignalCount ?? 0,
     reportedCreatedAt: r.reported?.createdAt ?? null,
   }));
 }
