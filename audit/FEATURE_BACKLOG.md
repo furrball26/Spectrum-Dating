@@ -89,7 +89,13 @@ Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
   two-device human smoke — sandbox stubs sockets 503.**
 - **E20** — `getCandidates` loads all eligible profiles + N+1 interest queries, scores
   in JS (accepted tradeoff until scale; needs SQL-side score/join).
-- No frontend unit tests (harness `scripts/qa/*` + ESLint cover it today).
+- [x] **Frontend unit tests — SHIPPED TO PROD (master `700eb6b`).** `node --test`
+  suite (no new deps) covering pure-logic modules: `safetySignals` (anti-scam/
+  grooming detection), the Discover moat reason logic (extracted to
+  `src/discoverReasons.js`: `isMutualReason`/`isCommNoteReason`/
+  `sortReasonsMutualFirst`), `commChips`, `a11yPrefs` (fail-closed theme
+  resolution). 39 tests pass; wired into CI (`npm run test:unit`). Remaining
+  untestable-without-DOM: `api.js`-coupled utils, React components.
 - Real geocoding for arbitrary cities (G4 residual — currently ~7 metros; vendor/data).
 
 ### ⚪ Minor a11y (advisory, not AA failures)
