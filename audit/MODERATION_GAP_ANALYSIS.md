@@ -24,9 +24,24 @@ Every in-code Critical + Needed gap is now closed:
 CRITICAL #3 CSAM hash-match + NCMEC (Thorn/PhotoDNA) · #5 unsolicited-image blur (ML vision) ·
 #8 ban-evasion / phone verify (SMS vendor) · #9 real photo/selfie verification (FaceTec/Veriff-class).
 
-**Nice-to-haves remain open** (see below): admin roles/rate-limiting, transparency reporting,
-moderator QA, panic button/live date-share, crisis-line auto-routing, contact-list/incognito,
-voice/video, traveler alerts, small validation hardening.
+**Nice-to-haves — every in-code item is now SHIPPED (2026-07-04, all live on prod):**
+- **Admin-endpoint rate-limiting** — `adminApiLimiter` (300/15min, per-admin, `/admin/me` exempt).
+- **Transparency reporting** — `GET /admin/transparency?period=` PII-free aggregate enforcement stats
+  + a Transparency tab in the console (master `ad8b969`).
+- **Moderator QA / calibration** — random-sample re-review of *resolved* decisions (excludes your own
+  + already-reviewed), Agree/Disagree + note, agreement-rate in the Transparency tab; calibration-only,
+  no punitive action (migration 051, master `9fd3642`).
+- **Panic button / live date-share** — "Share my location" in the Safety Center: on-device geolocation →
+  a maps link shared through the user's own share sheet, nothing stored server-side (master `5ead2f5`).
+  Complements the existing Safety Center + check-in timer + date-plan share.
+- **Crisis-line auto-routing** — conservative self-harm detector surfaces a private 988 / Crisis Text Line
+  note in-conversation (once per session).
+- **At-risk / traveler alerts** — hostile-region geo lookup (offline geoip) offers to hide the profile.
+- **Validation hardening** — report-reason enum enforced server-side; set-once DOB age gate.
+
+**Nice-to-haves DEFERRED for product direction (not built blind — see rationale):** contact-list block
+(privacy tension: requires uploading a contact graph), incognito/visibility mode, in-app voice/video (infra),
+dispatcher/Noonlight-class panic button (vendor). Admin roles/tiers remain a flat allowlist by design for now.
 
 ## Strengths to preserve (HAVE)
 Consent-gated messaging (match required; block/report never notify; unmatch soft-ends without
@@ -70,14 +85,15 @@ Center + check-in timer + crisis resources; report evidence survives account del
 11. **Suspension notice + appeal path** — actioned user gets no reason, no contest (DSA due-process
     norm). Show a calm reason + route appeals via the feedback channel.
 
-## NICE-TO-HAVE
-- Admin roles/tiers + admin-endpoint rate-limiting (flat allowlist today; compromised admin =
-  unbounded). · Transparency reporting (required under EU DSA / UK OSA if operating there). ·
-  Moderator QA/calibration + wellness tracking. · Live date-share + panic button (Noonlight-class;
-  we have Safety Center + check-in + date-plan share). · Crisis-line auto-routing on self-harm
-  detection. · Contact-list block + incognito/visibility. · In-app voice/video. · At-risk/traveler
-  alerts for LGBTQ+ users. · Harden validation (report-reason enum server-side; self-attested
-  editable age gate).
+## NICE-TO-HAVE — status
+**Shipped in-code (all live):** admin-endpoint rate-limiting · transparency reporting (EU DSA / UK OSA
+posture) · moderator QA/calibration sampling · live date-share / "Share my location" panic-button piece ·
+crisis-line auto-routing on self-harm detection · at-risk/traveler alerts for LGBTQ+ users · validation
+hardening (report-reason enum server-side + set-once DOB age gate).
+**Deferred for direction (not built blind):** admin roles/tiers (flat allowlist by design for now) ·
+contact-list block (needs a contact-graph upload — privacy tension) · incognito/visibility mode ·
+in-app voice/video (infra) · dispatcher-grade panic button (Noonlight-class vendor). ·
+Moderator *wellness* tracking is intentionally out of scope (surveillance-of-staff concern).
 
 ## CAUTIONARY — don't adopt as-is
 - **Background checks (Garbo-style):** flagship Match×Garbo shut down Aug 2023; accuracy/equity
