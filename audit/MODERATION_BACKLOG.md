@@ -9,6 +9,19 @@ any point — it does not feel resolute."*
 
 Scope approved by owner: **Phase 0 + Phase 1 ("the works").**
 
+> **SHIPPED TO PROD 2026-07-04.** Backend `master e3dad64` (Railway `/health e3dad64`,
+> migrations 043 resolved_by + 044 reported_message, ADD COLUMN only, coordinator-reviewed) →
+> verify-reject fix `master 406d5a4` (Railway `/health 406d5a4`) → frontend `master 5a3af8e`
+> (Vercel, AdminScreen chunk byte-identical live). Backend 131/131 tests, frontend eslint 0 /
+> unit 64/64 / smoke 11/11. **All B-A…B-F, P1-A…P1-D done.** NOT visually smokeable in-sandbox
+> (admin gating requires an allowlisted email; QA accounts get 403) — awaiting owner's visual
+> check on the real admin account. Phase 2 (escalation ladder etc.) intentionally NOT built.
+>
+> Post-ship fix: the B-D verify idempotency guard wrongly 409'd when rejecting a *pending*
+> verification (identity_verified already 0), so the request never left the queue. Guard now
+> 409s only when NEITHER the identity flag NOR the request status would change (regression
+> tested).
+
 ## Root causes (all confirmed in code)
 1. **Stale:** every queue + the stats row loads once on mount (`AdminScreen.jsx:1235`), no
    refresh, no "as of". Queues optimistically drop the acted item but never refetch
