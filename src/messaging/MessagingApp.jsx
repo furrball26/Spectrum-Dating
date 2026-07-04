@@ -289,7 +289,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       const result = await swipe(person.userId, "like");
       if (result && result.matched) {
         setMatchMoment({
-          them: { name: person.displayName, userId: person.userId, photoUrl: person.photoUrl },
+          them: { name: person.displayName, userId: person.userId, photoUrl: person.photoUrl, pronouns: person.pronouns },
           matchId: result.matchId || null,
         });
       } else {

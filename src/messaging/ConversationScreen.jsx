@@ -2655,15 +2655,23 @@ export default function ConversationScreen({
             }}
           >
             <Avatar name={otherUser.displayName} userId={otherUser.userId} photoUrl={otherUser.photoUrl} size={32} />
-            <span
-              ref={headingRef}
-              tabIndex={-1}
-              style={{
-                fontFamily: t.serif, fontSize: 18, fontWeight: 700, color: t.text,
-                outline: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}
-            >
-              {otherUser.displayName}
+            <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
+              <span
+                ref={headingRef}
+                tabIndex={-1}
+                style={{
+                  fontFamily: t.serif, fontSize: 18, fontWeight: 700, color: t.text,
+                  outline: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
+                }}
+              >
+                {otherUser.displayName}
+              </span>
+              {/* D-15 — quiet pronoun line next to the name in the thread header. */}
+              {otherUser.pronouns && (
+                <span style={{ fontSize: 12, fontWeight: 400, color: t.textMuted, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                  {otherUser.pronouns}
+                </span>
+              )}
             </span>
           </button>
         </h2>

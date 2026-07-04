@@ -90,23 +90,48 @@ CORE driving `candidates.js`; layer an expanded **display-only** identity set + 
 top via a derived `gender_group` (woman|man|nonbinary|'') mapping. Orientation/pronouns are
 additive by construction and *cannot* break the mutual filter.
 
-- **D-11 (S — same-day win) Expose "Other" + free-text self-describe for gender.** Backend
-  already accepts `'other'` (`VALID_GENDERS`), the UI just never shows it. Add `gender_custom`.
-- **D-12 (M) Expanded gender set (opt-in) with matchable-core mapping.** Add agender,
+> **B-1 (D-11..D-13) SHIPPED TO PROD — master `93a66ad`.** Expanded gender with a
+> matchable `gender_group` core, self-describe free text, and display-only orientation.
+>
+> **B-2 (D-14..D-16) DONE — on branch `claude/production-bugs-backlog-okvown`, pending
+> coordinator review + Railway/Vercel deploy (NOT yet on master).** Migration `041`
+> adds `relationship_structure TEXT NOT NULL DEFAULT ''` (display-only, validated in
+> `PUT /profile/me`, returned on GET /me + public profile; NEVER read by
+> `candidates.js`). Pronouns now render in the conversation header
+> (`ConversationScreen.jsx`), Match Moment (`MatchMoment.jsx`), and the Likes /
+> matches lists (`LikedYouSection.jsx`, `MatchesListScreen.jsx`) — the messaging
+> serializers (`messaging.js` conversation list/detail/archived) were extended to
+> carry `pronouns`; matching's matches/likes payloads already did. An explicit calm
+> "Open to everyone" affordance (= empty-seeking semantics) was added to the seeking
+> UI in `OnboardingScreen`, `ProfileScreen`, and `DiscoverFilters`. New identity field
+> components (`RelationshipStructureField`) live in the shared `IdentityFields.jsx`.
+> Also folded in **3 A-2 design nits**: (#1) `SectionRule` now renders a theme-constant
+> literal-hex ramp (not the `--mark-*` tiles that went white under the `trans` theme);
+> (#2) `COMPLETENESS_RAMP` luminance rises monotonically green→sand so the meter no
+> longer dips at the old deep-teal mid-tile; (#3) desktop `DESKTOP_ATMOSPHERE` cool-corner
+> alphas lifted 0.09→0.12 so the wash isn't lopsided-warm. Gates: backend lint 0 errors
+> + 95 tests pass (adds `identity_wave_b2.test.js`: relationship_structure round-trips +
+> does NOT affect candidates; pronouns present on the conversation/matches payloads);
+> migration 041 boots clean; frontend eslint 0 errors, build OK, smoke 11/11,
+> contrast-fills 20/20, a11y-fe4-7 37/37.
+
+- **D-11 (S — same-day win) Expose "Other" + free-text self-describe for gender.** SHIPPED (B-1).
+  Backend already accepts `'other'` (`VALID_GENDERS`), the UI just never showed it. Added `gender_custom`.
+- **D-12 (M) Expanded gender set (opt-in) with matchable-core mapping.** SHIPPED (B-1). agender,
   genderfluid, genderqueer, trans-man, trans-woman, two-spirit, bigender, intersex,
   questioning; `gender_group` drives matching (trans-woman→woman, etc.) so `candidates.js`
-  is untouched (a real fix over today's "other" dead-end); display a gender chip on cards.
-- **D-13 (M) Sexual orientation field (new), DISPLAY-ONLY.** straight/gay/lesbian/bi/pan/
+  is untouched (a real fix over today's "other" dead-end); gender chip on cards.
+- **D-13 (M) Sexual orientation field (new), DISPLAY-ONLY.** SHIPPED (B-1). straight/gay/lesbian/bi/pan/
   ace/demi/queer/questioning, comma-joined like `seeking`; not wired into filtering (can't
   break matching). Biggest state-of-art parity win for this audience.
 - **D-14 (S–M) Relationship-structure axis** (monogamous/open/polyamorous/queerplatonic/
-  figuring-it-out), display-only — separate from the existing relationship *goal*. Feeld
-  parity, unusually on-brand for a take-your-time literal-communication audience.
-- **D-15 (S) Pronouns everywhere a name appears** — add to the chat header, match moment,
-  likes (rendered on the Discover card today but vanish in chat). Verify the messaging
-  serializer includes `pronouns`.
-- **D-16 (S) Explicit "Everyone / open to all" seeking option** (today it's an unlabeled
-  empty state).
+  figuring-it-out), display-only — separate from the existing relationship *goal*. DONE (B-2,
+  branch). Feeld parity, unusually on-brand for a take-your-time literal-communication audience.
+- **D-15 (S) Pronouns everywhere a name appears** — added to the chat header, match moment,
+  likes (rendered on the Discover card today but vanished in chat). DONE (B-2, branch);
+  messaging serializer extended to include `pronouns`.
+- **D-16 (S) Explicit "Everyone / open to all" seeking option** (was an unlabeled
+  empty state). DONE (B-2, branch).
 
 ## Wave C — Moat depth (later)
 - **D-17 (S–M) Neurodivergent "special interests"** — elevate the `talk_for_hours` prompt /

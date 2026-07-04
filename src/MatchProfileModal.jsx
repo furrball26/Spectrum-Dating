@@ -5,7 +5,7 @@ import { commChips } from "./commChips.js";
 import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
-import { genderLabel, orientationLabels } from "./IdentityFields.jsx";
+import { genderLabel, orientationLabels, relationshipStructureLabel } from "./IdentityFields.jsx";
 
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
@@ -129,15 +129,14 @@ export default function MatchProfileModal({ userId, onClose }) {
                   ? profile.genderCustom
                   : genderLabel(profile.gender);
                 const orients = orientationLabels(profile.orientation);
-                if (!g && orients.length === 0) return null;
+                const relStruct = relationshipStructureLabel(profile.relationshipStructure);
+                if (!g && orients.length === 0 && !relStruct) return null;
+                const chip = { padding: "3px 11px", borderRadius: 20, fontSize: 13, fontWeight: 500, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` };
                 return (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 2px" }}>
-                    {g && (
-                      <span style={{ padding: "3px 11px", borderRadius: 20, fontSize: 13, fontWeight: 500, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}>{g}</span>
-                    )}
-                    {orients.map((o) => (
-                      <span key={o} style={{ padding: "3px 11px", borderRadius: 20, fontSize: 13, fontWeight: 500, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}>{o}</span>
-                    ))}
+                    {g && (<span style={chip}>{g}</span>)}
+                    {orients.map((o) => (<span key={o} style={chip}>{o}</span>))}
+                    {relStruct && (<span style={chip}>{relStruct}</span>)}
                   </div>
                 );
               })()}

@@ -4,7 +4,7 @@ import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
-import { GenderField, OrientationField } from "./IdentityFields.jsx";
+import { GenderField, OrientationField, RelationshipStructureField } from "./IdentityFields.jsx";
 
 
 function usePrefersReduced() {
@@ -781,11 +781,15 @@ function Step4({
   gender, setGender,
   genderCustom, setGenderCustom,
   orientation, setOrientation,
+  relationshipStructure, setRelationshipStructure,
   pronouns, setPronouns,
   seeking, setSeeking,
   prefAgeMin, prefAgeMax, setPrefAgeMin, setPrefAgeMax,
 }) {
   const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
+  // D-16 — "open to everyone" is the empty-seeking state. Making it an explicit,
+  // selectable affordance (vs. the unlabelled "leave all unchecked") clears it up.
+  const openToEveryone = seekingSet.length === 0;
 
   return (
     <>
@@ -803,6 +807,11 @@ function Step4({
       />
 
       <OrientationField orientation={orientation} setOrientation={setOrientation} />
+
+      <RelationshipStructureField
+        relationshipStructure={relationshipStructure}
+        setRelationshipStructure={setRelationshipStructure}
+      />
 
       <div style={{ marginBottom: 20 }}>
         <FieldLabel htmlFor="ob-pronouns">Pronouns</FieldLabel>
@@ -826,7 +835,7 @@ function Step4({
           Who do you want to meet?
         </legend>
         <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
-          Choose any. Leave all unchecked to be open to everyone.
+          Choose who you'd like to meet, or stay open to everyone.
         </span>
         {[
           { value: "woman", label: "Women" },
@@ -850,6 +859,22 @@ function Step4({
             </label>
           );
         })}
+        {/* D-16 — explicit "open to everyone" affordance. Selecting it clears the
+            seeking set (the existing empty-seeking = match-everyone semantics);
+            it auto-reflects whenever nothing is checked. */}
+        <label
+          htmlFor="ob-seek-everyone"
+          style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
+        >
+          <input
+            id="ob-seek-everyone"
+            type="checkbox"
+            checked={openToEveryone}
+            onChange={() => { if (!openToEveryone) setSeeking(""); }}
+            style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+          />
+          <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
+        </label>
       </fieldset>
 
       <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
@@ -958,6 +983,7 @@ export default function OnboardingScreen({ onComplete }) {
   const [gender, setGender] = useState("");
   const [genderCustom, setGenderCustom] = useState(""); // self-describe free text
   const [orientation, setOrientation] = useState(""); // comma-joined; display only
+  const [relationshipStructure, setRelationshipStructure] = useState(""); // D-14; display only
   const [pronouns, setPronouns] = useState("");
   const [seeking, setSeeking] = useState(""); // comma-joined: "woman,man,nonbinary"
   const [prefAgeMin, setPrefAgeMin] = useState(18);
@@ -1063,6 +1089,7 @@ export default function OnboardingScreen({ onComplete }) {
         gender,
         genderCustom,
         orientation,
+        relationshipStructure,
         pronouns,
         seeking,
         prefAgeMin,
@@ -1307,6 +1334,8 @@ export default function OnboardingScreen({ onComplete }) {
             setGenderCustom={setGenderCustom}
             orientation={orientation}
             setOrientation={setOrientation}
+            relationshipStructure={relationshipStructure}
+            setRelationshipStructure={setRelationshipStructure}
             pronouns={pronouns}
             setPronouns={setPronouns}
             seeking={seeking}

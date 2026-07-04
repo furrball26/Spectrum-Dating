@@ -153,6 +153,20 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
                 {otherUser.displayName}
               </span>
               {otherUser.verified && <VerifiedBadge compact />}
+              {/* D-15 — quiet pronoun line next to the name. */}
+              {otherUser.pronouns && (
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: t.textMuted,
+                  flexShrink: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}>
+                  {otherUser.pronouns}
+                </span>
+              )}
               {dateLabel && (
                 <span style={{
                   marginLeft: "auto",

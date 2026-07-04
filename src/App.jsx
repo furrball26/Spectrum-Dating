@@ -417,8 +417,10 @@ function a11yWrapperStyle(prefs) {
 // desktop shell (D-6). Reduced-sensory falls back to flat t.bg automatically
 // (a11yWrapperStyle sets `background: t.bg`, which is spread after this).
 const DESKTOP_ATMOSPHERE = [
-  "radial-gradient(38% 46% at 11% 20%, rgba(94,148,89,0.09) 0%, rgba(94,148,89,0) 70%)",
-  "radial-gradient(40% 48% at 91% 15%, rgba(79,138,139,0.09) 0%, rgba(79,138,139,0) 70%)",
+  // A-2 nit #3: cool corner alphas lifted 0.09 → 0.12 so the wash isn't
+  // lopsided-warm (the two clay corners below sit at 0.13/0.08).
+  "radial-gradient(38% 46% at 11% 20%, rgba(94,148,89,0.12) 0%, rgba(94,148,89,0) 70%)",
+  "radial-gradient(40% 48% at 91% 15%, rgba(79,138,139,0.12) 0%, rgba(79,138,139,0) 70%)",
   "radial-gradient(52% 54% at 90% 88%, rgba(201,168,117,0.13) 0%, rgba(201,168,117,0) 72%)",
   "radial-gradient(46% 50% at 8% 90%, rgba(201,168,117,0.08) 0%, rgba(201,168,117,0) 72%)",
 ].join(", ");

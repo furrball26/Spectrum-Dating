@@ -1,0 +1,11 @@
+-- D-14 — relationship structure (DISPLAY-ONLY). A person's preferred
+-- relationship shape (monogamous / open / polyamorous / queerplatonic /
+-- figuring-it-out). This is SEPARATE from the existing `relationship_goal`
+-- (long-term / friendship / open) — both axes coexist.
+--
+-- SAFETY: this column is DISPLAY-ONLY, exactly like `orientation`. It is
+-- validated on PUT /profile/me and returned on GET /me + the matched public
+-- profile, but it is NEVER read by matching (server/src/matching/candidates.js
+-- only ever filters on gender_group). Adding it CANNOT change who appears in
+-- anyone's deck. '' = unset.
+ALTER TABLE profiles ADD COLUMN relationship_structure TEXT NOT NULL DEFAULT '';

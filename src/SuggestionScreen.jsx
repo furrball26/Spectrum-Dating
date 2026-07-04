@@ -1289,6 +1289,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             name: lastPerson.displayName,
             userId: lastPerson.memberId,
             photoUrl: lastPerson.photoUrl,
+            pronouns: lastPerson.pronouns,
           }}
           onOpenChat={async () => {
             // Create the conversation (or find the existing one via 409) then

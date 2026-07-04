@@ -295,6 +295,23 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
           >
             You both said yes.
           </p>
+          {/* D-15 — quiet line naming who you matched with, with pronouns. */}
+          {them?.name && (
+            <p
+              style={{
+                fontFamily: t.sans,
+                fontSize: 15,
+                lineHeight: 1.5,
+                color: "#F4F5F2",
+                margin: "8px 0 0",
+              }}
+            >
+              with {them.name}
+              {them?.pronouns ? (
+                <span style={{ opacity: 0.8 }}> · {them.pronouns}</span>
+              ) : null}
+            </p>
+          )}
         </div>
 
         {/* Two calm actions */}

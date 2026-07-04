@@ -7,7 +7,7 @@ import Avatar from "./Avatar.jsx";
 import SectionRule from "./SectionRule.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
-import { GenderField, OrientationField } from "./IdentityFields.jsx";
+import { GenderField, OrientationField, RelationshipStructureField } from "./IdentityFields.jsx";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -183,6 +183,7 @@ const DEFAULT_PROFILE = {
   interests: [],
   commNote: "",
   relationshipGoal: "",        // "" | "long-term" | "friendship" | "open"
+  relationshipStructure: "",   // D-14; display only, never filters Discover
   distanceCity: "",
   searchRadiusMiles: 0,
   gender: "",
@@ -1581,7 +1582,12 @@ function AgeRangeSlider({ low, high, onChange }) {
 
 // Brand spectrum ramp (literal hex — theme-constant, never flag colours) used
 // to paint the completeness meter as the ramp filling left→right (D-8).
-const COMPLETENESS_RAMP = ["#5E9459", "#4F8A8B", "#3E6660", "#6FA39A", "#C9A875", "#E7D9C4"];
+// A-2 nit #2: luminance now rises MONOTONICALLY green→sand so the meter reads as
+// steadily "filling" and never dips mid-run — the old deep-teal #3E6660 (relative
+// luminance ~0.11) sat darker than its lit neighbours; it's lifted toward the
+// soft-teal, and the teal is nudged up a hair, so each tile is lighter than the
+// last (~0.24 → 0.25 → 0.28 → 0.32 → 0.42 → 0.71).
+const COMPLETENESS_RAMP = ["#5E9459", "#539490", "#5E9C93", "#6FA39A", "#C9A875", "#E7D9C4"];
 
 const COMPLETENESS_FIELDS = [
   { key: "photo",     label: "Add a photo" },
@@ -2244,6 +2250,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [interests, setInterests]     = useState(DEFAULT_PROFILE.interests);
   const [commNote, setCommNote]       = useState(DEFAULT_PROFILE.commNote);
   const [relGoal, setRelGoal]         = useState(DEFAULT_PROFILE.relationshipGoal);
+  const [relStructure, setRelStructure] = useState(DEFAULT_PROFILE.relationshipStructure);
   const [distCity, setDistCity]       = useState(DEFAULT_PROFILE.distanceCity);
   const [searchRadius, setSearchRadius] = useState(DEFAULT_PROFILE.searchRadiusMiles);
   // G4: whether the backend can place this user's city on the map (radius/distance
@@ -2376,6 +2383,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           interests: Array.isArray(data.interests) ? data.interests : [],
           commNote: data.commNote || '',
           relationshipGoal: data.relationshipGoal || '',
+          relationshipStructure: data.relationshipStructure || '',
           distanceCity: data.distCity || '',
           searchRadiusMiles: data.searchRadiusMiles ?? 0,
           gender: data.gender || '',
@@ -2411,6 +2419,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setInterests(merged.interests);
         setCommNote(merged.commNote);
         setRelGoal(merged.relationshipGoal);
+        setRelStructure(merged.relationshipStructure);
         setDistCity(merged.distanceCity);
         setSearchRadius(merged.searchRadiusMiles ?? 0);
         setLocationGeocodable(data.locationGeocodable !== false);
@@ -2484,6 +2493,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         bio              !== savedProfile.bio ||
         commNote         !== savedProfile.commNote ||
         relGoal          !== savedProfile.relationshipGoal ||
+        relStructure     !== savedProfile.relationshipStructure ||
         distCity         !== savedProfile.distanceCity ||
         searchRadius     !== savedProfile.searchRadiusMiles ||
         gender           !== savedProfile.gender ||
@@ -2517,7 +2527,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
 
   // ── Initialise collapsible-section open state once the profile has loaded.
   // Persisted manual choices win; otherwise apply the state-aware defaults from
@@ -2879,6 +2889,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       interests,
       commNote,
       relationshipGoal: relGoal,
+      relationshipStructure: relStructure,
       distanceCity: distCity,
       searchRadiusMiles: searchRadius,
       gender,
@@ -2917,6 +2928,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         interests: currentProfile.interests,
         commNote: currentProfile.commNote,
         relationshipGoal: currentProfile.relationshipGoal,
+        relationshipStructure: currentProfile.relationshipStructure,
         distCity: currentProfile.distanceCity,
         searchRadiusMiles: currentProfile.searchRadiusMiles,
         gender: currentProfile.gender,
@@ -3891,6 +3903,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 
             <OrientationField orientation={orientation} setOrientation={setOrientation} />
 
+            <RelationshipStructureField
+              relationshipStructure={relStructure}
+              setRelationshipStructure={setRelStructure}
+            />
+
             <div style={fieldGroup}>
               <FieldLabel htmlFor="pronouns">Pronouns</FieldLabel>
               <input
@@ -3914,7 +3931,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 Who do you want to meet?
               </legend>
               <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
-                Choose any. Leave all unchecked to be open to everyone.
+                Choose who you'd like to meet, or stay open to everyone.
               </span>
               {[
                 { value: "woman", label: "Women" },
@@ -3939,6 +3956,27 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                   </label>
                 );
               })}
+              {/* D-16 — explicit "open to everyone" affordance mapping to the
+                  existing empty-seeking (match-everyone) semantics. Checked
+                  whenever nothing is selected; selecting it clears the set. */}
+              {(() => {
+                const openToEveryone = seeking.split(",").map((s) => s.trim()).filter(Boolean).length === 0;
+                return (
+                  <label
+                    htmlFor="seek-everyone"
+                    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
+                  >
+                    <input
+                      id="seek-everyone"
+                      type="checkbox"
+                      checked={openToEveryone}
+                      onChange={() => { if (!openToEveryone) setSeeking(""); }}
+                      style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
+                  </label>
+                );
+              })()}
             </fieldset>
 
             {/* Age range preference — dual-handle slider (replaces the two

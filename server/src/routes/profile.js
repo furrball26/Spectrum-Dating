@@ -121,6 +121,11 @@ const ORIENTATION_TOKENS = [
   'asexual', 'demisexual', 'queer', 'questioning',
 ];
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
+// D-14 — relationship STRUCTURE (DISPLAY ONLY; never wired into candidates.js).
+// Separate axis from relationship GOAL above — both coexist. '' = unset.
+const VALID_RELATIONSHIP_STRUCTURE = [
+  '', 'monogamous', 'open', 'polyamorous', 'queerplatonic', 'figuring-it-out',
+];
 const VALID_WANTS_CHILDREN = ['', 'yes', 'no', 'open'];
 const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
 // Differentiator dimensions (autistic-friendly): communication style + sensory
@@ -177,6 +182,7 @@ router.get('/me', requireAuth, (req, res) => {
     bio: profile.bio,
     commNote: profile.comm_note,
     relationshipGoal: profile.relationship_goal,
+    relationshipStructure: profile.relationship_structure || '',
     distCity: profile.dist_city,
     searchRadiusMiles: profile.search_radius_miles ?? 0,
     gender: profile.gender || '',
@@ -359,6 +365,11 @@ router.put('/me', requireAuth, (req, res) => {
       errors.push(`relationshipGoal must be one of: ${VALID_RELATIONSHIP_GOALS.map(v => v === '' ? '""' : v).join(', ')}.`);
     }
   }
+  if (body.relationshipStructure !== undefined) {
+    if (!VALID_RELATIONSHIP_STRUCTURE.includes(body.relationshipStructure)) {
+      errors.push(`relationshipStructure must be one of: ${VALID_RELATIONSHIP_STRUCTURE.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
   if (body.wantsChildren !== undefined) {
     if (!VALID_WANTS_CHILDREN.includes(body.wantsChildren)) {
       errors.push(`wantsChildren must be one of: ${VALID_WANTS_CHILDREN.map(v => v === '' ? '""' : v).join(', ')}.`);
@@ -457,6 +468,7 @@ router.put('/me', requireAuth, (req, res) => {
     bio: 'bio',
     commNote: 'comm_note',
     relationshipGoal: 'relationship_goal',
+    relationshipStructure: 'relationship_structure',
     distCity: 'dist_city',
     searchRadiusMiles: 'search_radius_miles',
     gender: 'gender',
@@ -570,6 +582,7 @@ router.put('/me', requireAuth, (req, res) => {
     bio: profile.bio,
     commNote: profile.comm_note,
     relationshipGoal: profile.relationship_goal,
+    relationshipStructure: profile.relationship_structure || '',
     distCity: profile.dist_city,
     searchRadiusMiles: profile.search_radius_miles ?? 0,
     gender: profile.gender || '',
@@ -701,6 +714,7 @@ router.get('/:userId', requireAuth, (req, res) => {
     photos: listPublicPhotos(db, targetId),
     interests,
     relationshipGoal: profile.relationship_goal || '',
+    relationshipStructure: profile.relationship_structure || '',
     commNote: profile.comm_note || '',
     commDirectness: profile.comm_directness || '',
     commLiteral: profile.comm_literal || '',

@@ -362,7 +362,7 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
         <fieldset style={fieldset}>
           <legend style={legend}>Who you want to meet</legend>
           <span style={{ ...helper, marginTop: 0, marginBottom: 10 }}>
-            Choose any. Leave all unchecked to be open to everyone.
+            Choose who you'd like to meet, or stay open to everyone.
           </span>
           {SEEKING_OPTIONS.map(({ value, label }) => {
             const checked = seekingSet.includes(value);
@@ -383,6 +383,20 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
               </label>
             );
           })}
+          {/* D-16 — explicit "open to everyone" (empty-seeking) affordance. */}
+          <label
+            htmlFor="filter-seek-everyone"
+            style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
+          >
+            <input
+              id="filter-seek-everyone"
+              type="checkbox"
+              checked={seekingSet.length === 0}
+              onChange={() => { if (seekingSet.length > 0) setSeeking(""); }}
+              style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
+          </label>
         </fieldset>
 
         {/* Preferred age range */}

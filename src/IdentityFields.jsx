@@ -55,6 +55,26 @@ export const ORIENTATION_OPTIONS = [
 ];
 const ORIENTATION_LABELS = Object.fromEntries(ORIENTATION_OPTIONS.map((o) => [o.value, o.label]));
 
+// D-14 relationship STRUCTURE (display only; a SEPARATE axis from relationship
+// GOAL — both coexist and never affect matching). Kept in sync with the
+// server's VALID_RELATIONSHIP_STRUCTURE enum (server/src/routes/profile.js).
+export const RELATIONSHIP_STRUCTURE_OPTIONS = [
+  { value: "monogamous", label: "Monogamous" },
+  { value: "open", label: "Open" },
+  { value: "polyamorous", label: "Polyamorous" },
+  { value: "queerplatonic", label: "Queerplatonic" },
+  { value: "figuring-it-out", label: "Figuring it out" },
+];
+const RELATIONSHIP_STRUCTURE_LABELS = Object.fromEntries(
+  RELATIONSHIP_STRUCTURE_OPTIONS.map((o) => [o.value, o.label])
+);
+
+// Human-readable label for a stored relationship-structure value ('' → '').
+export function relationshipStructureLabel(value) {
+  if (!value) return "";
+  return RELATIONSHIP_STRUCTURE_LABELS[value] || value;
+}
+
 const MORE_VALUES = new Set(GENDER_MORE.map((o) => o.value));
 
 // Human-readable label for a stored gender value ('' → '', unknown → raw).
@@ -228,6 +248,37 @@ export function OrientationField({ orientation, setOrientation }) {
             active={selected.includes(o.value)}
             ariaLabel={selected.includes(o.value) ? `${o.label} — selected` : o.label}
             onClick={() => toggle(o.value)}
+          />
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+// ─── Relationship structure: optional single-select pills ──────────────────────
+// D-14. Display only, never used to filter Discover. A SEPARATE axis from the
+// relationship *goal* (long-term / friendship / open) — both can be set.
+export function RelationshipStructureField({ relationshipStructure, setRelationshipStructure }) {
+  return (
+    <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+      <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4, float: "left", width: "100%" }}>
+        Relationship style
+      </legend>
+      <span style={{ display: "block", fontSize: 14, color: t.textSoft, margin: "0 0 10px", clear: "both" }}>
+        Optional. Shown on your profile, never used to filter Discover.
+      </span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <Pill
+          label="Prefer not to say"
+          active={!relationshipStructure}
+          onClick={() => setRelationshipStructure("")}
+        />
+        {RELATIONSHIP_STRUCTURE_OPTIONS.map((o) => (
+          <Pill
+            key={o.value}
+            label={o.label}
+            active={relationshipStructure === o.value}
+            onClick={() => setRelationshipStructure(o.value)}
           />
         ))}
       </div>

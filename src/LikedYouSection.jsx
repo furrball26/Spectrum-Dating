@@ -81,6 +81,8 @@ export default function LikedYouSection({ people, plainLanguage = false, busyId,
                     <div style={{ fontSize: 16, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {name}
                     </div>
+                    {/* D-15 — quiet pronoun line next to the name. */}
+                    {person.pronouns && <div style={{ fontSize: 13, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.pronouns}</div>}
                     {person.age && <div style={{ fontSize: 14, color: t.textMuted }}>{person.age}</div>}
                   </div>
                   {/* Full-width rail: the name has room, so the primary button sits
