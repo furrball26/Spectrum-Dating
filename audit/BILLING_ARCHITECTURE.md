@@ -110,3 +110,19 @@ Implement `StripeProvider` (or Paddle/…) against the `BillingProvider` interfa
 `BILLING_PROVIDER=stripe` + keys in Railway env, and add the webhook route to
 `provider.handleWebhook`. No feature-gating code changes — everything already reads
 `getEntitlement`.
+
+### MUST-DO security items for the payment phase (from the 4434b77 security audit)
+The demo scaffold audited clean (no member self-grant path; admin-gated + rate-limited grants;
+tier confers no privilege; allowlisted/parameterized inputs; `requirePaid` fails closed). These
+become required the moment a real provider is wired — the webhook is then the ONLY path that
+flips a member to a *real* paid tier:
+1. **Verify the webhook signature over the RAW body** before calling `setEntitlement`. Note
+   `express.json()` already consumes the body app-wide — the webhook route needs a raw-body
+   parser branch. An unverified webhook = an unauthenticated self-grant of `source='stripe'`.
+2. **Idempotency** — dedupe on the provider event id (use `provider_ref`) so webhook retries
+   can't double-apply state.
+3. **Restrict real-provider `source` writes to the webhook handler only.** The `SOURCES`
+   allowlist permits `'stripe'`/`'paddle'`, but today no route forwards a client-supplied
+   `source` (member/admin routes are locked to `'admin_demo'`/`'none'`). Keep it that way —
+   only the verified provider layer may persist a real-provider source, so a demo grant can
+   never be dressed up as a real subscription.
