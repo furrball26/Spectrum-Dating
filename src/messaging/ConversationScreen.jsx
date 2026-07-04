@@ -4,7 +4,7 @@ import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getCon
 import { onSocket, joinConversation, leaveConversation, subscribeConnection } from "../socketClient.js";
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
-import { hasSafetySignal } from "./safetySignals.js";
+import { hasSafetySignal, shouldNudgeBeforeSend } from "./safetySignals.js";
 import ErrorState from "../ErrorState.jsx";
 import Avatar from "../Avatar.jsx";
 import MatchProfileModal from "../MatchProfileModal.jsx";
@@ -626,6 +626,8 @@ const MessageBubble = memo(function MessageBubble({
   message,
   onRequestDelete,
   onReportMessage,
+  recipientNudgeDismissed = false,
+  onDismissRecipientNudge,
   currentUserId,
   msgReactions,
   onToggleReaction,
@@ -757,6 +759,17 @@ const MessageBubble = memo(function MessageBubble({
       </div>
     );
   }
+
+  // Needed #6 (recipient) — a quiet "Does this feel off?" affordance under a
+  // RECEIVED message that trips a safety signal, unless it's been dismissed for
+  // this message. Only when a report path exists (onReportMessage is passed only
+  // for the OTHER person's bubbles). Never on own or deleted messages.
+  const showRecipientNudge =
+    !isOwn &&
+    !message.deleted &&
+    !recipientNudgeDismissed &&
+    !!onReportMessage &&
+    hasSafetySignal(message.body);
 
   return (
     <div
@@ -986,6 +999,18 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
       </div>
+
+      {/* Needed #6 (recipient) — calm, muted, dismissible "Does this feel off?"
+          affordance under a received message that trips a safety signal. One-tap
+          Report reuses the pinned report path (onReportMessage) so THIS message
+          is attached to the report. Distinct from the one-time conversation-level
+          SafetyInlineNote — this is per-message and quiet. */}
+      {showRecipientNudge && (
+        <RecipientSafetyNudge
+          onReport={() => onReportMessage(message)}
+          onDismiss={() => onDismissRecipientNudge && onDismissRecipientNudge(message.id)}
+        />
+      )}
 
       {/* Reaction pills — in tab order after the bubble, aligned to the bubble's
           side (own→right, other→left) and inset past the avatar gutter.
@@ -1626,6 +1651,175 @@ function SafetyInlineNote() {
   );
 }
 
+// Needed #6 (recipient) — calm, muted, dismissible affordance beneath a RECEIVED
+// message that trips a safety signal. Informational, never alarm-red: a one-tap
+// "Report" pins THIS message into the existing report flow (via onReportMessage),
+// and "Dismiss" hides it for this message. Kept visually quiet (surfaceAlt / soft
+// text) so it reads as a gentle offer, not a warning. All hooks (useFocusable)
+// run unconditionally — no early return.
+function RecipientSafetyNudge({ onReport, onDismiss }) {
+  const fReport = useFocusable();
+  const fDismiss = useFocusable();
+  return (
+    <div
+      role="note"
+      aria-label="A gentle safety check on this message"
+      style={{
+        marginLeft: OTHER_GUTTER,
+        marginTop: 4,
+        marginBottom: 2,
+        maxWidth: "min(88%, 34rem)",
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 8,
+        padding: "8px 12px",
+        background: t.surfaceAlt,
+        border: `1px solid ${t.border}`,
+        borderRadius: 12,
+        color: t.textSoft,
+        fontSize: 13.5,
+        lineHeight: 1.45,
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: 15, flexShrink: 0 }}>🛟</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        Does this feel off? You can report this message.
+      </span>
+      <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={onReport}
+          style={{
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 10,
+            color: t.accentStrong,
+            fontSize: 13.5,
+            fontWeight: 600,
+            fontFamily: t.sans,
+            cursor: "pointer",
+            padding: "6px 12px",
+            minHeight: 40,
+            ...fReport.style,
+          }}
+          onFocus={fReport.onFocus}
+          onBlur={fReport.onBlur}
+        >
+          Report
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss this safety reminder"
+          style={{
+            background: "transparent",
+            border: "none",
+            color: t.textMuted,
+            fontSize: 13.5,
+            fontFamily: t.sans,
+            cursor: "pointer",
+            padding: "6px 10px",
+            minHeight: 40,
+            ...fDismiss.style,
+          }}
+          onFocus={fDismiss.onFocus}
+          onBlur={fDismiss.onBlur}
+        >
+          Dismiss
+        </button>
+      </span>
+    </div>
+  );
+}
+
+// Needed #6 (sender) — a calm, NON-BLOCKING pre-send nudge. When the message the
+// user is about to send trips a safety signal (off-platform / money) for the
+// FIRST time, we surface this instead of sending. It NEVER hard-blocks: "Send
+// anyway" sends immediately, "Keep editing" returns to the composer. The parent
+// records the confirmed text so it only ever appears once per composed message.
+// Muted styling, reduced-motion-safe — a gentle prompt, not a scary modal.
+function SenderSafetyNudge({ onConfirm, onKeepEditing }) {
+  const prefersReduced = usePrefersReduced();
+  const keepRef = useRef(null);
+  const fConfirm = useFocusable();
+  const fKeep = useFocusable();
+  // Focus the safe default ("Keep editing") so a stray Enter never sends.
+  useEffect(() => { keepRef.current?.focus(); }, []);
+  return (
+    <div
+      // role="group" (NOT alertdialog) — this is calm, inline, and non-modal: it
+      // does not trap focus or block the rest of the screen.
+      role="group"
+      aria-label="A gentle check before you send"
+      style={{
+        margin: "8px 16px 0",
+        padding: "12px 14px",
+        background: t.surfaceAlt,
+        border: `1px solid ${t.border}`,
+        borderRadius: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        animation: prefersReduced ? "none" : "senderNudgeIn 160ms ease",
+      }}
+    >
+      <style>{`@keyframes senderNudgeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }`}</style>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>🛟</span>
+        <span style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5, minWidth: 0 }}>
+          This mentions moving off the app or money — that's a common pattern in scams. It's your call.
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <button
+          ref={keepRef}
+          type="button"
+          onClick={onKeepEditing}
+          style={{
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            color: t.text,
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: t.sans,
+            cursor: "pointer",
+            padding: "0 16px",
+            minHeight: 44,
+            ...fKeep.style,
+          }}
+          onFocus={fKeep.onFocus}
+          onBlur={fKeep.onBlur}
+        >
+          Keep editing
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          style={{
+            background: t.accentFill,
+            border: "none",
+            borderRadius: 12,
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: t.sans,
+            cursor: "pointer",
+            padding: "0 16px",
+            minHeight: 44,
+            ...fConfirm.style,
+          }}
+          onFocus={fConfirm.onFocus}
+          onBlur={fConfirm.onBlur}
+        >
+          Send anyway
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // F27 — "Conversation helpers": a calm tray of short, reusable phrases that
 // reduce blank-page anxiety and the pressure to improvise a social script.
 // Tapping a phrase INSERTS it into the composer (never clipboard — the app has a
@@ -1931,6 +2125,35 @@ export default function ConversationScreen({
   // detected in EITHER person's message. Informational only; never blocks/alters
   // any message.
   const [safetySignalSeen, setSafetySignalSeen] = useState(false);
+
+  // Needed #6 (sender) — gentle, NON-BLOCKING pre-send nudge. When the composed
+  // message first trips a safety signal we show a calm confirm instead of
+  // sending; "Send anyway" records the exact confirmed text (in the ref) so
+  // re-sending that same text never re-prompts. This is a nudge, never a block —
+  // the server-side signal already logs the message for moderators regardless.
+  const [pendingNudge, setPendingNudge] = useState(false);
+  const nudgeConfirmedTextRef = useRef(null);
+
+  // Needed #6 (recipient) — per-message dismissal of the "Does this feel off?"
+  // affordance. Persisted per conversation so a dismissal survives reload.
+  const nudgeDismissKey = `spectrum_msgnudge_dismissed_${conversationId}`;
+  const [dismissedNudges, setDismissedNudges] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`spectrum_msgnudge_dismissed_${conversationId}`);
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch { return new Set(); }
+  });
+  const dismissMessageNudge = useCallback((messageId) => {
+    setDismissedNudges((prev) => {
+      if (prev.has(messageId)) return prev;
+      const next = new Set(prev);
+      next.add(messageId);
+      try { localStorage.setItem(nudgeDismissKey, JSON.stringify([...next])); }
+      catch { /* ignore storage failures */ }
+      return next;
+    });
+  }, [nudgeDismissKey]);
 
   // Security Fix 2 — consent-gate state
   const [consentGateFailed, setConsentGateFailed] = useState(false);
@@ -2260,6 +2483,15 @@ export default function ConversationScreen({
 
     if (!body && !hasAttachment) return;
 
+    // Needed #6 (sender) — gentle pre-send nudge. On the FIRST send of a message
+    // whose body trips a safety signal, surface a calm confirm instead of
+    // sending. NON-BLOCKING: handleNudgeConfirm records this exact text and
+    // re-invokes handleSend, which then passes this guard (confirmed === body).
+    if (shouldNudgeBeforeSend(body, nudgeConfirmedTextRef.current)) {
+      setPendingNudge(true);
+      return;
+    }
+
     // Feature 2 — real R2 upload if attachment present (Error Log E2).
     // Flow: upload-intent → PUT bytes to R2 → confirm → sendMessage({ body,
     // attachmentId }) in ONE send. The server returns the real messageId and the
@@ -2388,6 +2620,23 @@ export default function ConversationScreen({
       // FE-8 — release the guard once the send settles (success or handled error).
       sendingRef.current = false;
     }
+  }
+
+  // Needed #6 (sender) — "Send anyway": record the exact confirmed text so this
+  // re-send (and any later send of the same text) skips the nudge, then send
+  // immediately. Non-blocking by construction — one tap and it's on its way.
+  function handleNudgeConfirm() {
+    nudgeConfirmedTextRef.current = composeValue.trim();
+    setPendingNudge(false);
+    handleSend();
+  }
+
+  // "Keep editing": dismiss the panel and return to the composer. We do NOT
+  // record a confirmed text, so editing and sending again will prompt once more
+  // (as intended — only "Send anyway" counts as confirming).
+  function handleNudgeKeepEditing() {
+    setPendingNudge(false);
+    composeRef.current?.focus();
   }
 
   // Re-send a failed message: clear the flag and try again in place.
@@ -3036,6 +3285,9 @@ export default function ConversationScreen({
                   onRequestDelete={handleRequestDelete}
                   // Needed #10 — only the OTHER person's messages are reportable.
                   onReportMessage={isOwnMsg ? undefined : handleReportMessage}
+                  // Needed #6 (recipient) — per-message "Does this feel off?" affordance.
+                  recipientNudgeDismissed={dismissedNudges.has(msg.id)}
+                  onDismissRecipientNudge={dismissMessageNudge}
                   currentUserId={currentUserId}
                   msgReactions={reactions[msg.id] || EMPTY_REACTIONS}
                   onToggleReaction={toggleReaction}
@@ -3179,9 +3431,20 @@ export default function ConversationScreen({
             : "This conversation has ended."}
         </div>
       ) : (
-      /* Compose area — two-row layout so the message field is full-width and
+      <>
+      {/* Needed #6 (sender) — gentle, non-blocking pre-send nudge. Sits just
+          above the composer when the message about to be sent trips a safety
+          signal for the first time. "Send anyway" sends; "Keep editing" returns
+          to the composer. Only ever appears once per composed message. */}
+      {pendingNudge && (
+        <SenderSafetyNudge
+          onConfirm={handleNudgeConfirm}
+          onKeepEditing={handleNudgeKeepEditing}
+        />
+      )}
+      {/* Compose area — two-row layout so the message field is full-width and
           readable on mobile. Row 1: attach + helpers actions. Row 2: the
-          auto-growing textarea beside the send button. */
+          auto-growing textarea beside the send button. */}
       <div
         style={{
           padding: "10px 16px 12px",
@@ -3396,6 +3659,7 @@ export default function ConversationScreen({
           </button>
         </div>
       </div>
+      </>
       )}
 
       {/* F27 — conversation helpers tray */}

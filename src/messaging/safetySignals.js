@@ -67,3 +67,27 @@ export function hasSafetySignal(text) {
     MONEY_PATTERNS.some((re) => re.test(text))
   );
 }
+
+/**
+ * Needed #6 (sender pre-send nudge) — should we show the calm "Are you sure?"
+ * nudge before sending `text`?
+ *
+ * Pure and side-effect-free so it can be unit-tested in isolation. Returns true
+ * only when the (trimmed) body trips a safety signal AND it isn't the exact text
+ * the user has already confirmed via "Send anyway" — so the gentle nudge appears
+ * at most ONCE per composed message. The caller holds the confirmed text (in a
+ * ref) and passes it here; editing the text after confirming re-arms the nudge.
+ *
+ * This NEVER blocks — it only decides whether to surface a dismissible prompt.
+ *
+ * @param {string} text            the message body about to be sent
+ * @param {string|null} confirmedText  text the user already confirmed, if any
+ * @returns {boolean}
+ */
+export function shouldNudgeBeforeSend(text, confirmedText) {
+  if (typeof text !== "string") return false;
+  const body = text.trim();
+  if (!body) return false;
+  if (confirmedText != null && confirmedText === body) return false;
+  return hasSafetySignal(body);
+}

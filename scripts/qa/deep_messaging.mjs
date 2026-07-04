@@ -11,6 +11,12 @@ async function run(theme) {
     "Hi there, this is a synthetic QA message one.",
     "And here is a synthetic QA reply two.",
     "Third synthetic line to give the thread some body.",
+    // Needed #6 — a scam-signal line FROM THE OTHER PERSON (odd index → pair.b),
+    // so the recipient "Does this feel off?" affordance has a bubble to attach to.
+    "You should hit me up on whatsapp instead.",
+    // Keep an OWN message last (even index → pair.a) so the message-delete-menu
+    // check below still lands on a deletable own bubble.
+    "Sounds good, talk soon.",
   ]);
 
   const { browser, page, errors } = await launch({ viewport: { width: 390, height: 844 } });
@@ -193,6 +199,46 @@ async function run(theme) {
       check(`[${theme}] header 'Block and report' reachable`, hit.visible && !hit.covered, JSON.stringify(hit));
     }
     await page.keyboard.press("Escape");
+  }
+
+  // ---- Needed #6: gentle message nudges (recipient affordance + sender pre-send) ----
+  // Recipient affordance: the seeded thread includes a scam-phrase message from
+  // the OTHER person, which must surface a calm, muted "Does this feel off?"
+  // affordance with a one-tap Report beneath that received bubble.
+  const recipientNudge = page.getByText(/does this feel off\?/i).first();
+  const hasRecipientNudge = await recipientNudge.count();
+  check(`[${theme}] recipient safety affordance shown on received scam message`, hasRecipientNudge > 0);
+  if (hasRecipientNudge > 0) {
+    const rep = page.getByRole("button", { name: /^report$/i });
+    check(`[${theme}] recipient affordance offers a one-tap Report`, (await rep.count()) > 0);
+    await page.screenshot({ path: `${OUT}/dm-recipient-nudge-${theme}.png` });
+  }
+
+  // Sender pre-send nudge: typing a scam phrase then pressing Send surfaces a
+  // NON-BLOCKING "Send anyway / Keep editing" confirm; the message is NOT sent
+  // yet (composer keeps the text). "Send anyway" then sends it immediately.
+  const composer = page.getByRole("textbox").first();
+  if (await composer.count()) {
+    await composer.fill("let's move to venmo and add me on telegram");
+    const sendBtn = page.getByRole("button", { name: /^send$/i }).first();
+    await sendBtn.click({ force: true });
+    await page.waitForTimeout(300);
+    const sendAnyway = page.getByRole("button", { name: /send anyway/i }).first();
+    const keepEditing = page.getByRole("button", { name: /keep editing/i }).first();
+    const nudgeShown = (await sendAnyway.count()) > 0 && (await keepEditing.count()) > 0;
+    check(`[${theme}] sender pre-send nudge appears on a scam-phrase send`, nudgeShown);
+    const stillInComposer = await composer.inputValue();
+    check(`[${theme}] pre-send nudge does not send (composer retains text)`,
+      /venmo/i.test(stillInComposer), `value="${stillInComposer.slice(0, 40)}"`);
+    if (nudgeShown) {
+      await sendAnyway.click();
+      await page.waitForTimeout(900);
+      const nowSent = await page.getByText(/add me on telegram/i).count();
+      check(`[${theme}] 'Send anyway' sends the message (non-blocking)`, nowSent > 0, `matches=${nowSent}`);
+      const nudgeGone = await page.getByRole("button", { name: /send anyway/i }).count();
+      check(`[${theme}] pre-send nudge dismisses after sending`, nudgeGone === 0);
+    }
+    await page.screenshot({ path: `${OUT}/dm-sender-nudge-${theme}.png` });
   }
 
   // ---- Needed #10: "Report this message" on the OTHER person's bubble pins it ----

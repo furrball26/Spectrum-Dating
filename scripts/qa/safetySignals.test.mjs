@@ -11,7 +11,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hasSafetySignal } from "../../src/messaging/safetySignals.js";
+import { hasSafetySignal, shouldNudgeBeforeSend } from "../../src/messaging/safetySignals.js";
 
 test("off-platform contact — URLs, emails, phones are flagged", () => {
   assert.equal(hasSafetySignal("check my site https://sketchy.example/win"), true);
@@ -103,4 +103,35 @@ test("edge cases — empty, whitespace, non-string, nullish return false (never 
   assert.equal(hasSafetySignal(12345678), false, "non-string is rejected before regex");
   assert.equal(hasSafetySignal({}), false);
   assert.equal(hasSafetySignal([]), false);
+});
+
+// --- Needed #6: shouldNudgeBeforeSend (sender pre-send nudge decision) ---------
+
+test("shouldNudgeBeforeSend — a first-time scam-signal send is nudged", () => {
+  assert.equal(shouldNudgeBeforeSend("let's move to whatsapp", null), true);
+  assert.equal(shouldNudgeBeforeSend("send it to my venmo", null), true);
+  assert.equal(shouldNudgeBeforeSend("add me on telegram", null), true);
+});
+
+test("shouldNudgeBeforeSend — benign / empty text is never nudged", () => {
+  assert.equal(shouldNudgeBeforeSend("want to grab coffee this weekend?", null), false);
+  assert.equal(shouldNudgeBeforeSend("", null), false);
+  assert.equal(shouldNudgeBeforeSend("   ", null), false);
+});
+
+test("shouldNudgeBeforeSend — once confirmed, the SAME text is not re-nudged", () => {
+  const text = "add me on telegram";
+  assert.equal(shouldNudgeBeforeSend(text, null), true, "first attempt prompts");
+  assert.equal(shouldNudgeBeforeSend(text, text), false, "confirmed text is not re-prompted");
+  // The caller compares trimmed bodies, so surrounding whitespace still matches.
+  assert.equal(shouldNudgeBeforeSend("  add me on telegram  ", "add me on telegram"), false);
+  // Editing the message after confirming re-arms the nudge.
+  assert.equal(shouldNudgeBeforeSend("add me on telegram now", "add me on telegram"), true);
+});
+
+test("shouldNudgeBeforeSend — non-string input is safe (never throws, never nudges)", () => {
+  assert.equal(shouldNudgeBeforeSend(undefined, null), false);
+  assert.equal(shouldNudgeBeforeSend(null, null), false);
+  assert.equal(shouldNudgeBeforeSend(12345, null), false);
+  assert.equal(shouldNudgeBeforeSend({}, null), false);
 });
