@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  getAdminStats, getAdminReports, resolveReport, suspendUser, warnUser, banUser, unbanUser, getPendingAttachments,
+  getAdminStats, getAdminReports, reportAction, suspendUser, warnUser, banUser, unbanUser, getPendingAttachments,
   reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog,
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
@@ -30,15 +30,12 @@ const STATUS_FILTERS = [
   { value: "all", label: "All" },
 ];
 
-const RESOLVE_ACTIONS = [
-  { value: "reviewed", label: "Reviewed" },
-  { value: "actioned", label: "Actioned" },
-  { value: "dismissed", label: "Dismissed" },
-];
-
-// Outcomes that demand a note (accountability trail). 'reviewed' is a noteless
-// triage mark. Mirrors the backend's TERMINAL_REPORT_STATUSES note rule.
-const NOTE_REQUIRED = new Set(["actioned", "dismissed"]);
+// Moderation redesign v1 — the report card now resolves a case with ONE of three
+// atomic actions (each records the outcome AND closes the report in one step, via
+// POST /admin/reports/:id/action). The old "Resolve report" dropdown (Reviewed /
+// Actioned / Dismissed) is gone — the action IS the resolution. `reviewed` is
+// retired as an offered outcome; legacy reviewed rows still render read-only, and
+// a moderator who isn't ready uses "Skip for now" (client-side navigation).
 
 function formatTimestamp(value) {
   if (!value) return "";
@@ -753,53 +750,63 @@ function EnforcementActions({
 }
 
 function ReportCard({ report, onRefresh, onStatus, onDone }) {
-  const [resolveAction, setResolveAction] = useState("");
-  const [note, setNote] = useState("");
+  // Moderation redesign v1 — one calm decision. `panel` is which atomic action's
+  // reason box is open (null = the three-button chooser). dismiss/warn/ban close
+  // the report atomically (POST /reports/:id/action); suspend (under "More") uses
+  // the reversible enforcement endpoint. All hooks run before any early return.
+  const [panel, setPanel] = useState(null); // null | 'dismiss' | 'warn' | 'ban' | 'suspend'
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [confirmResolve, setConfirmResolve] = useState(false);
-  const [confirmSuspend, setConfirmSuspend] = useState(false);
-  const [suspendNote, setSuspendNote] = useState("");
   const [localError, setLocalError] = useState("");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [skipped, setSkipped] = useState(false); // client-side only — no state change
   const [verified, setVerified] = useState(!!report.reportedVerified);
   const [verifyBusy, setVerifyBusy] = useState(false);
-  const fNote = useFocusable();
-  const fSelect = useFocusable();
-  const fSuspendNote = useFocusable();
-  const confirmResolveRef = useRef(null);
-  const confirmSuspendRef = useRef(null);
+  const fReason = useFocusable();
+  const fMore = useFocusable();
+  const reasonRef = useRef(null);
 
   const isOpen = report.status === "open";
   const suspended = !!report.reportedSuspended;
-  const noteRequired = NOTE_REQUIRED.has(resolveAction);
+  const banned = !!report.reportedBanned;
+  const name = report.reportedName || "this member";
+  const isDanger = panel === "ban";
 
-  // Move focus into a confirm panel on reveal (a11y).
-  useEffect(() => { if (confirmResolve) confirmResolveRef.current?.focus(); }, [confirmResolve]);
-  useEffect(() => { if (confirmSuspend) confirmSuspendRef.current?.focus(); }, [confirmSuspend]);
+  // Move focus into the reason box when a decision panel opens (a11y).
+  useEffect(() => { if (panel) reasonRef.current?.focus(); }, [panel]);
 
-  async function doResolve() {
+  function openPanel(which) { setReason(""); setLocalError(""); setPanel(which); }
+  function closePanel() { setPanel(null); setReason(""); }
+
+  // Shared runner: on success the card refetches and unmounts, so busy is only
+  // reset on error (mirrors the prior card). `closesReport` decides whether to
+  // return focus to the section heading before the card disappears.
+  async function runAction(fn, successMsg, { closesReport = true } = {}) {
     setBusy(true);
     setLocalError("");
     try {
-      await resolveReport(report.id, resolveAction, note.trim() || undefined);
-      onStatus(`Report marked ${resolveAction}.`);
-      setConfirmResolve(false);
-      onDone(); // restore focus to the section heading before this card unmounts
+      await fn();
+      onStatus(successMsg);
+      setPanel(null);
+      setReason("");
+      if (closesReport) onDone();
       onRefresh();
     } catch (err) {
-      setConfirmResolve(false);
       setLocalError(actionErrorMessage(err, "Couldn't update this report. Please try again."));
       if (err && err.status === 409) onRefresh();
       setBusy(false);
     }
   }
 
-  function handleApply() {
-    if (!resolveAction) return;
-    if (noteRequired && !note.trim()) return;
-    // Confirm step for the destructive 'actioned' outcome (reuse the suspend
-    // confirm shape). Reviewed/dismissed apply directly.
-    if (resolveAction === "actioned") { setConfirmResolve(true); return; }
-    doResolve();
+  function confirmPanel() {
+    const r = reason.trim();
+    if (!r) return;
+    if (panel === "dismiss") return runAction(() => reportAction(report.id, "dismiss", r), `Report dismissed — no action taken against ${name}.`);
+    if (panel === "warn") return runAction(() => reportAction(report.id, "warn", r), `${name} has been warned. Report closed.`);
+    if (panel === "ban") return runAction(() => reportAction(report.id, "ban", r), `${name} has been permanently removed. Report closed.`);
+    // Suspend is the reversible middle rung (under "More"); it auto-closes the
+    // member's open reports server-side, so it also refreshes this card away.
+    if (panel === "suspend") return runAction(() => suspendUser(report.reportedId, true, r), `${name} has been suspended.`);
   }
 
   async function handleVerifyToggle(nextVerified) {
@@ -809,11 +816,7 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
       const res = await verifyUser(report.reportedId, nextVerified);
       const applied = res?.verified ?? nextVerified;
       setVerified(!!applied);
-      onStatus(
-        applied
-          ? `${report.reportedName || "This member"} is now verified.`
-          : `Verification removed from ${report.reportedName || "this member"}.`
-      );
+      onStatus(applied ? `${name} is now verified.` : `Verification removed from ${name}.`);
     } catch (err) {
       setLocalError(actionErrorMessage(err, "Couldn't update verification. Please try again."));
       if (err && err.status === 409) onRefresh();
@@ -822,29 +825,12 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
     }
   }
 
-  async function handleSuspend() {
-    if (!suspendNote.trim()) return;
-    setBusy(true);
-    setLocalError("");
-    try {
-      await suspendUser(report.reportedId, true, suspendNote.trim());
-      onStatus(`${report.reportedName || "This member"} has been suspended.`);
-      setConfirmSuspend(false);
-      onDone();
-      onRefresh();
-    } catch (err) {
-      setLocalError(actionErrorMessage(err, "Couldn't update this account. Please try again."));
-      if (err && err.status === 409) onRefresh();
-      setBusy(false);
-    }
-  }
-
   async function handleUnsuspend() {
     setBusy(true);
     setLocalError("");
     try {
       await suspendUser(report.reportedId, false);
-      onStatus(`${report.reportedName || "This member"} has been reinstated.`);
+      onStatus(`${name} has been reinstated.`);
       onRefresh();
     } catch (err) {
       setLocalError(actionErrorMessage(err, "Couldn't update this account. Please try again."));
@@ -856,6 +842,50 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
 
   const resolver = report.resolvedBy;
   const resolverName = resolver ? (resolver.displayName || resolver.email || "a moderator") : "a moderator";
+
+  // Compact enforcement-state summary (replaces the card's old EnforcementActions
+  // cluster; the drawer keeps the full ladder). Preserves the audit context —
+  // banned/suspended + warning tally + the latest due-process reason.
+  const enfBits = [];
+  if (banned) enfBits.push("Permanently removed");
+  else if (suspended) enfBits.push("Suspended");
+  if ((report.reportedWarnCount ?? 0) > 0) enfBits.push(`warned ${report.reportedWarnCount}×`);
+  const latestNotice = report.reportedLatestNotice;
+
+  // Per-action confirm copy (states the consequence in a sentence before confirm).
+  const consequence =
+    panel === "dismiss" ? `Close this report with no action against ${name}. The reason is recorded in the audit log.`
+    : panel === "warn" ? `Send ${name} a warning. They keep access and will see this reason. Recorded in the audit log.`
+    : panel === "ban" ? `Permanently remove ${name}? They'll be logged out and can't sign in — harder to undo than a suspension. The reason is recorded and shown to them.`
+    : panel === "suspend" ? `Suspend ${name} temporarily? They'll be logged out and unable to sign in until reinstated. The reason is recorded and shown to them.`
+    : "";
+  const confirmLabel =
+    panel === "dismiss" ? "Dismiss report"
+    : panel === "warn" ? "Warn & close report"
+    : panel === "ban" ? "Ban & close report"
+    : panel === "suspend" ? "Suspend"
+    : "";
+  const reasonLabel = panel === "dismiss"
+    ? "Reason (recorded in the audit log)"
+    : "Reason (recorded & shown to the member)";
+
+  // "Skip for now" — advance past the case with NO state change (client-side).
+  if (skipped && isOpen) {
+    return (
+      <li
+        style={{
+          background: t.surfaceAlt, border: `1px solid ${t.borderLight}`, borderRadius: 16,
+          padding: "14px 20px", marginBottom: 14, listStyle: "none",
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontSize: 14, color: t.textMuted, minWidth: 0 }}>
+          Skipped for now — {report.reporterName || "Someone"} <span aria-hidden="true">→</span> {name}
+        </span>
+        <PlainButton kind="quiet" onClick={() => setSkipped(false)}>Show again</PlainButton>
+      </li>
+    );
+  }
 
   return (
     <li
@@ -928,20 +958,18 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
       {/* P1-B repeat-offender signal (muted, always present) */}
       <RepeatOffenderLine report={report} />
 
-      {/* Needed #7/#11 — enforcement state (banned/suspended/warned N + latest
-          reason) + Warn/Ban ladder actions, right by the repeat-offender line.
-          Suspend stays in its own control below (includeSuspend={false}). */}
-      <EnforcementActions
-        userId={report.reportedId}
-        userName={report.reportedName}
-        banned={!!report.reportedBanned}
-        suspended={!!report.reportedSuspended}
-        warnCount={report.reportedWarnCount ?? 0}
-        latestNotice={report.reportedLatestNotice}
-        includeSuspend={false}
-        onChanged={onRefresh}
-        onStatus={onStatus}
-      />
+      {/* Enforcement-state summary (banned/suspended/warned N + latest reason) —
+          the audit context kept from the old EnforcementActions cluster. The
+          Warn/Ban actions now live in the atomic Decision block below; the full
+          reversible ladder stays in the Member drawer. */}
+      <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: (banned || suspended) ? t.danger : t.textMuted, fontWeight: (banned || suspended) ? 600 : 400 }}>
+        {enfBits.length ? enfBits.join(" · ") : "No enforcement actions on record"}
+        {latestNotice && latestNotice.reason && (
+          <span style={{ color: t.textMuted, fontWeight: 400 }}>
+            {" · "}latest: {latestNotice.kind} — <span style={{ fontStyle: "italic" }}>“{latestNotice.reason}”</span>
+          </span>
+        )}
+      </p>
 
       {/* P1-A reported-conversation view (read-only) */}
       <ReportedContext reportId={report.id} reportedName={report.reportedName} />
@@ -950,8 +978,8 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
         <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "12px 0 0" }}>{localError}</p>
       )}
 
-      {/* F-B: resolved reports show a read-only receipt; only OPEN reports keep
-          the live resolve/suspend/verify controls. */}
+      {/* Resolved reports show a read-only receipt; OPEN reports get the atomic
+          Decision block (Dismiss · Warn · Ban) + More + Skip. */}
       {!isOpen ? (
         <div style={{ borderTop: `1px solid ${t.borderLight}`, marginTop: 16, paddingTop: 16 }}>
           <div style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
@@ -964,149 +992,104 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
           </div>
         </div>
       ) : (
-        <>
-          {/* Resolve controls */}
-          <div style={{ borderTop: `1px solid ${t.borderLight}`, marginTop: 16, paddingTop: 16 }}>
-            <label
-              htmlFor={`resolve-${report.id}`}
-              style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 8 }}
-            >
-              Resolve report
-            </label>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <select
-                id={`resolve-${report.id}`}
-                value={resolveAction}
-                onChange={(e) => setResolveAction(e.target.value)}
-                style={{
-                  minHeight: 44, padding: "8px 12px", borderRadius: 11, border: `1px solid ${t.formBorder}`,
-                  background: t.surface, color: t.text,
-                  // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
-                  fontSize: 16, ...fSelect.style,
-                }}
-                onFocus={fSelect.onFocus}
-                onBlur={fSelect.onBlur}
-              >
-                <option value="">Choose outcome…</option>
-                {RESOLVE_ACTIONS.map((a) => (
-                  <option key={a.value} value={a.value}>{a.label}</option>
-                ))}
-              </select>
-              <PlainButton kind="accent" onClick={handleApply} disabled={busy || !resolveAction || (noteRequired && !note.trim())}>
-                Apply
-              </PlainButton>
-            </div>
-
-            <label
-              htmlFor={`resolve-note-${report.id}`}
-              style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.textSoft, margin: "12px 0 6px" }}
-            >
-              {noteRequired ? "Why? (recorded in the audit log)" : "Note (optional)"}
-            </label>
-            <textarea
-              id={`resolve-note-${report.id}`}
-              value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, 500))}
-              maxLength={500}
-              rows={2}
+        <div style={{ borderTop: `1px solid ${t.borderLight}`, marginTop: 16, paddingTop: 16 }}>
+          {panel ? (
+            /* One calm reason box — states the consequence, then confirm/cancel. */
+            <div
+              role="group"
+              aria-label="Confirm decision"
+              onKeyDown={(e) => { if (e.key === "Escape") closePanel(); }}
               style={{
-                width: "100%", border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "10px 12px",
-                // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
-                fontSize: 16, color: t.text, background: t.bg, resize: "vertical", fontFamily: t.sans,
-                lineHeight: 1.5, boxSizing: "border-box", ...fNote.style,
+                background: isDanger ? t.dangerSurface : t.surfaceAlt,
+                border: `1px solid ${isDanger ? t.danger : t.border}`,
+                borderRadius: 12, padding: "14px 16px",
               }}
-              onFocus={fNote.onFocus}
-              onBlur={fNote.onBlur}
-            />
-
-            {confirmResolve && (
-              <div
-                role="group"
-                aria-label="Confirm action"
-                onKeyDown={(e) => { if (e.key === "Escape") setConfirmResolve(false); }}
-                style={{ background: t.dangerSurface, border: `1px solid ${t.danger}`, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}
+            >
+              <p style={{ margin: "0 0 10px", fontSize: 14, color: t.text, lineHeight: 1.5 }}>{consequence}</p>
+              <label
+                htmlFor={`decision-reason-${report.id}`}
+                style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}
               >
-                <p style={{ margin: "0 0 12px", fontSize: 14, color: t.text, lineHeight: 1.5 }}>
-                  Action this report against {report.reportedName || "this member"}? This decision is final and recorded in the audit log.
-                </p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <PlainButton kind="danger" onClick={doResolve} disabled={busy} buttonRef={confirmResolveRef}>
-                    Confirm — mark actioned
-                  </PlainButton>
-                  <PlainButton kind="neutral" onClick={() => setConfirmResolve(false)} disabled={busy}>
-                    Cancel
-                  </PlainButton>
-                </div>
+                {reasonLabel}
+              </label>
+              <textarea
+                id={`decision-reason-${report.id}`}
+                ref={reasonRef}
+                value={reason}
+                onChange={(e) => setReason(e.target.value.slice(0, 500))}
+                maxLength={500}
+                rows={2}
+                style={{
+                  width: "100%", border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "10px 12px",
+                  // ≥16px so iOS Safari doesn't auto-zoom on focus (WCAG-safe; no scale lock).
+                  fontSize: 16, color: t.text, background: t.surface, resize: "vertical", fontFamily: t.sans,
+                  lineHeight: 1.5, boxSizing: "border-box", marginBottom: 12, ...fReason.style,
+                }}
+                onFocus={fReason.onFocus}
+                onBlur={fReason.onBlur}
+              />
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <PlainButton kind={isDanger ? "danger" : "accent"} onClick={confirmPanel} disabled={busy || !reason.trim()}>
+                  {confirmLabel}
+                </PlainButton>
+                <PlainButton kind="neutral" onClick={closePanel} disabled={busy}>Cancel</PlainButton>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            /* The three atomic actions — one vocabulary, one decision. */
+            <>
+              <div style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 10 }}>Decision</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <PlainButton kind="neutral" onClick={() => openPanel("dismiss")} disabled={busy}>Dismiss</PlainButton>
+                <PlainButton kind="accent" onClick={() => openPanel("warn")} disabled={busy}>Warn</PlainButton>
+                <PlainButton kind="danger" onClick={() => openPanel("ban")} disabled={busy}>Ban</PlainButton>
+                <PlainButton kind="quiet" onClick={() => setSkipped(true)} disabled={busy}>Skip for now</PlainButton>
+              </div>
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+                Dismiss = no action · Warn = keeps access, on notice · Ban = permanent removal
+              </p>
 
-          {/* Suspend / unsuspend */}
-          <div style={{ marginTop: 14 }}>
-            {suspended ? (
-              <PlainButton kind="quiet" onClick={handleUnsuspend} disabled={busy}>
-                Unsuspend {report.reportedName}
-              </PlainButton>
-            ) : confirmSuspend ? (
-              <div
-                role="group"
-                aria-label="Confirm suspension"
-                onKeyDown={(e) => { if (e.key === "Escape") setConfirmSuspend(false); }}
-                style={{ background: t.dangerSurface, border: `1px solid ${t.danger}`, borderRadius: 12, padding: "14px 16px" }}
-              >
-                <p style={{ margin: "0 0 12px", fontSize: 14, color: t.text, lineHeight: 1.5 }}>
-                  Suspend {report.reportedName || "this member"}? They'll be logged out and unable to sign in.
-                </p>
-                <label
-                  htmlFor={`suspend-note-${report.id}`}
-                  style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}
-                >
-                  Reason (required, recorded in the audit log)
-                </label>
-                <textarea
-                  id={`suspend-note-${report.id}`}
-                  value={suspendNote}
-                  onChange={(e) => setSuspendNote(e.target.value.slice(0, 500))}
-                  maxLength={500}
-                  rows={2}
-                  ref={confirmSuspendRef}
+              {/* Advanced, tucked away: Suspend (reversible) + Verify. */}
+              <div style={{ marginTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((v) => !v)}
+                  aria-expanded={moreOpen}
                   style={{
-                    width: "100%", border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "10px 12px",
-                    fontSize: 16, color: t.text, background: t.surface, resize: "vertical", fontFamily: t.sans,
-                    lineHeight: 1.5, boxSizing: "border-box", marginBottom: 12, ...fSuspendNote.style,
+                    background: "none", border: "none", color: t.textMuted, fontSize: 13, fontWeight: 600,
+                    cursor: "pointer", padding: "4px 2px", borderRadius: 8, ...fMore.style,
                   }}
-                  onFocus={fSuspendNote.onFocus}
-                  onBlur={fSuspendNote.onBlur}
-                />
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <PlainButton kind="danger" onClick={handleSuspend} disabled={busy || !suspendNote.trim()}>
-                    Suspend
-                  </PlainButton>
-                  <PlainButton kind="neutral" onClick={() => setConfirmSuspend(false)} disabled={busy}>
-                    Cancel
-                  </PlainButton>
-                </div>
+                  onFocus={fMore.onFocus}
+                  onBlur={fMore.onBlur}
+                >
+                  More <span aria-hidden="true">{moreOpen ? "▴" : "▾"}</span>
+                </button>
+                {moreOpen && (
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+                    {suspended ? (
+                      <PlainButton kind="quiet" onClick={handleUnsuspend} disabled={busy}>
+                        Unsuspend {report.reportedName}
+                      </PlainButton>
+                    ) : (
+                      <PlainButton kind="quiet" onClick={() => openPanel("suspend")} disabled={busy}>
+                        Suspend temporarily
+                      </PlainButton>
+                    )}
+                    {verified ? (
+                      <PlainButton kind="quiet" onClick={() => handleVerifyToggle(false)} disabled={verifyBusy}>
+                        Remove verification
+                      </PlainButton>
+                    ) : (
+                      <PlainButton kind="quiet" onClick={() => handleVerifyToggle(true)} disabled={verifyBusy}>
+                        Mark verified
+                      </PlainButton>
+                    )}
+                  </div>
+                )}
               </div>
-            ) : (
-              <PlainButton kind="quiet" onClick={() => setConfirmSuspend(true)} disabled={busy}>
-                Suspend {report.reportedName}
-              </PlainButton>
-            )}
-          </div>
-
-          {/* Identity verification (F1) — acts on the reported member in-context */}
-          <div style={{ marginTop: 12 }}>
-            {verified ? (
-              <PlainButton kind="quiet" onClick={() => handleVerifyToggle(false)} disabled={verifyBusy}>
-                Remove verification
-              </PlainButton>
-            ) : (
-              <PlainButton kind="neutral" onClick={() => handleVerifyToggle(true)} disabled={verifyBusy}>
-                Mark verified
-              </PlainButton>
-            )}
-          </div>
-        </>
+            </>
+          )}
+        </div>
       )}
     </li>
   );

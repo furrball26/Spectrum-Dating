@@ -15,6 +15,10 @@ const DEMO_EMAIL_DOMAIN = '@sample.spectrum-dating.app';
 const router = Router();
 
 const RESOLVE_STATUSES = ['reviewed', 'actioned', 'dismissed'];
+// Moderation redesign v1: the three ATOMIC case actions. Each records the
+// enforcement outcome AND closes the report in one transaction (see
+// POST /reports/:id/action). One vocabulary — the action IS the resolution.
+const REPORT_ACTIONS = ['dismiss', 'warn', 'ban'];
 // A report in one of these states is FINAL evidence — never re-actionable. This
 // mirrors the photo/attachment-queue guard (a queue item leaves 'pending_review'
 // exactly once). 'reviewed' is intentionally NOT terminal (it's a triage note),
@@ -205,6 +209,136 @@ router.post('/reports/:id/resolve', requireAuth, requireAdmin, (req, res) => {
   logMod(db, req.ctx.userId, 'resolve_report', req.params.id, note ? `${status}: ${note}` : status);
 
   res.json({ ok: true, status });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/reports/:id/action — body { action: 'dismiss'|'warn'|'ban', reason, note? }
+//
+// Moderation redesign v1 — the ATOMIC report-resolution endpoint. ONE call
+// records the enforcement outcome AND closes the report in a single transaction,
+// replacing the old two-step "enforce the member" + "resolve the report" dance
+// (and fixing the bug where Warn recorded a notice but never closed its report,
+// forcing a confusing second Resolve step):
+//   dismiss → close as 'dismissed'; no enforcement on the member.
+//   warn    → record a 'warn' enforcement notice AND close THIS report as
+//             'actioned', atomically. This is the bug fix. Scoped to the actioned
+//             report ONLY — a warn never fans out to sibling reports.
+//   ban     → ban the member (banned=1, token_version bump → force-logout, socket
+//             drop, due-process notice) AND close this report; mirrors the
+//             existing ban semantics that also close the member's OTHER open
+//             sibling reports. If another moderator already banned them, the case
+//             still closes as actioned (no error, no duplicate enforcement).
+//
+// All three set resolved_by/resolved_at + a status that reflects WHICH action
+// closed the report (dismissed vs actioned) and write the moderation audit log.
+// The 409 terminal guard is preserved (a resolved report can't be re-actioned).
+// `reason` is REQUIRED — the plain-language justification recorded in the audit
+// log (and, for warn/ban, shown to the member); `note` is optional extra context
+// appended to it. requireAdmin + rate-limited via the /admin mount. The separate
+// /resolve, /warn, /ban, /suspend, /verify endpoints stay for the Member-drawer
+// (non-case) context — v1 demotes them in the UI, not the API.
+// ---------------------------------------------------------------------------
+router.post('/reports/:id/action', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  const { action } = req.body ?? {};
+
+  if (!REPORT_ACTIONS.includes(action)) {
+    return res.status(400).json({ error: `action must be one of: ${REPORT_ACTIONS.join(', ')}` });
+  }
+
+  // `reason` is the REQUIRED audit justification (shown to the member on warn/ban);
+  // `note` is optional extra context appended to it. Both must be strings.
+  const rawReason = req.body?.reason;
+  if (rawReason !== undefined && rawReason !== null && typeof rawReason !== 'string') {
+    return res.status(400).json({ error: 'reason must be a string.' });
+  }
+  const rawNote = req.body?.note;
+  if (rawNote !== undefined && rawNote !== null && typeof rawNote !== 'string') {
+    return res.status(400).json({ error: 'note must be a string.' });
+  }
+  const reason = (rawReason || '').trim();
+  const extra = (rawNote || '').trim();
+  if (!reason) {
+    return res.status(400).json({ error: 'A reason is required to action a report.' });
+  }
+  const justification = extra ? `${reason} — ${extra}` : reason;
+
+  const existing = db.prepare('SELECT id, status, reported_id FROM reports WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Report not found.' });
+
+  // Terminal guard — a report already actioned or dismissed is FINAL; block
+  // re-actioning so its note/timestamp/resolver can never be overwritten.
+  if (TERMINAL_REPORT_STATUSES.includes(existing.status)) {
+    return res.status(409).json({ error: `Report already ${existing.status} — this decision is final.` });
+  }
+
+  const reportId = req.params.id;
+  const targetId = existing.reported_id;
+  const now = Date.now();
+
+  // Close THIS report with the moderator's justification + resolved-by receipt.
+  const closeThisReport = (status) => {
+    db.prepare(
+      'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ?, resolved_by = ? WHERE id = ?'
+    ).run(status, justification, now, userId, reportId);
+  };
+
+  if (action === 'dismiss') {
+    db.transaction(() => {
+      closeThisReport('dismissed');
+      logMod(db, userId, 'resolve_report', reportId, `dismissed: ${justification}`);
+    })();
+    return res.json({ ok: true, action, status: 'dismissed' });
+  }
+
+  if (action === 'warn') {
+    db.transaction(() => {
+      // Enforcement: append the due-process warning (same row the member sees).
+      recordNotice(db, targetId, 'warn', justification);
+      logMod(db, userId, 'warn', targetId, justification);
+      // AND close THIS report atomically — the fix for warn-doesn't-close. Scoped
+      // to the actioned report only; sibling reports are intentionally untouched.
+      closeThisReport('actioned');
+      logMod(db, userId, 'resolve_report', reportId, `actioned (warn): ${justification}`);
+    })();
+    return res.json({ ok: true, action, status: 'actioned', kind: 'warn' });
+  }
+
+  // action === 'ban'
+  const user = db.prepare('SELECT id, banned FROM users WHERE id = ?').get(targetId);
+  if (!user) return res.status(404).json({ error: 'Reported user not found.' });
+  const wasBanned = !!user.banned;
+
+  let autoClosedReports = 0;
+  db.transaction(() => {
+    // If another moderator already banned them first, skip the enforcement writes
+    // (no double token-bump / duplicate notice) but STILL close this report as
+    // actioned — don't error the moderator out of resolving their case.
+    if (!wasBanned) {
+      db.prepare(
+        'UPDATE users SET banned = 1, token_version = token_version + 1 WHERE id = ?'
+      ).run(targetId);
+      logMod(db, userId, 'ban', targetId, justification);
+      recordNotice(db, targetId, 'ban', justification);
+      const nukedIntros = db.prepare(
+        "UPDATE message_requests SET status = 'withdrawn', decided_at = ? WHERE sender_id = ? AND status = 'pending'"
+      ).run(now, targetId);
+      if (nukedIntros.changes > 0) {
+        logMod(db, userId, 'nuke_intros', targetId, `withdrew ${nukedIntros.changes} pending outbound intro(s) on ban`);
+      }
+    }
+    // Close THIS report first (works whether it was 'open' or 'reviewed'), then
+    // fan out to the member's OTHER open sibling reports — mirrors the existing
+    // ban semantics (a ban clears the whole open backlog for that member).
+    closeThisReport('actioned');
+    logMod(db, userId, 'resolve_report', reportId, `actioned (ban): ${justification}`);
+    autoClosedReports = autoCloseOpenReports(db, targetId, userId, now, `auto-closed: user banned — ${justification}`);
+  })();
+  // Kill live sockets so the banned user stops receiving events (outside the txn,
+  // mirrors /ban). Only when we actually just banned them.
+  if (!wasBanned) disconnectUser(req.app.locals.io, targetId);
+
+  return res.json({ ok: true, action, status: 'actioned', banned: true, autoClosedReports });
 });
 
 // ---------------------------------------------------------------------------

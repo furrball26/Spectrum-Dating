@@ -526,6 +526,21 @@ export async function getAdminReports(status = 'open') {
 
 export async function resolveReport(id, status, note) { return apiFetch(`/admin/reports/${id}/resolve`, { method: 'POST', body: { status, note } }); }
 
+// Moderation redesign v1 — the ATOMIC report action. One call records the
+// enforcement outcome AND closes the report in a single backend transaction
+// (POST /admin/reports/:id/action): action ∈ 'dismiss'|'warn'|'ban'. `reason` is
+// the required plain-language justification (recorded in the audit log; warn/ban
+// also show it to the member); `note` is optional extra context. This is what the
+// report card uses now — the old resolveReport/warnUser/banUser stay for the
+// Member-drawer (non-case) context. dismiss → status 'dismissed'; warn/ban →
+// 'actioned' (warn now closes its report — the bug fix). 409 = another moderator
+// already resolved it (terminal guard).
+export async function reportAction(reportId, action, reason, note) {
+  const body = { action, reason };
+  if (note && note.trim()) body.note = note.trim();
+  return apiFetch(`/admin/reports/${reportId}/action`, { method: 'POST', body });
+}
+
 // A suspend requires a moderator note (backend 400s without one); unsuspend does
 // not. Only send `note` when provided so unsuspend stays a clean no-op body.
 export async function suspendUser(userId, suspended, note) {
