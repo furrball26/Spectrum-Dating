@@ -765,6 +765,7 @@ function AddPhotoTile({ onAdd, uploading, disabled, addBtnRef }) {
     <div style={{ display: "flex", flexDirection: "column" }}>
       <button
         type="button"
+        id="add-photo-tile"
         ref={addBtnRef}
         onClick={() => fileRef.current?.click()}
         disabled={uploading || disabled}
@@ -1622,10 +1623,62 @@ function computeCompleteness({ photos, tagline, bio, gender, pronouns, seeking,
   return { score: COMPLETENESS_FIELDS.length - missing.length, total: COMPLETENESS_FIELDS.length, missing };
 }
 
-function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
-  const fPrompt = useFocusable();
+// Where each completeness field is edited, so a missing-field chip can jump the
+// user straight there. `section` is the COLLAPSIBLE_SECTIONS key to force-open
+// first (null = an always-visible top-area field, nothing to open). `focusId` is
+// the specific control to land focus on (WCAG 2.4.3); when null we fall back to
+// the section's first actionable control, then its header. Note some keys share
+// a section (pronouns + seeking both live in "search") but target different
+// controls, and vice-versa the always-visible photo/tagline/bio have no section.
+const COMPLETENESS_TARGETS = {
+  photo:     { section: null,          focusId: "add-photo-tile" },
+  tagline:   { section: null,          focusId: "tagline" },
+  bio:       { section: null,          focusId: "bio" },
+  pronouns:  { section: "search",      focusId: "pronouns" },
+  seeking:   { section: "search",      focusId: "seek-woman" },
+  commStyle: { section: "communicate", focusId: "comm-directness" },
+  sensory:   { section: "sensory",     focusId: "sensory-environment" },
+  prompt:    { section: "prompts",     focusId: null },
+};
+
+// One missing-field chip = one focusable <button>. Extracted into its own
+// component so useFocusable() (a hook) never runs inside the missing.map() body
+// (React #310 — all hooks must run before any early return, so no hooks in a
+// loop body). Mirrors the existing HelperPhraseButton-style extraction pattern.
+function CompletenessChipButton({ label, chipStyle, onClick }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...f}
+      style={{
+        ...chipStyle,
+        minHeight: 30,
+        fontFamily: "inherit",
+        fontWeight: 600,
+        cursor: "pointer",
+        ...f.style,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ProfileCompletenessNudge({ score, total, missing, onJump }) {
   if (missing.length === 0) return null;
   const pct = Math.round((score / total) * 100);
+  const chipStyle = {
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: 20,
+    background: t.green50,
+    border: `1px solid ${t.green200}`,
+    color: t.accentStrong,
+    fontSize: 14,
+    lineHeight: 1.5,
+  };
   return (
     <div
       role="region"
@@ -1687,47 +1740,20 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
         Adding these helps matches understand you better:
       </p>
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {missing.map((f) => {
-          const chipStyle = {
-            display: "inline-block",
-            padding: "4px 10px",
-            borderRadius: 20,
-            background: t.green50,
-            border: `1px solid ${t.green200}`,
-            color: t.accentStrong,
-            fontSize: 14,
-            lineHeight: 1.5,
-          };
-          // The "prompt" chip is an actionable shortcut that jumps to the
-          // Prompts section (opens it, scrolls to it, and moves focus in).
-          // Rendered as a real <button> so it works for keyboard / SR users.
-          if (f.key === "prompt" && onAnswerPrompt) {
-            return (
-              <li key={f.key}>
-                <button
-                  type="button"
-                  onClick={onAnswerPrompt}
-                  {...fPrompt}
-                  style={{
-                    ...chipStyle,
-                    minHeight: 30,
-                    fontFamily: "inherit",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    ...fPrompt.style,
-                  }}
-                >
-                  {f.label}
-                </button>
-              </li>
-            );
-          }
-          return (
-            <li key={f.key}>
-              <span style={chipStyle}>{f.label}</span>
-            </li>
-          );
-        })}
+        {/* Every missing-field chip is an actionable shortcut that jumps to
+            where that field is edited — opens its section (if any), scrolls it
+            into view, and moves focus onto the control. Rendered as real
+            <button>s so keyboard / screen-reader users can act on all of them
+            (previously only the "prompt" chip was actionable). */}
+        {missing.map((f) => (
+          <li key={f.key}>
+            <CompletenessChipButton
+              label={f.label}
+              chipStyle={chipStyle}
+              onClick={() => onJump(f.key)}
+            />
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -2627,40 +2653,48 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     });
   }
 
-  // ── Jump from the completeness nudge into the Prompts section.
-  // Reuses the exact reveal pattern from handleSave's first-invalid-field focus:
-  // force the collapsible section open (so its panel isn't `hidden`, which would
-  // dead-end focus/scroll), then on the next frame scroll it into view and move
-  // focus INTO the panel so keyboard / screen-reader users land in the right
-  // place (WCAG 2.4.3). Reduced-motion is respected for the scroll.
-  function jumpToPrompts() {
-    openSection("prompts");
-    // openSection triggers a state update; the Prompts panel stays `hidden`
-    // until React commits that re-render — and focusing/scrolling a hidden node
-    // silently no-ops. rAF alone can fire before the commit lands, so poll a few
-    // frames until the panel is visible, then focus + scroll. Bounded so we
-    // never loop forever if the panel never opens.
+  // ── Jump from a completeness-nudge chip to where that field is edited.
+  // Generalizes the old jumpToPrompts so EVERY missing-field chip navigates
+  // (not just "prompt"). For fields inside a collapsible section we force the
+  // section open (so its panel isn't `hidden`, which would dead-end
+  // focus/scroll), poll until React commits the re-render, then move focus onto
+  // the field's control and scroll it in. For always-visible top-area fields
+  // (photo/tagline/bio) there's no panel to wait for. Focus movement is
+  // WCAG-2.4.3-correct; reduced-motion is respected for the scroll. Bounded rAF
+  // so we never loop forever if a panel never opens.
+  function jumpToField(fieldKey) {
+    const cfg = COMPLETENESS_TARGETS[fieldKey];
+    if (!cfg) return;
+    const { section, focusId } = cfg;
+    if (section) openSection(section);
+
     let tries = 0;
     const settle = () => {
-      const panel = document.getElementById("section-prompts-panel");
-      const header = document.getElementById("section-prompts-button");
-      const panelReady = panel && !panel.hidden;
+      const panel = section ? document.getElementById(`section-${section}-panel`) : null;
+      const header = section ? document.getElementById(`section-${section}-button`) : null;
+      // A section field's panel stays `hidden` until openSection's state update
+      // commits; focusing/scrolling a hidden node silently no-ops. Poll a few
+      // frames until it's visible. Always-visible fields skip this gate.
+      const panelReady = !section || (panel && !panel.hidden);
       if (!panelReady && tries++ < 10) {
         requestAnimationFrame(settle);
         return;
       }
-      // Prefer the first actionable control inside the now-open panel (the
-      // "Add prompt" button / prompt chooser field). Fall back to the section
-      // header button if the panel never became focusable.
-      const firstControl = panelReady
+      // Prefer the field's specific control; else the first actionable control
+      // inside the now-open panel; else the section header button.
+      const specific = focusId ? document.getElementById(focusId) : null;
+      const firstControl = panel && panelReady
         ? panel.querySelector(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
           )
         : null;
-      const target = firstControl || header;
+      const target = specific || firstControl || header;
       if (!target) return;
       target.focus();
-      (header || target).scrollIntoView({
+      // Scroll the specific field into view when we have one (it can sit deep in
+      // a section); otherwise anchor on the section header. Reduced-motion aware.
+      const scrollTarget = specific || header || target;
+      scrollTarget.scrollIntoView({
         behavior: prefersReduced ? "auto" : "smooth",
         block: "start",
       });
@@ -3382,7 +3416,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               commDirectness, commLiteral, commCadence,
               sensoryEnvironment, sensoryLighting, prompts,
             });
-            return <ProfileCompletenessNudge score={score} total={total} missing={missing} onAnswerPrompt={jumpToPrompts} />;
+            return <ProfileCompletenessNudge score={score} total={total} missing={missing} onJump={jumpToField} />;
           })()}
 
           {/* F17/D19 — discoverable, one-tap "Take a break" control near the top
