@@ -38,6 +38,21 @@ export function getPublicUrl(key) {
   return `${PUBLIC_URL()}/${key}`;
 }
 
+// Fetch an object's raw bytes from the photos bucket as a Buffer. Used by the
+// data export to bundle the user's own photos into the ZIP (the DB only stores
+// the storage_key; the image bytes live in R2). Uses the same S3Client/config as
+// uploads/deletes, so it works even if the public CDN is later locked down.
+// Throws when R2 isn't configured or the object can't be read — the export
+// treats that as "skip this one photo", never a whole-export failure.
+export async function getObjectBytes(key) {
+  const client = getR2Client();
+  if (!client) throw new Error('R2 not configured');
+  const out = await client.send(new GetObjectCommand({ Bucket: BUCKET(), Key: key }));
+  // AWS SDK v3 Node stream body exposes transformToByteArray(); wrap as a Buffer
+  // so archiver can append it directly.
+  return Buffer.from(await out.Body.transformToByteArray());
+}
+
 export async function deleteObject(key) {
   const client = getR2Client();
   if (!client) return;

@@ -152,14 +152,13 @@ const VALID_SENSORY_ENVIRONMENT = ['', 'quiet', 'lively', 'either'];
 const VALID_SENSORY_LIGHTING = ['', 'dim', 'bright', 'either'];
 const VALID_SOCIAL_DURATION = ['', 'short', 'medium', 'long'];
 
-// GET /profile/me
-router.get('/me', requireAuth, (req, res) => {
-  const { db, userId } = req.ctx;
-
+// Assemble the OWNER'S full profile payload — the single source of truth for a
+// user's own data, shared by GET /profile/me and the data export (export.js) so
+// the two can never drift. Returns the object, or null when the user has no
+// profile row (the caller decides how to surface that — 404 for /me).
+export function assembleOwnProfile(db, userId) {
   const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId);
-  if (!profile) {
-    return res.status(404).json({ error: 'Profile not found.' });
-  }
+  if (!profile) return null;
 
   const interestRows = db.prepare('SELECT interest FROM user_interests WHERE user_id = ?').all(userId);
   const interests = interestRows.map(r => r.interest);
@@ -191,7 +190,7 @@ router.get('/me', requireAuth, (req, res) => {
         "SELECT status FROM verification_requests WHERE user_id = ? AND status != 'approved'"
       ).get(userId)?.status || null); // 'pending' | 'rejected' | null
 
-  return res.json({
+  return {
     userId: profile.user_id,
     displayName: profile.display_name,
     tagline: profile.tagline,
@@ -252,7 +251,19 @@ router.get('/me', requireAuth, (req, res) => {
     isAdmin: isAdminUser(userRow),
     // Billing tier so the app knows free vs Companion on load (no row = free).
     tier: getEntitlement(db, userId).tier,
-  });
+  };
+}
+
+// GET /profile/me
+router.get('/me', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+
+  const data = assembleOwnProfile(db, userId);
+  if (!data) {
+    return res.status(404).json({ error: 'Profile not found.' });
+  }
+
+  return res.json(data);
 });
 
 // Traveler / at-risk region alert — protective, transient, privacy-preserving.

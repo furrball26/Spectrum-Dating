@@ -5030,7 +5030,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
             <a
               href={getExportUrl()}
-              download="spectrum-my-data.json"
+              download="spectrum-dating-export.zip"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -5050,7 +5050,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               Download my data
             </a>
             <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted }}>
-              A copy of your conversations and messages (JSON).
+              A ZIP with a readable page of your profile and conversations, plus
+              your photos and a machine-readable copy.
             </p>
           </div>
 

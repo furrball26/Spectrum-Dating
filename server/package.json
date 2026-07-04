@@ -17,6 +17,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1076.0",
     "@aws-sdk/s3-request-presigner": "^3.1076.0",
+    "archiver": "^7.0.1",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.11.1",
     "cors": "^2.8.6",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "adm-zip": "^0.5.18",
     "eslint": "^10.6.0",
     "globals": "^17.7.0",
     "vitest": "^4.1.9"

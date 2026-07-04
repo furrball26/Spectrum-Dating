@@ -1201,6 +1201,8 @@ export async function removePushSubscription(endpoint) {
 
 export function getExportUrl() {
   const token = getToken();
-  const base = `${BASE_URL}/export/conversations`;
+  // Streams a ZIP: a readable index.html + machine-readable data.json + your
+  // photos + a README. Free (GDPR right) — never gated.
+  const base = `${BASE_URL}/export/archive`;
   return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
