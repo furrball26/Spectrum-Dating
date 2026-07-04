@@ -185,6 +185,67 @@ describe('039 seed demo comm/sensory prefs (D-1 data fix)', () => {
   });
 });
 
+describe('056 demo verifications pre-approved (queue-declutter, demo-scoped)', () => {
+  const DEMO_EMAIL = 'telemetry-demo-42@sample.spectrum-dating.app';
+  const REAL_EMAIL = 'real-applicant@example.com';
+
+  function seedPendingVerification(db, id, email) {
+    db.prepare('INSERT INTO users (id, email, password_hash, created_at) VALUES (?,?,?,?)')
+      .run(id, email, 'x', Date.now());
+    db.prepare('INSERT INTO profiles (user_id, display_name, identity_verified, updated_at) VALUES (?,?,0,?)')
+      .run(id, `Name ${id}`, Date.now());
+    db.prepare('INSERT INTO verification_requests (id, user_id, status, requested_at) VALUES (?,?,?,?)')
+      .run(`vr-${id}`, id, 'pending', Date.now());
+  }
+
+  it('approves a pending DEMO request (+ badge) while leaving a NON-demo pending request untouched', () => {
+    const db = freshDb();
+    try {
+      runMigrations(db); // full schema (056 already ran once against an empty table = no-op)
+
+      // A demo applicant and a real applicant, both freshly PENDING.
+      seedPendingVerification(db, 'demo-u', DEMO_EMAIL);
+      seedPendingVerification(db, 'real-u', REAL_EMAIL);
+
+      // Re-run so the idempotent, demo-scoped 056 fires against the seeded rows.
+      expect(() => runMigrations(db)).not.toThrow();
+
+      // Demo request approved + reviewed + profile badge set.
+      const demoReq = db.prepare('SELECT status, reviewed_at FROM verification_requests WHERE user_id = ?').get('demo-u');
+      expect(demoReq.status).toBe('approved');
+      expect(demoReq.reviewed_at).toBeGreaterThan(0); // epoch-ms stamped
+      expect(db.prepare('SELECT identity_verified FROM profiles WHERE user_id = ?').get('demo-u').identity_verified).toBe(1);
+
+      // SEPARABILITY: the non-demo (real) applicant is untouched — still pending,
+      // still unverified, still awaiting a human moderator's decision.
+      const realReq = db.prepare('SELECT status, reviewed_at FROM verification_requests WHERE user_id = ?').get('real-u');
+      expect(realReq.status).toBe('pending');
+      expect(realReq.reviewed_at).toBeNull();
+      expect(db.prepare('SELECT identity_verified FROM profiles WHERE user_id = ?').get('real-u').identity_verified).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('is idempotent — a second run leaves the approved demo row and the pending real row unchanged', () => {
+    const db = freshDb();
+    try {
+      runMigrations(db);
+      seedPendingVerification(db, 'demo-u', DEMO_EMAIL);
+      seedPendingVerification(db, 'real-u', REAL_EMAIL);
+      runMigrations(db);
+      const firstDemo = db.prepare('SELECT status, reviewed_at FROM verification_requests WHERE user_id = ?').get('demo-u');
+      runMigrations(db);
+      const secondDemo = db.prepare('SELECT status, reviewed_at FROM verification_requests WHERE user_id = ?').get('demo-u');
+      expect(secondDemo).toEqual(firstDemo); // no churn on the already-approved row
+      // Real applicant still pending across repeated boots.
+      expect(db.prepare('SELECT status FROM verification_requests WHERE user_id = ?').get('real-u').status).toBe('pending');
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe('037 drop notification_preferences (F29)', () => {
   it('drops the orphaned table and re-running stays idempotent', () => {
     const db = freshDb();

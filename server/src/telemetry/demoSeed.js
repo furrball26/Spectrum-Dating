@@ -24,6 +24,14 @@
 // so real dashboard queries still exclude them and wipeDemoData() still removes
 // 100% of them. (Previously these were paused = 1 / deck-hidden; reversed so the
 // client sees a populated deck.)
+//
+// VERIFICATION: demo members are PRE-APPROVED. ~30% are flagged
+// profiles.identity_verified=1 (the trust badge) and NONE seed a 'pending'
+// verification_request — so the demo dataset never lands in the moderation
+// verification queue (admin.js GET /verification-requests, WHERE status='pending')
+// and never gives a moderator fake profiles to "review". (Previously the seed
+// created 8 pending demo requests; removed. Migration 056 backfills the
+// already-live demo members the same way.)
 
 import { randomUUID, randomBytes } from 'node:crypto';
 
@@ -302,9 +310,6 @@ export function loadDemoData(db) {
   const insBlock = db.prepare(
     'INSERT INTO blocks (id, blocker_id, blocked_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   );
-  const insVerification = db.prepare(
-    'INSERT INTO verification_requests (id, user_id, status, requested_at, reviewed_at) VALUES (?, ?, ?, ?, ?)'
-  );
   const insFeedback = db.prepare(
     'INSERT INTO feedback (id, user_id, message, created_at) VALUES (?, ?, ?, ?)'
   );
@@ -348,11 +353,12 @@ export function loadDemoData(db) {
     insIncident.run(randomUUID(), inc2Start, inc2Start + 12 * 60 * 1000, 12 * 60 * 1000, 'gap', 'Database maintenance window (planned).');
 
     // ── Demo members ──────────────────────────────────────────────────────────
-    // ids kept so activity can reference real member rows. `unverified` collects
-    // the not-yet-verified members that a pending verification request can point
-    // at (a verified member wouldn't have one outstanding).
+    // ids kept so activity can reference real member rows. Demo members are
+    // PRE-APPROVED for identity: ~30% carry identity_verified=1 (the trust badge)
+    // and NONE seed a pending verification_request — so demo data never clutters
+    // the moderation verification queue (WHERE status='pending'). See the module
+    // header note on the verification-queue policy.
     const memberIds = [];
-    const unverified = [];
     for (let i = 0; i < DEMO_MEMBER_COUNT; i++) {
       const uid = randomUUID();
       const email = `${DEMO_MEMBER_PREFIX}${i}@sample.spectrum-dating.app`;
@@ -381,7 +387,6 @@ export function loadDemoData(db) {
       for (const interest of sampleN(INTERESTS, randInt(1, 5))) insInterest.run(uid, interest);
 
       memberIds.push(uid);
-      if (!verified && !suspended) unverified.push(uid);
     }
 
     // ── Reports ───────────────────────────────────────────────────────────────
@@ -429,13 +434,16 @@ export function loadDemoData(db) {
       blockCount++;
     }
 
-    // ── Verification requests (pending) ──────────────────────────────────────
-    // A handful, one per (distinct, not-yet-verified) member — UNIQUE(user_id).
-    let verificationCount = 0;
-    for (const id of sampleN(unverified.length ? unverified : memberIds, 8)) {
-      insVerification.run(randomUUID(), id, 'pending', now - randInt(0, 20) * DAY_MS - randInt(0, DAY_MS), null);
-      verificationCount++;
-    }
+    // ── Verification requests ────────────────────────────────────────────────
+    // NONE. Demo members are pre-approved: the ~30% flagged identity_verified=1
+    // above already carry the trust badge, and no demo member is left in a
+    // 'pending' verification_request. This is deliberate — a pending demo request
+    // would surface in the moderation verification queue (admin.js
+    // GET /verification-requests, WHERE status='pending') and clutter it with
+    // fake profiles that a moderator can never meaningfully action. The wipe path
+    // (deleteDemoRows) still clears any demo verification_requests by email
+    // pattern, so pre-existing/backfilled demo rows remain fully separable.
+    const verificationCount = 0;
 
     // ── Feedback ─────────────────────────────────────────────────────────────
     let feedbackCount = 0;

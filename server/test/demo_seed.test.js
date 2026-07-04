@@ -52,6 +52,24 @@ const demoBlocks = () => db.prepare(
 const demoVerifications = () => db.prepare(
   `SELECT COUNT(*) AS c FROM verification_requests WHERE user_id IN ${demoIdSub}`
 ).get(DEMO_LIKE).c;
+// Demo members sitting in the moderation verification QUEUE — i.e. the exact set
+// the admin queue endpoint (admin.js GET /verification-requests, WHERE
+// status='pending') would surface. Must be 0: demo members are pre-approved.
+const demoPendingVerifications = () => db.prepare(
+  `SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending' AND user_id IN ${demoIdSub}`
+).get(DEMO_LIKE).c;
+// Mirror of the admin verification-queue query (WHERE status='pending'), then
+// count how many returned rows belong to demo members — proves the queue the
+// moderator sees is free of demo profiles.
+const demoRowsInVerificationQueue = () => {
+  const rows = db.prepare(
+    `SELECT vr.user_id, u.email AS email
+       FROM verification_requests vr
+       LEFT JOIN users u ON u.id = vr.user_id
+      WHERE vr.status = 'pending'`
+  ).all();
+  return rows.filter((r) => (r.email || '').startsWith(DEMO_MEMBER_PREFIX)).length;
+};
 const demoFeedback = () => db.prepare(
   `SELECT COUNT(*) AS c FROM feedback WHERE user_id IN ${demoIdSub}`
 ).get(DEMO_LIKE).c;
@@ -194,16 +212,17 @@ describe('demoSeed — load / clear safety (the "597" discipline)', () => {
     expect(verified).toBeGreaterThan(0);
   });
 
-  it('seeds moderation activity (reports/blocks/verifications/feedback)', () => {
+  it('seeds moderation activity (reports/blocks/feedback) but NO pending verifications', () => {
     const before = loadDemoData(db); // fresh load; assert its reported counts
     expect(before.reports).toBeGreaterThan(30);
     expect(before.blocks).toBeGreaterThan(10);
-    expect(before.verifications).toBeGreaterThan(0);
     expect(before.feedback).toBeGreaterThan(0);
+    // Demo members are pre-approved: the seed creates NO verification_requests, so
+    // none can land in the moderation verification queue (WHERE status='pending').
+    expect(before.verifications).toBe(0);
     // DB agrees.
     expect(demoReports()).toBe(before.reports);
     expect(demoBlocks()).toBe(before.blocks);
-    expect(demoVerifications()).toBe(before.verifications);
     expect(demoFeedback()).toBe(before.feedback);
     // Repeat-offender signal: at least one demo member reported more than once.
     const maxAgainst = db.prepare(
@@ -223,6 +242,24 @@ describe('demoSeed — load / clear safety (the "597" discipline)', () => {
           AND resolved_at IS NOT NULL AND moderator_note IS NOT NULL`
     ).get(DEMO_LIKE).c;
     expect(resolved).toBeGreaterThan(0);
+  });
+
+  it('after load, NO demo member sits in the moderation verification queue', () => {
+    loadDemoData(db); // fresh, idempotent load
+    // The seed creates zero verification_requests for demo members…
+    expect(demoVerifications()).toBe(0);
+    // …so specifically zero PENDING ones (nothing to clutter the queue with)…
+    expect(demoPendingVerifications()).toBe(0);
+    // …and the admin verification-queue query (WHERE status='pending') returns no
+    // demo rows for a moderator to (uselessly) review.
+    expect(demoRowsInVerificationQueue()).toBe(0);
+    // The ~30%-verified distribution is untouched: demo members still carry the
+    // trust badge via profiles.identity_verified (they just have no open request).
+    const verified = db.prepare(
+      `SELECT COUNT(*) AS c FROM profiles p JOIN users u ON u.id = p.user_id
+        WHERE u.email LIKE ? AND p.identity_verified = 1`
+    ).get(DEMO_LIKE).c;
+    expect(verified).toBeGreaterThan(0);
   });
 
   it('load leaves the planted REAL row + the existing @sample persona untouched', () => {
@@ -322,7 +359,9 @@ describe('demoSeed — load / clear safety (the "597" discipline)', () => {
     expect(counts.members).toBe(500);
     expect(counts.reports).toBeGreaterThan(0);
     expect(counts.blocks).toBeGreaterThan(0);
-    expect(counts.verifications).toBeGreaterThan(0);
+    // Demo members are pre-approved (no verification_requests seeded), so there
+    // are none for the wipe to delete.
+    expect(counts.verifications).toBe(0);
     expect(counts.feedback).toBeGreaterThan(0);
 
     // The planted REAL row + real rollup/incident + @sample persona all SURVIVE.
