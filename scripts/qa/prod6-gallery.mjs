@@ -77,11 +77,18 @@ check("Left/right tap zones are labelled buttons", (await nextZone.count()) === 
 const alt0 = await heroAlt();
 check("Alt text is the primary photo's description first", alt0 === "Photo QA at the beach", `alt=${alt0}`);
 
+// 3b. Profile redesign Phase 1 — the stored description now ALSO surfaces as a
+// visible caption under the photo (not only as alt text). It reflects the
+// current photo and updates as you navigate.
+const captionText = () => page.locator('[data-photo-caption]').first().innerText().catch(() => "");
+check("Visible caption shows the current photo's description", (await captionText()) === "Photo QA at the beach", `cap=${await captionText()}`);
+
 // 4. Next tap-zone advances the photo (alt follows).
 await nextZone.click();
 await page.waitForTimeout(150);
 const alt1 = await heroAlt();
 check("Next tap-zone advances to photo 2 (alt updates)", alt1 === "Photo QA hiking", `alt=${alt1}`);
+check("Visible caption updates with the photo", (await captionText()) === "Photo QA hiking", `cap=${await captionText()}`);
 
 // 5. Dot jumps directly to photo 3.
 await dot3.click();

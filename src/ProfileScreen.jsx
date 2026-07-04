@@ -55,17 +55,22 @@ function usePrefersReduced() {
 // localStorage key.
 // v2: the 9 legacy per-topic sections (prompts/about/interests/search/lifestyle/
 // communicate/sensory/notifications/verification/membership) were regrouped into
-// 3 top-level groups (aboutMe/lookingFor/account). The key is bumped so returning
-// users don't inherit a stale/half-open map keyed by the retired section ids.
+// top-level groups. The key is bumped so returning users don't inherit a
+// stale/half-open map keyed by the retired section ids.
+// v2 (profile redesign, Phase 1): Membership was pulled OUT of Account into its
+// own peer group (order: About me → Looking for → Membership → Account). It
+// reuses the same storage map — a new key isn't needed since `membership` just
+// adds a boolean and defaults collapsed like everything else.
 const SECTIONS_STORAGE_KEY = "spectrum_profile_sections_v2";
 
-// The 3 top-level collapsible GROUPS, in render order. Inside each group the
+// The top-level collapsible GROUPS, in render order. Inside each group the
 // former sections render as plain <h3> sub-headed blocks in one calm scroll —
 // there are no nested accordions (double-hiding is the anti-pattern for this
 // audience). This array drives Expand-all / Collapse-all and the default map.
 const COLLAPSIBLE_SECTIONS = [
   "aboutMe",
   "lookingFor",
+  "membership",
   "account",
 ];
 
@@ -191,7 +196,7 @@ function SubHeading({ id, children }) {
       id={id}
       style={{
         fontFamily: t.serif,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: 700,
         color: t.text,
         margin: "0 0 6px",
@@ -203,9 +208,65 @@ function SubHeading({ id, children }) {
   );
 }
 
-// Divider between sub-sections within a group. Slightly more breathing room than
-// the default rule so the headed blocks read as distinct, calm bands.
-const SUBSECTION_RULE_STYLE = { margin: "28px 0 24px" };
+// A smaller heading INSIDE a sub-section (below <h3> SubHeading) — used to label
+// the internal groupings of the consolidated "How to connect with me" module
+// without adding more top-level <h3> blocks. Presentational, no hooks.
+function ModuleLabel({ children, style }) {
+  return (
+    <h4
+      style={{
+        fontFamily: t.sans,
+        fontSize: 15,
+        fontWeight: 700,
+        color: t.textSoft,
+        letterSpacing: "0.01em",
+        margin: "0 0 12px",
+        ...style,
+      }}
+    >
+      {children}
+    </h4>
+  );
+}
+
+// Divider between sub-sections within a group. Design-review finding: reserve the
+// spectrum-ramp SectionRule for the ONE confident moment per screen (under the
+// h1); sub-section dividers use a calm, neutral full-width hairline instead.
+function SubDivider() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{ height: 1, background: t.borderLight, margin: "28px 0 24px" }}
+    />
+  );
+}
+
+// The subtle "Companion" badge — a small presentational copy of the one on the
+// Membership screen, inlined here so the code-split Profile chunk doesn't pull in
+// the whole MembershipScreen module. No hooks. Shown only for Companion members.
+function CompanionBadge() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 11px",
+        borderRadius: t.radius.pill,
+        background: t.green100,
+        border: `1px solid ${t.green300}`,
+        color: t.accentStrong,
+        fontSize: 13,
+        fontWeight: 700,
+        letterSpacing: "0.02em",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span aria-hidden="true">✦</span>
+      Companion
+    </span>
+  );
+}
 
 // ─── Default profile ─────────────────────────────────────────────────────────
 const DEFAULT_PROFILE = {
@@ -3325,7 +3386,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const fieldGroup = { marginBottom: 20 };
   const h2Style = {
     fontFamily: t.serif,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 700,
     margin: "0 0 18px",
     color: t.text,
@@ -3400,11 +3461,15 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     lifestylePrefCount ? `${lifestylePrefCount} deal-breaker${lifestylePrefCount > 1 ? "s" : ""}` : "",
   ]);
 
-  // ── Group 3: Account — profile review (verification), notifications,
-  //    membership. Membership always resolves to a tier label, so this group's
-  //    summary is never empty; the ✓ is reserved for a reviewed profile.
+  // ── Group: Membership — its own peer group now. The summary is a PASSIVE tier
+  //    signal ("Spectrum (Free)" / "Spectrum Companion"); no ✓ (hasContent=false)
+  //    so a free member never sees a "you're missing something" contrast.
   const isCompanion = tier === "companion";
   const membershipSummary = isCompanion ? "Spectrum Companion" : "Spectrum (Free)";
+
+  // ── Group: Account — profile review (verification) + notifications. Membership
+  //    left this group, so the summary reflects only the review state (empty =
+  //    "Not set yet"); the ✓ is reserved for a reviewed profile.
   const accountHasContent = verified;
   const accountSummary = joinParts([
     verified
@@ -3414,7 +3479,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         : verificationRequested === "rejected"
           ? "Review not approved"
           : "",
-    membershipSummary,
   ]);
 
   // ── Header
@@ -3764,25 +3828,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </div>
             </div>
 
-            {/* Communication style note */}
-            <div style={{ ...fieldGroup, marginBottom: 0 }}>
-              <FieldLabel htmlFor="communication-style">Communication style</FieldLabel>
-              <input
-                id="communication-style"
-                type="text"
-                maxLength={120}
-                aria-describedby="communication-style-hint"
-                value={commNote}
-                onChange={(e) => setCommNote(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-                placeholder="e.g. Prefers to text first · Slow replies are fine · No surprise calls please"
-              />
-              <HelperText id="communication-style-hint">
-                120 characters maximum. Optional — shown on match cards as "About talking: [your text]".
-              </HelperText>
-            </div>
+            {/* Communication style note (commNote) moved into the consolidated
+                "How to connect with me" module inside the About me group, so the
+                whole communication moat reads as one intentional place. */}
           </div>
 
           {/* ══════════════════════════════════════════════════════
@@ -3833,7 +3881,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               )
             )}
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Interests ── */}
             <SubHeading>Interests</SubHeading>
@@ -3867,7 +3915,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                           alignItems: "center",
                           background: t.accentFill,
                           color: "#fff",
-                          borderRadius: 24,
+                          borderRadius: t.radius.pill,
                           padding: "4px 4px 4px 12px",
                           fontSize: 14,
                           fontWeight: 500,
@@ -4001,124 +4049,44 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               />
             </div>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
-            {/* ── More about you (F28 facets) ── */}
-            <SubHeading>More about you</SubHeading>
-            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
-              A few optional details that give people predictable context. Share as much or as little as you like.
+            {/* ══ How to connect with me — THE consolidated moat ══
+                The single most differentiating part of a Spectrum profile. Brings
+                together fields that used to be scattered across "How I
+                communicate", "Sensory & social" and "More about you" into ONE
+                clearly-labelled place, so our differentiator reads as intentional
+                rather than generic form-fill. Every field keeps its existing
+                input/id/save logic — this is re-parenting + re-heading only. ── */}
+            <SubHeading>How to connect with me</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.6 }}>
+              The heart of your profile — a calm, one-stop place to tell people how
+              to reach you well. All optional; share as much or as little as you like.
             </p>
 
-            {/* Occupation / study */}
+            {/* commNote — the short free-text "about talking" line (was in the
+                always-visible About-you card; now lives with the rest of the moat). */}
             <div style={{ ...fieldGroup }}>
-              <FieldLabel htmlFor="occupation">Occupation or study</FieldLabel>
+              <FieldLabel htmlFor="communication-style">Communication style</FieldLabel>
               <input
-                id="occupation"
-                type="text"
-                maxLength={80}
-                aria-describedby="occupation-hint"
-                value={occupation}
-                onChange={(e) => setOccupation(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-                placeholder="e.g. Librarian · Studying biology"
-              />
-              <HelperText id="occupation-hint">
-                80 characters maximum. Optional.
-              </HelperText>
-            </div>
-
-            {/* Languages */}
-            <div style={{ ...fieldGroup }}>
-              <FieldLabel htmlFor="languages">Languages</FieldLabel>
-              <input
-                id="languages"
+                id="communication-style"
                 type="text"
                 maxLength={120}
-                aria-describedby="languages-hint"
-                value={languages}
-                onChange={(e) => setLanguages(e.target.value)}
+                aria-describedby="communication-style-hint"
+                value={commNote}
+                onChange={(e) => setCommNote(e.target.value)}
                 onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
                 onBlur={(e) => { e.target.style.outline = "none"; }}
                 style={inputStyle(false)}
-                placeholder="e.g. English, ASL"
+                placeholder="e.g. Prefers to text first · Slow replies are fine · No surprise calls please"
               />
-              <HelperText id="languages-hint">
-                120 characters maximum. Optional.
+              <HelperText id="communication-style-hint">
+                120 characters maximum. Optional — shown on match cards as "About talking: [your text]".
               </HelperText>
             </div>
 
-            {/* Things that help me / are hard for me */}
-            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
-              <FacetListEditor
-                id="helps-me"
-                label="Things that help me"
-                helper="Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."
-                items={helpsMe}
-                onChange={setHelpsMe}
-                addLabel={helpsMe.length === 0 ? "Add something that helps" : "Add another"}
-              />
-              <FacetListEditor
-                id="hard-for-me"
-                label="Things that are hard for me"
-                helper="Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."
-                items={hardForMe}
-                onChange={setHardForMe}
-                addLabel={hardForMe.length === 0 ? "Add something that's hard" : "Add another"}
-              />
-            </div>
-
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
-
-            {/* ── Identity (moved out of the old "search" section — this is
-                content shown on your card, not a matching filter). ── */}
-            <SubHeading>Identity</SubHeading>
-            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
-              All optional. Shown on your profile so people understand and address you correctly.
-            </p>
-
-            <GenderField
-              gender={gender}
-              setGender={setGender}
-              genderCustom={genderCustom}
-              setGenderCustom={setGenderCustom}
-              idPrefix="profile-gender"
-            />
-
-            <OrientationField orientation={orientation} setOrientation={setOrientation} />
-
-            <RelationshipStructureField
-              relationshipStructure={relStructure}
-              setRelationshipStructure={setRelStructure}
-            />
-
-            <div style={{ ...fieldGroup, marginBottom: 0 }}>
-              <FieldLabel htmlFor="pronouns">Pronouns</FieldLabel>
-              <input
-                id="pronouns"
-                type="text"
-                maxLength={40}
-                value={pronouns}
-                onChange={(e) => setPronouns(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-                placeholder="e.g. she/her, they/them"
-              />
-              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
-                Shown on your profile so people address you correctly.
-              </span>
-            </div>
-
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
-
-            {/* ── How I communicate (moat: comms-style + context card) ── */}
-            <SubHeading>How I communicate</SubHeading>
-            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
-              This helps matches know how to talk with you. Optional.
-            </p>
-
+            {/* Communication preferences (comm directness / style / cadence) */}
+            <ModuleLabel>How I communicate</ModuleLabel>
             <LifestyleSelect
               id="comm-directness"
               label="Directness"
@@ -4195,57 +4163,164 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </div>
             </div>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            {/* Sensory & social preferences */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <ModuleLabel>Sensory &amp; social</ModuleLabel>
+              <LifestyleSelect
+                id="sensory-environment"
+                label="Preferred setting"
+                helper="Optional — shown on your profile."
+                value={sensoryEnvironment}
+                onChange={setSensoryEnvironment}
+                options={[
+                  { value: "", label: "Prefer not to say" },
+                  { value: "quiet", label: "Quiet" },
+                  { value: "lively", label: "Lively" },
+                  { value: "either", label: "Either is fine" },
+                ]}
+              />
 
-            {/* ── Sensory & social (moat: sensory prefs) ── */}
-            <SubHeading>Sensory &amp; social</SubHeading>
-            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
-              This helps matches know what settings feel good to you. Optional.
+              <LifestyleSelect
+                id="sensory-lighting"
+                label="Lighting"
+                helper="Optional — shown on your profile."
+                value={sensoryLighting}
+                onChange={setSensoryLighting}
+                options={[
+                  { value: "", label: "Prefer not to say" },
+                  { value: "dim", label: "Dim" },
+                  { value: "bright", label: "Bright" },
+                  { value: "either", label: "Either" },
+                ]}
+              />
+
+              <LifestyleSelect
+                id="social-duration"
+                label="Social energy"
+                helper="Optional — shown on your profile."
+                value={socialDuration}
+                onChange={setSocialDuration}
+                options={[
+                  { value: "", label: "Prefer not to say" },
+                  { value: "short", label: "Short meetups" },
+                  { value: "medium", label: "Medium" },
+                  { value: "long", label: "Longer is fine" },
+                ]}
+              />
+            </div>
+
+            {/* What helps me / is hard for me (F28 lists) */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <ModuleLabel>What helps</ModuleLabel>
+              <FacetListEditor
+                id="helps-me"
+                label="Things that help me"
+                helper="Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."
+                items={helpsMe}
+                onChange={setHelpsMe}
+                addLabel={helpsMe.length === 0 ? "Add something that helps" : "Add another"}
+              />
+              <FacetListEditor
+                id="hard-for-me"
+                label="Things that are hard for me"
+                helper="Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."
+                items={hardForMe}
+                onChange={setHardForMe}
+                addLabel={hardForMe.length === 0 ? "Add something that's hard" : "Add another"}
+              />
+            </div>
+
+            <SubDivider />
+
+            {/* ── More about you (F28 facets: occupation + languages) ── */}
+            <SubHeading>More about you</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
+              A few optional details that give people predictable context. Share as much or as little as you like.
             </p>
 
-            <LifestyleSelect
-              id="sensory-environment"
-              label="Preferred setting"
-              helper="Optional — shown on your profile."
-              value={sensoryEnvironment}
-              onChange={setSensoryEnvironment}
-              options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "quiet", label: "Quiet" },
-                { value: "lively", label: "Lively" },
-                { value: "either", label: "Either is fine" },
-              ]}
+            {/* Occupation / study */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="occupation">Occupation or study</FieldLabel>
+              <input
+                id="occupation"
+                type="text"
+                maxLength={80}
+                aria-describedby="occupation-hint"
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. Librarian · Studying biology"
+              />
+              <HelperText id="occupation-hint">
+                80 characters maximum. Optional.
+              </HelperText>
+            </div>
+
+            {/* Languages */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="languages">Languages</FieldLabel>
+              <input
+                id="languages"
+                type="text"
+                maxLength={120}
+                aria-describedby="languages-hint"
+                value={languages}
+                onChange={(e) => setLanguages(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. English, ASL"
+              />
+              <HelperText id="languages-hint">
+                120 characters maximum. Optional.
+              </HelperText>
+            </div>
+
+            <SubDivider />
+
+            {/* ── Identity (moved out of the old "search" section — this is
+                content shown on your card, not a matching filter). ── */}
+            <SubHeading>Identity</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
+              All optional. Shown on your profile so people understand and address you correctly.
+            </p>
+
+            <GenderField
+              gender={gender}
+              setGender={setGender}
+              genderCustom={genderCustom}
+              setGenderCustom={setGenderCustom}
+              idPrefix="profile-gender"
             />
 
-            <LifestyleSelect
-              id="sensory-lighting"
-              label="Lighting"
-              helper="Optional — shown on your profile."
-              value={sensoryLighting}
-              onChange={setSensoryLighting}
-              options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "dim", label: "Dim" },
-                { value: "bright", label: "Bright" },
-                { value: "either", label: "Either" },
-              ]}
+            <OrientationField orientation={orientation} setOrientation={setOrientation} />
+
+            <RelationshipStructureField
+              relationshipStructure={relStructure}
+              setRelationshipStructure={setRelStructure}
             />
 
-            <LifestyleSelect
-              id="social-duration"
-              label="Social energy"
-              helper="Optional — shown on your profile."
-              value={socialDuration}
-              onChange={setSocialDuration}
-              options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "short", label: "Short meetups" },
-                { value: "medium", label: "Medium" },
-                { value: "long", label: "Longer is fine" },
-              ]}
-            />
+            <div style={{ ...fieldGroup, marginBottom: 0 }}>
+              <FieldLabel htmlFor="pronouns">Pronouns</FieldLabel>
+              <input
+                id="pronouns"
+                type="text"
+                maxLength={40}
+                value={pronouns}
+                onChange={(e) => setPronouns(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. she/her, they/them"
+              />
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
+                Shown on your profile so people address you correctly.
+              </span>
+            </div>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Lifestyle (attributes you DISPLAY — the deal-breaker filters
                 that used to sit here moved to "Looking for"). ── */}
@@ -4365,7 +4440,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </div>
             </fieldset>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Who I want to meet ── */}
             <SubHeading>Who I want to meet</SubHeading>
@@ -4420,7 +4495,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               })()}
             </fieldset>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Age range ── */}
             <SubHeading>Age range</SubHeading>
@@ -4439,7 +4514,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </span>
             </fieldset>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Location & distance ── */}
             <SubHeading>Location &amp; distance</SubHeading>
@@ -4511,7 +4586,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               )}
             </div>
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Deal-breakers (filters moved out of the old Lifestyle section) ── */}
             <SubHeading>Deal-breakers</SubHeading>
@@ -4540,8 +4615,121 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
-              GROUP 3 — Account (settings, not "about you"): profile review,
-              notifications, membership.
+              GROUP 3 — Membership (its OWN peer group, pulled out of Account per
+              the profile redesign). Collapsed by default; the header summary is a
+              PASSIVE tier signal ("Spectrum (Free)" / "Spectrum Companion") — no
+              auto-open, no red dot / "NEW" nag. Opened: free members lead with
+              reassurance (everything daily is free forever) + a calm "what
+              Companion adds" card + one honest door; Companion members get status
+              + badge + Manage. The Hinge model (a labelled destination), never the
+              Tinder model (a banner hijacking the top). onOpenMembership/tier
+              wiring is unchanged — this is display + navigation only.
+          ══════════════════════════════════════════════════════ */}
+          <CollapsibleSection
+            id="membership"
+            title="Membership"
+            summary={membershipSummary}
+            hasContent={false}
+            open={!!sectionOpen.membership}
+            onToggle={() => toggleSection("membership")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
+            {isCompanion ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text }}>
+                    You're on Spectrum Companion
+                  </p>
+                  <CompanionBadge />
+                </div>
+                <p style={{ margin: "0 0 18px", fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
+                  Matching, messaging, safety, and seeing who likes you always stay
+                  free — Companion only adds comfort and capability on top.
+                </p>
+                <button
+                  type="button"
+                  onClick={onOpenMembership}
+                  style={{
+                    minHeight: 44,
+                    padding: "10px 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${t.accentStrong}`,
+                    background: "transparent",
+                    color: t.accentStrong,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: t.sans,
+                  }}
+                >
+                  Manage membership
+                </button>
+              </>
+            ) : (
+              <>
+                {/* LEAD with reassurance — never "missing out". */}
+                <p style={{ margin: "0 0 16px", fontSize: 16, color: t.text, lineHeight: 1.7 }}>
+                  You're on <strong>Spectrum (Free)</strong>. Everything you use
+                  every day is free forever — matching, messaging, safety, and
+                  seeing who likes you.
+                </p>
+
+                {/* Calm "what Companion adds" card — framed as ADDITIONS, no lock
+                    icons, no urgency, no counters. */}
+                <div
+                  style={{
+                    background: t.surfaceAlt,
+                    border: `1px solid ${t.borderLight}`,
+                    borderRadius: 14,
+                    padding: "16px 18px",
+                    marginBottom: 18,
+                  }}
+                >
+                  <p style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: t.text, lineHeight: 1.5 }}>
+                    Spectrum Companion is one optional plan that adds:
+                  </p>
+                  <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {[
+                      "Conversation help when a message feels hard to start",
+                      "Express-yourself media on your profile",
+                      "Deeper filters and saved search sets",
+                      "Top Picks — a small, calm set of people we think you'll like",
+                    ].map((add) => (
+                      <li key={add} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, lineHeight: 1.5, color: t.textSoft }}>
+                        <span aria-hidden="true" style={{ color: t.accentStrong, fontWeight: 700, flexShrink: 0 }}>+</span>
+                        <span style={{ minWidth: 0 }}>{add}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* ONE honest door — no price, no urgency on the button. */}
+                <button
+                  type="button"
+                  onClick={onOpenMembership}
+                  style={{
+                    minHeight: 44,
+                    padding: "10px 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${t.accentStrong}`,
+                    background: "transparent",
+                    color: t.accentStrong,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: t.sans,
+                  }}
+                >
+                  See what Companion adds
+                </button>
+              </>
+            )}
+          </CollapsibleSection>
+
+          {/* ══════════════════════════════════════════════════════
+              GROUP 4 — Account (settings, not "about you"): profile review +
+              notifications. Membership moved to its own peer group above.
           ══════════════════════════════════════════════════════ */}
           <CollapsibleSection
             id="account"
@@ -4633,7 +4821,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </>
             )}
 
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
+            <SubDivider />
 
             {/* ── Notifications ── */}
             <SubHeading>Notifications</SubHeading>
@@ -4711,36 +4899,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 ))}
               </div>
             </fieldset>
-
-            <SectionRule style={SUBSECTION_RULE_STYLE} />
-
-            {/* ── Membership (its home; the Settings row was retired). Shows the
-                current tier + a link into the Membership screen. Entitlement
-                stays backend-owned — this is display + navigation only. ── */}
-            <SubHeading>Membership</SubHeading>
-            <p style={{ margin: "0 0 14px", fontSize: 16, color: t.textSoft, lineHeight: 1.7 }}>
-              {isCompanion
-                ? "You're on Spectrum Companion. Matching, messaging, and safety always stay free — Companion only adds comfort and capability on top."
-                : "You're on Spectrum (Free). Everything you use every day is free forever. Spectrum Companion is one optional plan that adds comfort and capability."}
-            </p>
-            <button
-              type="button"
-              onClick={onOpenMembership}
-              style={{
-                minHeight: 44,
-                padding: "10px 20px",
-                borderRadius: 10,
-                border: `1px solid ${t.accentStrong}`,
-                background: "transparent",
-                color: t.accentStrong,
-                fontSize: 16,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: t.sans,
-              }}
-            >
-              Manage membership
-            </button>
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
@@ -5055,7 +5213,7 @@ function RemoveButton({ tag, idx, removeRefs, onRemove, prefersReduced }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 20,
+        borderRadius: t.radius.pill,
         ...f.style,
       }}
       onFocus={f.onFocus}
@@ -5079,7 +5237,7 @@ function SuggestionChip({ tag, selected, onToggle, prefersReduced }) {
         minHeight: 44,
         minWidth: 44,
         padding: "8px 14px",
-        borderRadius: 24,
+        borderRadius: t.radius.pill,
         border: `1.5px solid ${selected ? t.accentFill : t.formBorder}`,
         background: selected ? t.accentFill : t.surfaceAlt,
         color: selected ? "#fff" : t.textSoft,

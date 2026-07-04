@@ -13,11 +13,14 @@ import { makeAccount, launch, login, check, finish, cleanupAccounts, OUT, APP } 
 
 mkdirSync(OUT, { recursive: true });
 
-const GROUPS = ["aboutMe", "lookingFor", "account"];
-const GROUP_TITLE = { aboutMe: "About me", lookingFor: "Looking for", account: "Account" };
-const ABOUT_SUBHEADS = ["Prompts", "Interests", "More about you", "Identity", "How I communicate", "Sensory & social", "Lifestyle"];
+// Profile redesign Phase 1: Membership is now its OWN peer group (order: About
+// me → Looking for → Membership → Account), and the communication/sensory moat is
+// consolidated into a single "How to connect with me" module inside About me.
+const GROUPS = ["aboutMe", "lookingFor", "membership", "account"];
+const GROUP_TITLE = { aboutMe: "About me", lookingFor: "Looking for", membership: "Membership", account: "Account" };
+const ABOUT_SUBHEADS = ["Prompts", "Interests", "How to connect with me", "More about you", "Identity", "Lifestyle"];
 const LOOKING_SUBHEADS = ["What I'm looking for", "Who I want to meet", "Age range", "Location & distance", "Deal-breakers"];
-const ACCOUNT_SUBHEADS = ["Profile review", "Notifications", "Membership"];
+const ACCOUNT_SUBHEADS = ["Profile review", "Notifications"];
 
 const acct = await makeAccount("pgroups", {
   displayName: "Group QA",
@@ -52,11 +55,30 @@ async function run(theme) {
       (await page.locator(`#section-${id}-button`).count()) === 1);
   }
   const anyOldSection = await page.evaluate(() =>
-    ["prompts", "about", "interests", "search", "lifestyle", "communicate", "sensory", "notifications", "verification", "membership"]
+    ["prompts", "about", "interests", "search", "lifestyle", "communicate", "sensory", "notifications", "verification"]
       .filter((s) => document.getElementById(`section-${s}-button`)).join(","));
   check(`[${theme}] no legacy section headers remain`, anyOldSection === "", `found=${anyOldSection}`);
 
-  // Open all 3 groups.
+  // Membership is its OWN peer group, positioned directly ABOVE Account, and
+  // collapsed by DEFAULT (passive tier signal only — no auto-open, no nag).
+  const order = await page.evaluate(() => {
+    const ids = ["aboutMe", "lookingFor", "membership", "account"];
+    const tops = ids
+      .map((id) => ({ id, el: document.getElementById(`section-${id}-button`) }))
+      .filter((x) => x.el)
+      .sort((a, b) => a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top)
+      .map((x) => x.id);
+    return tops.join(",");
+  });
+  check(`[${theme}] group order is About me → Looking for → Membership → Account`,
+    order === "aboutMe,lookingFor,membership,account", `order=${order}`);
+  check(`[${theme}] Membership group collapsed by default`,
+    (await page.locator("#section-membership-button").getAttribute("aria-expanded")) === "false");
+  // The passive summary shows the tier while collapsed (free account here).
+  check(`[${theme}] Membership header shows the free tier summary`,
+    /Spectrum \(Free\)/.test(await page.locator("#section-membership-button").innerText()));
+
+  // Open all groups.
   for (const id of GROUPS) await openGroup(page, id);
 
   // No nested accordions: no group panel contains another collapsible toggle
@@ -90,8 +112,31 @@ async function run(theme) {
   await page.locator("#pronouns").fill("she/they");
   check(`[${theme}] About me identity pronouns editable`, (await page.locator("#pronouns").inputValue()) === "she/they");
   check(`[${theme}] About me lifestyle 'wants-children' present`, (await page.locator("#wants-children").count()) === 1);
-  check(`[${theme}] About me comms 'comm-directness' present`, (await page.locator("#comm-directness").count()) === 1);
-  check(`[${theme}] About me 'sensory-environment' present`, (await page.locator("#sensory-environment").count()) === 1);
+
+  // "How to connect with me" module — the consolidated moat. All of these once
+  // lived in the separate "How I communicate" / "Sensory & social" / "More about
+  // you" blocks; they must now render together inside the About me panel under
+  // the single "How to connect with me" <h3>.
+  const inAboutPanel = (sel) => page.evaluate((s) => {
+    const panel = document.getElementById("section-aboutMe-panel");
+    return !!(panel && panel.querySelector(s));
+  }, sel);
+  check(`[${theme}] How-to-connect: 'How to connect with me' heading present`,
+    aboutH3.includes("How to connect with me"));
+  check(`[${theme}] How-to-connect: commNote (communication-style) consolidated in`, await inAboutPanel("#communication-style"));
+  check(`[${theme}] How-to-connect: comm-directness consolidated in`, await inAboutPanel("#comm-directness"));
+  check(`[${theme}] How-to-connect: sensory-environment consolidated in`, await inAboutPanel("#sensory-environment"));
+  check(`[${theme}] How-to-connect: social-duration consolidated in`, await inAboutPanel("#social-duration"));
+  check(`[${theme}] How-to-connect: helps-me list consolidated in`,
+    (await page.getByRole("button", { name: /Add something that helps/i }).count()) === 1);
+
+  // Interests render as a visual chip cluster: the member's own interest ("hiking")
+  // shows as a pill in the labelled "Your selected interests" list.
+  const ownChips = await page.evaluate(() => {
+    const ul = document.querySelector('ul[aria-label="Your selected interests"]');
+    return ul ? ul.querySelectorAll('li').length : 0;
+  });
+  check(`[${theme}] Interests render as chips (member's own interests are pills)`, ownChips >= 1, `chips=${ownChips}`);
 
   check(`[${theme}] Looking for relationship goal present`, (await page.locator("#rel-long-term").count()) === 1);
   check(`[${theme}] Looking for seeking present`, (await page.locator("#seek-woman").count()) === 1);
@@ -101,7 +146,21 @@ async function run(theme) {
   check(`[${theme}] Looking for deal-breaker present`, (await page.locator("#db-non-smoker-label").count()) === 1);
 
   check(`[${theme}] Account notifications present`, (await page.locator("#notif-off").count()) === 1);
-  check(`[${theme}] Account membership button present`, (await page.getByRole("button", { name: /Manage membership/i }).count()) === 1);
+  // Membership left Account — no Membership sub-heading remains there.
+  check(`[${theme}] Account no longer holds a Membership sub-heading`, !acctH3.includes("Membership"));
+
+  // Membership group (free state): reassurance lead + honest single door, no
+  // "missing out" framing, no price/urgency on the button.
+  const memText = await page.evaluate(() => {
+    const panel = document.getElementById("section-membership-panel");
+    return panel ? panel.innerText : "";
+  });
+  check(`[${theme}] Membership (free) leads with 'free forever' reassurance`,
+    /free forever/i.test(memText) && /Spectrum \(Free\)/.test(memText));
+  check(`[${theme}] Membership (free) has the honest 'See what Companion adds' door`,
+    (await page.getByRole("button", { name: /See what Companion adds/i }).count()) === 1);
+  check(`[${theme}] Membership (free) uses no 'missing out'/urgency framing`,
+    !/missing out|don't miss|hurry|limited time|only \$|\d+% off/i.test(memText), memText.slice(0, 120));
 
   // Full-page screenshot of the opened groups.
   await page.screenshot({ path: `${OUT}/profile_groups_${theme}.png`, fullPage: true });

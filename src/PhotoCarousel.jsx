@@ -69,17 +69,37 @@ export default function PhotoCarousel({
       ? p.description
       : `Photo ${i + 1} of ${total}${name ? ` — ${name}` : ""}`;
 
+  // The stored per-photo description, surfaced as an OPTIONAL visible caption
+  // below the image (it already doubles as the alt text above). Calm, small,
+  // muted — only rendered when the member actually wrote one.
+  const captionFor = (p) =>
+    p && typeof p.description === "string" ? p.description.trim() : "";
+  const captionStyle = {
+    margin: "8px 4px 0",
+    fontSize: 14,
+    color: t.textSoft,
+    lineHeight: 1.5,
+  };
+
   if (total === 0) return null;
 
-  // Single photo — identical to the previous plain hero image (no controls).
+  // Single photo — identical to the previous plain hero image (no controls),
+  // now with an optional visible caption beneath it.
   if (total === 1) {
+    const only = list[0];
+    const cap = captionFor(only);
     return (
-      <img
-        src={list[0].url}
-        alt={altFor(list[0], 0)}
-        decoding="async"
-        style={{ ...baseImg, ...containerStyle }}
-      />
+      <figure style={{ margin: 0, ...containerStyle }}>
+        <img
+          src={only.url}
+          alt={altFor(only, 0)}
+          decoding="async"
+          style={baseImg}
+        />
+        {cap && (
+          <figcaption data-photo-caption="true" style={captionStyle}>{cap}</figcaption>
+        )}
+      </figure>
     );
   }
 
@@ -130,13 +150,16 @@ export default function PhotoCarousel({
     WebkitTapHighlightColor: "transparent",
   });
 
+  const cap = captionFor(photo);
+
   return (
+    <figure style={{ margin: 0, ...containerStyle }}>
     <div
       role="group"
       aria-roledescription="carousel"
       aria-label={`Photos of ${name || "this person"}`}
       onKeyDown={onKeyDown}
-      style={{ position: "relative", ...containerStyle }}
+      style={{ position: "relative" }}
     >
       <img
         // Re-mount on navigation ONLY when motion is allowed, so the gentle
@@ -220,5 +243,9 @@ export default function PhotoCarousel({
         })}
       </div>
     </div>
+      {cap && (
+        <figcaption data-photo-caption="true" style={captionStyle}>{cap}</figcaption>
+      )}
+    </figure>
   );
 }
