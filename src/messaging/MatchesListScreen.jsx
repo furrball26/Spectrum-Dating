@@ -419,6 +419,9 @@ export default function MatchesListScreen({
   onRowReport,
   onRowUnmatch,
   onRowNote,
+  // Quiet entry to the Requests area (intros). A plain count — no badge/urgency.
+  onOpenRequests,
+  requestCount = 0,
 }) {
   const headingRef = useRef(null);
   // ALL hooks declared here — before any early return (including the archived
@@ -710,6 +713,38 @@ export default function MatchesListScreen({
           Your matches
         </h1>
         <SectionRule style={{ marginTop: 8, marginBottom: 20 }} />
+
+        {/* Quiet entry to Requests (intros from non-matches). A plain count in
+            the label — no red dot, no push, no "N people want to talk to you".
+            Trivially ignorable, calm-by-design (hard rule). */}
+        {onOpenRequests && (
+          <button
+            type="button"
+            onClick={onOpenRequests}
+            aria-label={requestCount > 0 ? `Requests, ${requestCount} waiting` : "Requests"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              width: "100%",
+              marginBottom: 20,
+              padding: "14px 16px",
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              cursor: "pointer",
+              fontFamily: t.sans,
+              minHeight: 44,
+              textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: 16, fontWeight: 600, color: t.text }}>
+              Requests{requestCount > 0 ? ` (${requestCount})` : ""}
+            </span>
+            <span aria-hidden="true" style={{ fontSize: 20, color: t.textMuted, lineHeight: 1 }}>›</span>
+          </button>
+        )}
 
         {/* Search / filter input — with a hard cap of {activeCap} active
             conversations the list rarely needs one; only render once the list

@@ -93,6 +93,8 @@ const KNOWN_ERROR_CODES = new Set([
   "CAP_REACHED",
   "CONVERSATION_ENDED",
   "CONSENT_GATE",
+  // Message-request pending cap (422) — the sender's OWN state, calm to surface.
+  "PENDING_CAP",
 ]);
 
 const SAFE_ERROR_MESSAGES = new Set([
@@ -114,6 +116,11 @@ const SAFE_ERROR_MESSAGES = new Set([
   "That email address doesn't look complete. Please check it.",
   "That's already your email address — no change needed.",
   "We couldn’t change your email to that address. Please try a different one.",
+  // messageRequests.js — an intro the sender wrote is their OWN text, so the
+  // 400 screening messages are safe (and helpful) to surface verbatim.
+  "Your intro needs to be between 1 and 300 characters.",
+  "Please rewrite your intro without that language.",
+  "For everyone’s safety, a first message can’t include links, contact details, or anything about money or payments. Please introduce yourself without those.",
 ]);
 
 // Returns a message safe to show a user: err.message when recognised (known code
@@ -560,6 +567,54 @@ export async function getMyReports() {
 // the server 409s if it's already been reviewed. → { ok, status: 'withdrawn' }
 export async function withdrawReport(reportId) {
   return apiFetch(`/messaging/reports/${reportId}/withdraw`, { method: 'POST' });
+}
+
+// ─── Message requests / intros ──────────────────────────────────────────────
+// Opt-in "reach a non-match" flow (audit/MESSAGE_REQUESTS.md). SAFETY-CRITICAL
+// on the send path: the backend returns an IDENTICAL 201 { ok: true } for every
+// outcome — real send, blocked pair, already-declined, non-existent recipient —
+// so the sender can NEVER learn whether the intro was delivered, blocked, or
+// declined. The client must therefore show ONE calm confirmation on any 2xx and
+// only ever act on the REAL errors the backend surfaces (400 bad intro / 422
+// pending-cap / 429 rate-limit). Never branch the success UI on the response.
+export async function sendMessageRequest(recipientId, intro) {
+  return apiFetch('/messaging/requests', { method: 'POST', body: { recipientId, intro } });
+}
+
+// Inbound pending intros for the recipient. → { requests: [...], count }. Each
+// request carries a Discover-level projection of the sender (coarse city only;
+// never post-match fields). Normalised to a defaulted shape at this boundary.
+export async function getMessageRequests() {
+  const d = await apiFetch('/messaging/requests');
+  const requests = Array.isArray(d?.requests) ? d.requests : [];
+  return { requests, count: d?.count ?? requests.length };
+}
+
+// The SENDER's outbox — ONLY pending + accepted are ever returned (a declined or
+// ignored intro is invisible to the sender; anti-retaliation core). Accepted
+// rows carry the conversationId to deep-link into the now-normal thread.
+export async function getSentMessageRequests() {
+  const d = await apiFetch('/messaging/requests/sent');
+  return Array.isArray(d?.requests) ? d.requests : [];
+}
+
+// Accept an inbound intro → mints a real match + conversation via the existing
+// path and returns { conversationId }. 422 CAP_REACHED when the recipient's
+// active-conversation cap is full (stays pending; archive one first).
+export async function acceptMessageRequest(id) {
+  return apiFetch(`/messaging/requests/${encodeURIComponent(id)}/accept`, { method: 'POST' });
+}
+
+// Decline an inbound intro (silent to the sender). "Ignore" is a client-only
+// no-op — leave the row pending, indistinguishable to the sender from a decline.
+export async function declineMessageRequest(id) {
+  return apiFetch(`/messaging/requests/${encodeURIComponent(id)}/decline`, { method: 'POST' });
+}
+
+// Sender edits their own still-pending intro (the typo escape hatch). Re-runs
+// the same 8-10 screening as send, so it can 400 with the safe intro messages.
+export async function editMessageRequest(id, intro) {
+  return apiFetch(`/messaging/requests/${encodeURIComponent(id)}`, { method: 'PATCH', body: { intro } });
 }
 
 // ─── Telemetry beacon (public, fire-and-forget) ─────────────────────────────

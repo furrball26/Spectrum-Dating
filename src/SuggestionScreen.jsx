@@ -8,6 +8,7 @@ import DiscoverFilters from "./DiscoverFilters.jsx";
 import { AllCaughtUp } from "./illustrations.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
 import ReportModal from "./ReportModal.jsx";
+import IntroComposeSheet from "./IntroComposeSheet.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
 import { genderLabel } from "./IdentityFields.jsx";
@@ -354,6 +355,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const [mutual, setMutual] = useState(false);
   const [matchId, setMatchId] = useState(null);
   const [reportingCandidate, setReportingCandidate] = useState(null);
+  // The person the "Send an intro" compose sheet is open for (null = closed).
+  const [introPerson, setIntroPerson] = useState(null);
   const [undoing, setUndoing] = useState(false);
   // F16 — when an "I'm interested" undo is refused because the like already
   // became a mutual match (409 matched:true), we hide the Undo and show a calm
@@ -1195,6 +1198,16 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <ActionButton label={plainLanguage ? "Yes"      : "I'm interested"} kind="interested" onClick={handleInterested} icon="♡" />
               <ActionButton label={plainLanguage ? "Not now" : "Not right now"}  kind="notnow"    onClick={handleNotNow} />
+              {/* Calm opt-in first-contact — a screened intro that only becomes a
+                  conversation if they accept. A quiet, deliberate alternative to
+                  a like; never urgent, never a delivery/read signal. */}
+              <ActionButton
+                label={plainLanguage ? "Send a hello" : "Send an intro"}
+                kind="notnow"
+                onClick={() => setIntroPerson(person)}
+                icon="✉"
+                ariaLabel={`Send an intro to ${person.displayName}`}
+              />
               <ActionButton label="Skip"                                          kind="skip"      onClick={handleSkip} />
             </div>
 
@@ -1329,6 +1342,14 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             (onOpenMessages || (() => {}))();
           }}
           onContinue={next}
+          plainLanguage={plainLanguage}
+        />
+      )}
+
+      {introPerson && (
+        <IntroComposeSheet
+          person={introPerson}
+          onClose={() => setIntroPerson(null)}
           plainLanguage={plainLanguage}
         />
       )}

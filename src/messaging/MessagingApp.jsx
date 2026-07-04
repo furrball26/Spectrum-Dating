@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import MatchesListScreen from "./MatchesListScreen.jsx";
+import MessageRequestsScreen from "./MessageRequestsScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
-import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation, getActivity, getMatches, createConversation, swipe, saveMatchNote, safeErrorMessage } from "../api.js";
+import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation, getActivity, getMatches, createConversation, swipe, saveMatchNote, safeErrorMessage, getMessageRequests, acceptMessageRequest, declineMessageRequest } from "../api.js";
 import LikedYouSection from "../LikedYouSection.jsx";
 import MatchMoment from "../MatchMoment.jsx";
 import ReportModal from "../ReportModal.jsx";
@@ -154,8 +155,8 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
   const seed = initialConversation && initialConversation.id && initialConversation.otherUser
     ? { started: false, ...initialConversation }
     : null;
-  // state: 'list' | 'conversation' | 'block-report' — seeded opens start
-  // directly on the conversation (no list flash, no wait).
+  // state: 'list' | 'conversation' | 'block-report' | 'requests' — seeded opens
+  // start directly on the conversation (no list flash, no wait).
   const [screen, setScreen] = useState(seed ? "conversation" : "list");
   const [selectedConversationId, setSelectedConversationId] = useState(seed ? seed.id : null);
   const [showUnmatchSheet, setShowUnmatchSheet] = useState(false);
@@ -192,6 +193,11 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
   const [unmatchingRow, setUnmatchingRow] = useState(null); // same shape
   const [viewingUserId, setViewingUserId] = useState(null);
   const [noteRow, setNoteRow] = useState(null);             // {matchId, otherUser}
+
+  // ── Message requests / intros (sibling of the inbox, NOT the inbox) ──
+  const [messageRequests, setMessageRequests] = useState([]); // inbound pending
+  const [requestsStatusMessage, setRequestsStatusMessage] = useState("");
+  const [reportingRequest, setReportingRequest] = useState(null); // sender projection
 
   // Warm the (lazy) ConversationScreen chunk as soon as Messages mounts, so
   // the first thread-open doesn't pay a JS download mid-gesture.
@@ -267,9 +273,56 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
         setMatchNotes(notes);
       })
       .catch(() => {});
+    // Inbound intros — drives the quiet "Requests (N)" entry count and the list.
+    getMessageRequests()
+      .then(({ requests }) => { if (!cancelled) setMessageRequests(requests); })
+      .catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // ── Requests handlers ──────────────────────────────────────────────────────
+  function handleOpenRequests() {
+    setRequestsStatusMessage("");
+    setScreen("requests");
+  }
+
+  // Accept → the backend mints a real match + conversation and returns its id;
+  // open it in place (it's a normal thread now, with the intro already seeded as
+  // the first message). 422 CAP_REACHED stays pending with a calm archive nudge.
+  async function handleAcceptRequest(req) {
+    try {
+      const res = await acceptMessageRequest(req.id);
+      const convId = res?.conversationId;
+      setMessageRequests(prev => prev.filter(r => r.id !== req.id));
+      if (convId) {
+        openInPlace(convId, {
+          userId: req.sender?.userId,
+          displayName: req.sender?.displayName,
+          photoUrl: req.sender?.photoUrl || null,
+        }, true);
+        setRefreshKey(k => k + 1);
+      }
+    } catch (e) {
+      setRequestsStatusMessage(
+        e?.code === "CAP_REACHED"
+          ? "Your active conversations are full for now. Archive one from Messages, then accept this intro."
+          : safeErrorMessage(e, "We couldn't accept that just now. Please try again.")
+      );
+    }
+  }
+
+  // Decline is silent to the sender (invisible in their Sent list).
+  async function handleDeclineRequest(req) {
+    try { await declineMessageRequest(req.id); } catch (e) { console.warn("Decline request failed", e); }
+    setMessageRequests(prev => prev.filter(r => r.id !== req.id));
+  }
+
+  // Ignore = do nothing server-side (the row stays pending, indistinguishable to
+  // the sender from a decline). We only drop it from THIS session's view.
+  function handleIgnoreRequest(req) {
+    setMessageRequests(prev => prev.filter(r => r.id !== req.id));
+  }
 
   // Drop a liker locally and keep the likes badge in sync.
   const removeLiker = (userId) => {
@@ -587,6 +640,23 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       archivedCount={archivedCount}
       onToggleArchived={handleToggleArchived}
       onUnarchive={handleUnarchive}
+      // Quiet "Requests (N)" entry — a plain count, no badge/urgency.
+      onOpenRequests={handleOpenRequests}
+      requestCount={messageRequests.length}
+    />
+  );
+
+  const requestsPane = (
+    <MessageRequestsScreen
+      requests={messageRequests}
+      onBack={handleBackToList}
+      onAccept={handleAcceptRequest}
+      onDecline={handleDeclineRequest}
+      onIgnore={handleIgnoreRequest}
+      onBlockReport={setReportingRequest}
+      onOpenConversation={(convId, otherUser) => openInPlace(convId, otherUser, true)}
+      statusMessage={requestsStatusMessage}
+      plainLanguage={plainLanguage}
     />
   );
 
@@ -682,6 +752,18 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
           onCancel={() => setUnmatchingRow(null)}
         />
       )}
+      {reportingRequest && (
+        <ReportModal
+          candidate={{ memberId: reportingRequest.userId, displayName: reportingRequest.displayName }}
+          onClose={() => setReportingRequest(null)}
+          onBlocked={(c) => {
+            // A block also nukes the pending intro server-side (both directions),
+            // so drop the request card locally to match.
+            setMessageRequests(prev => prev.filter(r => r.sender?.userId !== c.memberId));
+            setRequestsStatusMessage(`You blocked ${reportingRequest.displayName || "this person"}.`);
+          }}
+        />
+      )}
       {viewingUserId && (
         <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
       )}
@@ -702,7 +784,9 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
   // stack-swap below (list → conversation), unchanged.
   if (isDesktop) {
     const rightPane =
-      screen === "block-report"
+      screen === "requests"
+        ? requestsPane
+        : screen === "block-report"
         ? blockReportPane
         : screen === "conversation" && currentConvo
         ? conversationPane
@@ -761,6 +845,8 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       }}
     >
       {screen === "list" && listPane}
+
+      {screen === "requests" && requestsPane}
 
       {screen === "conversation" && currentConvo && conversationPane}
 
