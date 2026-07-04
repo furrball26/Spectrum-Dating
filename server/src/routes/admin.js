@@ -262,9 +262,21 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
   if (!profile) {
     return res.status(404).json({ error: 'Profile not found.' });
   }
-  // B-D: idempotency guard — a no-op verify/unverify 409s rather than writing a
-  // spurious audit row.
-  if (!!profile.identity_verified === verified) {
+
+  const newStatus = verified ? 'approved' : 'rejected';
+  const request = db.prepare(
+    'SELECT status FROM verification_requests WHERE user_id = ?'
+  ).get(req.params.id);
+
+  // B-D: idempotency guard — 409 ONLY when the action would change NOTHING:
+  // neither the identity_verified flag NOR the queue request's status. Rejecting
+  // a PENDING request is a REAL action even though identity_verified stays 0 (it
+  // moves the request out of the pending queue), so it must not 409 — otherwise
+  // the rejected request re-surfaces forever (the guard returned before the
+  // verification_requests UPDATE below ever ran).
+  const identityChanges = !!profile.identity_verified !== verified;
+  const requestChanges = !!request && request.status !== newStatus;
+  if (!identityChanges && !requestChanges) {
     return res.status(409).json({ error: verified ? 'User is already verified.' : 'User is not verified.' });
   }
 
@@ -280,7 +292,6 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
   // identity_verified directly and only consults verification_requests for the
   // queue state of NOT-yet-verified users. So even if this UPDATE were to no-op
   // (e.g. the user never filed a request), the user's verified state is correct.
-  const newStatus = verified ? 'approved' : 'rejected';
   db.prepare(`
     UPDATE verification_requests SET status = ?, reviewed_at = ?
     WHERE user_id = ?

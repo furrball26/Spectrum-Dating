@@ -273,6 +273,38 @@ describe('B-D idempotency guards', () => {
     expect(r.status).toBe(200);
     expect(logCount('verify', target)).toBe(1);
   });
+
+  it('rejecting a PENDING verification request succeeds and clears the queue (not a 409 no-op)', async () => {
+    // Regression: the verify guard used to 409 whenever identity_verified already
+    // matched `verified`. A pending user has identity_verified=0, so rejecting
+    // (verified:false) 409'd BEFORE advancing verification_requests → the request
+    // re-surfaced in the pending queue forever. The guard must look at the request
+    // status too: rejecting a pending request is a real action.
+    const target = makeUser({ verified: 0 });
+    db.prepare(
+      'INSERT INTO verification_requests (id, user_id, status, requested_at) VALUES (?,?,?,?)'
+    ).run(`vr${target}`, target, 'pending', Date.now());
+
+    const r = await api(`/admin/users/${target}/verify`, {
+      token: adminToken(), method: 'POST', body: { verified: false, note: 'blurry ID' },
+    });
+    expect(r.status).toBe(200);
+    // The queue row moved to 'rejected' — it no longer surfaces as pending.
+    const reqRow = db.prepare('SELECT status FROM verification_requests WHERE user_id = ?').get(target);
+    expect(reqRow.status).toBe('rejected');
+    // identity_verified stays 0 (unchanged), and an audit row was written.
+    const prof = db.prepare('SELECT identity_verified FROM profiles WHERE user_id = ?').get(target);
+    expect(prof.identity_verified).toBe(0);
+    expect(logCount('unverify', target)).toBe(1);
+  });
+
+  it('verify still 409s a true no-op: unverify with no request and already unverified', async () => {
+    const target = makeUser({ verified: 0 });
+    const r = await api(`/admin/users/${target}/verify`, {
+      token: adminToken(), method: 'POST', body: { verified: false, note: 'n/a' },
+    });
+    expect(r.status).toBe(409);
+  });
 });
 
 // ---------------------------------------------------------------------------
