@@ -24,6 +24,7 @@ const MembershipScreen = lazy(() => import("./MembershipScreen.jsx"));
 const BestFits = lazy(() => import("./BestFits.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
+const RequireCityScreen = lazy(() => import("./RequireCityScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview, getRegionSafety, updateProfile } from "./api.js";
 import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY } from "./regionSafety.js";
 import { connectSocket, disconnectSocket, onSocket } from "./socketClient.js";
@@ -814,6 +815,12 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // "login" | "register"
   const [onboarding, setOnboarding] = useState(false);
+  // Required-city gate for LEGACY members: onboarding is complete but dist_city
+  // is blank (they signed up before the city field was required). Shown AFTER
+  // onboarding, BEFORE the app, until they add a coarse city (needed for nearby
+  // matching). Never overlaps onboarding — the profile check below sets exactly
+  // one of the two.
+  const [needsCity, setNeedsCity] = useState(false);
   // 'suggestions' | 'matches' | 'messages' | 'profile' | 'admin' | 'safety' | 'settings'
   // Honor a ?tab= deep-link / refresh on cold load. Without this the tab always
   // initialized to "suggestions" and the sync effect below rewrote the URL,
@@ -1163,6 +1170,7 @@ export default function App() {
       setAuthMessage("Your session has expired. Please sign in again.");
       setAuthed(false);
       setOnboarding(false);
+      setNeedsCity(false);
       setIsAdmin(false);
       // Send the user straight to the sign-in form (not the marketing page) so
       // the expiry message has context.
@@ -1182,6 +1190,10 @@ export default function App() {
     getProfile()
       .then((p) => {
         if (!p.onboardingComplete) setOnboarding(true);
+        // Required-city gate: a legacy member who finished onboarding before the
+        // city field existed has onboardingComplete but a blank dist_city
+        // (returned as distCity from /profile/me). Gate them until it's set.
+        else if (!p.distCity || !String(p.distCity).trim()) setNeedsCity(true);
         // Persist email verification state across reloads
         if (typeof p.emailVerified === "boolean") setEmailVerified(p.emailVerified);
         if (typeof p.emailVerificationEnabled === "boolean") setEmailVerifyEnabled(p.emailVerificationEnabled);
@@ -1214,6 +1226,7 @@ export default function App() {
     setAuthMessage("You have been signed out.");
     setAuthed(false);
     setOnboarding(false);
+    setNeedsCity(false);
     setUnreadCount(0);
     setActivityCount(0);
     setIsAdmin(false);
@@ -1408,6 +1421,15 @@ export default function App() {
         ? (
           <Suspense fallback={<ScreenFallback />}>
             <OnboardingScreen onComplete={() => setOnboarding(false)} />
+          </Suspense>
+        )
+        : needsCity
+        ? (
+          <Suspense fallback={<ScreenFallback />}>
+            <RequireCityScreen
+              onComplete={() => setNeedsCity(false)}
+              onSignOut={handleSignOut}
+            />
           </Suspense>
         )
         : (
@@ -1652,6 +1674,7 @@ export default function App() {
                     setAuthMessage("Your account has been deleted.");
                     setAuthed(false);
                     setOnboarding(false);
+                    setNeedsCity(false);
                     setUnreadCount(0);
                     setIsAdmin(false);
                     setMyPhotoUrl(null);
