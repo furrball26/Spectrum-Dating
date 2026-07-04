@@ -19,11 +19,13 @@ await login(page, acct);
 await page.getByRole("button", { name: /Profile/ }).first().click();
 await page.waitForTimeout(1500);
 
-// The Prompts collapsible section is open by default. If it happens to be
-// collapsed, open it; otherwise leave it as-is (toggling would close it).
+// Prompts now lives as a headed block inside the "About me" GROUP (post-regroup
+// there are no nested accordions — the group opens to reveal Prompts as an <h3>
+// block). About me auto-opens for an incomplete profile; if it happens to be
+// collapsed, open the group. "Add a prompt" is the tell that Prompts is visible.
 const addBtn = page.getByRole("button", { name: /Add a prompt/i });
 if ((await addBtn.count()) === 0) {
-  await page.getByRole("button", { name: /^Prompts/ }).first().click();
+  await page.getByRole("button", { name: /^About me/ }).first().click();
   await page.waitForTimeout(600);
 }
 

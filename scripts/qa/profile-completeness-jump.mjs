@@ -17,8 +17,10 @@ mkdirSync(OUT, { recursive: true });
 // display_name + bio + an interest + a valid 18+ DOB exist (see
 // server/src/routes/profile.js), so we keep those filled to reach the main app —
 // then leave every OTHER completeness field empty: no photo, tagline,
-// gender/pronouns, seeking, comms style, sensory prefs, or prompts. That renders
-// 7 chips (bio is always present post-onboarding, so its chip never shows).
+// gender/pronouns, comms style, sensory prefs, or prompts. That renders 6 chips
+// (bio is always present post-onboarding, so its chip never shows; `seeking` is
+// no longer a completeness field — "open to everyone"/empty is a valid, complete
+// preference, so nagging for it was the bug we removed).
 const acct = await makeAccount("pcjump", {
   displayName: "Incomplete QA",
   bio: "A short bio so onboarding is complete.",
@@ -30,17 +32,19 @@ const acct = await makeAccount("pcjump", {
   interests: ["hiking"], // required for onboarding; not a completeness field
 });
 
-// label → { expectedFocusId, section } (section = collapsible panel that must
-// un-hide when the chip is clicked; null for always-visible top-area fields).
+// label → { expectedFocusId, section } (section = the collapsible GROUP panel
+// that must un-hide when the chip is clicked; null for always-visible top-area
+// fields). Post-regroup, pronouns/comms/sensory/prompt all live inside the
+// single "About me" group; `jumpToField` scrolls to the specific field id, so
+// landing deep inside the large group still focuses the right control.
 const EXPECT = {
   "Add a photo":                 { focusId: "add-photo-tile",     section: null },
   "Add a tagline":               { focusId: "tagline",            section: null },
   "Write your bio":              { focusId: "bio",                section: null },
-  "Add pronouns / gender":       { focusId: "pronouns",           section: "search" },
-  "Set who you're looking for":  { focusId: "seek-woman",         section: "search" },
-  "Fill in comms style":         { focusId: "comm-directness",    section: "communicate" },
-  "Add sensory preferences":     { focusId: "sensory-environment",section: "sensory" },
-  "Answer a prompt":             { focusId: null,                 section: "prompts" },
+  "Add pronouns / gender":       { focusId: "pronouns",           section: "aboutMe" },
+  "Fill in comms style":         { focusId: "comm-directness",    section: "aboutMe" },
+  "Add sensory preferences":     { focusId: "sensory-environment",section: "aboutMe" },
+  "Answer a prompt":             { focusId: null,                 section: "aboutMe" },
 };
 
 const { browser, page, errors } = await launch();

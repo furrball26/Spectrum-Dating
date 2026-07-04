@@ -16,13 +16,26 @@ const acct = await makeAccount("verif", { displayName: "Vera QA", gender: "woman
 const { browser, page, errors } = await launch();
 await login(page, acct);
 
-// Go to Profile and open the "Profile review" section.
+// Go to Profile and open the "Account" group (Profile review now lives inside it
+// as a headed <h3> block — post-regroup there are no nested accordions, so
+// opening the group reveals the review sub-section directly).
 await page.getByRole("button", { name: /Profile/ }).first().click();
 await page.waitForTimeout(1500);
-await page.getByRole("button", { name: /Profile review/ }).first().click();
+await page.getByRole("button", { name: /^Account/ }).first().click();
 await page.waitForTimeout(800);
 
 const sectionText = await page.locator("body").innerText();
+
+// The Account group now holds Profile review, Notifications and Membership as
+// headed blocks in one scroll (no nested accordions). Membership legitimately
+// mentions "Companion", so the "no paid coupling" assertion must be SCOPED to
+// just the Profile review block (between its <h3> and the next block's heading),
+// not the whole body.
+const _revStart = sectionText.indexOf("Profile review");
+const _revEnd = sectionText.indexOf("Notifications", _revStart);
+const reviewText = _revStart >= 0 && _revEnd > _revStart
+  ? sectionText.slice(_revStart, _revEnd)
+  : sectionText;
 
 // 1 — guided steps present (default first-time state)
 check(
@@ -45,22 +58,32 @@ check(
     /These aren't required/.test(sectionText) &&
     /A clear main photo\./.test(sectionText)
 );
-// 4 — no payment / Companion coupling anywhere in the section (stays FREE)
+// 4 — no payment / Companion coupling in the Profile review block itself
+// (scoped — the Membership block in this same group is allowed to say Companion)
 check(
   "No payment/Companion coupling near verification",
-  !/companion|upgrade|subscribe|premium|\$\d|per month/i.test(sectionText),
+  !/companion|upgrade|subscribe|premium|\$\d|per month/i.test(reviewText),
   "found paid-tier language"
 );
 await page.screenshot({ path: `${OUT}/verif_default.png` });
 
-// 5 — the existing free request button still works → moves to pending
+// 5 — the existing free request button still works → moves to pending.
+// Scope both the pending-state assertion AND the no-urgency assertion to the
+// Profile review block: the About me group auto-opens for this incomplete
+// profile, and its "Could talk for hours about" heading would otherwise
+// false-match the anti-countdown /hours/ guard on a whole-body scan.
 await page.getByRole("button", { name: /^Request review$/ }).click();
 await page.waitForTimeout(2500);
 const afterText = await page.locator("body").innerText();
+const _aStart = afterText.indexOf("Profile review");
+const _aEnd = afterText.indexOf("Notifications", _aStart);
+const afterReviewText = _aStart >= 0 && _aEnd > _aStart
+  ? afterText.slice(_aStart, _aEnd)
+  : afterText;
 check(
   "Request button moves card to reassuring pending state",
-  /Review request received\.|Pending review/.test(afterText) &&
-    !/countdown|minutes|hours|days left/i.test(afterText)
+  /Review request received\.|Pending review/.test(afterReviewText) &&
+    !/countdown|minutes|hours|days left/i.test(afterReviewText)
 );
 await page.screenshot({ path: `${OUT}/verif_pending.png` });
 

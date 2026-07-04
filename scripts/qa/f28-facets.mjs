@@ -17,9 +17,14 @@ try {
   await page.getByRole("button", { name: /profile/i }).first().click();
   await page.waitForTimeout(1200);
 
-  // Open the "About me" collapsible section.
-  await page.getByRole("button", { name: /^About me/i }).first().click();
-  await page.waitForTimeout(400);
+  // Ensure the "About me" GROUP is open (post-regroup the F28 facets are a
+  // headed block inside it). It auto-opens for an incomplete profile, so a blind
+  // click would TOGGLE it shut — open only if the facet field isn't visible yet.
+  const occVisible = await page.locator("#occupation").isVisible().catch(() => false);
+  if (!occVisible) {
+    await page.getByRole("button", { name: /^About me/i }).first().click();
+    await page.waitForTimeout(400);
+  }
 
   check("Occupation input renders", await page.locator("#occupation").count() === 1);
   check("Languages input renders", await page.locator("#languages").count() === 1);

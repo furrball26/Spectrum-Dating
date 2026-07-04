@@ -50,23 +50,23 @@ function usePrefersReduced() {
 
 // ─── Collapsible sections (mobile-overwhelm reduction) ───────────────────────
 // Independent disclosures — opening one NEVER closes another (no single-open
-// accordion). "about" is always open and NOT collapsible (required fields).
-// Persisted open/closed choices live under this localStorage key.
-const SECTIONS_STORAGE_KEY = "spectrum_profile_sections";
+// accordion). The always-visible "About you" core (photos/name/tagline/bio/
+// commNote) is NOT collapsible. Persisted open/closed choices live under this
+// localStorage key.
+// v2: the 9 legacy per-topic sections (prompts/about/interests/search/lifestyle/
+// communicate/sensory/notifications/verification/membership) were regrouped into
+// 3 top-level groups (aboutMe/lookingFor/account). The key is bumped so returning
+// users don't inherit a stale/half-open map keyed by the retired section ids.
+const SECTIONS_STORAGE_KEY = "spectrum_profile_sections_v2";
 
-// Keys match the render order of the cards below. "about" is intentionally
-// absent from this list — it is always open and rendered as a plain <h2>.
+// The 3 top-level collapsible GROUPS, in render order. Inside each group the
+// former sections render as plain <h3> sub-headed blocks in one calm scroll —
+// there are no nested accordions (double-hiding is the anti-pattern for this
+// audience). This array drives Expand-all / Collapse-all and the default map.
 const COLLAPSIBLE_SECTIONS = [
-  "prompts",
-  "about",
-  "interests",
-  "search",
-  "lifestyle",
-  "communicate",
-  "sensory",
-  "notifications",
-  "verification",
-  "membership",
+  "aboutMe",
+  "lookingFor",
+  "account",
 ];
 
 function loadPersistedSections() {
@@ -179,6 +179,33 @@ function CollapsibleSection({ id, title, summary, hasContent, open, onToggle, he
     </div>
   );
 }
+
+// A plain sub-section heading rendered INSIDE a collapsible group. Purely
+// presentational (no hooks — safe anywhere, including near .map bodies). Groups
+// open to reveal all their sub-sections as headed blocks in one calm scroll;
+// there are no nested accordions (double-hiding is the anti-pattern for this
+// audience). Optional `id` lets a heading anchor scroll/labels if ever needed.
+function SubHeading({ id, children }) {
+  return (
+    <h3
+      id={id}
+      style={{
+        fontFamily: t.serif,
+        fontSize: 18,
+        fontWeight: 700,
+        color: t.text,
+        margin: "0 0 6px",
+        lineHeight: 1.3,
+      }}
+    >
+      {children}
+    </h3>
+  );
+}
+
+// Divider between sub-sections within a group. Slightly more breathing room than
+// the default rule so the headed blocks read as distinct, calm bands.
+const SUBSECTION_RULE_STYLE = { margin: "28px 0 24px" };
 
 // ─── Default profile ─────────────────────────────────────────────────────────
 const DEFAULT_PROFILE = {
@@ -1758,25 +1785,29 @@ function AgeRangeSlider({ low, high, onChange }) {
 // last (~0.24 → 0.25 → 0.28 → 0.32 → 0.42 → 0.71).
 const COMPLETENESS_RAMP = ["#5E9459", "#539490", "#5E9C93", "#6FA39A", "#C9A875", "#E7D9C4"];
 
+// NOTE: `seeking` is deliberately NOT a completeness field. The seeking control
+// always presents a valid chosen state — specific genders OR an explicit "Open
+// to everyone" (which maps to seeking === "", the default). Empty is therefore a
+// complete, valid preference, so `!!seeking` would falsely flag every
+// open-to-everyone user as incomplete with a chip they can never clear. Removing
+// it is the calm, correct fix (it can't false-positive).
 const COMPLETENESS_FIELDS = [
   { key: "photo",     label: "Add a photo" },
   { key: "tagline",   label: "Add a tagline" },
   { key: "bio",       label: "Write your bio" },
   { key: "pronouns",  label: "Add pronouns / gender" },
-  { key: "seeking",   label: "Set who you're looking for" },
   { key: "commStyle", label: "Fill in comms style" },
   { key: "sensory",   label: "Add sensory preferences" },
   { key: "prompt",    label: "Answer a prompt" },
 ];
 
-function computeCompleteness({ photos, tagline, bio, gender, pronouns, seeking,
+function computeCompleteness({ photos, tagline, bio, gender, pronouns,
     commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, prompts }) {
   const filled = {
     photo:     photos.length > 0,
     tagline:   tagline.trim().length > 0,
     bio:       bio.trim().length > 0,
     pronouns:  !!(gender || pronouns),
-    seeking:   !!seeking,
     commStyle: !!(commDirectness || commLiteral || commCadence),
     sensory:   !!(sensoryEnvironment || sensoryLighting),
     prompt:    prompts.length > 0,
@@ -1786,21 +1817,23 @@ function computeCompleteness({ photos, tagline, bio, gender, pronouns, seeking,
 }
 
 // Where each completeness field is edited, so a missing-field chip can jump the
-// user straight there. `section` is the COLLAPSIBLE_SECTIONS key to force-open
-// first (null = an always-visible top-area field, nothing to open). `focusId` is
-// the specific control to land focus on (WCAG 2.4.3); when null we fall back to
-// the section's first actionable control, then its header. Note some keys share
-// a section (pronouns + seeking both live in "search") but target different
-// controls, and vice-versa the always-visible photo/tagline/bio have no section.
+// user straight there. `section` is the COLLAPSIBLE_SECTIONS group id to
+// force-open first (null = an always-visible top-area field, nothing to open).
+// `focusId` is the specific control to land focus on (WCAG 2.4.3); when null we
+// fall back to the group's first actionable control, then its header. Field ids
+// are STABLE across the 3-group regroup — only the `section` (now a group id)
+// changed: pronouns/commStyle/sensory/prompt all live inside the "aboutMe"
+// group; jumpToField scrolls to the specific field id, so landing deep inside a
+// large group still lands on the right control. The always-visible photo/
+// tagline/bio have no group.
 const COMPLETENESS_TARGETS = {
-  photo:     { section: null,          focusId: "add-photo-tile" },
-  tagline:   { section: null,          focusId: "tagline" },
-  bio:       { section: null,          focusId: "bio" },
-  pronouns:  { section: "search",      focusId: "pronouns" },
-  seeking:   { section: "search",      focusId: "seek-woman" },
-  commStyle: { section: "communicate", focusId: "comm-directness" },
-  sensory:   { section: "sensory",     focusId: "sensory-environment" },
-  prompt:    { section: "prompts",     focusId: null },
+  photo:     { section: null,      focusId: "add-photo-tile" },
+  tagline:   { section: null,      focusId: "tagline" },
+  bio:       { section: null,      focusId: "bio" },
+  pronouns:  { section: "aboutMe", focusId: "pronouns" },
+  commStyle: { section: "aboutMe", focusId: "comm-directness" },
+  sensory:   { section: "aboutMe", focusId: "sensory-environment" },
+  prompt:    { section: "aboutMe", focusId: null },
 };
 
 // One missing-field chip = one focusable <button>. Extracted into its own
@@ -2764,24 +2797,23 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     const missingKeys = new Set(missing.map((m) => m.key));
 
     if (!hasEverSaved) {
-      // First-run: don't make setup a scavenger hunt — open the two core ones.
-      defaults.interests = true;
-      defaults.search = true;
+      // First-run: don't make setup a scavenger hunt — open the content group so
+      // new users see the prompts/interests/facets. Looking-for + Account stay
+      // collapsed (the required fields all live in the always-visible core).
+      defaults.aboutMe = true;
     } else {
-      // Returning user: auto-open incomplete sections so nothing hides.
-      // "Your interests" — required; open if empty AND flagged missing… but the
-      // completeness set has no direct "interests" key, so key off emptiness.
-      if (interests.length === 0) defaults.interests = true;
-      // Prompts: flagged as "prompt" in the completeness set when empty.
-      if (missingKeys.has("prompt") && prompts.length === 0) defaults.prompts = true;
-      // "How you communicate": flagged as "commStyle" when empty.
+      // Returning user: auto-open the group that holds an incomplete field so
+      // nothing is buried. Interests, prompts, comms-style and sensory all now
+      // live inside the "About me" group, so any of them being empty opens it.
+      if (interests.length === 0) defaults.aboutMe = true;
+      if (missingKeys.has("prompt") && prompts.length === 0) defaults.aboutMe = true;
       if (missingKeys.has("commStyle") &&
-          !(commDirectness || commLiteral || commCadence)) defaults.communicate = true;
-      // "Sensory & environment": flagged as "sensory" when empty.
+          !(commDirectness || commLiteral || commCadence)) defaults.aboutMe = true;
       if (missingKeys.has("sensory") &&
-          !(sensoryEnvironment || sensoryLighting || socialDuration)) defaults.sensory = true;
-      // Identity verification: surface a rejected status so it isn't buried.
-      if (verificationRequested === "rejected") defaults.verification = true;
+          !(sensoryEnvironment || sensoryLighting || socialDuration)) defaults.aboutMe = true;
+      // Identity verification lives in "Account" — surface a rejected status so
+      // it isn't buried.
+      if (verificationRequested === "rejected") defaults.account = true;
     }
 
     // Persisted manual choices override defaults on return.
@@ -3087,8 +3119,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       // `hidden` (which would dead-end focus/scroll), then focus + scroll it on
       // the next frame. Generalised: `section` is null for always-open fields.
       const firstInvalid = nameErr
-        ? { ref: displayNameRef, section: null }          // display name — always-open "About you"
-        : { ref: interestsErrorRef, section: "interests" }; // interests — collapsible
+        ? { ref: displayNameRef, section: null }         // display name — always-open "About you"
+        : { ref: interestsErrorRef, section: "aboutMe" }; // interests — inside the "About me" group
 
       if (firstInvalid.section) openSection(firstInvalid.section);
       requestAnimationFrame(() => {
@@ -3315,9 +3347,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     );
   }
 
-  // ── Per-section collapsed summaries + done indicators ─────────────────────
-  // Computed from state already in scope each render. `summary` folds into the
-  // header's accessible name; `hasContent` drives the ✓ done dot.
+  // ── Group collapsed summaries + done indicators ───────────────────────────
+  // Each of the 3 top-level GROUPS shows a one-line collapsed summary (folds
+  // into the header's accessible name so SR users hear it while collapsed) and a
+  // ✓ when it holds meaningful content. Group summaries OR together the former
+  // per-topic signals. Computed from state already in scope each render.
   const RADIUS_LABEL = { 0: "anywhere", 25: "within 25 mi", 50: "within 50 mi", 100: "within 100 mi", 250: "within 250 mi" };
   const GOAL_LABEL = { "long-term": "Long-term", friendship: "Friendship first", open: "Open to either" };
   const NOT_SET = "Not set yet";
@@ -3327,90 +3361,61 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     return kept.length ? kept.join(" · ") : NOT_SET;
   }
 
-  // Interests
-  const interestsHasContent = interests.length > 0;
-  const interestsSummary = interestsHasContent
-    ? `${interests.length} added`
-    : NOT_SET;
-
-  // About me (F28 facets)
-  const helpsMeFilled = helpsMe.filter((s) => s.trim()).length;
-  const hardForMeFilled = hardForMe.filter((s) => s.trim()).length;
-  const aboutHasContent = !!(occupation.trim() || languages.trim() || helpsMeFilled || hardForMeFilled);
-  const aboutParts = [
-    occupation.trim(),
-    languages.trim(),
-    helpsMeFilled ? `${helpsMeFilled} thing${helpsMeFilled > 1 ? "s" : ""} that help` : "",
-    hardForMeFilled ? `${hardForMeFilled} that's hard` : "",
-  ];
-  const aboutSummary = aboutHasContent ? joinParts(aboutParts) : NOT_SET;
-
-  // Prompts
+  // ── Group 1: About me — prompts, interests, F28 facets, identity,
+  //    how-I-communicate, sensory & social, lifestyle attributes you display.
   const answeredPrompts = prompts.filter((p) => p.promptKey && p.answer.trim());
   const promptsHasContent = answeredPrompts.length > 0;
-  const promptsSummary = promptsHasContent
-    ? `${answeredPrompts.length} answered`
-    : NOT_SET;
+  const interestsHasContent = interests.length > 0;
+  const helpsMeFilled = helpsMe.filter((s) => s.trim()).length;
+  const hardForMeFilled = hardForMe.filter((s) => s.trim()).length;
+  const facetsHasContent = !!(occupation.trim() || languages.trim() || helpsMeFilled || hardForMeFilled);
+  const identityHasContent = !!(gender || pronouns || orientation || relStructure);
+  const communicateHasContent = !!(commDirectness || commLiteral || commCadence || contextCard.trim());
+  const sensoryHasContent = !!(sensoryEnvironment || sensoryLighting || socialDuration);
+  const lifestyleAttrHasContent = !!(wantsChildren || smoking || drinking);
+  const aboutMeHasContent = promptsHasContent || interestsHasContent || facetsHasContent
+    || identityHasContent || communicateHasContent || sensoryHasContent || lifestyleAttrHasContent;
+  const aboutMeSummary = joinParts([
+    interestsHasContent ? `${interests.length} interest${interests.length > 1 ? "s" : ""}` : "",
+    promptsHasContent ? `${answeredPrompts.length} prompt${answeredPrompts.length > 1 ? "s" : ""}` : "",
+    identityHasContent ? "identity" : "",
+    communicateHasContent ? "communication" : "",
+    sensoryHasContent ? "sensory" : "",
+    (facetsHasContent || lifestyleAttrHasContent) ? "more about you" : "",
+  ]);
 
-  // About your search
+  // ── Group 2: Looking for — relationship goal, who to meet, age range,
+  //    location & distance, deal-breaker filters. Empty seeking === "open to
+  //    everyone" (a valid, complete preference) so it doesn't force a summary.
   const lifestylePrefCount = [dbWantsChildren, dbNonSmoker, dbMustBeLocal].filter(Boolean).length;
-  const searchParts = [
+  const seekingSelected = seeking.split(",").map((s) => s.trim()).filter(Boolean);
+  const ageIsDefault = prefAgeMin === 18 && prefAgeMax === 99;
+  const lookingForHasContent = !!(relGoal || seekingSelected.length || !ageIsDefault
+    || searchRadius || distCity.trim() || lifestylePrefCount);
+  const lookingForSummary = joinParts([
     GOAL_LABEL[relGoal] || "",
+    seekingSelected.length ? "who you'll meet" : "",
+    !ageIsDefault ? `ages ${prefAgeMin}–${prefAgeMax === 99 ? "99+" : prefAgeMax}` : "",
     searchRadius ? RADIUS_LABEL[searchRadius] : "",
     lifestylePrefCount ? `${lifestylePrefCount} deal-breaker${lifestylePrefCount > 1 ? "s" : ""}` : "",
-  ];
-  const searchHasContent = !!(relGoal || seeking || gender || pronouns || searchRadius || distCity.trim());
-  const searchSummary = searchHasContent ? joinParts(searchParts.length ? searchParts : []) : NOT_SET;
+  ]);
 
-  // Lifestyle
-  const lifestyleParts = [
-    wantsChildren && `children: ${wantsChildren === "open" ? "open" : wantsChildren}`,
-    smoking && `smoking: ${smoking}`,
-    drinking && `drinking: ${drinking}`,
-  ];
-  const lifestyleHasContent = !!(wantsChildren || smoking || drinking || lifestylePrefCount);
-  const lifestyleSummary = lifestyleHasContent ? joinParts(lifestyleParts) : NOT_SET;
-
-  // How you communicate
-  const commParts = [
-    commDirectness && (commDirectness === "direct" ? "Direct" : "Softened"),
-    commLiteral && (commLiteral === "literal" ? "Literal" : "Playful"),
-    commCadence && (commCadence === "instant" ? "Quick replies" : commCadence === "daily" ? "Once a day" : "Whenever"),
-  ];
-  const communicateHasContent = !!(commDirectness || commLiteral || commCadence || contextCard.trim());
-  const communicateSummary = communicateHasContent ? joinParts(commParts) : NOT_SET;
-
-  // Sensory & environment
-  const sensoryParts = [
-    sensoryEnvironment && (sensoryEnvironment === "either" ? "either setting" : sensoryEnvironment),
-    sensoryLighting && `${sensoryLighting} lighting`,
-    socialDuration && (socialDuration === "short" ? "short meetups" : socialDuration === "long" ? "longer meetups" : "medium meetups"),
-  ];
-  const sensoryHasContent = !!(sensoryEnvironment || sensoryLighting || socialDuration);
-  const sensorySummary = sensoryHasContent ? joinParts(sensoryParts) : NOT_SET;
-
-  // Notifications
-  const NOTIF_LABEL = { in_app: "Off (in-app dot)", silent_push: "Silent push", name_only: "Name only" };
-  const notificationsSummary = NOTIF_LABEL[notifTier] || NOT_SET;
-  const notificationsHasContent = true; // always has a value
-
-  // Pause
-
-  // Identity verification
-  const verificationSummary = verified
-    ? "Reviewed"
-    : verificationRequested === "pending"
-      ? "Pending review"
-      : verificationRequested === "rejected"
-        ? "Not approved — you can re-request"
-        : NOT_SET;
-  const verificationHasContent = verified;
-
-  // Membership — reflects the current tier from app state (backend-owned; this is
-  // display + a link to the Membership screen only, never client-side gating).
+  // ── Group 3: Account — profile review (verification), notifications,
+  //    membership. Membership always resolves to a tier label, so this group's
+  //    summary is never empty; the ✓ is reserved for a reviewed profile.
   const isCompanion = tier === "companion";
   const membershipSummary = isCompanion ? "Spectrum Companion" : "Spectrum (Free)";
-  const membershipHasContent = isCompanion;
+  const accountHasContent = verified;
+  const accountSummary = joinParts([
+    verified
+      ? "Reviewed"
+      : verificationRequested === "pending"
+        ? "Review pending"
+        : verificationRequested === "rejected"
+          ? "Review not approved"
+          : "",
+    membershipSummary,
+  ]);
 
   // ── Header
   return (
@@ -3781,18 +3786,22 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           </div>
 
           {/* ══════════════════════════════════════════════════════
-              CARD — Prompts (Hinge-style)
+              GROUP 1 — About me (content others see). Opens to reveal all its
+              sub-sections as plain <h3> headed blocks in ONE calm scroll —
+              no nested accordions (double-hiding is the anti-pattern here).
           ══════════════════════════════════════════════════════ */}
           <CollapsibleSection
-            id="prompts"
-            title="Prompts"
-            summary={promptsSummary}
-            hasContent={promptsHasContent}
-            open={!!sectionOpen.prompts}
-            onToggle={() => toggleSection("prompts")}
+            id="aboutMe"
+            title="About me"
+            summary={aboutMeSummary}
+            hasContent={aboutMeHasContent}
+            open={!!sectionOpen.aboutMe}
+            onToggle={() => toggleSection("aboutMe")}
             headerStyle={h2Style}
             cardStyle={card}
           >
+            {/* ── Prompts ── */}
+            <SubHeading>Prompts</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
               Answer up to 3 prompts — an easy way to share who you are without a blank page.
             </p>
@@ -3823,99 +3832,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 />
               )
             )}
-          </CollapsibleSection>
 
-          {/* ══════════════════════════════════════════════════════
-              CARD — About me (F28: structured facets)
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="about"
-            title="About me"
-            summary={aboutSummary}
-            hasContent={aboutHasContent}
-            open={!!sectionOpen.about}
-            onToggle={() => toggleSection("about")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
-            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
-              A few optional details that give people predictable context. Share as much or as little as you like.
-            </p>
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
 
-            {/* Occupation / study */}
-            <div style={{ ...fieldGroup }}>
-              <FieldLabel htmlFor="occupation">Occupation or study</FieldLabel>
-              <input
-                id="occupation"
-                type="text"
-                maxLength={80}
-                aria-describedby="occupation-hint"
-                value={occupation}
-                onChange={(e) => setOccupation(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-                placeholder="e.g. Librarian · Studying biology"
-              />
-              <HelperText id="occupation-hint">
-                80 characters maximum. Optional.
-              </HelperText>
-            </div>
-
-            {/* Languages */}
-            <div style={{ ...fieldGroup }}>
-              <FieldLabel htmlFor="languages">Languages</FieldLabel>
-              <input
-                id="languages"
-                type="text"
-                maxLength={120}
-                aria-describedby="languages-hint"
-                value={languages}
-                onChange={(e) => setLanguages(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-                placeholder="e.g. English, ASL"
-              />
-              <HelperText id="languages-hint">
-                120 characters maximum. Optional.
-              </HelperText>
-            </div>
-
-            {/* Things that help me / are hard for me */}
-            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
-              <FacetListEditor
-                id="helps-me"
-                label="Things that help me"
-                helper="Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."
-                items={helpsMe}
-                onChange={setHelpsMe}
-                addLabel={helpsMe.length === 0 ? "Add something that helps" : "Add another"}
-              />
-              <FacetListEditor
-                id="hard-for-me"
-                label="Things that are hard for me"
-                helper="Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."
-                items={hardForMe}
-                onChange={setHardForMe}
-                addLabel={hardForMe.length === 0 ? "Add something that's hard" : "Add another"}
-              />
-            </div>
-          </CollapsibleSection>
-
-          {/* ══════════════════════════════════════════════════════
-              CARD 2 — Interests
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="interests"
-            title="Your interests"
-            summary={interestsSummary}
-            hasContent={interestsHasContent}
-            open={!!sectionOpen.interests}
-            onToggle={() => toggleSection("interests")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
+            {/* ── Interests ── */}
+            <SubHeading>Interests</SubHeading>
             <p
               id="interests-helper"
               style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}
@@ -4079,78 +4000,84 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 prefersReduced={prefersReduced}
               />
             </div>
-          </CollapsibleSection>
 
-          {/* ══════════════════════════════════════════════════════
-              CARD 3 — About your search
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="search"
-            title="About your search"
-            summary={searchSummary}
-            hasContent={searchHasContent}
-            open={!!sectionOpen.search}
-            onToggle={() => toggleSection("search")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
 
-            {/* Relationship goal */}
-            <fieldset
-              style={{
-                border: "none",
-                margin: "0 0 24px",
-                padding: 0,
-              }}
-            >
-              <legend
-                style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
-              >
-                What are you looking for?
-              </legend>
-              <div style={{ clear: "both" }}>
-                {[
-                  { value: "long-term", label: "Long-term relationship", desc: "This will be listed in the reasons why someone sees you." },
-                  { value: "friendship", label: "Friendship first", desc: "This will be listed in the reasons why someone sees you." },
-                  { value: "open", label: "Open to either", desc: "This will be listed in the reasons why someone sees you." },
-                ].map(({ value, label, desc }) => (
-                  <div key={value}>
-                    <label
-                      htmlFor={`rel-${value}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        minHeight: 44,
-                        cursor: "pointer",
-                        gap: 12,
-                        fontSize: 16,
-                        color: t.text,
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        id={`rel-${value}`}
-                        name="relationship-goal"
-                        value={value}
-                        checked={relGoal === value}
-                        aria-describedby={`rel-${value}-desc`}
-                        onChange={() => setRelGoal(value)}
-                        style={{ accentColor: t.accentStrong, width: 18, height: 18, flexShrink: 0 }}
-                      />
-                      <span>{label}</span>
-                    </label>
-                    <span
-                      id={`rel-${value}-desc`}
-                      style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
-                    >
-                      {desc}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </fieldset>
+            {/* ── More about you (F28 facets) ── */}
+            <SubHeading>More about you</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
+              A few optional details that give people predictable context. Share as much or as little as you like.
+            </p>
 
-            {/* Identity — gender, orientation, pronouns, who you want to meet */}
+            {/* Occupation / study */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="occupation">Occupation or study</FieldLabel>
+              <input
+                id="occupation"
+                type="text"
+                maxLength={80}
+                aria-describedby="occupation-hint"
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. Librarian · Studying biology"
+              />
+              <HelperText id="occupation-hint">
+                80 characters maximum. Optional.
+              </HelperText>
+            </div>
+
+            {/* Languages */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="languages">Languages</FieldLabel>
+              <input
+                id="languages"
+                type="text"
+                maxLength={120}
+                aria-describedby="languages-hint"
+                value={languages}
+                onChange={(e) => setLanguages(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. English, ASL"
+              />
+              <HelperText id="languages-hint">
+                120 characters maximum. Optional.
+              </HelperText>
+            </div>
+
+            {/* Things that help me / are hard for me */}
+            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <FacetListEditor
+                id="helps-me"
+                label="Things that help me"
+                helper="Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."
+                items={helpsMe}
+                onChange={setHelpsMe}
+                addLabel={helpsMe.length === 0 ? "Add something that helps" : "Add another"}
+              />
+              <FacetListEditor
+                id="hard-for-me"
+                label="Things that are hard for me"
+                helper="Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."
+                items={hardForMe}
+                onChange={setHardForMe}
+                addLabel={hardForMe.length === 0 ? "Add something that's hard" : "Add another"}
+              />
+            </div>
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Identity (moved out of the old "search" section — this is
+                content shown on your card, not a matching filter). ── */}
+            <SubHeading>Identity</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
+              All optional. Shown on your profile so people understand and address you correctly.
+            </p>
+
             <GenderField
               gender={gender}
               setGender={setGender}
@@ -4166,7 +4093,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               setRelationshipStructure={setRelStructure}
             />
 
-            <div style={fieldGroup}>
+            <div style={{ ...fieldGroup, marginBottom: 0 }}>
               <FieldLabel htmlFor="pronouns">Pronouns</FieldLabel>
               <input
                 id="pronouns"
@@ -4184,258 +4111,10 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </span>
             </div>
 
-            <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
-              <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
-                Who do you want to meet?
-              </legend>
-              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
-                Choose who you'd like to meet, or stay open to everyone.
-              </span>
-              {[
-                { value: "woman", label: "Women" },
-                { value: "man", label: "Men" },
-                { value: "nonbinary", label: "Nonbinary people" },
-              ].map(({ value, label }) => {
-                const set = seeking.split(",").map((s) => s.trim()).filter(Boolean);
-                const checked = set.includes(value);
-                return (
-                  <label key={value} htmlFor={`seek-${value}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer" }}>
-                    <input
-                      id={`seek-${value}`}
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        const next = checked ? set.filter((x) => x !== value) : [...set, value];
-                        setSeeking(next.join(","));
-                      }}
-                      style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
-                    />
-                    <span style={{ fontSize: 16, color: t.text }}>{label}</span>
-                  </label>
-                );
-              })}
-              {/* D-16 — explicit "open to everyone" affordance mapping to the
-                  existing empty-seeking (match-everyone) semantics. Checked
-                  whenever nothing is selected; selecting it clears the set. */}
-              {(() => {
-                const openToEveryone = seeking.split(",").map((s) => s.trim()).filter(Boolean).length === 0;
-                return (
-                  <label
-                    htmlFor="seek-everyone"
-                    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
-                  >
-                    <input
-                      id="seek-everyone"
-                      type="checkbox"
-                      checked={openToEveryone}
-                      onChange={() => { if (!openToEveryone) setSeeking(""); }}
-                      style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
-                    />
-                    <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
-                  </label>
-                );
-              })()}
-            </fieldset>
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
 
-            {/* Age range preference — dual-handle slider (replaces the two
-                number inputs that suffered the HTML min/max clamp bug) */}
-            <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
-              <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 2 }}>
-                Age range
-              </legend>
-              <AgeRangeSlider
-                low={prefAgeMin}
-                high={prefAgeMax}
-                onChange={(newLow, newHigh) => {
-                  setPrefAgeMin(newLow);
-                  setPrefAgeMax(newHigh);
-                }}
-              />
-              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
-                Only show people in this age range.
-              </span>
-            </fieldset>
-
-            {/* Distance city */}
-            <div style={{ ...fieldGroup, marginBottom: 0 }}>
-              <FieldLabel htmlFor="distance-city">Where are you based?</FieldLabel>
-              <input
-                id="distance-city"
-                type="text"
-                maxLength={100}
-                aria-describedby="distance-help"
-                value={distCity}
-                onChange={(e) => setDistCity(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-                placeholder="e.g. Phoenix, AZ"
-              />
-              <span
-                id="distance-help"
-                style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
-              >
-                Used to show people near you. Approximate is fine.
-              </span>
-            </div>
-
-            {/* Search radius — distance-based matching (miles from your location) */}
-            <div style={{ marginTop: 18 }}>
-              <FieldLabel htmlFor="search-radius">Search radius</FieldLabel>
-              <select
-                id="search-radius"
-                aria-describedby="radius-help"
-                value={searchRadius}
-                onChange={(e) => setSearchRadius(Number(e.target.value))}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-              >
-                <option value={0}>Anywhere</option>
-                <option value={25}>Within 25 miles</option>
-                <option value={50}>Within 50 miles</option>
-                <option value={100}>Within 100 miles</option>
-                <option value={250}>Within 250 miles</option>
-              </select>
-              <span
-                id="radius-help"
-                style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
-              >
-                Only show people within this distance. Set your location above for this to apply.
-              </span>
-              {/* G4: honest note when we can't place this city on the map, so the
-                  radius won't silently do nothing. Calm, no urgency. */}
-              {distCity.trim() && !locationGeocodable && (
-                <p
-                  style={{
-                    margin: "10px 0 0",
-                    fontSize: 14,
-                    color: t.textSoft,
-                    background: t.surfaceAlt,
-                    border: `1px solid ${t.borderLight}`,
-                    borderRadius: 10,
-                    padding: "10px 12px",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  We can’t apply distance for your area yet — you’ll see people from everywhere.
-                </p>
-              )}
-            </div>
-          </CollapsibleSection>
-
-          {/* ══════════════════════════════════════════════════════
-              CARD — Lifestyle
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="lifestyle"
-            title="Lifestyle"
-            summary={lifestyleSummary}
-            hasContent={lifestyleHasContent}
-            open={!!sectionOpen.lifestyle}
-            onToggle={() => toggleSection("lifestyle")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
-            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
-              All optional. Anything you share here is shown on your profile.
-            </p>
-
-            <LifestyleSelect
-              id="wants-children"
-              label="Do you want children?"
-              helper="Optional — shown on your profile."
-              value={wantsChildren}
-              onChange={setWantsChildren}
-              options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-                { value: "open", label: "Open to it" },
-              ]}
-            />
-
-            <LifestyleSelect
-              id="smoking"
-              label="Smoking"
-              helper="Optional — shown on your profile."
-              value={smoking}
-              onChange={setSmoking}
-              options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "no", label: "No" },
-                { value: "sometimes", label: "Sometimes" },
-                { value: "yes", label: "Yes" },
-              ]}
-            />
-
-            <LifestyleSelect
-              id="drinking"
-              label="Drinking"
-              helper="Optional — shown on your profile."
-              value={drinking}
-              onChange={setDrinking}
-              options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "no", label: "No" },
-                { value: "sometimes", label: "Sometimes" },
-                { value: "yes", label: "Yes" },
-              ]}
-            />
-
-            {/* Deal-breakers subsection */}
-            <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
-              <h3
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: t.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  margin: "0 0 6px",
-                }}
-              >
-                Deal-breakers
-              </h3>
-              <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 16px", lineHeight: 1.6 }}>
-                Deal-breakers hide people who clearly don't match. People who haven't said yet still show up.
-              </p>
-
-              <DealBreakerToggle
-                id="db-wants-children"
-                label="Only show me people who feel the same about children"
-                checked={dbWantsChildren}
-                onChange={setDbWantsChildren}
-              />
-              <DealBreakerToggle
-                id="db-non-smoker"
-                label="Only show me non-smokers"
-                checked={dbNonSmoker}
-                onChange={setDbNonSmoker}
-              />
-              <DealBreakerToggle
-                id="db-must-be-local"
-                label="Only show me people in my city"
-                checked={dbMustBeLocal}
-                onChange={setDbMustBeLocal}
-              />
-            </div>
-          </CollapsibleSection>
-
-          {/* ══════════════════════════════════════════════════════
-              CARD — How you communicate (moat: comms-style + context card)
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="communicate"
-            title="How you communicate"
-            summary={communicateSummary}
-            hasContent={communicateHasContent}
-            open={!!sectionOpen.communicate}
-            onToggle={() => toggleSection("communicate")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
-
+            {/* ── How I communicate (moat: comms-style + context card) ── */}
+            <SubHeading>How I communicate</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
               This helps matches know how to talk with you. Optional.
             </p>
@@ -4515,23 +4194,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 {contextCardTouched ? `${300 - contextCard.length} remaining` : ""}
               </div>
             </div>
-          </CollapsibleSection>
 
-          {/* ══════════════════════════════════════════════════════
-              CARD — Sensory & environment (moat: sensory prefs)
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="sensory"
-            title="Sensory & environment"
-            summary={sensorySummary}
-            hasContent={sensoryHasContent}
-            open={!!sectionOpen.sensory}
-            onToggle={() => toggleSection("sensory")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Sensory & social (moat: sensory prefs) ── */}
+            <SubHeading>Sensory &amp; social</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
-              This helps matches know how to talk with you. Optional.
+              This helps matches know what settings feel good to you. Optional.
             </p>
 
             <LifestyleSelect
@@ -4575,62 +4244,94 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 { value: "long", label: "Longer is fine" },
               ]}
             />
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Lifestyle (attributes you DISPLAY — the deal-breaker filters
+                that used to sit here moved to "Looking for"). ── */}
+            <SubHeading>Lifestyle</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
+              All optional. Anything you share here is shown on your profile.
+            </p>
+
+            <LifestyleSelect
+              id="wants-children"
+              label="Do you want children?"
+              helper="Optional — shown on your profile."
+              value={wantsChildren}
+              onChange={setWantsChildren}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+                { value: "open", label: "Open to it" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="smoking"
+              label="Smoking"
+              helper="Optional — shown on your profile."
+              value={smoking}
+              onChange={setSmoking}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "no", label: "No" },
+                { value: "sometimes", label: "Sometimes" },
+                { value: "yes", label: "Yes" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="drinking"
+              label="Drinking"
+              helper="Optional — shown on your profile."
+              value={drinking}
+              onChange={setDrinking}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "no", label: "No" },
+                { value: "sometimes", label: "Sometimes" },
+                { value: "yes", label: "Yes" },
+              ]}
+            />
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
-              CARD 4 — Notifications
+              GROUP 2 — Looking for (your matching preferences/filters).
+              Relationship goal leads (it answers "what you want"), then who to
+              meet, age range, location & distance, and the deal-breaker filters
+              pulled out of the old Lifestyle section.
           ══════════════════════════════════════════════════════ */}
           <CollapsibleSection
-            id="notifications"
-            title="Notifications"
-            summary={notificationsSummary}
-            hasContent={notificationsHasContent}
-            open={!!sectionOpen.notifications}
-            onToggle={() => toggleSection("notifications")}
+            id="lookingFor"
+            title="Looking for"
+            summary={lookingForSummary}
+            hasContent={lookingForHasContent}
+            open={!!sectionOpen.lookingFor}
+            onToggle={() => toggleSection("lookingFor")}
             headerStyle={h2Style}
             cardStyle={card}
           >
-            <NotificationToggle
-              enabled={pushEnabled}
-              supported={pushSupported}
-              onEnable={onEnablePush}
-              onDisable={onDisablePush}
-            />
-
-            {pushSupported && <div style={{ height: 20 }} />}
-
-            {/* P-18, P-19: fieldset + legend + per-radio describedby */}
-            <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
-              <legend
-                style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
-              >
-                Notification style
-              </legend>
+            {/* ── What I'm looking for (relationship goal) ── */}
+            <SubHeading>What I'm looking for</SubHeading>
+            <fieldset
+              style={{
+                border: "none",
+                margin: "0 0 24px",
+                padding: 0,
+              }}
+            >
+              <legend style={srOnly}>What are you looking for?</legend>
               <div style={{ clear: "both" }}>
                 {[
-                  {
-                    value: "in_app",
-                    id: "notif-off",
-                    label: "Off",
-                    desc: "You'll see a dot when you have new messages. Nothing will appear on your lock screen.",
-                  },
-                  {
-                    value: "silent_push",
-                    id: "notif-silent",
-                    label: "Silent push",
-                    desc: "Your phone will nudge you, but without showing any text.",
-                  },
-                  {
-                    value: "name_only",
-                    id: "notif-name",
-                    label: "Name only",
-                    desc: "Your phone shows who messaged you, but not what they said.",
-                  },
-                ].map(({ value, id, label, desc }) => (
-                  <div key={value} style={{ marginBottom: 8 }}>
-                    {/* P-20: entire row is touch target */}
+                  { value: "long-term", label: "Long-term relationship", desc: "This will be listed in the reasons why someone sees you." },
+                  { value: "friendship", label: "Friendship first", desc: "This will be listed in the reasons why someone sees you." },
+                  { value: "open", label: "Open to either", desc: "This will be listed in the reasons why someone sees you." },
+                ].map(({ value, label, desc }) => (
+                  <div key={value}>
                     <label
-                      htmlFor={id}
+                      htmlFor={`rel-${value}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -4643,19 +4344,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     >
                       <input
                         type="radio"
-                        id={id}
-                        name="notification-tier"
+                        id={`rel-${value}`}
+                        name="relationship-goal"
                         value={value}
-                        checked={notifTier === value}
-                        aria-describedby={`${id}-desc`}
-                        onChange={() => setNotifTier(value)}
+                        checked={relGoal === value}
+                        aria-describedby={`rel-${value}-desc`}
+                        onChange={() => setRelGoal(value)}
                         style={{ accentColor: t.accentStrong, width: 18, height: 18, flexShrink: 0 }}
                       />
                       <span>{label}</span>
                     </label>
-                    {/* P-19: always in DOM */}
                     <span
-                      id={`${id}-desc`}
+                      id={`rel-${value}-desc`}
                       style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
                     >
                       {desc}
@@ -4664,26 +4364,197 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 ))}
               </div>
             </fieldset>
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Who I want to meet ── */}
+            <SubHeading>Who I want to meet</SubHeading>
+            <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+              <legend style={srOnly}>Who do you want to meet?</legend>
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
+                Choose who you'd like to meet, or stay open to everyone.
+              </span>
+              {[
+                { value: "woman", label: "Women" },
+                { value: "man", label: "Men" },
+                { value: "nonbinary", label: "Nonbinary people" },
+              ].map(({ value, label }) => {
+                const set = seeking.split(",").map((s) => s.trim()).filter(Boolean);
+                const checked = set.includes(value);
+                return (
+                  <label key={value} htmlFor={`seek-${value}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer" }}>
+                    <input
+                      id={`seek-${value}`}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = checked ? set.filter((x) => x !== value) : [...set, value];
+                        setSeeking(next.join(","));
+                      }}
+                      style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 16, color: t.text }}>{label}</span>
+                  </label>
+                );
+              })}
+              {/* D-16 — explicit "open to everyone" affordance mapping to the
+                  existing empty-seeking (match-everyone) semantics. Checked
+                  whenever nothing is selected; selecting it clears the set. */}
+              {(() => {
+                const openToEveryone = seeking.split(",").map((s) => s.trim()).filter(Boolean).length === 0;
+                return (
+                  <label
+                    htmlFor="seek-everyone"
+                    style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
+                  >
+                    <input
+                      id="seek-everyone"
+                      type="checkbox"
+                      checked={openToEveryone}
+                      onChange={() => { if (!openToEveryone) setSeeking(""); }}
+                      style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
+                  </label>
+                );
+              })()}
+            </fieldset>
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Age range ── */}
+            <SubHeading>Age range</SubHeading>
+            <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+              <legend style={srOnly}>Age range</legend>
+              <AgeRangeSlider
+                low={prefAgeMin}
+                high={prefAgeMax}
+                onChange={(newLow, newHigh) => {
+                  setPrefAgeMin(newLow);
+                  setPrefAgeMax(newHigh);
+                }}
+              />
+              <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
+                Only show people in this age range.
+              </span>
+            </fieldset>
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Location & distance ── */}
+            <SubHeading>Location &amp; distance</SubHeading>
+
+            {/* Distance city */}
+            <div style={{ ...fieldGroup }}>
+              <FieldLabel htmlFor="distance-city">Where are you based?</FieldLabel>
+              <input
+                id="distance-city"
+                type="text"
+                maxLength={100}
+                aria-describedby="distance-help"
+                value={distCity}
+                onChange={(e) => setDistCity(e.target.value)}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+                placeholder="e.g. Phoenix, AZ"
+              />
+              <span
+                id="distance-help"
+                style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
+              >
+                Used to show people near you. Approximate is fine.
+              </span>
+            </div>
+
+            {/* Search radius — distance-based matching (miles from your location) */}
+            <div style={{ marginTop: 18 }}>
+              <FieldLabel htmlFor="search-radius">Search radius</FieldLabel>
+              <select
+                id="search-radius"
+                aria-describedby="radius-help"
+                value={searchRadius}
+                onChange={(e) => setSearchRadius(Number(e.target.value))}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={inputStyle(false)}
+              >
+                <option value={0}>Anywhere</option>
+                <option value={25}>Within 25 miles</option>
+                <option value={50}>Within 50 miles</option>
+                <option value={100}>Within 100 miles</option>
+                <option value={250}>Within 250 miles</option>
+              </select>
+              <span
+                id="radius-help"
+                style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
+              >
+                Only show people within this distance. Set your location above for this to apply.
+              </span>
+              {/* G4: honest note when we can't place this city on the map, so the
+                  radius won't silently do nothing. Calm, no urgency. */}
+              {distCity.trim() && !locationGeocodable && (
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    fontSize: 14,
+                    color: t.textSoft,
+                    background: t.surfaceAlt,
+                    border: `1px solid ${t.borderLight}`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  We can’t apply distance for your area yet — you’ll see people from everywhere.
+                </p>
+              )}
+            </div>
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Deal-breakers (filters moved out of the old Lifestyle section) ── */}
+            <SubHeading>Deal-breakers</SubHeading>
+            <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 16px", lineHeight: 1.6 }}>
+              Deal-breakers hide people who clearly don't match. People who haven't said yet still show up.
+            </p>
+
+            <DealBreakerToggle
+              id="db-wants-children"
+              label="Only show me people who feel the same about children"
+              checked={dbWantsChildren}
+              onChange={setDbWantsChildren}
+            />
+            <DealBreakerToggle
+              id="db-non-smoker"
+              label="Only show me non-smokers"
+              checked={dbNonSmoker}
+              onChange={setDbNonSmoker}
+            />
+            <DealBreakerToggle
+              id="db-must-be-local"
+              label="Only show me people in my city"
+              checked={dbMustBeLocal}
+              onChange={setDbMustBeLocal}
+            />
           </CollapsibleSection>
 
-          {/* JRN-2 — the redundant collapsed "Pause my profile" section was
-              removed. The single, discoverable "Take a break" card near the top
-              of Profile (handleInstantPauseToggle) is now the ONE pause control,
-              so there's no duplicate/confusing second switch here. */}
-
           {/* ══════════════════════════════════════════════════════
-              CARD — Identity verification
+              GROUP 3 — Account (settings, not "about you"): profile review,
+              notifications, membership.
           ══════════════════════════════════════════════════════ */}
           <CollapsibleSection
-            id="verification"
-            title="Profile review"
-            summary={verificationSummary}
-            hasContent={verificationHasContent}
-            open={!!sectionOpen.verification}
-            onToggle={() => toggleSection("verification")}
+            id="account"
+            title="Account"
+            summary={accountSummary}
+            hasContent={accountHasContent}
+            open={!!sectionOpen.account}
+            onToggle={() => toggleSection("account")}
             headerStyle={h2Style}
             cardStyle={card}
           >
+            {/* ── Profile review (identity verification) ── */}
+            <SubHeading>Profile review</SubHeading>
             {verified ? (
               <p style={{ margin: 0, fontSize: 16, color: t.positive, fontWeight: 600, lineHeight: 1.6 }}>
                 <span aria-hidden="true">✓</span> Your profile has been reviewed by our team.
@@ -4761,23 +4632,92 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 </button>
               </>
             )}
-          </CollapsibleSection>
 
-          {/* ══════════════════════════════════════════════════════
-              CARD — Membership (its home; the Settings row was retired).
-              Shows the current tier + a link into the Membership screen.
-              Entitlement stays backend-owned — this is display + navigation only.
-          ══════════════════════════════════════════════════════ */}
-          <CollapsibleSection
-            id="membership"
-            title="Membership"
-            summary={membershipSummary}
-            hasContent={membershipHasContent}
-            open={!!sectionOpen.membership}
-            onToggle={() => toggleSection("membership")}
-            headerStyle={h2Style}
-            cardStyle={card}
-          >
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Notifications ── */}
+            <SubHeading>Notifications</SubHeading>
+            <NotificationToggle
+              enabled={pushEnabled}
+              supported={pushSupported}
+              onEnable={onEnablePush}
+              onDisable={onDisablePush}
+            />
+
+            {pushSupported && <div style={{ height: 20 }} />}
+
+            {/* P-18, P-19: fieldset + legend + per-radio describedby */}
+            <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+              <legend
+                style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
+              >
+                Notification style
+              </legend>
+              <div style={{ clear: "both" }}>
+                {[
+                  {
+                    value: "in_app",
+                    id: "notif-off",
+                    label: "Off",
+                    desc: "You'll see a dot when you have new messages. Nothing will appear on your lock screen.",
+                  },
+                  {
+                    value: "silent_push",
+                    id: "notif-silent",
+                    label: "Silent push",
+                    desc: "Your phone will nudge you, but without showing any text.",
+                  },
+                  {
+                    value: "name_only",
+                    id: "notif-name",
+                    label: "Name only",
+                    desc: "Your phone shows who messaged you, but not what they said.",
+                  },
+                ].map(({ value, id, label, desc }) => (
+                  <div key={value} style={{ marginBottom: 8 }}>
+                    {/* P-20: entire row is touch target */}
+                    <label
+                      htmlFor={id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        minHeight: 44,
+                        cursor: "pointer",
+                        gap: 12,
+                        fontSize: 16,
+                        color: t.text,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        id={id}
+                        name="notification-tier"
+                        value={value}
+                        checked={notifTier === value}
+                        aria-describedby={`${id}-desc`}
+                        onChange={() => setNotifTier(value)}
+                        style={{ accentColor: t.accentStrong, width: 18, height: 18, flexShrink: 0 }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                    {/* P-19: always in DOM */}
+                    <span
+                      id={`${id}-desc`}
+                      style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
+                    >
+                      {desc}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+
+            <SectionRule style={SUBSECTION_RULE_STYLE} />
+
+            {/* ── Membership (its home; the Settings row was retired). Shows the
+                current tier + a link into the Membership screen. Entitlement
+                stays backend-owned — this is display + navigation only. ── */}
+            <SubHeading>Membership</SubHeading>
             <p style={{ margin: "0 0 14px", fontSize: 16, color: t.textSoft, lineHeight: 1.7 }}>
               {isCompanion
                 ? "You're on Spectrum Companion. Matching, messaging, and safety always stay free — Companion only adds comfort and capability on top."

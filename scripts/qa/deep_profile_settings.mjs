@@ -14,6 +14,18 @@ async function run(acct, theme) {
   await page.waitForTimeout(1500);
   check(`[${theme}] Profile screen loaded`, (await page.getByText(/pause my profile/i).count()) > 0);
 
+  // Age range now lives inside the "Looking for" GROUP (post-regroup). Open it
+  // first so the slider thumbs are visible/focusable — a display:none (hidden
+  // panel) thumb can't take keyboard focus. Open only if collapsed.
+  const lookingForGrp = page.getByRole("button", { name: /^Looking for/i }).first();
+  if (await lookingForGrp.count()) {
+    await lookingForGrp.scrollIntoViewIfNeeded();
+    if ((await lookingForGrp.getAttribute("aria-expanded")) !== "true") {
+      await lookingForGrp.click();
+      await page.waitForTimeout(400);
+    }
+  }
+
   // AgeRangeSlider now supports Home/End/PageUp/PageDown (not just arrows).
   // Assert Home jumps the min thumb to the floor (18) and End jumps the max
   // thumb to the ceiling (99), respecting the two-thumb clamp + aria-valuenow.
