@@ -10,6 +10,7 @@ import SpectrumMark from "./SpectrumMark.jsx";
 import ReportModal from "./ReportModal.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
+import { genderLabel } from "./IdentityFields.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 
 // The current viewer's identity for the match moment — name/photo from the
@@ -438,6 +439,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           memberId: c.memberId,
           displayName: c.displayName,
           pronouns: c.pronouns || '',
+          gender: c.gender || '',
+          genderCustom: c.genderCustom || '',
           age: c.age || null,
           tagline: c.tagline || '',
           bio: c.bio || '',
@@ -1033,6 +1036,25 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                       {person.pronouns}
                     </div>
                   )}
+                  {(() => {
+                    const g = person.gender === "other" && person.genderCustom
+                      ? person.genderCustom
+                      : genderLabel(person.gender);
+                    return g ? (
+                      <span style={{
+                        display: "inline-block",
+                        marginTop: 4,
+                        padding: "3px 10px",
+                        borderRadius: 20,
+                        background: t.surfaceAlt,
+                        color: t.textSoft,
+                        fontSize: 13,
+                        fontWeight: 500,
+                      }}>
+                        {g}
+                      </span>
+                    ) : null;
+                  })()}
                   <p style={{
                     fontFamily: t.serif,
                     fontSize: 16,

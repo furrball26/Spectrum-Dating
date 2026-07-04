@@ -4,6 +4,7 @@ import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
+import { GenderField, OrientationField } from "./IdentityFields.jsx";
 
 
 function usePrefersReduced() {
@@ -778,6 +779,8 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
 
 function Step4({
   gender, setGender,
+  genderCustom, setGenderCustom,
+  orientation, setOrientation,
   pronouns, setPronouns,
   seeking, setSeeking,
   prefAgeMin, prefAgeMax, setPrefAgeMin, setPrefAgeMax,
@@ -791,19 +794,15 @@ function Step4({
         skip and adjust anytime in your profile.
       </p>
 
-      <LabelledSelect
-        id="ob-gender"
-        label="Your gender"
-        value={gender}
-        onChange={setGender}
-        options={[
-          { value: "", label: "Prefer not to say" },
-          { value: "woman", label: "Woman" },
-          { value: "man", label: "Man" },
-          { value: "nonbinary", label: "Nonbinary" },
-          { value: "other", label: "Other" },
-        ]}
+      <GenderField
+        gender={gender}
+        setGender={setGender}
+        genderCustom={genderCustom}
+        setGenderCustom={setGenderCustom}
+        idPrefix="ob-gender"
       />
+
+      <OrientationField orientation={orientation} setOrientation={setOrientation} />
 
       <div style={{ marginBottom: 20 }}>
         <FieldLabel htmlFor="ob-pronouns">Pronouns</FieldLabel>
@@ -957,6 +956,8 @@ export default function OnboardingScreen({ onComplete }) {
 
   // Step 4 fields — who you'd like to meet (optional)
   const [gender, setGender] = useState("");
+  const [genderCustom, setGenderCustom] = useState(""); // self-describe free text
+  const [orientation, setOrientation] = useState(""); // comma-joined; display only
   const [pronouns, setPronouns] = useState("");
   const [seeking, setSeeking] = useState(""); // comma-joined: "woman,man,nonbinary"
   const [prefAgeMin, setPrefAgeMin] = useState(18);
@@ -1060,6 +1061,8 @@ export default function OnboardingScreen({ onComplete }) {
         relationshipGoal,
         // Step 4 — who you'd like to meet (optional)
         gender,
+        genderCustom,
+        orientation,
         pronouns,
         seeking,
         prefAgeMin,
@@ -1300,6 +1303,10 @@ export default function OnboardingScreen({ onComplete }) {
           <Step4
             gender={gender}
             setGender={setGender}
+            genderCustom={genderCustom}
+            setGenderCustom={setGenderCustom}
+            orientation={orientation}
+            setOrientation={setOrientation}
             pronouns={pronouns}
             setPronouns={setPronouns}
             seeking={seeking}

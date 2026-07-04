@@ -5,6 +5,7 @@ import { commChips } from "./commChips.js";
 import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
+import { genderLabel, orientationLabels } from "./IdentityFields.jsx";
 
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
@@ -123,6 +124,23 @@ export default function MatchProfileModal({ userId, onClose }) {
                 {profile.verified && <VerifiedBadge style={{ marginLeft: 10, position: "relative", top: -3 }} />}
               </h1>
               {profile.pronouns && <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 2 }}>{profile.pronouns}</div>}
+              {(() => {
+                const g = profile.gender === "other" && profile.genderCustom
+                  ? profile.genderCustom
+                  : genderLabel(profile.gender);
+                const orients = orientationLabels(profile.orientation);
+                if (!g && orients.length === 0) return null;
+                return (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 2px" }}>
+                    {g && (
+                      <span style={{ padding: "3px 11px", borderRadius: 20, fontSize: 13, fontWeight: 500, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}>{g}</span>
+                    )}
+                    {orients.map((o) => (
+                      <span key={o} style={{ padding: "3px 11px", borderRadius: 20, fontSize: 13, fontWeight: 500, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}>{o}</span>
+                    ))}
+                  </div>
+                );
+              })()}
               {profile.tagline && <p style={{ fontFamily: t.serif, fontStyle: "italic", fontSize: 16, color: t.textSoft, margin: "2px 0 6px" }}>{profile.tagline}</p>}
               {profile.distCity && <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 10 }}>Near {profile.distCity}</div>}
 

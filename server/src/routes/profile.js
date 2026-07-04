@@ -78,8 +78,48 @@ function validateFacetList(val, label, errors) {
 
 const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
 const VALID_RADII = [0, 25, 50, 100, 250]; // miles; 0 = anywhere (no radius filter)
-const VALID_GENDERS = ['', 'woman', 'man', 'nonbinary', 'other'];
+// D-11/D-12 — expanded gender ENUM (DISPLAY). The three legacy core values plus
+// 'other'/'' are kept; the rest are new self-identify options. This is what the
+// user sees on their profile — it is NOT what matching filters on.
+const VALID_GENDERS = [
+  '', 'woman', 'man', 'nonbinary', 'other',
+  'agender', 'genderfluid', 'genderqueer', 'trans-man', 'trans-woman',
+  'two-spirit', 'bigender', 'intersex', 'questioning',
+];
+// GENDER_GROUP — the ONLY thing matching reads. Collapses every expanded gender
+// down to the 3-value matchable core (or '' = no core, sought by no one and
+// seeking-agnostic). trans-man is sought by people seeking men; trans-woman by
+// people seeking women; every other non-binary identity (and legacy 'other',
+// previously a matching dead-end) folds into 'nonbinary'.
+const GENDER_GROUP = {
+  '': '',
+  woman: 'woman',
+  man: 'man',
+  nonbinary: 'nonbinary',
+  'trans-man': 'man',
+  'trans-woman': 'woman',
+  agender: 'nonbinary',
+  genderfluid: 'nonbinary',
+  genderqueer: 'nonbinary',
+  bigender: 'nonbinary',
+  'two-spirit': 'nonbinary',
+  intersex: 'nonbinary',
+  questioning: 'nonbinary',
+  other: 'nonbinary',
+};
+// Derive the matchable-core group from a (validated) expanded gender. Unknown
+// input collapses to '' — never leak an un-cored value into matching.
+export function genderGroupFor(gender) {
+  return Object.prototype.hasOwnProperty.call(GENDER_GROUP, gender) ? GENDER_GROUP[gender] : '';
+}
+const MAX_GENDER_CUSTOM = 40;
 const SEEKING_TOKENS = ['woman', 'man', 'nonbinary']; // '' = open to everyone
+// D-13 — sexual orientation (DISPLAY ONLY; never wired into candidates.js).
+// comma-joined multi-select mirroring the proven `seeking` serialisation.
+const ORIENTATION_TOKENS = [
+  'straight', 'gay', 'lesbian', 'bisexual', 'pansexual',
+  'asexual', 'demisexual', 'queer', 'questioning',
+];
 const VALID_RELATIONSHIP_GOALS = ['', 'long-term', 'friendship', 'open'];
 const VALID_WANTS_CHILDREN = ['', 'yes', 'no', 'open'];
 const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
@@ -140,6 +180,9 @@ router.get('/me', requireAuth, (req, res) => {
     distCity: profile.dist_city,
     searchRadiusMiles: profile.search_radius_miles ?? 0,
     gender: profile.gender || '',
+    genderCustom: profile.gender_custom || '',
+    genderGroup: profile.gender_group || '',
+    orientation: profile.orientation || '',
     pronouns: profile.pronouns || '',
     seeking: profile.seeking || '',
     prefAgeMin: profile.pref_age_min ?? 18,
@@ -258,6 +301,28 @@ router.put('/me', requireAuth, (req, res) => {
   if (body.gender !== undefined) {
     if (!VALID_GENDERS.includes(body.gender)) {
       errors.push(`gender must be one of: ${VALID_GENDERS.filter(Boolean).join(', ')} (or empty).`);
+    }
+  }
+  // Self-describe free text: capped + slur-screened (same calm, non-shaming copy
+  // as display names). Empty string clears it.
+  if (body.genderCustom !== undefined) {
+    if (typeof body.genderCustom !== 'string') {
+      errors.push('genderCustom must be a string.');
+    } else if (body.genderCustom.length > MAX_GENDER_CUSTOM) {
+      errors.push(`genderCustom must be ${MAX_GENDER_CUSTOM} characters or fewer.`);
+    } else if (containsSlur(body.genderCustom)) {
+      errors.push('Please describe your gender without offensive language.');
+    }
+  }
+  // D-13 orientation — DISPLAY ONLY. Validated like `seeking`; never affects the deck.
+  if (body.orientation !== undefined) {
+    if (typeof body.orientation !== 'string') {
+      errors.push('orientation must be a comma-separated string.');
+    } else {
+      const toks = body.orientation.split(',').map(s => s.trim()).filter(Boolean);
+      if (!toks.every(t => ORIENTATION_TOKENS.includes(t))) {
+        errors.push(`orientation tokens must be from: ${ORIENTATION_TOKENS.join(', ')}.`);
+      }
     }
   }
   const validAge = (v) => Number.isInteger(v) && v >= 18 && v <= 99;
@@ -395,6 +460,7 @@ router.put('/me', requireAuth, (req, res) => {
     distCity: 'dist_city',
     searchRadiusMiles: 'search_radius_miles',
     gender: 'gender',
+    genderCustom: 'gender_custom',
     pronouns: 'pronouns',
     seeking: 'seeking',
     prefAgeMin: 'pref_age_min',
@@ -456,6 +522,23 @@ router.put('/me', requireAuth, (req, res) => {
     values.push(serializeFacetList(body.hardForMe));
   }
 
+  // D-12 — whenever gender changes, recompute the stored matchable-core group.
+  // This is the ONLY column matching reads, so it MUST stay in lock-step with
+  // the expanded `gender` display value.
+  if (body.gender !== undefined) {
+    setClauses.push('gender_group = ?');
+    values.push(genderGroupFor(body.gender));
+  }
+  // D-13 orientation — normalise to a clean, de-duplicated comma-join of valid
+  // tokens (mirrors how we treat `seeking`). Display only.
+  if (body.orientation !== undefined) {
+    const toks = [...new Set(
+      body.orientation.split(',').map(s => s.trim()).filter(t => ORIENTATION_TOKENS.includes(t))
+    )];
+    setClauses.push('orientation = ?');
+    values.push(toks.join(','));
+  }
+
   const now = Date.now();
 
   db.transaction(() => {
@@ -490,6 +573,9 @@ router.put('/me', requireAuth, (req, res) => {
     distCity: profile.dist_city,
     searchRadiusMiles: profile.search_radius_miles ?? 0,
     gender: profile.gender || '',
+    genderCustom: profile.gender_custom || '',
+    genderGroup: profile.gender_group || '',
+    orientation: profile.orientation || '',
     pronouns: profile.pronouns || '',
     seeking: profile.seeking || '',
     prefAgeMin: profile.pref_age_min ?? 18,
@@ -602,6 +688,11 @@ router.get('/:userId', requireAuth, (req, res) => {
     tagline: profile.tagline || '',
     bio: profile.bio || '',
     pronouns: profile.pronouns || '',
+    // D-11/D-13 display: expanded gender (+ self-describe text when set) and
+    // display-only orientation. gender_group is internal (matching) — never leaked.
+    gender: profile.gender || '',
+    genderCustom: profile.gender_custom || '',
+    orientation: profile.orientation || '',
     age,
     distCity,
     verified: !!profile.identity_verified,

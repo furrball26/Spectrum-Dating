@@ -7,6 +7,7 @@ import Avatar from "./Avatar.jsx";
 import SectionRule from "./SectionRule.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
+import { GenderField, OrientationField } from "./IdentityFields.jsx";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -185,6 +186,8 @@ const DEFAULT_PROFILE = {
   distanceCity: "",
   searchRadiusMiles: 0,
   gender: "",
+  genderCustom: "",
+  orientation: "",
   pronouns: "",
   seeking: "",
   prefAgeMin: 18,
@@ -2248,6 +2251,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   // before the profile loads. Set from GET /profile/me's locationGeocodable.
   const [locationGeocodable, setLocationGeocodable] = useState(true);
   const [gender, setGender]           = useState(DEFAULT_PROFILE.gender);
+  const [genderCustom, setGenderCustom] = useState(DEFAULT_PROFILE.genderCustom);
+  const [orientation, setOrientation] = useState(DEFAULT_PROFILE.orientation);
   const [pronouns, setPronouns]       = useState(DEFAULT_PROFILE.pronouns);
   const [seeking, setSeeking]         = useState(DEFAULT_PROFILE.seeking);
   const [prefAgeMin, setPrefAgeMin]   = useState(DEFAULT_PROFILE.prefAgeMin);
@@ -2374,6 +2379,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           distanceCity: data.distCity || '',
           searchRadiusMiles: data.searchRadiusMiles ?? 0,
           gender: data.gender || '',
+          genderCustom: data.genderCustom || '',
+          orientation: data.orientation || '',
           pronouns: data.pronouns || '',
           seeking: data.seeking || '',
           prefAgeMin: data.prefAgeMin ?? 18,
@@ -2408,6 +2415,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setSearchRadius(merged.searchRadiusMiles ?? 0);
         setLocationGeocodable(data.locationGeocodable !== false);
         setGender(merged.gender || '');
+        setGenderCustom(merged.genderCustom || '');
+        setOrientation(merged.orientation || '');
         setPronouns(merged.pronouns || '');
         setSeeking(merged.seeking || '');
         setPrefAgeMin(merged.prefAgeMin ?? 18);
@@ -2478,6 +2487,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         distCity         !== savedProfile.distanceCity ||
         searchRadius     !== savedProfile.searchRadiusMiles ||
         gender           !== savedProfile.gender ||
+        genderCustom     !== savedProfile.genderCustom ||
+        orientation      !== savedProfile.orientation ||
         pronouns         !== savedProfile.pronouns ||
         seeking          !== savedProfile.seeking ||
         prefAgeMin       !== savedProfile.prefAgeMin ||
@@ -2506,7 +2517,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
+  }, [displayName, tagline, bio, interests, commNote, relGoal, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
 
   // ── Initialise collapsible-section open state once the profile has loaded.
   // Persisted manual choices win; otherwise apply the state-aware defaults from
@@ -2871,6 +2882,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       distanceCity: distCity,
       searchRadiusMiles: searchRadius,
       gender,
+      genderCustom,
+      orientation,
       pronouns,
       seeking,
       prefAgeMin,
@@ -2907,6 +2920,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         distCity: currentProfile.distanceCity,
         searchRadiusMiles: currentProfile.searchRadiusMiles,
         gender: currentProfile.gender,
+        genderCustom: currentProfile.genderCustom,
+        orientation: currentProfile.orientation,
         pronouns: currentProfile.pronouns,
         seeking: currentProfile.seeking,
         prefAgeMin: currentProfile.prefAgeMin,
@@ -3865,24 +3880,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </div>
             </fieldset>
 
-            {/* Identity — gender, pronouns, who you want to meet */}
-            <div style={fieldGroup}>
-              <FieldLabel htmlFor="gender">Gender</FieldLabel>
-              <select
-                id="gender"
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-                onBlur={(e) => { e.target.style.outline = "none"; }}
-                style={inputStyle(false)}
-              >
-                <option value="">Prefer not to say</option>
-                <option value="woman">Woman</option>
-                <option value="man">Man</option>
-                <option value="nonbinary">Nonbinary</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+            {/* Identity — gender, orientation, pronouns, who you want to meet */}
+            <GenderField
+              gender={gender}
+              setGender={setGender}
+              genderCustom={genderCustom}
+              setGenderCustom={setGenderCustom}
+              idPrefix="profile-gender"
+            />
+
+            <OrientationField orientation={orientation} setOrientation={setOrientation} />
 
             <div style={fieldGroup}>
               <FieldLabel htmlFor="pronouns">Pronouns</FieldLabel>

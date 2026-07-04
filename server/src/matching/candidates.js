@@ -11,7 +11,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
   // Viewer's own profile fields used for weighted scoring (goal + city) and
   // for evaluating the viewer's active deal-breaker filters.
   const viewerProfile = db.prepare(
-    `SELECT relationship_goal, dist_city, wants_children, gender, seeking,
+    `SELECT relationship_goal, dist_city, wants_children, gender, gender_group, seeking,
             db_wants_children, db_non_smoker, db_must_be_local, search_radius_miles,
             pref_age_min, pref_age_max,
             sensory_environment, comm_cadence,
@@ -24,6 +24,10 @@ export function getCandidates(db, viewerId, viewerInterests) {
     dist_city: viewerProfile?.dist_city ?? '',
     wants_children: viewerProfile?.wants_children ?? '',
     gender: viewerProfile?.gender ?? '',
+    // gender_group is the 3-value matchable core (woman|man|nonbinary|''); it is
+    // the ONLY gender value the mutual filter below is allowed to use. The raw
+    // `gender` is an expanded DISPLAY string and must never reach the filter.
+    gender_group: viewerProfile?.gender_group ?? '',
     seeking: viewerProfile?.seeking ?? '',
     db_wants_children: !!viewerProfile?.db_wants_children,
     db_non_smoker: !!viewerProfile?.db_non_smoker,
@@ -72,7 +76,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
   const allProfiles = db.prepare(`
     SELECT p.user_id, p.display_name, p.tagline, p.bio, p.comm_note,
            p.relationship_goal, p.dist_city, p.updated_at, p.photo_url,
-           p.gender, p.pronouns, p.seeking,
+           p.gender, p.gender_custom, p.gender_group, p.orientation, p.pronouns, p.seeking,
            p.date_of_birth, p.wants_children, p.smoking, p.drinking,
            p.identity_verified, p.paused,
            p.comm_directness, p.comm_literal, p.comm_cadence,
@@ -133,17 +137,23 @@ export function getCandidates(db, viewerId, viewerInterests) {
           return false;
         }
       }
-      // Gender / seeking compatibility (mutual). Only filters on KNOWN values —
-      // candidates with no gender set, or gender 'other', always pass (inclusive
-      // + avoids emptying Discover). A seeking list of '' means "open to everyone".
+      // Gender / seeking compatibility (mutual). D-12: this filter operates ONLY
+      // on `gender_group` — the 3-value matchable core (woman|man|nonbinary)
+      // derived from each person's expanded gender. The raw `gender` DISPLAY
+      // string (agender, trans-man, …) must NEVER be used here: doing so would
+      // fail the SEEKABLE.includes() check and silently drop those people from
+      // everyone's deck. Using gender_group means trans-man is sought by people
+      // seeking men, agender by people seeking nonbinary, etc. Only filters on
+      // KNOWN values — a candidate whose gender_group is '' always passes
+      // (inclusive + avoids emptying Discover). seeking '' = open to everyone.
       const SEEKABLE = ['woman', 'man', 'nonbinary'];
       const mySeeking = (viewer.seeking || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (mySeeking.length > 0 && SEEKABLE.includes(profile.gender) && !mySeeking.includes(profile.gender)) {
-        return false; // their gender isn't one I'm seeking
+      if (mySeeking.length > 0 && SEEKABLE.includes(profile.gender_group) && !mySeeking.includes(profile.gender_group)) {
+        return false; // their matchable-core group isn't one I'm seeking
       }
       const theirSeeking = (profile.seeking || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (theirSeeking.length > 0 && SEEKABLE.includes(viewer.gender) && !theirSeeking.includes(viewer.gender)) {
-        return false; // I'm not a gender they're seeking (mutual)
+      if (theirSeeking.length > 0 && SEEKABLE.includes(viewer.gender_group) && !theirSeeking.includes(viewer.gender_group)) {
+        return false; // my matchable-core group isn't one they're seeking (mutual)
       }
       // Age-range preference: hide candidates outside the viewer's chosen range.
       // (Default 18–99 = no effect.) Unknown age can't happen — the 18+ gate

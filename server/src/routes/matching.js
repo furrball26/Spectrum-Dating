@@ -61,6 +61,11 @@ router.get('/candidates', requireAuth, (req, res) => {
     age: c.date_of_birth ? ageFromDob(c.date_of_birth) : null,
     verified: !!c.identity_verified,
     pronouns: c.pronouns || '',
+    // D-11/D-13 display: expanded gender (+ self-describe when set) + orientation.
+    // gender_group stays internal to matching and is NEVER sent to the client.
+    gender: c.gender || '',
+    genderCustom: c.gender_custom || '',
+    orientation: c.orientation || '',
     // Coarse location for the "Near …" label — the ZIP/postal code is STRIPPED
     // so strangers browsing Discover see "Phoenix, AZ", never a precise ZIP
     // (privacy/safety; the full value stays on the owner's own profile).
@@ -293,6 +298,7 @@ router.get('/matches', requireAuth, (req, res) => {
     const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
     const p = db.prepare(
       `SELECT display_name, tagline, photo_url, identity_verified, dist_city, pronouns,
+              gender, gender_custom, orientation,
               comm_directness, comm_literal, comm_cadence,
               sensory_environment, sensory_lighting, social_duration, context_card,
               occupation, languages, helps_me, hard_for_me
@@ -313,6 +319,9 @@ router.get('/matches', requireAuth, (req, res) => {
         photoUrl: p?.photo_url || null,
         verified: !!p?.identity_verified,
         pronouns: p?.pronouns || '',
+        gender: p?.gender || '',
+        genderCustom: p?.gender_custom || '',
+        orientation: p?.orientation || '',
         // Coarse city (ZIP stripped) for the "city on matches" display.
         distCity: coarseCity(p?.dist_city),
         commDirectness: p?.comm_directness || '',
