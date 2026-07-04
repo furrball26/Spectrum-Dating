@@ -136,6 +136,21 @@ additive by construction and *cannot* break the mutual filter.
 ## Wave C — Moat depth (later)
 - **D-17 (S–M) Neurodivergent "special interests"** — elevate the `talk_for_hours` prompt /
   a matchable deep-dive-topic field; reframe the generic hobby cloud. [strategy#6, journey]
+  Phased (scoping pass 2026-07-04): safe display reframe → structured field → collection.
+  - [x] **Phase 0 — SHIPPED TO PROD (master `d7b5afc`, live-verified).** Vercel-only,
+    zero backend, zero matching risk. Promotes the existing `talk_for_hours` answer out of
+    the generic prompt list into a brand-forward "Could talk for hours about" hero
+    (`FeaturedInterest.jsx` + `SectionRule` ramp + serif answer) on the Discover card,
+    matched-profile modal, and own profile. De-duped via `splitFeaturedPrompt` (one home,
+    D-2 pattern). 47 unit tests, smoke 11/11.
+  - [ ] **Phase 1 — structured `special_interests` field (BACKEND, Railway migration) —
+    SCOPED, awaiting go-ahead.** New JSON-array facet col (F28 pattern), validated
+    display field, SOFT-scored in `score.js` (adds weight + "you could both talk for hours
+    about X" reason) — NEVER a filter. Load-bearing gate: byte-identical-candidates test
+    (deck unchanged with vs without the field), same safety contract as Wave B. Touches
+    matching → needs explicit human OK before deploy.
+  - [ ] **Phase 2 — collection (Vercel).** Onboarding step + profile editor + wire card to
+    the new field.
 - [x] **D-18 (S) Make safety a visible identity — SHIPPED TO PROD (master `53d862d`,
   live-verified).** `SafetyProtectionsDisclosure` — a calm, collapsed-by-default
   disclosure inside `NewThreadStart` (first contact only), BELOW the moat so it never
