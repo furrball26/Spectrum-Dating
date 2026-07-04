@@ -94,6 +94,34 @@ stat row as a redesign driver.
 - **Phase 3 — rich media (bigger, backend):** typed low-pressure prompts, then audio answers
   (Companion) with its free transcript layer.
 
+## Profile Hub (Hinge-pattern) — APPROVED direction, next profile pass
+Customer shared Hinge references and likes its profile *home* pattern. Adopt the structure,
+reject the dark patterns. User confirmed the top bar = **Preferences + Settings**.
+
+**Profile home layout (the new default profile tab):**
+- **Top bar:** wordmark left; top-right two icon buttons — **Preferences** (sliders icon) →
+  opens the "Looking for" preferences (seeking, age, distance, deal-breakers) + the Companion
+  advanced filters as a focused sheet; **Settings** (gear icon) → opens the existing Settings
+  screen.
+- **Circular avatar hero** (primary photo) with a **pencil button** overlaid → opens full
+  profile **Edit** (the current About me / "How to connect with me" content).
+- **Name + verified badge** directly under the avatar.
+- **Calm hub content below** (a hub, NOT an upsell funnel): a "How others see you" preview
+  entry · **Membership** as its own calm card (the "See what Companion adds" door) · **Top
+  Picks** (Companion) entry · Safety Center entry.
+
+**REJECT (dark patterns visible in the Hinge reference — banned by our product law):** the
+HingeX "get seen sooner / 3× as many dates" banner (fabricated metric), "Boost — 11× more
+people" (pay-to-be-seen auction), Roses/consumables, and Hinge's "Show Last Active Status"
+toggle (we ban last-active). Our Membership card stays calm and honest — no multipliers, no
+urgency.
+
+**Restructure note:** the current edit-form ProfileScreen becomes the **Edit** destination
+(reached via the pencil). A new lightweight **Profile Hub** becomes the default profile tab.
+Preferences sheet = the "Looking for" group extracted; Settings already exists. Keep all field
+save-logic, the completeness meter, and hooks-before-return intact. This is a navigation
+restructure — sequence it as its own builder pass (after the current moderation work).
+
 ## Open decisions for the user
 1. Approve the presentation-led direction + the new IA above?
 2. Is **Phase 1 (frontend-only)** the right first build, or do you want a specific feature
