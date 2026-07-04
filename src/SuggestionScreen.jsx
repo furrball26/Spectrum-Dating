@@ -49,6 +49,18 @@ function getViewerInterests() {
   }
 }
 
+// D-17 Phase 2 — the viewer's OWN special interests, used to highlight the
+// shared "Could talk for hours about" chips on a candidate's card. No demo
+// fallback: if the viewer hasn't set any, nothing highlights (calm, honest).
+function getViewerSpecialInterests() {
+  try {
+    const profile = JSON.parse(localStorage.getItem("spectrum_profile") || "{}");
+    return Array.isArray(profile.specialInterests) ? profile.specialInterests : [];
+  } catch {
+    return [];
+  }
+}
+
 
 
 function ActionButton({ label, kind, onClick, icon, ariaLabel, disabled }) {
@@ -330,6 +342,7 @@ function PausedBanner({ onGoToProfile, plainLanguage = false }) {
 
 export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, plainLanguage = false, reducedSensory = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
+  const [viewerSpecialInterests, setViewerSpecialInterests] = useState(() => getViewerSpecialInterests());
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -386,6 +399,9 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
         if (Array.isArray(profile.interests) && profile.interests.length > 0) {
           setViewerInterests(profile.interests);
         }
+        // D-17 Phase 2 — refresh the viewer's own special interests so shared
+        // "Could talk for hours about" chips highlight against the live profile.
+        setViewerSpecialInterests(Array.isArray(profile.specialInterests) ? profile.specialInterests : []);
         // F24 — reflect the paused flag so Discover can show the reminder banner.
         setPaused(!!profile.paused);
         // Seed the Filters sheet from the live profile. The GET returns the
@@ -424,6 +440,9 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           tagline: c.tagline || '',
           bio: c.bio || '',
           interests: c.interests || [],
+          // D-17 Phase 2 — the structured, matchable "Could talk for hours about"
+          // chips (highlighted against the viewer's own on the card).
+          specialInterests: Array.isArray(c.specialInterests) ? c.specialInterests : [],
           communicationNote: c.commNote || '',
           whyReasons: c.whyReasons || [],
           distanceLabel: c.distCity ? `Near ${c.distCity}` : null,
@@ -1151,11 +1170,17 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               )}
             </div>
 
-            {/* D-17 Phase 0 — "Could talk for hours about" hero, promoted out of
-                the generic prompt list below (deduped via restPrompts). */}
-            {featuredPrompt && (
+            {/* D-17 — "Could talk for hours about": the matchable specialInterests
+                chips LEAD (shared ones highlighted vs the viewer's own), the
+                free-text talk_for_hours answer elaborates below. One merged home;
+                the prose is deduped out of the generic prompt list via restPrompts. */}
+            {(featuredPrompt || (person.specialInterests && person.specialInterests.length > 0)) && (
               <div style={card}>
-                <FeaturedInterest answer={featuredPrompt.answer} />
+                <FeaturedInterest
+                  answer={featuredPrompt?.answer}
+                  specialInterests={person.specialInterests}
+                  viewerSpecialInterests={viewerSpecialInterests}
+                />
               </div>
             )}
 

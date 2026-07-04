@@ -5,6 +5,8 @@ import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
 import { GenderField, OrientationField, RelationshipStructureField } from "./IdentityFields.jsx";
+import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
+import { normalizeSpecialInterests } from "./specialInterests.js";
 
 
 function usePrefersReduced() {
@@ -900,6 +902,8 @@ function Step5({
   commDirectness, setCommDirectness,
   commCadence, setCommCadence,
   sensoryEnvironment, setSensoryEnvironment,
+  specialInterests, setSpecialInterests,
+  prefersReduced,
 }) {
   return (
     <>
@@ -952,6 +956,25 @@ function Step5({
           { value: "either", label: "Either is fine" },
         ]}
       />
+
+      {/* D-17 Phase 2 — the matchable "Could talk for hours about" chips. Optional
+          and calm; these help us suggest people who light up about the same
+          things. Same 3×40 cap + chip input used in the profile editor. */}
+      <div style={{ marginTop: 26 }}>
+        <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 16, color: t.text }}>
+          Could talk for hours about
+        </p>
+        <p style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+          A few topics you love going deep on — we use these to suggest people who
+          light up about the same things. Optional, and easy to change later.
+        </p>
+        <SpecialInterestsInput
+          items={specialInterests}
+          onChange={setSpecialInterests}
+          idPrefix="ob-special-interests"
+          prefersReduced={prefersReduced}
+        />
+      </div>
     </>
   );
 }
@@ -993,6 +1016,8 @@ export default function OnboardingScreen({ onComplete }) {
   const [commDirectness, setCommDirectness] = useState("");
   const [commCadence, setCommCadence] = useState("");
   const [sensoryEnvironment, setSensoryEnvironment] = useState("");
+  // D-17 Phase 2 — matchable "Could talk for hours about" chips (optional, ≤3×40).
+  const [specialInterests, setSpecialInterests] = useState([]);
 
   // Validation
   const [attempted, setAttempted] = useState(false);
@@ -1098,6 +1123,8 @@ export default function OnboardingScreen({ onComplete }) {
         commDirectness,
         commCadence,
         sensoryEnvironment,
+        // D-17 Phase 2 — matchable deep interests (trimmed/deduped/capped 3×40).
+        specialInterests: normalizeSpecialInterests(specialInterests),
       });
       // D33 — show the calm "You're all set" beat instead of jumping straight
       // into Discover. It auto-advances (and is skippable) below.
@@ -1354,6 +1381,9 @@ export default function OnboardingScreen({ onComplete }) {
             setCommCadence={setCommCadence}
             sensoryEnvironment={sensoryEnvironment}
             setSensoryEnvironment={setSensoryEnvironment}
+            specialInterests={specialInterests}
+            setSpecialInterests={setSpecialInterests}
+            prefersReduced={prefersReduced}
           />
         )}
 

@@ -75,6 +75,17 @@ export default function MatchProfileModal({ userId, onClose }) {
 
   const chips = profile ? commChips(profile) : [];
 
+  // D-17 Phase 2 — the viewer's OWN special interests, read from the cached
+  // profile, to highlight the shared "Could talk for hours about" chips on this
+  // matched person's card (case-insensitive, same mechanism as Discover).
+  let viewerSpecialInterests = [];
+  try {
+    const cached = JSON.parse(localStorage.getItem("spectrum_profile") || "{}");
+    viewerSpecialInterests = Array.isArray(cached.specialInterests) ? cached.specialInterests : [];
+  } catch {
+    viewerSpecialInterests = [];
+  }
+
   return (
     <>
       <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.4)", zIndex: 1200 }} />
@@ -210,11 +221,16 @@ export default function MatchProfileModal({ userId, onClose }) {
                 // as before (deduped — the featured answer is pulled from rest).
                 const { featured, rest } = splitFeaturedPrompt(profile.prompts);
                 const restValid = rest.filter((p) => p && p.answer && p.answer.trim());
+                const special = Array.isArray(profile.specialInterests) ? profile.specialInterests : [];
                 return (
                   <>
-                    {featured && (
+                    {(featured || special.length > 0) && (
                       <div style={{ margin: "14px 0" }}>
-                        <FeaturedInterest answer={featured.answer} />
+                        <FeaturedInterest
+                          answer={featured?.answer}
+                          specialInterests={special}
+                          viewerSpecialInterests={viewerSpecialInterests}
+                        />
                       </div>
                     )}
                     {restValid.length > 0 && (

@@ -10,6 +10,8 @@ import { useFocusable, focusRing } from "./useFocusable.js";
 import { GenderField, OrientationField, RelationshipStructureField } from "./IdentityFields.jsx";
 import { splitFeaturedPrompt } from "./featuredPrompt.js";
 import FeaturedInterest from "./FeaturedInterest.jsx";
+import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
+import { normalizeSpecialInterests } from "./specialInterests.js";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -183,6 +185,8 @@ const DEFAULT_PROFILE = {
   tagline: "",
   bio: "",
   interests: [],
+  // D-17 Phase 2 — matchable "Could talk for hours about" chips (≤3, ≤40 each).
+  specialInterests: [],
   commNote: "",
   relationshipGoal: "",        // "" | "long-term" | "friendship" | "open"
   relationshipStructure: "",   // D-14; display only, never filters Discover
@@ -1791,7 +1795,7 @@ function FacetPreviewCard({ occupation, languages, helpsMe, hardForMe, cardStyle
 // Read-only card view of how the user's profile appears to candidates on
 // Discover. Mirrors the SuggestionScreen card layout without importing it.
 function ProfilePreviewModal({
-  displayName, tagline, bio, pronouns, commNote, interests,
+  displayName, tagline, bio, pronouns, commNote, interests, specialInterests,
   commDirectness, commLiteral, commCadence,
   sensoryEnvironment, sensoryLighting, socialDuration,
   contextCard, occupation, languages, helpsMe, hardForMe,
@@ -2178,11 +2182,15 @@ function ProfilePreviewModal({
             </div>
           )}
 
-          {/* D-17 Phase 0 — "Could talk for hours about" hero (promoted out of
-              the generic prompt cards below to avoid duplication). */}
-          {featuredPrompt && (
+          {/* D-17 — "Could talk for hours about": your matchable chips lead, the
+              free-text talk_for_hours answer elaborates below. No shared-highlight
+              on your own card (viewerSpecialInterests omitted — just your chips). */}
+          {(featuredPrompt || (specialInterests && specialInterests.length > 0)) && (
             <div style={card}>
-              <FeaturedInterest answer={featuredPrompt.answer} />
+              <FeaturedInterest
+                answer={featuredPrompt?.answer}
+                specialInterests={specialInterests}
+              />
             </div>
           )}
 
@@ -2262,6 +2270,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [tagline, setTagline]         = useState(DEFAULT_PROFILE.tagline);
   const [bio, setBio]                 = useState(DEFAULT_PROFILE.bio);
   const [interests, setInterests]     = useState(DEFAULT_PROFILE.interests);
+  const [specialInterests, setSpecialInterests] = useState(DEFAULT_PROFILE.specialInterests);
   const [commNote, setCommNote]       = useState(DEFAULT_PROFILE.commNote);
   const [relGoal, setRelGoal]         = useState(DEFAULT_PROFILE.relationshipGoal);
   const [relStructure, setRelStructure] = useState(DEFAULT_PROFILE.relationshipStructure);
@@ -2395,6 +2404,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           tagline: data.tagline || '',
           bio: data.bio || '',
           interests: Array.isArray(data.interests) ? data.interests : [],
+          specialInterests: Array.isArray(data.specialInterests) ? data.specialInterests : [],
           commNote: data.commNote || '',
           relationshipGoal: data.relationshipGoal || '',
           relationshipStructure: data.relationshipStructure || '',
@@ -2431,6 +2441,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setTagline(merged.tagline);
         setBio(merged.bio);
         setInterests(merged.interests);
+        setSpecialInterests(merged.specialInterests);
         setCommNote(merged.commNote);
         setRelGoal(merged.relationshipGoal);
         setRelStructure(merged.relationshipStructure);
@@ -2493,6 +2504,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       // Never saved before — dirty if any field has content
       const hasContent =
         displayName || tagline || bio || interests.length > 0 ||
+        specialInterests.length > 0 ||
         commNote || relGoal || distCity || notifTier !== "in_app" ||
         wantsChildren || smoking || drinking ||
         dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused ||
@@ -2537,11 +2549,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         // List facets: order is meaningful, so compare as-is (no sort).
         JSON.stringify(helpsMe) !== JSON.stringify(savedProfile.helpsMe || []) ||
         JSON.stringify(hardForMe) !== JSON.stringify(savedProfile.hardForMe || []) ||
+        // Special interests: order is the display order, so compare as-is.
+        JSON.stringify(specialInterests) !== JSON.stringify(savedProfile.specialInterests || []) ||
         JSON.stringify([...interests].sort()) !==
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
+  }, [displayName, tagline, bio, interests, specialInterests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
 
   // ── Initialise collapsible-section open state once the profile has loaded.
   // Persisted manual choices win; otherwise apply the state-aware defaults from
@@ -2896,11 +2910,14 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     const cleanFacet = (arr) => arr.map((s) => s.trim()).filter(Boolean).slice(0, FACET_MAX_ITEMS);
     const cleanHelpsMe = cleanFacet(helpsMe);
     const cleanHardForMe = cleanFacet(hardForMe);
+    // D-17 Phase 2 — trim/dedupe/cap to the backend's 3×40 shape before saving.
+    const cleanSpecialInterests = normalizeSpecialInterests(specialInterests);
     const currentProfile = {
       displayName: displayName.trim(),
       tagline,
       bio,
       interests,
+      specialInterests: cleanSpecialInterests,
       commNote,
       relationshipGoal: relGoal,
       relationshipStructure: relStructure,
@@ -2940,6 +2957,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         tagline: currentProfile.tagline,
         bio: currentProfile.bio,
         interests: currentProfile.interests,
+        specialInterests: currentProfile.specialInterests,
         commNote: currentProfile.commNote,
         relationshipGoal: currentProfile.relationshipGoal,
         relationshipStructure: currentProfile.relationshipStructure,
@@ -2988,6 +3006,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       // Collapse any blank/trimmed facet rows to match what was actually saved.
       setHelpsMe(cleanHelpsMe);
       setHardForMe(cleanHardForMe);
+      // Reflect the normalised (trimmed/deduped/capped) special interests back.
+      setSpecialInterests(cleanSpecialInterests);
       setHasEverSaved(true);
       setIsDirty(false);
       setSaveStatus("Saved.");
@@ -3210,6 +3230,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           pronouns={pronouns}
           commNote={commNote}
           interests={interests}
+          specialInterests={specialInterests}
           commDirectness={commDirectness}
           commLiteral={commLiteral}
           commCadence={commCadence}
@@ -3835,6 +3856,26 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             >
               {hasSaveAttempted ? interestsError : ""}
             </span>
+
+            {/* D-17 Phase 2 — matchable "Could talk for hours about" chips. These
+                lead the merged deep-interest section on your card and drive the
+                shared-highlight soft-score; capped 3×40 to match the backend. */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
+              <h3 style={{ fontFamily: t.serif, fontSize: 17, margin: "0 0 4px", fontWeight: 700, color: t.text }}>
+                Could talk for hours about
+              </h3>
+              <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px", lineHeight: 1.5 }}>
+                A few topics you love going deep on — we use these to suggest people who
+                light up about the same things.
+              </p>
+              <SpecialInterestsInput
+                items={specialInterests}
+                onChange={setSpecialInterests}
+                idPrefix="profile-special-interests"
+                announce={announce}
+                prefersReduced={prefersReduced}
+              />
+            </div>
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
