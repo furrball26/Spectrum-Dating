@@ -4,6 +4,7 @@ import { t } from "./tokens.js";
 import { ShieldIcon, GearIcon, LockIcon } from "./icons.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
+import SectionRule from "./SectionRule.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 
@@ -1575,6 +1576,10 @@ function AgeRangeSlider({ low, high, onChange }) {
 // profile beyond the required name + interests. Renders a calm tile-based
 // progress bar + a chip list of what's still empty. Hidden once all 8 are done.
 
+// Brand spectrum ramp (literal hex — theme-constant, never flag colours) used
+// to paint the completeness meter as the ramp filling left→right (D-8).
+const COMPLETENESS_RAMP = ["#5E9459", "#4F8A8B", "#3E6660", "#6FA39A", "#C9A875", "#E7D9C4"];
+
 const COMPLETENESS_FIELDS = [
   { key: "photo",     label: "Add a photo" },
   { key: "tagline",   label: "Add a tagline" },
@@ -1627,7 +1632,11 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
         <span style={{ fontSize: 14, color: t.textSoft }}>{score}/{total}</span>
       </div>
 
-      {/* Tile bar — rounded squares echoing the brand spectrum mark */}
+      {/* Tile bar — D-8: the completeness meter IS the brand spectrum, filling
+          left→right across the green→teal→clay→sand ramp so it reads as a
+          deliberate centerpiece. Literal ramp hex (not the --mark-* vars) so it
+          stays brand-green→sand in every theme — never a new flag surface under
+          the identity themes. Taller tiles give the meter presence. */}
       <div
         role="progressbar"
         aria-valuenow={score}
@@ -1636,20 +1645,26 @@ function ProfileCompletenessNudge({ score, total, missing, onAnswerPrompt }) {
         aria-label={`${pct}% complete — ${score} of ${total} profile sections filled`}
         style={{ display: "flex", gap: 5, marginBottom: 14 }}
       >
-        {Array.from({ length: total }).map((_, i) => (
-          <div
-            key={i}
-            aria-hidden="true"
-            style={{
-              flex: 1,
-              height: 10,
-              borderRadius: 5,
-              background: i < score ? t.accentFill : t.surfaceAlt,
-              border: `1.5px solid ${i < score ? "transparent" : t.border}`,
-              transition: `background 220ms cubic-bezier(0.2,0,0,1)`,
-            }}
-          />
-        ))}
+        {Array.from({ length: total }).map((_, i) => {
+          const litColor = COMPLETENESS_RAMP[
+            Math.round((i / Math.max(1, total - 1)) * (COMPLETENESS_RAMP.length - 1))
+          ];
+          const lit = i < score;
+          return (
+            <div
+              key={i}
+              aria-hidden="true"
+              style={{
+                flex: 1,
+                height: 12,
+                borderRadius: 5,
+                background: lit ? litColor : t.surfaceAlt,
+                border: `1.5px solid ${lit ? "rgba(36,51,45,0.12)" : t.border}`,
+                transition: `background 220ms cubic-bezier(0.2,0,0,1)`,
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Missing-field chips */}
@@ -3287,6 +3302,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               Preview my card
             </button>
           </div>
+          <SectionRule style={{ marginTop: 8, marginBottom: 18 }} />
 
           {/* P-27: framing copy — first-time only */}
           {!hasEverSaved && (

@@ -33,7 +33,22 @@ Highest leverage, lowest risk — moves the "feels generic" needle immediately.
 > onboarding Step 5 reframed, landing compatibility-promise hero + arrival beat. Gates:
 > eslint 0, smoke 11/11, deep_messaging 30/30, flows_mobile 35/35. (Deferred post-ship:
 > contrast-fills/a11y-fe4-7/deep_onboarding — 429-cooldown-gated. Design review in flight.)
-> **A-2 (D-6..D-10 brand amplification) is the next pass.**
+>
+> **A-2 (D-6..D-9 brand amplification) SHIPPED TO PROD — live-verified.** Warmed
+> the default `dim` theme (low-saturation warm-taupe `surfaceAlt` so the ramp's
+> warm end is present in-app, D-6); de-genericized avatars (monogram two-tone
+> now steps the brand ramp IN ORDER + a soft ramp-arc signature at the base of
+> the ring, luminance-picked legible ink, D-7); gave the tile motif one confident
+> moment per surface (spectrum ramp rule under the `Your profile` / `Your matches`
+> / `Likes` H1s via `SectionRule`, and the profile-completeness meter now reads
+> as the ramp filling left→right, D-8); filled desktop dead space with the
+> landing's soft static atmosphere wash behind the app shell (D-9). Also fixed
+> design-review #1 — the duplicated candidate comms note on the Discover card
+> (the `About talking:` echo is filtered out of `whyReasons` so the standalone
+> note below the bio is its single home). D-10 (illustration warmth) deferred as
+> optional. Gates: eslint 0 errors, smoke 11/11, contrast-fills 20/20 (AA held),
+> a11y-fe4-7 37/37, deep_messaging 30/30; no pageerrors in dim/light/navy/trans
+> captures at 390px + desktop.
 
 - **D-1 (S) Flip the Discover card — moat above the fold.** Put the top "why you match"
   reasons + 2–3 comms/sensory chips ABOVE the bio, under the name; make the spectrum ramp a

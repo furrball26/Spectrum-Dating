@@ -190,7 +190,12 @@
         --c-bg: #181F1D;
         --c-bg-gradient: linear-gradient(150deg, #181F1D 0%, #151B19 100%);
         --c-surface: #26312D;
-        --c-surfaceAlt: #2C3834;
+        /* D-6 — warm the secondary surface toward the clay/sand end of the ramp
+           so the warm half of the brand is present in-app, not just on the
+           landing. Low-saturation warm taupe (was the cool green #2C3834); still
+           lifts off --c-surface for figure/ground and keeps huge contrast for
+           the near-white text that sits on it. */
+        --c-surfaceAlt: #322F28;
         --c-cardBorder: #3E4D47;
         /* Dim elevation must be black-based — green-tinted shadows vanish on a
            dark field (the old hardcoded rgba(36,51,45,…) shadows were invisible

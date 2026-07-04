@@ -171,6 +171,16 @@ function isMutualReason(reason) {
   return /^(you both|you'?re both)\b/i.test((reason || "").trim());
 }
 
+// The backend echoes the candidate's comm_note into whyReasons as an
+// `About talking: "…"` line. That exact sentence ALSO has a dedicated, better-
+// styled home — the bolded "About talking:" note below the bio — so surfacing
+// it in the why-block too rendered the same sentence twice, ~250px apart
+// (design-review #1). We strip it from the why list and keep the standalone
+// note as its single home.
+function isCommNoteReason(reason) {
+  return /^about talking:/i.test((reason || "").trim());
+}
+
 // Sort reasons so real mutual signals lead, preserving order within each group.
 // Used to pick the strongest 1–2 for the above-the-fold "why you fit" hook.
 function sortReasonsMutualFirst(reasons) {
@@ -505,7 +515,9 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // the top 1–2 become the quiet "why you fit" hook under the name (above the
   // bio), and the remainder falls to the fuller list below. `commChips` is the
   // compact comms/sensory row, also lifted above the bio.
-  const sortedWhy = person ? sortReasonsMutualFirst(person.whyReasons) : [];
+  const sortedWhy = person
+    ? sortReasonsMutualFirst((person.whyReasons || []).filter((r) => !isCommNoteReason(r)))
+    : [];
   const topWhy = sortedWhy.slice(0, 2);
   const restWhy = sortedWhy.slice(2);
   const commChips = person ? commStyleChips(person) : [];
@@ -1085,13 +1097,18 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               {/* Bio */}
               <p style={{ margin: 0, color: t.text, lineHeight: 1.75 }}>{person.bio}</p>
 
-              <Divider />
-
-              {/* Communication note */}
-              <p style={{ margin: 0, color: t.textSoft, fontSize: 16, lineHeight: 1.6 }}>
-                <strong style={{ color: t.text, fontWeight: 600 }}>About talking: </strong>
-                {person.communicationNote}
-              </p>
+              {/* Communication note — the SINGLE home for the candidate's comms
+                  note (design-review #1). The `About talking:` echo the backend
+                  puts in whyReasons is filtered out above so it isn't repeated. */}
+              {person.communicationNote && (
+                <>
+                  <Divider />
+                  <p style={{ margin: 0, color: t.textSoft, fontSize: 16, lineHeight: 1.6 }}>
+                    <strong style={{ color: t.text, fontWeight: 600 }}>About talking: </strong>
+                    {person.communicationNote}
+                  </p>
+                </>
+              )}
 
             </div>
 

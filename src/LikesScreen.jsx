@@ -6,6 +6,7 @@ import MatchMoment from "./MatchMoment.jsx";
 import ReportModal from "./ReportModal.jsx";
 import Skeleton from "./Skeleton.jsx";
 import SpectrumMark from "./SpectrumMark.jsx";
+import SectionRule from "./SectionRule.jsx";
 import { EmptyMatches } from "./illustrations.jsx";
 import { getViewerIdentity } from "./viewerIdentity.js";
 import { useViewport } from "./useViewport.js";
@@ -140,6 +141,7 @@ export default function LikesScreen({ onOpenConversation, onActivityCount, plain
         >
           Likes
         </h1>
+        <SectionRule style={{ marginTop: 10, marginBottom: 16 }} />
         <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft }}>
           {plainLanguage
             ? "People who said yes to you. If you say yes too, you match — then you can message each other."

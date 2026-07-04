@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
 import VerifiedBadge from "../VerifiedBadge.jsx";
 import Avatar from "../Avatar.jsx";
+import SectionRule from "../SectionRule.jsx";
 import Skeleton from "../Skeleton.jsx";
 import { EmptyMessages } from "../illustrations.jsx";
 import ErrorState from "../ErrorState.jsx";
@@ -686,7 +687,7 @@ export default function MatchesListScreen({
             fontFamily: t.serif,
             fontSize: 28,
             fontWeight: 700,
-            margin: "0 0 20px",
+            margin: "0 0 8px",
             color: t.text,
             letterSpacing: "-0.01em",
             outline: "none",
@@ -694,6 +695,7 @@ export default function MatchesListScreen({
         >
           Your matches
         </h1>
+        <SectionRule style={{ marginTop: 8, marginBottom: 20 }} />
 
         {/* Search / filter input — with a hard cap of {activeCap} active
             conversations the list rarely needs one; only render once the list

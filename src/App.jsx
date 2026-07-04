@@ -408,6 +408,21 @@ function a11yWrapperStyle(prefs) {
   return style;
 }
 
+// D-9 — desktop dead-space fill. On wide viewports the left rail + a centred
+// ~640px column leaves the surrounding area empty/dark, reading unfinished.
+// This is the landing's soft, static, very-low-contrast spectrum atmosphere
+// wash (green + teal + warm clay), painted on the app shell BEHIND the opaque
+// header/content panels so it only shows in the empty gutters. Static and
+// decorative; the warm-clay stops also bring the ramp's warm end onto the
+// desktop shell (D-6). Reduced-sensory falls back to flat t.bg automatically
+// (a11yWrapperStyle sets `background: t.bg`, which is spread after this).
+const DESKTOP_ATMOSPHERE = [
+  "radial-gradient(38% 46% at 11% 20%, rgba(94,148,89,0.09) 0%, rgba(94,148,89,0) 70%)",
+  "radial-gradient(40% 48% at 91% 15%, rgba(79,138,139,0.09) 0%, rgba(79,138,139,0) 70%)",
+  "radial-gradient(52% 54% at 90% 88%, rgba(201,168,117,0.13) 0%, rgba(201,168,117,0) 72%)",
+  "radial-gradient(46% 50% at 8% 90%, rgba(201,168,117,0.08) 0%, rgba(201,168,117,0) 72%)",
+].join(", ");
+
 const srOnly = {
   position: "absolute",
   width: 1,
@@ -1257,7 +1272,10 @@ export default function App() {
                 : { minHeight: "100dvh" }),
               display: "flex",
               flexDirection: "column",
-              background: t.bg,
+              background:
+                viewport === "desktop" && !a11y.reducedSensory
+                  ? `${DESKTOP_ATMOSPHERE}, ${t.bg}`
+                  : t.bg,
               fontFamily: t.sans,
               color: t.text,
               // Reserve space for the fixed nav: bottom bar on mobile/tablet,

@@ -1,20 +1,17 @@
 import { t } from "./tokens.js";
 
 // Shared default avatar. When there's no photo we render a calm, deterministic
-// two-tone diagonal gradient with the person's initial — same seed always maps
-// to the same gradient, so identity stays stable across screens. The visual is
-// aria-hidden: the surrounding context already names the person.
+// two-tone monogram — same seed always maps to the same colours, so identity
+// stays stable across screens. The visual is aria-hidden: the surrounding
+// context already names the person.
 
-// Calm brand gradient pairs (greens → teals → sand/clay). Literal hex so they
-// look identical in both light and dim themes.
-const GRADIENTS = [
-  ["#5E9459", "#4F8A8B"],
-  ["#3E6660", "#6FA39A"],
-  ["#4F8A8B", "#7FB0A7"],
-  ["#6FA39A", "#C9A875"],
-  ["#5B8A82", "#4A7570"],
-  ["#7FB0A7", "#5E9459"],
-];
+// D-7 — the monogram two-tone is now derived from the brand spectrum ramp IN
+// RAMP ORDER (green → teal → deep-teal → soft-teal → clay → sand): each avatar
+// uses an ADJACENT forward step along the ramp, so the whole set reads as one
+// coherent spectrum rather than random gradients. Literal hex (not the --mark-*
+// vars) on purpose — avatars stay brand-green in every theme, including the
+// identity themes where the mark vars become flag colours.
+const RAMP = ["#5E9459", "#4F8A8B", "#3E6660", "#6FA39A", "#C9A875", "#E7D9C4"];
 
 // Small, stable string hash (FNV-ish). Returns a non-negative integer.
 function hashSeed(seed) {
@@ -24,6 +21,18 @@ function hashSeed(seed) {
     h = (h * 31 + s.charCodeAt(i)) & 0xffffffff;
   }
   return Math.abs(h);
+}
+
+// Relative luminance (sRGB) of a #rrggbb — used to pick a monogram ink colour
+// that stays legible on both the dark (green/teal) and the light (clay/sand)
+// end of the ramp.
+function luminance(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
 }
 
 // `alt` — optional override for the img alt text. When a user has supplied a
@@ -60,16 +69,27 @@ export default function Avatar({ name, userId, photoUrl, alt, size = 56, style }
   }
 
   const seed = userId || name || "";
-  const [from, to] = GRADIENTS[hashSeed(seed) % GRADIENTS.length];
+  const h = hashSeed(seed);
+  // Adjacent forward step along the ramp (5 possible pairs, all harmonious).
+  const start = h % (RAMP.length - 1);
+  const from = RAMP[start];
+  const to = RAMP[start + 1];
+  // Legible ink: white on the dark end, brand green-900 on the light clay/sand
+  // end (white would fail contrast there).
+  const ink = (luminance(from) + luminance(to)) / 2 > 0.42 ? "#24332D" : "#FFFFFF";
+  // Stable, collision-free gradient id for the ramp-arc signature.
+  const gradId = `spectrum-avatar-${h}`;
 
   return (
     <div
       aria-hidden="true"
       style={{
+        position: "relative",
         width: size,
         height: size,
         borderRadius: "50%",
         flexShrink: 0,
+        overflow: "hidden",
         background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
         display: "flex",
         alignItems: "center",
@@ -82,13 +102,41 @@ export default function Avatar({ name, userId, photoUrl, alt, size = 56, style }
           fontFamily: t.serif,
           fontSize: Math.round(size * 0.42),
           fontWeight: 700,
-          color: "#fff",
+          color: ink,
           lineHeight: 1,
           userSelect: "none",
         }}
       >
         {initial}
       </span>
+      {/* D-7 — the quiet spectrum signature: a soft ramp arc hugging the base of
+          the ring so a Spectrum monogram is recognisable at a glance. Static,
+          flat, no motion; scales cleanly with the avatar (viewBox units). */}
+      <svg
+        viewBox="0 0 100 100"
+        width={size}
+        height={size}
+        style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        aria-hidden="true"
+        focusable="false"
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#5E9459" />
+            <stop offset="0.4" stopColor="#4F8A8B" />
+            <stop offset="0.7" stopColor="#6FA39A" />
+            <stop offset="1" stopColor="#E7D9C4" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M 27 82.8 A 40 40 0 0 0 73 82.8"
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth={5}
+          strokeLinecap="round"
+          opacity={ink === "#FFFFFF" ? 0.92 : 0.7}
+        />
+      </svg>
     </div>
   );
 }
