@@ -19,6 +19,16 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again in 15 minutes.' },
   skipSuccessfulRequests: false,
+  // QA bypass: skip the limiter ONLY when the request carries an X-QA-Bypass
+  // header matching the QA_BYPASS_SECRET env var. Fail-closed — if the env is
+  // unset/empty there is no bypass, so this is inert in any environment that
+  // hasn't deliberately configured a secret (e.g. real prod). Lets the QA
+  // harness create fresh test accounts from one IP without consuming the real
+  // anti-bruteforce limit. The secret must be strong (it's the whole gate).
+  skip: (req) => {
+    const secret = process.env.QA_BYPASS_SECRET;
+    return !!secret && req.get('X-QA-Bypass') === secret;
+  },
   // Key on req.ip — Express derives this safely from X-Forwarded-For using the
   // `trust proxy` setting (1 hop, set in index.js for Railway), so it's the real
   // client IP and NOT attacker-spoofable. Reading raw x-real-ip/x-forwarded-for

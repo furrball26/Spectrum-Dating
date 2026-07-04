@@ -27,6 +27,10 @@ export async function api(path, opts = {}, token) {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: "Bearer " + token } : {}),
+      // QA bypass (B): if QA_BYPASS_SECRET is exported, send it so the backend
+      // authLimiter skips these test registrations/logins (no effect unless the
+      // same secret is configured on the server via the QA_BYPASS_SECRET env).
+      ...(process.env.QA_BYPASS_SECRET ? { "X-QA-Bypass": process.env.QA_BYPASS_SECRET } : {}),
       ...(opts.headers || {}),
     },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -61,6 +65,31 @@ export async function makeAccount(tag, profile = {}) {
   if (!reg.body?.token) throw new Error(`register failed: ${reg.status} ${JSON.stringify(reg.body)}`);
   await api("/profile/me", { method: "PUT", body: { ...PROFILE_DEFAULTS, ...profile } }, reg.body.token);
   return { token: reg.body.token, userId: reg.body.userId, email };
+}
+
+// Reuse (A): a small pool of STABLE, persistent accounts for read-only / base
+// flows that don't need a pristine account. Logs into a fixed email first and
+// only registers it once (lazily), so repeated QA runs cost ~1 login instead of
+// a fresh /register — sharply reducing auth-limit pressure without breaking the
+// fresh-account isolation that stateful drivers (matches/reports) still rely on
+// via makeAccount(). NEVER cleaned up (that's the point — it persists). Do NOT
+// use this for tests that mutate match/report/block state.
+const POOL_PW = "TestPass12345!";
+export async function getPooledAccount(idx = 0, profile = {}) {
+  const email = `qa+pool${idx}@spectrum-test.dev`;
+  let res = await api("/auth/login", { method: "POST", body: { email, password: POOL_PW } });
+  if (!res.body?.token) {
+    // First use: create it once. (Registration is unthrottled when the QA
+    // bypass secret is configured; otherwise this happens at most once per pool
+    // slot until the account exists.)
+    const reg = await api("/auth/register", { method: "POST", body: { email, password: POOL_PW } });
+    if (!reg.body?.token) throw new Error(`pool register failed: ${reg.status} ${JSON.stringify(reg.body)}`);
+    await api("/profile/me", { method: "PUT", body: { ...PROFILE_DEFAULTS, ...profile } }, reg.body.token);
+    res = reg;
+  } else if (Object.keys(profile).length) {
+    await api("/profile/me", { method: "PUT", body: { ...PROFILE_DEFAULTS, ...profile } }, res.body.token);
+  }
+  return { token: res.body.token, userId: res.body.userId, email };
 }
 
 // Two accounts that mutually like each other. Returns { a, b, matchId }.
