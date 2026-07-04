@@ -49,14 +49,25 @@ const CONTACT_PATTERNS = [URL_RE, EMAIL_RE, PHONE_RE, OFF_PLATFORM_APP_RE, HANDO
 const MONEY_PATTERNS = [MONEY_APP_RE, CRYPTO_RE, MONEY_ASK_RE];
 
 /**
+ * Classifies the FIRST signal family a text trips, or null if it's clean.
+ * Off-platform contact is checked before money so a message that trips both is
+ * attributed to the handoff (the grooming vector). Reuses the exact same pattern
+ * families as hasSafetySignal — no new detection logic.
+ * @param {string} text
+ * @returns {'off_platform'|'money'|null}
+ */
+export function classifySafetySignal(text) {
+  if (!text || typeof text !== 'string') return null;
+  if (CONTACT_PATTERNS.some((re) => re.test(text))) return 'off_platform';
+  if (MONEY_PATTERNS.some((re) => re.test(text))) return 'money';
+  return null;
+}
+
+/**
  * Returns true if the text trips ANY off-platform-contact or money/scam pattern.
  * @param {string} text
  * @returns {boolean}
  */
 export function hasSafetySignal(text) {
-  if (!text || typeof text !== 'string') return false;
-  return (
-    CONTACT_PATTERNS.some((re) => re.test(text)) ||
-    MONEY_PATTERNS.some((re) => re.test(text))
-  );
+  return classifySafetySignal(text) !== null;
 }
