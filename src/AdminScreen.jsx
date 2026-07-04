@@ -470,6 +470,27 @@ function ReportedContext({ reportId, reportedName }) {
 
       {open && (
         <div style={{ marginTop: 12, border: `1px solid ${t.borderLight}`, borderRadius: 12, padding: "12px 14px", background: t.bg }}>
+          {/* Needed #10 — the reporter-pinned message, surfaced prominently at the
+              top of the evidence so the moderator sees exactly what was flagged
+              even when it fell outside the live-conversation window below. */}
+          {!loading && !error && data && data.pinnedMessage && (
+            <div
+              style={{
+                background: t.warningSurface,
+                border: `2px solid ${t.dangerFill}`,
+                borderRadius: 10,
+                padding: "10px 12px",
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: t.dangerFill, marginBottom: 4, letterSpacing: "0.02em" }}>
+                <span aria-hidden="true">⚑ </span>Reporter flagged this message
+              </div>
+              <p style={{ margin: 0, fontSize: 16, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                {data.pinnedMessage}
+              </p>
+            </div>
+          )}
           {loading ? (
             <div aria-hidden="true"><Skeleton width="70%" height={13} /><div style={{ height: 8 }} /><Skeleton width="55%" height={13} /></div>
           ) : error ? (
@@ -482,10 +503,20 @@ function ReportedContext({ reportId, reportedName }) {
                   style={{
                     listStyle: "none",
                     background: m.fromReported ? t.warningSurface : t.surface,
-                    border: `1px solid ${m.fromReported ? t.warningBorder : t.borderLight}`,
+                    // Needed #10 — the reporter-pinned message gets a distinct,
+                    // stronger outline so the moderator sees exactly what was
+                    // flagged inside the surrounding context.
+                    border: m.pinned
+                      ? `2px solid ${t.dangerFill}`
+                      : `1px solid ${m.fromReported ? t.warningBorder : t.borderLight}`,
                     borderRadius: 10, padding: "8px 12px",
                   }}
                 >
+                  {m.pinned && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.dangerFill, marginBottom: 4, letterSpacing: "0.02em" }}>
+                      <span aria-hidden="true">⚑ </span>Reporter flagged this message
+                    </div>
+                  )}
                   <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft }}>
                     {m.senderName || m.senderEmail || "Someone"}
                     {m.fromReported && (
@@ -858,6 +889,27 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
           <p style={{ margin: "8px 0 0", fontSize: 16, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
             {report.details}
           </p>
+        )}
+        {/* Needed #10 — the specific message the reporter pinned, shown on the
+            card itself so triage sees the actual evidence up front, distinct
+            from the free-text details above. */}
+        {report.reportedPinnedMessage && (
+          <div
+            style={{
+              marginTop: 10,
+              background: t.warningSurface,
+              border: `2px solid ${t.dangerFill}`,
+              borderRadius: 10,
+              padding: "10px 12px",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: t.dangerFill, marginBottom: 4, letterSpacing: "0.02em" }}>
+              <span aria-hidden="true">⚑ </span>Reporter flagged this message
+            </div>
+            <p style={{ margin: 0, fontSize: 16, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+              {report.reportedPinnedMessage}
+            </p>
+          </div>
         )}
       </div>
 

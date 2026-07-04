@@ -195,6 +195,38 @@ async function run(theme) {
     await page.keyboard.press("Escape");
   }
 
+  // ---- Needed #10: "Report this message" on the OTHER person's bubble pins it ----
+  // The seeded thread alternates senders (own, other, own), so the middle bubble
+  // ("…reply two.") is from the other person and must expose "Report this
+  // message", which opens the block/report flow with that message pinned. Own
+  // bubbles must NOT offer it (they get "Delete message"). Run this LAST — it
+  // navigates to the block/report screen.
+  const pinOpts = page.getByRole("button", { name: /^message options$/i });
+  const pinOptCount = await pinOpts.count();
+  let reportOpened = false;
+  for (let i = 0; i < pinOptCount; i++) {
+    await pinOpts.nth(i).click({ force: true });
+    await page.waitForTimeout(200);
+    const reportItem = page.getByRole("menuitem", { name: /report this message/i });
+    if (await reportItem.count()) {
+      await reportItem.first().click();
+      await page.waitForTimeout(600);
+      reportOpened = true;
+      break;
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(120);
+  }
+  check(`[${theme}] 'Report this message' opens the pinned report flow`, reportOpened);
+  if (reportOpened) {
+    const body = await page.evaluate(() => document.body.innerText);
+    const bannerOk = /Reporting this message/i.test(body);
+    const pinnedOk = /synthetic QA reply two/i.test(body);
+    check(`[${theme}] report UI confirms the pinned message text`,
+      bannerOk && pinnedOk,
+      `banner=${bannerOk} pinnedText=${pinnedOk}`);
+  }
+
   check(`[${theme}] no pageerrors across deep messaging`, errors.length === 0, errors.join(" | "));
   await browser.close();
 }

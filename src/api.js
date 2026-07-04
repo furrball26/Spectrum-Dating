@@ -449,6 +449,9 @@ export async function getAdminReports(status = 'open') {
     // P1-A durable snapshot of the reported message (fallback when the live
     // conversation is gone).
     reportedMessage: r.reportedMessage || null,
+    // Needed #10 — the specific message the reporter pinned (null on the
+    // no-message report path). Shown on the card, distinct from the snapshot.
+    reportedPinnedMessage: r.pinnedMessage || null,
     // P1-B repeat-offender signal. reportCount is the TOTAL reports against this
     // member (incl. the current one); actionedCount how many were actioned;
     // blockedByCount distinct members who blocked them; createdAt account age.
@@ -504,6 +507,10 @@ export async function getReportContext(id) {
     live: !!d?.live,
     messages: Array.isArray(d?.messages) ? d.messages : [],
     snapshot: d?.snapshot ?? null,
+    // Needed #10 — the reporter-pinned message (id + frozen text). `pinned` on a
+    // live message marks the same one for highlighting.
+    pinnedMessageId: d?.pinnedMessageId ?? null,
+    pinnedMessage: d?.pinnedMessage ?? null,
   };
 }
 
@@ -577,8 +584,12 @@ export async function getAdminStats(demo = false) {
     oldestPendingVerificationAt: s.oldestPendingVerificationAt ?? null,
   };
 }
-export async function reportUser(reportedUserId, reason, details, conversationId) {
-  return apiFetch('/messaging/report', { method: 'POST', body: { reportedUserId, reason, details, conversationId } });
+// `messageId` (optional) pins the SPECIFIC offending message the reporter
+// flagged (Needed #10). The server validates it belongs to the reported
+// conversation AND was sent by the reported user, ignoring it otherwise — so a
+// report from the profile/header (no messageId) is unchanged.
+export async function reportUser(reportedUserId, reason, details, conversationId, messageId) {
+  return apiFetch('/messaging/report', { method: 'POST', body: { reportedUserId, reason, details, conversationId, messageId } });
 }
 
 // Reports the current user has filed — for the "Your reports" status view.

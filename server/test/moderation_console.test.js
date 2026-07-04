@@ -135,6 +135,9 @@ describe('migrations 043 / 044 (resolute reports + evidence snapshot)', () => {
       expect(() => runMigrations(d)).not.toThrow();
       expect(hasCol(d, 'reports', 'resolved_by')).toBe(true);
       expect(hasCol(d, 'reports', 'reported_message')).toBe(true);
+      // Needed #10 (050): the pinned-message columns are added ADD-COLUMN only.
+      expect(hasCol(d, 'reports', 'reported_message_id')).toBe(true);
+      expect(hasCol(d, 'reports', 'pinned_message')).toBe(true);
     } finally {
       d.close();
       rmSync(dir, { recursive: true, force: true });
@@ -149,6 +152,9 @@ describe('migrations 043 / 044 (resolute reports + evidence snapshot)', () => {
       expect(() => runMigrations(d)).not.toThrow();
       expect(hasCol(d, 'reports', 'resolved_by')).toBe(true);
       expect(hasCol(d, 'reports', 'reported_message')).toBe(true);
+      // Needed #10 (050): pinned-message columns survive repeated boots.
+      expect(hasCol(d, 'reports', 'reported_message_id')).toBe(true);
+      expect(hasCol(d, 'reports', 'pinned_message')).toBe(true);
     } finally {
       d.close();
       rmSync(dir, { recursive: true, force: true });
@@ -494,6 +500,114 @@ describe('P1-A conversation context + evidence snapshot', () => {
       'SELECT reported_message FROM reports WHERE reporter_id = ? AND reported_id = ?'
     ).get(reporter, reported);
     expect(row.reported_message).toContain('creepy thing they said');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Needed #10: evidence-on-report — reporter-pinned message + widened snapshot.
+// ---------------------------------------------------------------------------
+describe('Needed #10 evidence-on-report (pinned message + widened snapshot)', () => {
+  it('report WITH a valid messageId (reported user\'s message in that conversation) pins it', async () => {
+    const reporter = makeUser();
+    const reported = makeUser();
+    const cid = makeConversation(reporter, reported);
+    addMessage(cid, reported, 'an early message');
+    const offending = addMessage(cid, reported, 'the specific creepy line');
+    addMessage(cid, reported, 'a later message');
+
+    const r = await api('/messaging/report', {
+      token: signToken(reporter, 0), method: 'POST',
+      body: { reportedUserId: reported, reason: 'harassment', conversationId: cid, messageId: offending },
+    });
+    expect(r.status).toBe(201);
+
+    const row = db.prepare(
+      'SELECT id, reported_message_id, pinned_message FROM reports WHERE reporter_id = ? AND reported_id = ?'
+    ).get(reporter, reported);
+    // Pin persists durably: both the id and the frozen text are stored.
+    expect(row.reported_message_id).toBe(offending);
+    expect(row.pinned_message).toBe('the specific creepy line');
+
+    // The context endpoint surfaces the pinned message + flags it in the live view.
+    const ctx = (await api(`/admin/reports/${row.id}/context`, { token: adminToken() })).json;
+    expect(ctx.pinnedMessageId).toBe(offending);
+    expect(ctx.pinnedMessage).toBe('the specific creepy line');
+    const pinnedInLive = ctx.messages.find((m) => m.pinned);
+    expect(pinnedInLive).toBeTruthy();
+    expect(pinnedInLive.id).toBe(offending);
+    expect(pinnedInLive.body).toBe('the specific creepy line');
+    // Only the flagged message is marked pinned.
+    expect(ctx.messages.filter((m) => m.pinned)).toHaveLength(1);
+  });
+
+  it('a messageId that is the REPORTER\'s OWN message is ignored (not pinned)', async () => {
+    const reporter = makeUser();
+    const reported = makeUser();
+    const cid = makeConversation(reporter, reported);
+    addMessage(cid, reported, 'their message');
+    const ownMsg = addMessage(cid, reporter, 'my own message');
+
+    const r = await api('/messaging/report', {
+      token: signToken(reporter, 0), method: 'POST',
+      body: { reportedUserId: reported, reason: 'harassment', conversationId: cid, messageId: ownMsg },
+    });
+    // Report still files — the pin is just dropped (never pin the reporter's own).
+    expect(r.status).toBe(201);
+    const row = db.prepare(
+      'SELECT id, reported_message_id, pinned_message FROM reports WHERE reporter_id = ? AND reported_id = ?'
+    ).get(reporter, reported);
+    expect(row.reported_message_id).toBeNull();
+    expect(row.pinned_message).toBeNull();
+
+    const ctx = (await api(`/admin/reports/${row.id}/context`, { token: adminToken() })).json;
+    expect(ctx.pinnedMessageId).toBeNull();
+    expect(ctx.messages.some((m) => m.pinned)).toBe(false);
+  });
+
+  it('a messageId from ANOTHER conversation is ignored (not pinned)', async () => {
+    const reporter = makeUser();
+    const reported = makeUser();
+    const cid = makeConversation(reporter, reported);
+    addMessage(cid, reported, 'in-scope message');
+    // A message the reported user sent, but in a DIFFERENT conversation.
+    const otherPerson = makeUser();
+    const otherCid = makeConversation(reported, otherPerson);
+    const foreignMsg = addMessage(otherCid, reported, 'unrelated-conversation message');
+
+    const r = await api('/messaging/report', {
+      token: signToken(reporter, 0), method: 'POST',
+      body: { reportedUserId: reported, reason: 'harassment', conversationId: cid, messageId: foreignMsg },
+    });
+    expect(r.status).toBe(201);
+    const row = db.prepare(
+      'SELECT reported_message_id, pinned_message FROM reports WHERE reporter_id = ? AND reported_id = ?'
+    ).get(reporter, reported);
+    expect(row.reported_message_id).toBeNull();
+    expect(row.pinned_message).toBeNull();
+  });
+
+  it('report WITHOUT messageId still snapshots the WIDENED last-N (more than 3)', async () => {
+    const reporter = makeUser();
+    const reported = makeUser();
+    const cid = makeConversation(reporter, reported);
+    // Five messages from the reported user — the old LIMIT 3 would have dropped
+    // the two earliest; the widened LIMIT 10 keeps them all.
+    for (let i = 1; i <= 5; i++) addMessage(cid, reported, `reported-line-${i}`);
+
+    const r = await api('/messaging/report', {
+      token: signToken(reporter, 0), method: 'POST',
+      body: { reportedUserId: reported, reason: 'harassment', conversationId: cid },
+    });
+    expect(r.status).toBe(201);
+    const row = db.prepare(
+      'SELECT reported_message, reported_message_id FROM reports WHERE reporter_id = ? AND reported_id = ?'
+    ).get(reporter, reported);
+    // No pin on this path.
+    expect(row.reported_message_id).toBeNull();
+    // All five survive the snapshot (proves the widen from 3 → 10).
+    expect(row.reported_message).toContain('reported-line-1');
+    expect(row.reported_message).toContain('reported-line-2');
+    expect(row.reported_message).toContain('reported-line-5');
   });
 });
 

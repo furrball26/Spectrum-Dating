@@ -514,8 +514,12 @@ function DeleteConfirmDialog({ onConfirm, onCancel, unsent = false }) {
   );
 }
 
-// Per-message ⋯ menu — A11y Blocker 2: arrow-key navigation
-function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
+// Per-message ⋯ menu — A11y Blocker 2: arrow-key navigation.
+// `isOwn` decides the single action: your own message → Delete; the other
+// person's message → "Report this message" (Needed #10 — pin the offending
+// message into the report). `onReport` fires with no args; the caller already
+// holds the message.
+function MessageMenu({ messageId, isOwn, onDelete, onReport, onClose, anchorRef }) {
   const containerRef = useRef(null);
   const itemRef = useRef(null);
 
@@ -582,7 +586,11 @@ function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
         ref={itemRef}
         role="menuitem"
         type="button"
-        onClick={() => { onClose(); onDelete(messageId); }}
+        onClick={() => {
+          onClose();
+          if (isOwn) onDelete(messageId);
+          else if (onReport) onReport();
+        }}
         style={{
           display: "block",
           width: "100%",
@@ -599,7 +607,7 @@ function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
         onFocus={f.onFocus}
         onBlur={f.onBlur}
       >
-        Delete message
+        {isOwn ? "Delete message" : "Report this message"}
       </button>
     </div>
   );
@@ -617,6 +625,7 @@ function MessageMenu({ messageId, onDelete, onClose, anchorRef }) {
 const MessageBubble = memo(function MessageBubble({
   message,
   onRequestDelete,
+  onReportMessage,
   currentUserId,
   msgReactions,
   onToggleReaction,
@@ -826,7 +835,7 @@ const MessageBubble = memo(function MessageBubble({
             alignItems: "flex-end",
           }}
         >
-          {isOwn && (
+          {(isOwn || onReportMessage) && (
             <button
               type="button"
               aria-label="Message options"
@@ -969,7 +978,9 @@ const MessageBubble = memo(function MessageBubble({
         {menuOpen && (
           <MessageMenu
             messageId={message.id}
+            isOwn={isOwn}
             onDelete={onRequestDelete}
+            onReport={onReportMessage ? () => onReportMessage(message) : undefined}
             onClose={() => setMenuOpen(false)}
             anchorRef={menuAnchorRef}
           />
@@ -2435,6 +2446,19 @@ export default function ConversationScreen({
     setPendingDeleteId(messageId);
   }, []);
 
+  // Needed #10 — "Report this message" on the other person's bubble: open the
+  // block/report flow with the specific message pinned. useCallback-stable so it
+  // doesn't defeat React.memo on MessageBubble. temp- ids are client-only (never
+  // persisted server-side) so they can't be pinned — send no messageId, which
+  // falls back to the unchanged snapshot path.
+  const handleReportMessage = useCallback((message) => {
+    if (!onBlockReport) return;
+    const id = typeof message?.id === "string" && !message.id.startsWith("temp-")
+      ? message.id
+      : null;
+    onBlockReport({ messageId: id, messageText: message?.body || "" });
+  }, [onBlockReport]);
+
   async function handleConfirmDelete() {
     const targetId = pendingDeleteId;
     setPendingDeleteId(null);
@@ -3010,6 +3034,8 @@ export default function ConversationScreen({
                   key={msg.id}
                   message={msg}
                   onRequestDelete={handleRequestDelete}
+                  // Needed #10 — only the OTHER person's messages are reportable.
+                  onReportMessage={isOwnMsg ? undefined : handleReportMessage}
                   currentUserId={currentUserId}
                   msgReactions={reactions[msg.id] || EMPTY_REACTIONS}
                   onToggleReaction={toggleReaction}

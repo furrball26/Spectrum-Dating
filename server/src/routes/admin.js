@@ -103,7 +103,7 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
   const base = `
     SELECT r.id, r.reporter_id, r.reported_id, r.conversation_id,
            r.reason, r.details, r.status, r.moderator_note,
-           r.created_at, r.resolved_at, r.resolved_by, r.reported_message,
+           r.created_at, r.resolved_at, r.resolved_by, r.reported_message, r.pinned_message,
            ru.email AS reporter_email, rp.display_name AS reporter_display_name,
            du.email AS reported_email, dp.display_name AS reported_display_name,
            du.suspended AS reported_suspended, du.banned AS reported_banned, du.created_at AS reported_created_at,
@@ -827,7 +827,7 @@ router.post('/profile-photos/:id/review', requireAuth, requireAdmin, (req, res) 
 router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
   const report = db.prepare(
-    'SELECT id, conversation_id, reported_id, reported_message FROM reports WHERE id = ?'
+    'SELECT id, conversation_id, reported_id, reported_message, reported_message_id, pinned_message FROM reports WHERE id = ?'
   ).get(req.params.id);
   if (!report) return res.status(404).json({ error: 'Report not found.' });
 
@@ -855,6 +855,9 @@ router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
       senderName: m.sender_display_name || '',
       senderEmail: m.sender_email || null,
       fromReported: m.sender_id === report.reported_id,
+      // Needed #10: the one message the reporter explicitly flagged, so the
+      // console can highlight it distinctly inside the live conversation view.
+      pinned: !!report.reported_message_id && m.id === report.reported_message_id,
       body: m.deleted ? null : m.body,
       deleted: !!m.deleted,
       createdAt: m.sent_at,
@@ -871,6 +874,11 @@ router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
     live: messages.length > 0,
     messages,
     snapshot: report.reported_message || null,
+    // Needed #10: the reporter-pinned message (id + frozen text). Rendered
+    // highlighted and labeled "Reporter flagged this message", distinct from the
+    // surrounding snapshot — in both the live view and the snapshot fallback.
+    pinnedMessageId: report.reported_message_id || null,
+    pinnedMessage: report.pinned_message || null,
   });
 });
 
@@ -939,6 +947,10 @@ function serializeReport(r) {
       : null,
     // P1-A: durable snapshot of the reported user's message(s) at report time.
     reportedMessage: r.reported_message || null,
+    // Needed #10: the frozen text of the specific message the reporter pinned
+    // (null on the no-message report path). Surfaced on the card so a moderator
+    // sees exactly what was flagged without expanding the conversation view.
+    pinnedMessage: r.pinned_message || null,
     reporter: { email: r.reporter_email, displayName: r.reporter_display_name || '' },
     reported: {
       email: r.reported_email,

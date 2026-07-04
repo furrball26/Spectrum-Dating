@@ -20,15 +20,21 @@ function usePrefersReduced() {
 
 const MAX_DETAILS = 500;
 
-export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
+export default function BlockReportScreen({ displayName, onSubmit, onBack, pinnedMessage = null }) {
   const headingRef = useRef(null);
   const confirmRef = useRef(null);
 
+  // Needed #10 — when the flow is opened by pinning a specific message ("Report
+  // this message"), the reporter's intent is clearly to REPORT it, so default
+  // report ON. The pinned text is shown below so they confirm what they flag.
+  const hasPinned = !!(pinnedMessage && (pinnedMessage.messageId || pinnedMessage.messageText));
+
   // Block and report are independent, optional choices. Default: block on
   // (this flow is reached from a conversation the user wants to leave), report
-  // off (reporting is a separate, deliberate choice). At least one is required.
+  // off (reporting is a separate, deliberate choice) — unless a message was
+  // pinned, in which case report defaults on. At least one is required.
   const [doBlock, setDoBlock] = useState(true);
-  const [doReport, setDoReport] = useState(false);
+  const [doReport, setDoReport] = useState(hasPinned);
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -266,6 +272,39 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack }) {
                 }}
               >
                 {failMsg}
+              </div>
+            )}
+
+            {/* Needed #10 — confirm the specific message being flagged, so the
+                reporter can see exactly what they're pinning for our team. */}
+            {hasPinned && (
+              <div
+                style={{
+                  background: t.surfaceAlt,
+                  border: `1px solid ${t.formBorder}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  marginBottom: 20,
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 6 }}>
+                  Reporting this message
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    color: t.text,
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "anywhere",
+                    fontStyle: pinnedMessage.messageText ? "normal" : "italic",
+                  }}
+                >
+                  {pinnedMessage.messageText
+                    ? `"${pinnedMessage.messageText}"`
+                    : "(a photo — no text)"}
+                </p>
               </div>
             )}
 

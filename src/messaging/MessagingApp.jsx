@@ -492,6 +492,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
     setScreen("list");
     setSelectedConversationId(null);
     setShowUnmatchSheet(false);
+    setPinnedReportMessage(null);
   }
 
   function handleUnmatch() {
@@ -517,7 +518,16 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
     setShowUnmatchSheet(false);
   }
 
-  function handleBlockReport() {
+  // Needed #10 — when the block/report flow is opened by pinning a specific
+  // message ("Report this message" on the other person's bubble), carry the
+  // pinned { messageId, messageText } so the report UI can confirm what's being
+  // flagged and thread messageId to the server. Opening from the header (no
+  // args) clears any prior pin — the unchanged no-message report path.
+  const [pinnedReportMessage, setPinnedReportMessage] = useState(null);
+  function handleBlockReport(payload) {
+    setPinnedReportMessage(
+      payload && (payload.messageId || payload.messageText) ? payload : null
+    );
     setScreen("block-report");
   }
 
@@ -545,7 +555,9 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
     let reported = false;
     if (doReport) {
       try {
-        await reportUser(otherUserId, reason, details, convId);
+        // Needed #10 — thread the pinned messageId (if the flow was opened from a
+        // specific bubble). Null when reporting from the header — unchanged path.
+        await reportUser(otherUserId, reason, details, convId, pinnedReportMessage?.messageId || undefined);
         reported = true;
       } catch (e) {
         console.warn("Report failed", e);
@@ -593,6 +605,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
   }
 
   function handleBlockReportBack() {
+    setPinnedReportMessage(null);
     setScreen("conversation");
   }
 
@@ -691,6 +704,8 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       displayName={currentConvo.otherUser.displayName}
       onSubmit={handleBlockReportSubmit}
       onBack={handleBlockReportBack}
+      // Needed #10 — the specific message being flagged (null = header report).
+      pinnedMessage={pinnedReportMessage}
     />
   );
 

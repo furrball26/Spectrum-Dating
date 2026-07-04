@@ -702,7 +702,7 @@ router.delete('/blocked/:userId', requireAuth, (req, res) => {
 
 router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
-  const { reportedUserId, reason, details, conversationId, requestId } = req.body ?? {};
+  const { reportedUserId, reason, details, conversationId, requestId, messageId } = req.body ?? {};
 
   if (!reportedUserId || typeof reportedUserId !== 'string') {
     return res.status(400).json({ error: 'reportedUserId is required' });
@@ -730,22 +730,47 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   if (requestId !== undefined && requestId !== null && typeof requestId !== 'string') {
     return res.status(400).json({ error: 'requestId must be a string' });
   }
+  if (messageId !== undefined && messageId !== null && typeof messageId !== 'string') {
+    return res.status(400).json({ error: 'messageId must be a string' });
+  }
 
   // P1-A: snapshot the reported user's most recent message(s) in the reported
   // conversation into the report row. The live conversation CASCADE-deletes when
   // a participant leaves / the match ends, so this frozen copy is the durable
   // trust-&-safety trail a moderator triages against even after the fact.
+  //
+  // Needed #10 (evidence-on-report): widen the general snapshot from the last 3
+  // to the last ~10 of the reported user's messages, so an offending message a
+  // little further back still survives the CASCADE. The reporter can ALSO pin
+  // one specific message (see below); the two are complementary.
   let reportedMessage = null;
+  let pinnedMessageId = null;
+  let pinnedMessageText = null;
   if (conversationId) {
     const recent = db.prepare(`
       SELECT body FROM messages
       WHERE conversation_id = ? AND sender_id = ? AND deleted = 0
       ORDER BY sent_at DESC
-      LIMIT 3
+      LIMIT 10
     `).all(conversationId, reportedUserId);
     if (recent.length) {
       // Oldest-first so it reads in conversational order.
       reportedMessage = recent.map(m => m.body).reverse().join('\n');
+    }
+
+    // Needed #10: the reporter may PIN the specific offending message. Only
+    // accept it when the message exists, is IN the reported conversation, and
+    // was sent by the REPORTED user — this is what stops a reporter from pinning
+    // their own message or one from an unrelated conversation. A pin that fails
+    // any check is silently ignored (the report still files, just unpinned).
+    if (messageId) {
+      const pinned = db.prepare(
+        'SELECT id, body, deleted FROM messages WHERE id = ? AND conversation_id = ? AND sender_id = ?'
+      ).get(messageId, conversationId, reportedUserId);
+      if (pinned && !pinned.deleted) {
+        pinnedMessageId = pinned.id;
+        pinnedMessageText = pinned.body;
+      }
     }
   }
 
@@ -769,9 +794,9 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   }
 
   db.prepare(`
-    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at, reported_message)
-    VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)
-  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now(), reportedMessage);
+    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at, reported_message, reported_message_id, pinned_message)
+    VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
+  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now(), reportedMessage, pinnedMessageId, pinnedMessageText);
 
   res.status(201).json({ reported: true });
 });
