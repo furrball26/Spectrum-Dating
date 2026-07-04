@@ -7,6 +7,7 @@ import { listPublicPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
 import { coarseCity } from '../utils/metros.js';
 import { newId } from '../utils/ids.js';
+import { ensureMatch } from '../utils/matches.js';
 import { emitNewMatch } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
 
@@ -150,31 +151,22 @@ router.post('/swipe', requireAuth, mutationLimiter, async (req, res) => {
     return res.json({ matched: false });
   }
 
-  // Mutual like — create match (canonical order: smaller id first).
-  const [userA, userB] = userId < candidateId ? [userId, candidateId] : [candidateId, userId];
-  let matchId = newId();
+  // Mutual like — create the match via the shared canonical-order + UNIQUE-dedupe
+  // helper (ensureMatch), the SAME path the intro-accept flow uses so the two can
+  // never diverge. E11: a swipe→match race where the other user's concurrent
+  // mutual-like won the INSERT resolves to the winning row's id, and we still fall
+  // through to the shared emit/push below so BOTH users are notified regardless of
+  // which insert won.
+  const matchId = ensureMatch(db, userId, candidateId, now);
 
-  try {
-    db.prepare(
-      'INSERT INTO matches (id, user_a_id, user_b_id, matched_at) VALUES (?, ?, ?, ?)'
-    ).run(matchId, userA, userB, now);
-  } catch (err) {
-    if (err.message?.includes('UNIQUE constraint failed')) {
-      // E11: swipe→match race — the other user's concurrent mutual-like won the
-      // INSERT (UNIQUE prevents a dup row). Previously we returned {matched:true}
-      // here WITHOUT emitting/pushing, so THIS user could silently miss the
-      // realtime `new_match` + push. Now we fall through to the shared
-      // emit/push below using the winning row's id, so both users are notified
-      // regardless of which insert won.
-      const existing = db.prepare(
-        'SELECT id FROM matches WHERE user_a_id = ? AND user_b_id = ?'
-      ).get(userA, userB);
-      if (!existing) throw err; // shouldn't happen; don't swallow a real error
-      matchId = existing.id;
-    } else {
-      throw err;
-    }
-  }
+  // Intro stale-resolve: if a pending message-request intro exists between this
+  // pair, the mutual swipe-match supersedes it — withdraw it (either direction)
+  // so no orphaned pending intro lingers between a now-matched pair.
+  db.prepare(
+    `UPDATE message_requests SET status = 'withdrawn', decided_at = ?
+     WHERE status = 'pending'
+       AND ((sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?))`
+  ).run(now, userId, candidateId, candidateId, userId);
 
   const { io } = req.app.locals;
   if (io) {

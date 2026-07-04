@@ -212,6 +212,17 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
       ).run(req.params.id);
       logMod(db, userId, 'suspend', req.params.id, note);
 
+      // Nuke the suspended user's PENDING outbound message-request intros — a
+      // suspended user must not keep a live first-contact channel to non-matches.
+      // Silent to the sender (a withdrawn intro never surfaces to them). Logged
+      // to the mod trail for accountability.
+      const nukedIntros = db.prepare(
+        "UPDATE message_requests SET status = 'withdrawn', decided_at = ? WHERE sender_id = ? AND status = 'pending'"
+      ).run(now, req.params.id);
+      if (nukedIntros.changes > 0) {
+        logMod(db, userId, 'nuke_intros', req.params.id, `withdrew ${nukedIntros.changes} pending outbound intro(s) on suspend`);
+      }
+
       const openReports = db.prepare(
         "SELECT id FROM reports WHERE reported_id = ? AND status = 'open'"
       ).all(req.params.id);

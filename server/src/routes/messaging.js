@@ -629,6 +629,18 @@ router.post('/block', requireAuth, safetyActionLimiter, (req, res) => {
     }
   }
 
+  // Nuke any PENDING message-request intros BETWEEN the pair, BOTH directions, so
+  // a block leaves zero pending intros between them (mirrors block-drops-room).
+  // The blocker's own outbound pending → withdrawn; the blocked person's inbound
+  // pending → declined. Both are silent to the sender (a declined intro never
+  // surfaces to its sender), so the blocked person is never told.
+  db.prepare(
+    "UPDATE message_requests SET status = 'withdrawn', decided_at = ? WHERE sender_id = ? AND recipient_id = ? AND status = 'pending'"
+  ).run(now, userId, blockedUserId);
+  db.prepare(
+    "UPDATE message_requests SET status = 'declined', decided_at = ? WHERE sender_id = ? AND recipient_id = ? AND status = 'pending'"
+  ).run(now, blockedUserId, userId);
+
   res.status(201).json({ blocked: true });
 });
 
@@ -672,7 +684,7 @@ router.delete('/blocked/:userId', requireAuth, (req, res) => {
 
 router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
-  const { reportedUserId, reason, details, conversationId } = req.body ?? {};
+  const { reportedUserId, reason, details, conversationId, requestId } = req.body ?? {};
 
   if (!reportedUserId || typeof reportedUserId !== 'string') {
     return res.status(400).json({ error: 'reportedUserId is required' });
@@ -697,6 +709,9 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   if (conversationId !== undefined && conversationId !== null && typeof conversationId !== 'string') {
     return res.status(400).json({ error: 'conversationId must be a string' });
   }
+  if (requestId !== undefined && requestId !== null && typeof requestId !== 'string') {
+    return res.status(400).json({ error: 'requestId must be a string' });
+  }
 
   // P1-A: snapshot the reported user's most recent message(s) in the reported
   // conversation into the report row. The live conversation CASCADE-deletes when
@@ -713,6 +728,25 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
     if (recent.length) {
       // Oldest-first so it reads in conversational order.
       reportedMessage = recent.map(m => m.body).reverse().join('\n');
+    }
+  }
+
+  // Report-from-intro-card: snapshot the intro text so it survives even if the
+  // request row is later resolved/deleted (durability, mirrors the conversation
+  // snapshot above). Only snapshots when the reporter is a party to the request
+  // and the reported user is the OTHER party — never lets a caller pull an
+  // arbitrary intro. Does NOT accept/decline the request (report ≠ decision).
+  if (requestId) {
+    const ir = db.prepare(
+      'SELECT intro, sender_id, recipient_id FROM message_requests WHERE id = ?'
+    ).get(requestId);
+    if (
+      ir &&
+      (ir.sender_id === userId || ir.recipient_id === userId) &&
+      (ir.sender_id === reportedUserId || ir.recipient_id === reportedUserId) &&
+      ir.sender_id !== ir.recipient_id
+    ) {
+      reportedMessage = ir.intro;
     }
   }
 

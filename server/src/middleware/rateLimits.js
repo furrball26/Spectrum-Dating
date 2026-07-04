@@ -82,6 +82,33 @@ export const telemetryLimiter = rateLimit({
   handler: (_req, res) => res.status(204).end(),
 });
 
+// ── Intro-request limiters (message-request / first-contact) ─────────────────
+// First-contact intros to NON-matches are a fresh inbound-abuse surface, so they
+// get their OWN buckets (never sharing with messaging/report/block limiters — a
+// flood on one must not rate-starve the others). TWO windows enforce both a
+// short-burst ceiling and a daily ceiling. Keyed per-user. The `limit` is read
+// from env at request time so ops can tune (and tests can exercise) the cap
+// without a redeploy; defaults are 5/hour and 15/day.
+export const introRequestHourlyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: () => Number(process.env.INTRO_MAX_PER_HOUR) || 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: { error: "You've sent a lot of intros in a short time. Please take a break and try again later." },
+  skipSuccessfulRequests: false,
+});
+
+export const introRequestDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  limit: () => Number(process.env.INTRO_MAX_PER_DAY) || 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: { error: "You've reached your intros for today. Please try again tomorrow." },
+  skipSuccessfulRequests: false,
+});
+
 // ── Safety-action limiter (report / block) ───────────────────────────────────
 // SEPARATE bucket from feedback/verification so non-safety spam can never
 // exhaust a user's ability to report or block a bad actor. A more generous
