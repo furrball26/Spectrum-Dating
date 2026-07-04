@@ -581,6 +581,14 @@ router.post('/roles', requireAuth, requireAdmin, (req, res) => {
     return res.json({ ok: true, userId, admin, changed: false });
   }
 
+  // MED-1: a real grant/revoke MUST carry a non-empty justification — mirrors the
+  // ban/suspend handlers' note requirement, so every admin-role change lands in
+  // the moderation_log audit row with a reason (no silent privilege escalation).
+  // Scoped to the actual change: a no-op / refused call above never needs one.
+  if (!reason) {
+    return res.status(400).json({ error: 'A reason is required to grant or revoke admin access.' });
+  }
+
   db.transaction(() => {
     db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(admin ? 1 : 0, userId);
     // Role changes MUST be in the audit trail (actor, target, grant/revoke, reason).

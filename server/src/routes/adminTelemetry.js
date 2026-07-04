@@ -636,14 +636,52 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
     if (hasAgeMax) { where.push('p.date_of_birth > ?'); params.push(isoYearsAgo(ageMax + 1)); }
   }
 
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  // Base WHERE = every filter EXCEPT the tier segment. The tier segment is kept
+  // separate so the per-tier counts below stay stable as the admin flips it.
+  const baseWhereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  // ── Tier segment (Free vs Companion) ──────────────────────────────────────
+  // Membership tier comes from the subscriptions table via the entitlements
+  // invariant: NO row = free (never assume a row exists). We LEFT JOIN
+  // subscriptions and COALESCE(tier,'free') so free members (no row) are counted
+  // and any non-companion tier reads as free. `?tier=free|companion` narrows the
+  // page + total; per-tier counts are computed over the CURRENT filter set MINUS
+  // the tier segment (faceted), so All/Free/Companion counts don't shift as you
+  // switch segments. Reuses the same subscriptions source getEntitlement reads.
+  const tierFilter = req.query.tier === 'companion' ? 'companion'
+    : req.query.tier === 'free' ? 'free'
+      : null;
+
+  const tierCountRows = db.prepare(
+    `SELECT COALESCE(s.tier, 'free') AS tier, COUNT(*) AS c
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN subscriptions s ON s.user_id = u.id
+       ${baseWhereSql}
+       GROUP BY COALESCE(s.tier, 'free')`
+  ).all(...params);
+  const tierCounts = { free: 0, companion: 0 };
+  for (const r of tierCountRows) {
+    if (r.tier === 'companion') tierCounts.companion += r.c;
+    else tierCounts.free += r.c; // any non-companion tier reads as free
+  }
+
+  // Filtered WHERE (base + the tier segment) drives pagination + the page rows.
+  const fWhere = [...where];
+  const fParams = [...params];
+  if (tierFilter) {
+    fWhere.push("COALESCE(s.tier, 'free') = ?");
+    fParams.push(tierFilter);
+  }
+  const whereSql = fWhere.length ? `WHERE ${fWhere.join(' AND ')}` : '';
 
   const total = db.prepare(
     `SELECT COUNT(*) AS c
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN subscriptions s ON s.user_id = u.id
        ${whereSql}`
-  ).get(...params).c;
+  ).get(...fParams).c;
 
   // Correlated counts mirror admin.js:75-77.
   const orderSql = sort === 'reports'
@@ -656,20 +694,25 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
             COALESCE(p.display_name, '') AS displayName,
             COALESCE(p.dist_city, '')    AS distCity,
             COALESCE(p.identity_verified, 0) AS verified,
+            COALESCE(s.tier, 'free')     AS tier,
             (SELECT COUNT(*) FROM reports r WHERE r.reported_id = u.id) AS reportCount,
             (SELECT COUNT(*) FROM reports r WHERE r.reported_id = u.id AND r.status = 'actioned') AS actionedCount,
             (SELECT COUNT(DISTINCT b.blocker_id) FROM blocks b WHERE b.blocked_id = u.id) AS blockedByCount
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN subscriptions s ON s.user_id = u.id
        ${whereSql}
        ${orderSql}
        LIMIT ? OFFSET ?`
-  ).all(...params, pageSize, offset);
+  ).all(...fParams, pageSize, offset);
 
   res.json({
     total,
     page,
     pageSize,
+    // Per-tier counts for the Free/Companion segment control (faceted — reflects
+    // the current query/status/demographic filters, ignoring the tier segment).
+    tierCounts,
     members: rows.map((r) => ({
       id: r.id,
       email: r.email,
@@ -679,6 +722,8 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
       lastActiveAt: r.lastActiveAt || '',
       suspended: !!r.suspended,
       verified: !!r.verified,
+      // Membership tier (free | companion) — 'free' when no subscriptions row.
+      tier: r.tier === 'companion' ? 'companion' : 'free',
       reportCount: r.reportCount,
       actionedCount: r.actionedCount,
       blockedByCount: r.blockedByCount,

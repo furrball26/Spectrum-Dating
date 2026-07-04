@@ -20,6 +20,7 @@ const { getDb } = await import('../src/db.js');
 const { optionalAuth, signToken } = await import('../src/middleware/auth.js');
 const { contextMiddleware } = await import('../src/middleware/context.js');
 const adminTelemetryRouter = (await import('../src/routes/adminTelemetry.js')).default;
+const { setEntitlement } = await import('../src/billing/entitlements.js');
 
 const db = getDb();
 
@@ -165,6 +166,54 @@ describe('GET /admin/members — listing', () => {
     const fewIdx = list.members.findIndex((m) => m.id === few);
     expect(manyIdx).toBeGreaterThanOrEqual(0);
     expect(manyIdx).toBeLessThan(fewIdx); // more-reported ranks first
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier breakout (Free vs Companion) — segment filter + per-tier counts.
+// ---------------------------------------------------------------------------
+describe('GET /admin/members — tier breakout', () => {
+  it('reports each member tier (free by default, companion when granted)', async () => {
+    const tag = `tier${Date.now()}`;
+    const freeUser = makeUser({ email: `${tag}-free@example.com` });
+    const compUser = makeUser({ email: `${tag}-comp@example.com` });
+    setEntitlement(db, compUser, { tier: 'companion', source: 'admin_demo' });
+
+    const list = (await api(`/admin/members?pageSize=100&query=${tag}-`, { token: adminToken() })).json;
+    expect(list.members.find((m) => m.id === freeUser).tier).toBe('free');
+    expect(list.members.find((m) => m.id === compUser).tier).toBe('companion');
+  });
+
+  it('?tier= narrows the listing to that segment', async () => {
+    const tag = `tflt${Date.now()}`;
+    const freeUser = makeUser({ email: `${tag}-free@example.com` });
+    const compUser = makeUser({ email: `${tag}-comp@example.com` });
+    setEntitlement(db, compUser, { tier: 'companion', source: 'admin_demo' });
+
+    const comp = (await api(`/admin/members?pageSize=100&query=${tag}-&tier=companion`, { token: adminToken() })).json;
+    expect(comp.members.map((m) => m.id)).toContain(compUser);
+    expect(comp.members.map((m) => m.id)).not.toContain(freeUser);
+
+    const free = (await api(`/admin/members?pageSize=100&query=${tag}-&tier=free`, { token: adminToken() })).json;
+    expect(free.members.map((m) => m.id)).toContain(freeUser);
+    expect(free.members.map((m) => m.id)).not.toContain(compUser);
+  });
+
+  it('returns faceted per-tier counts that ignore the tier segment', async () => {
+    const tag = `tcnt${Date.now()}`;
+    makeUser({ email: `${tag}-f1@example.com` });
+    makeUser({ email: `${tag}-f2@example.com` });
+    const c1 = makeUser({ email: `${tag}-c1@example.com` });
+    setEntitlement(db, c1, { tier: 'companion', source: 'admin_demo' });
+
+    // Counts stay the same whether or not a tier segment is applied (faceted).
+    const all = (await api(`/admin/members?pageSize=100&query=${tag}-`, { token: adminToken() })).json;
+    expect(all.tierCounts).toEqual({ free: 2, companion: 1 });
+    const filtered = (await api(`/admin/members?pageSize=100&query=${tag}-&tier=companion`, { token: adminToken() })).json;
+    expect(filtered.tierCounts).toEqual({ free: 2, companion: 1 });
+    // But the returned page respects the segment.
+    expect(filtered.members).toHaveLength(1);
+    expect(filtered.total).toBe(1);
   });
 });
 

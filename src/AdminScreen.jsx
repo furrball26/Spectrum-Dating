@@ -146,42 +146,12 @@ function useAdminResource(fetcher, token) {
   return { data, loading, error, reload };
 }
 
-// ─── Collapsible dashboard sections (mirrors ProfileScreen) ─────────────────
+// ─── Collapsible section (used by the Members filters + Insights breakdowns) ─
 // Same disclosure pattern the profile screen uses: a real <button> header with
 // aria-expanded/aria-controls, a 44px target + focus ring, keyboard toggle, and
-// a chevron that rotates (gated on prefers-reduced-motion). Each section's
-// open/closed choice persists to localStorage per-section so it survives
-// reloads — identical contract to profile's SECTIONS_STORAGE_KEY.
-const ADMIN_SECTIONS_STORAGE_KEY = "spectrum_admin_sections";
-
-// Sensible defaults: the two action-oriented zones are open; the context zones
-// (report breakdown, community health) start collapsed to reduce overwhelm.
-const ADMIN_SECTION_DEFAULTS = {
-  siteHealth: true,
-  billingDemo: true,
-  needsAttention: true,
-  reportBreakdown: false,
-  communityHealth: false,
-};
-
-function loadAdminSections() {
-  try {
-    const raw = localStorage.getItem(ADMIN_SECTIONS_STORAGE_KEY);
-    if (!raw) return { ...ADMIN_SECTION_DEFAULTS };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return { ...ADMIN_SECTION_DEFAULTS };
-    // Merge over defaults so a newly-added section id still gets its default.
-    return { ...ADMIN_SECTION_DEFAULTS, ...parsed };
-  } catch {
-    return { ...ADMIN_SECTION_DEFAULTS };
-  }
-}
-
-function persistAdminSections(open) {
-  try {
-    localStorage.setItem(ADMIN_SECTIONS_STORAGE_KEY, JSON.stringify(open));
-  } catch { /* private-mode / quota — non-fatal, just won't persist */ }
-}
+// a chevron that rotates (gated on prefers-reduced-motion). Open/closed is owned
+// by the caller (local component state) — the v2 areas are the primary nav, so
+// there are no more page-level always-open dashboard zones to persist.
 
 // Mirrors ProfileScreen's usePrefersReduced — chevron rotation is the only
 // motion here, and it must honor the OS reduce-motion preference.
@@ -386,48 +356,6 @@ function StatCard({ label, value, subtext, tone, onClick, ariaLabel, muted }) {
     );
   }
   return <div style={base}>{body}</div>;
-}
-
-// Report-breakdown strip (F-A) — Open · Reviewed · Actioned · Dismissed, each a
-// tappable segment that sets the status filter (and jumps to the Reports tab).
-function BreakdownStrip({ reports, active, onPick }) {
-  const segs = [["open", "Open"], ["reviewed", "Reviewed"], ["actioned", "Actioned"], ["dismissed", "Dismissed"]];
-  return (
-    <div role="group" aria-label="Report breakdown — tap to filter" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      {segs.map(([val, label]) => (
-        <BreakdownSegment
-          key={val}
-          label={label}
-          count={reports?.[val] ?? 0}
-          active={active === val}
-          onClick={() => onPick(val)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function BreakdownSegment({ label, count, active, onClick }) {
-  const f = useFocusable();
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      aria-label={`${label}: ${count}. Filter reports.`}
-      onClick={onClick}
-      style={{
-        flex: "1 1 120px", minWidth: 0, minHeight: 44, padding: "10px 12px", borderRadius: 12,
-        border: `1px solid ${active ? t.accentFill : t.border}`,
-        background: active ? t.surfaceAlt : t.surface, cursor: "pointer",
-        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, ...f.style,
-      }}
-      onFocus={f.onFocus}
-      onBlur={f.onBlur}
-    >
-      <span style={{ fontFamily: t.serif, fontSize: 22, fontWeight: 700, color: t.text }}>{count}</span>
-      <span style={{ fontSize: 13, color: t.textMuted }}>{label}</span>
-    </button>
-  );
 }
 
 // P1-A — read-only reported-conversation view, lazily fetched on reveal.
@@ -2513,6 +2441,26 @@ function MemberStatusBadge({ suspended, verified, banned }) {
   );
 }
 
+// Membership-tier pill for a member row — Companion reads as a calm accent-
+// outlined pill, Free as a neutral muted pill. The WORD is always present (never
+// color-only) and neither uses an alarm color, so both themes stay low-stimulation.
+function TierBadge({ tier }) {
+  const companion = tier === "companion";
+  return (
+    <span
+      style={{
+        display: "inline-block", fontSize: 13, fontWeight: 600, borderRadius: 20,
+        padding: "3px 10px", whiteSpace: "nowrap",
+        ...(companion
+          ? { background: t.surface, color: t.accentStrong, border: `1px solid ${t.accent}` }
+          : { background: t.surfaceAlt, color: t.textMuted, border: `1px solid ${t.border}` }),
+      }}
+    >
+      {companion ? "Companion" : "Free"}
+    </span>
+  );
+}
+
 // "YYYY-MM-DD" (or a date-ish value) → a short calm date. Empty → "".
 function formatDate(value) {
   if (!value) return "";
@@ -2553,6 +2501,8 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
   // from the demo view (includeDemo, driven by the shared Demo toggle) — both
   // default OFF so the real-member listing stays clean.
   const [includeTest, setIncludeTest] = useState(false);
+  // Membership-tier segment (All / Free / Companion). "" = All (no filter).
+  const [tier, setTier] = useState("");
   // Demographic filters (seeded from a drill-in; "" / "" number = inactive).
   const [gender, setGender] = useState(initialFilters.gender || "");
   const [orientation, setOrientation] = useState(initialFilters.orientation || "");
@@ -2581,14 +2531,14 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
     setRelationshipGoal(""); setCity(""); setAgeMin(""); setAgeMax(""); setPage(1);
   }, []);
 
-  const listKey = `${query}|${status}|${sort}|${page}|${gender}|${orientation}|${seeking}|${relationshipStructure}|${relationshipGoal}|${city}|${ageMin}|${ageMax}|${includeDemo ? 1 : 0}|${includeTest ? 1 : 0}|${refreshToken}`;
+  const listKey = `${query}|${status}|${sort}|${page}|${gender}|${orientation}|${seeking}|${relationshipStructure}|${relationshipGoal}|${city}|${ageMin}|${ageMax}|${tier}|${includeDemo ? 1 : 0}|${includeTest ? 1 : 0}|${refreshToken}`;
   const res = useAdminResource(
     () => getMembers({
       query, status, page, pageSize: MEMBER_PAGE_SIZE, sort,
       gender, orientation, seeking, relationshipStructure, relationshipGoal, city,
       ageMin: ageMin === "" ? null : parseInt(ageMin, 10),
       ageMax: ageMax === "" ? null : parseInt(ageMax, 10),
-      includeDemo, includeTest,
+      tier, includeDemo, includeTest,
     }),
     listKey
   );
@@ -2599,8 +2549,18 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
   const members = res.data?.members ?? [];
   const totalPages = Math.max(1, Math.ceil(total / MEMBER_PAGE_SIZE));
 
+  // Per-tier counts (faceted — reflect the current query/status/demographic
+  // filters, ignoring which tier segment is selected). Labelled into the segment.
+  const tierCounts = res.data?.tierCounts ?? { free: 0, companion: 0 };
+  const tierOptions = [
+    { value: "", label: `All · ${tierCounts.free + tierCounts.companion}` },
+    { value: "free", label: `Free · ${tierCounts.free}` },
+    { value: "companion", label: `Companion · ${tierCounts.companion}` },
+  ];
+
   const changeStatus = useCallback((v) => { setStatus(v); setPage(1); }, []);
   const changeSort = useCallback((v) => { setSort(v); setPage(1); }, []);
+  const changeTier = useCallback((v) => { setTier(v); setPage(1); }, []);
 
   const cellHead = { textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: t.textMuted, padding: "8px 10px", whiteSpace: "nowrap", borderBottom: `1px solid ${t.border}` };
   const cell = { fontSize: 14, color: t.text, padding: "12px 10px", borderBottom: `1px solid ${t.borderLight}`, verticalAlign: "top" };
@@ -2634,6 +2594,14 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
             </span>
             <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
           </div>
+        </div>
+
+        {/* Membership tier breakout — segment members by Free vs Companion, with
+            per-tier counts (faceted to the current filters). A calm, scannable
+            row; the count lives in each segment's label so it's never a wall. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+          <span style={{ fontSize: 13, color: t.textMuted }}>Membership tier</span>
+          <Segmented options={tierOptions} value={tier} onChange={changeTier} ariaLabel="Filter members by membership tier" />
         </div>
 
         {/* Demographic filters — collapsible so they don't overwhelm by default.
@@ -2723,6 +2691,7 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
                 <tr>
                   <th style={cellHead}>Member</th>
                   <th style={cellHead}>Status</th>
+                  <th style={cellHead}>Tier</th>
                   <th style={{ ...cellHead, textAlign: "right" }}>Reports</th>
                   <th style={cellHead}>Joined</th>
                   <th style={cellHead}>City</th>
@@ -2751,6 +2720,7 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
                       </button>
                     </td>
                     <td style={cell}><MemberStatusBadge suspended={m.suspended} verified={m.verified} /></td>
+                    <td style={cell}><TierBadge tier={m.tier} /></td>
                     <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {m.reportCount}
                       {m.reportCount > 0 && m.actionedCount > 0 && (
@@ -3038,30 +3008,64 @@ function ActivityDrawer({ metric, onClose }) {
   );
 }
 
-const ADMIN_TABS = [
+// ─── Moderation console v2: four calm areas ─────────────────────────────────
+// The old 10-tab strip + 5 always-open dashboard zones collapse into four
+// progressively-disclosed AREAS. Only the chosen area renders (one focus of
+// attention at a time — the neurodivergent-admin ask). Casework-first: QUEUE is
+// the default landing.
+//   • QUEUE    — reports · merged photo review · verification (+ triage row)
+//   • MEMBERS  — member directory + tier breakout + drawer + demo toggle
+//   • INSIGHTS — overview · population · transparency (+QA) · activity · feedback · health
+//   • SYSTEM   — billing demo (tagged DEMO) · maintenance/purge
+const CONSOLE_AREAS = [
+  { value: "queue", label: "Queue" },
+  { value: "members", label: "Members" },
+  { value: "insights", label: "Insights" },
+  { value: "system", label: "System" },
+];
+
+// Queue sub-views (the daily casework). Reports is default.
+const QUEUE_VIEWS = [
   { value: "reports", label: "Reports" },
+  { value: "photos", label: "Photo review" },
+  { value: "verification", label: "Verification" },
+];
+
+// Insights sub-views (all the "numbers", one at a time — never a wall).
+const INSIGHTS_VIEWS = [
   { value: "overview", label: "Overview" },
   { value: "population", label: "Population" },
   { value: "transparency", label: "Transparency" },
-  { value: "members", label: "Members" },
-  { value: "verification", label: "Verification" },
-  { value: "photos", label: "Photos" },
-  { value: "profile-photos", label: "Profile photos" },
-  { value: "feedback", label: "Feedback" },
   { value: "activity", label: "Activity" },
+  { value: "feedback", label: "Feedback" },
+  { value: "health", label: "Service health" },
 ];
 
-function TabButton({ label, active, onClick }) {
+// The merged photo-review source filter (was two near-identical tabs).
+const PHOTO_SOURCE_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "messages", label: "Message photos" },
+  { value: "profiles", label: "Profile photos" },
+];
+
+// Top-level AREA tab — a real tab (role="tab" + aria-selected + aria-controls),
+// larger and calmer than the old dense strip. Carries a word, never color-only.
+// Roving tabindex (only the active tab is in the tab order). Focus ring via
+// useFocusable.
+function AreaTab({ id, panelId, label, active, onClick }) {
   const f = useFocusable();
   return (
     <button
       type="button"
       role="tab"
+      id={id}
       aria-selected={active}
+      aria-controls={panelId}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       style={{
-        minHeight: 44, padding: "8px 12px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 14,
-        whiteSpace: "nowrap", flex: "0 0 auto", fontWeight: active ? 600 : 500,
+        flex: "1 1 auto", minHeight: 48, padding: "10px 16px", borderRadius: 12, border: "none",
+        cursor: "pointer", fontSize: 15, whiteSpace: "nowrap", fontWeight: active ? 700 : 500,
         background: active ? t.surface : "transparent", color: active ? t.text : t.textSoft,
         boxShadow: active ? t.shadow.sm : "none", ...f.style,
       }}
@@ -3070,6 +3074,36 @@ function TabButton({ label, active, onClick }) {
     >
       {label}
     </button>
+  );
+}
+
+// Photo review — ONE queue with a source filter, merging the two near-identical
+// photo queues (message attachments + profile photos). Each source keeps its own
+// review card + required-reason reject; the filter just chooses which render.
+// When "All", both render under quiet subheadings. Preserves every action.
+const photoGroupHeading = { fontSize: 14, fontWeight: 700, color: t.textSoft, margin: "0 0 10px" };
+function MergedPhotoQueue({ onStatus, reloadToken, onAfterAction }) {
+  const [source, setSource] = useState("all");
+  const showMessages = source === "all" || source === "messages";
+  const showProfiles = source === "all" || source === "profiles";
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <Segmented options={PHOTO_SOURCE_OPTIONS} value={source} onChange={setSource} ariaLabel="Filter photo review by source" />
+      </div>
+      {showMessages && (
+        <section aria-label="Message photos" style={{ marginBottom: source === "all" ? 24 : 0 }}>
+          {source === "all" && <h3 style={photoGroupHeading}>Message photos</h3>}
+          <PhotoReviewQueue onStatus={onStatus} reloadToken={reloadToken} onAfterAction={onAfterAction} />
+        </section>
+      )}
+      {showProfiles && (
+        <section aria-label="Profile photos">
+          {source === "all" && <h3 style={photoGroupHeading}>Profile photos</h3>}
+          <ProfilePhotoReviewQueue onStatus={onStatus} reloadToken={reloadToken} onAfterAction={onAfterAction} />
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -3236,16 +3270,29 @@ function MemberAdminRoleControl({ userId, userName, isEnvAdmin, isDbAdmin, onCha
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  // MED-1 (frontend): a grant/revoke must carry a justification. The backend is
+  // authoritative (400s without a non-empty reason) — this mirrors it so the
+  // moderator writes the audit note before submitting, not after a bounced call.
+  const [reason, setReason] = useState("");
+  const fReason = useFocusable();
+  const reasonRef = useRef(null);
   const name = userName || "this member";
   const isSelf = userId === getUserId();
 
+  // Move focus into the reason box when the confirm step opens (a11y). All hooks
+  // run before the isEnvAdmin early return below (React #310).
+  useEffect(() => { if (confirming) reasonRef.current?.focus(); }, [confirming]);
+
   const apply = useCallback(async () => {
     const next = !admin;
+    const r = reason.trim();
+    if (!r) return; // required — the backend also enforces this (MED-1)
     setBusy(true); setError(""); setStatus("");
     try {
-      await adminSetUserRole(userId, next);
+      await adminSetUserRole(userId, next, r);
       setAdmin(next);
       setConfirming(false);
+      setReason("");
       setStatus(next
         ? `${name} is now an admin. Recorded in the audit log.`
         : `Admin access removed from ${name}. Recorded in the audit log.`);
@@ -3255,7 +3302,7 @@ function MemberAdminRoleControl({ userId, userName, isEnvAdmin, isDbAdmin, onCha
     } finally {
       setBusy(false);
     }
-  }, [admin, userId, name, onChanged]);
+  }, [admin, reason, userId, name, onChanged]);
 
   // Env-root admins are managed in server configuration — immutable here. (Hooks
   // above run unconditionally; this early return is safe — React #310.)
@@ -3294,15 +3341,38 @@ function MemberAdminRoleControl({ userId, userName, isEnvAdmin, isDbAdmin, onCha
               ? `Revoke admin access from ${name}? They’ll immediately lose access to the moderation console.`
               : `Grant admin access to ${name}? They’ll be able to review reports and take enforcement action.`}
           </span>
+          <div>
+            <label
+              htmlFor={`role-reason-${userId}`}
+              style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}
+            >
+              Reason (required, recorded in the audit log)
+            </label>
+            <textarea
+              id={`role-reason-${userId}`}
+              ref={reasonRef}
+              value={reason}
+              onChange={(e) => setReason(e.target.value.slice(0, 500))}
+              maxLength={500}
+              rows={2}
+              style={{
+                width: "100%", border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "10px 12px",
+                fontSize: 16, color: t.text, background: t.surface, resize: "vertical", fontFamily: t.sans,
+                lineHeight: 1.5, boxSizing: "border-box", ...fReason.style,
+              }}
+              onFocus={fReason.onFocus}
+              onBlur={fReason.onBlur}
+            />
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <PlainButton kind={admin ? "danger" : "accent"} onClick={apply} disabled={busy}>
+            <PlainButton kind={admin ? "danger" : "accent"} onClick={apply} disabled={busy || !reason.trim()}>
               {busy ? "Saving…" : admin ? "Revoke admin" : "Grant admin"}
             </PlainButton>
-            <PlainButton kind="neutral" onClick={() => setConfirming(false)} disabled={busy}>Cancel</PlainButton>
+            <PlainButton kind="neutral" onClick={() => { setConfirming(false); setReason(""); }} disabled={busy}>Cancel</PlainButton>
           </div>
         </div>
       ) : (
-        <PlainButton kind={admin ? "quiet" : "neutral"} onClick={() => { setError(""); setStatus(""); setConfirming(true); }}>
+        <PlainButton kind={admin ? "quiet" : "neutral"} onClick={() => { setError(""); setStatus(""); setReason(""); setConfirming(true); }}>
           {admin ? "Revoke admin" : "Grant admin"}
         </PlainButton>
       )}
@@ -3374,7 +3444,12 @@ export default function AdminScreen() {
   const [loadingReports, setLoadingReports] = useState(true);
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
-  const [activeTab, setActiveTab] = useState("reports");
+  // v2 four-area shell. `area` is the top-level destination (Queue default —
+  // casework-first). `queueView`/`insightsView` are the in-area sub-nav choices;
+  // only the selected area (and sub-view) renders — progressive disclosure.
+  const [area, setArea] = useState("queue");
+  const [queueView, setQueueView] = useState("reports"); // reports | photos | verification
+  const [insightsView, setInsightsView] = useState("overview");
   const [queueToken, setQueueToken] = useState(0); // bump to refetch the active queue
   // Members-tab jump state: the requested initial status filter + a token that
   // bumps on each stat-card jump so the tab remounts pre-filtered (a Suspended
@@ -3384,21 +3459,21 @@ export default function AdminScreen() {
   const [membersNavToken, setMembersNavToken] = useState(0);
   // Which activity drill-in (Matches/Messages) is open, if any.
   const [activityMetric, setActivityMetric] = useState(null);
-  // Collapsible dashboard sections (persisted per-section, like ProfileScreen).
-  const [openSections, setOpenSections] = useState(loadAdminSections);
   const headingRef = useRef(null);
-
-  const toggleSection = useCallback((sid) => {
-    setOpenSections((prev) => {
-      const next = { ...prev, [sid]: !prev[sid] };
-      persistAdminSections(next);
-      return next;
-    });
-  }, []);
+  const areaHeadingRef = useRef(null);
+  const areaMountedRef = useRef(false);
 
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
+
+  // Focus management on area switch: move focus to the chosen area's heading so
+  // keyboard + screen-reader users land in the panel they picked. Skip the first
+  // render (the H1 already takes focus on mount).
+  useEffect(() => {
+    if (!areaMountedRef.current) { areaMountedRef.current = true; return; }
+    areaHeadingRef.current?.focus();
+  }, [area]);
 
   const focusHeading = useCallback(() => { headingRef.current?.focus(); }, []);
 
@@ -3443,25 +3518,28 @@ export default function AdminScreen() {
     focusHeading();
   }, [loadStats, focusHeading]);
 
-  // Explicit Refresh (F-C): refetch stats + whichever queue is active, announce.
+  // One refresh truth (F-C): refetch the stamped counts + the reports queue and
+  // bump the active queue token (the photo/verification queues refetch on the
+  // bump). No per-panel refresh chrome competes with this at the page level.
   const handleRefresh = useCallback(() => {
     loadStats(true);
-    if (activeTab === "reports") loadReports(statusFilter);
-    else setQueueToken((x) => x + 1);
-  }, [loadStats, loadReports, statusFilter, activeTab]);
+    loadReports(statusFilter);
+    setQueueToken((x) => x + 1);
+  }, [loadStats, loadReports, statusFilter]);
 
-  const jumpTo = useCallback((tab) => { setActiveTab(tab); }, []);
-  const pickBreakdown = useCallback((filter) => { setStatusFilter(filter); setActiveTab("reports"); }, []);
-  // Jump to the Members tab, optionally pre-filtered by status and/or a set of
-  // demographic filters (from a Population-tab bar tap). Bumping the nav token
-  // forces a fresh MembersTab mount so the initial filters always apply.
+  // Triage-card jumps into the Queue sub-views (reports / merged photos / verify).
+  const jumpToQueue = useCallback((view) => { setArea("queue"); setQueueView(view); }, []);
+  const pickBreakdown = useCallback((filter) => { setStatusFilter(filter); setArea("queue"); setQueueView("reports"); }, []);
+  // Jump to the Members area, optionally pre-filtered by status and/or a set of
+  // demographic filters (from a Population bar tap). Bumping the nav token forces
+  // a fresh MembersTab mount so the initial filters always apply.
   const jumpToMembers = useCallback((status = "all", filters = {}) => {
     setMembersInitialStatus(status);
     setMembersInitialFilters(filters);
     setMembersNavToken((x) => x + 1);
-    setActiveTab("members");
+    setArea("members");
   }, []);
-  // Population breakdown bar → Members tab pre-filtered to that demographic.
+  // Population breakdown bar → Members area pre-filtered to that demographic.
   const drillToMembers = useCallback((filters) => { jumpToMembers("all", filters); }, [jumpToMembers]);
 
   const page = {
@@ -3504,197 +3582,192 @@ export default function AdminScreen() {
           </p>
         )}
 
-        {/* Site health — always visible (renders regardless of the active tab
-            or whether stats loaded), collapsible + persisted like profile. */}
-        <AdminCollapsible
-          id="siteHealth"
-          title="Site health"
-          open={openSections.siteHealth}
-          onToggle={() => toggleSection("siteHealth")}
-          style={{ marginBottom: 20 }}
-        >
-          <SiteHealthPanel />
-        </AdminCollapsible>
-
-        {/* Billing demo — self view-as toggle + reset. Always visible (not gated
-            on stats), collapsible + persisted. Per-member grants are in the
-            member drawer (Members tab). Clearly labeled "(demo)" throughout. */}
-        <AdminCollapsible
-          id="billingDemo"
-          title="Billing demo (paid tier)"
-          open={openSections.billingDemo}
-          onToggle={() => toggleSection("billingDemo")}
-          style={{ marginBottom: 20 }}
-        >
-          <BillingDemoSection />
-        </AdminCollapsible>
-
-        {stats && (
-          <>
-            {/* Needs attention (F-A) — queues awaiting a moderator */}
-            <AdminCollapsible
-              id="needsAttention"
-              title="Needs attention"
-              open={openSections.needsAttention}
-              onToggle={() => toggleSection("needsAttention")}
-              style={{ marginBottom: 20 }}
-            >
-              <div style={gridStyle}>
-                <StatCard
-                  label="Open reports"
-                  value={stats.reports?.open ?? 0}
-                  subtext={(stats.reports?.open ?? 0) > 0 ? oldestLabel(stats.oldestOpenReportAt, now) : "All clear"}
-                  tone={(stats.reports?.open ?? 0) > 0 && isPastSla(stats.oldestOpenReportAt, now) ? "amber" : undefined}
-                  onClick={() => pickBreakdown("open")}
-                  ariaLabel={`Open reports: ${stats.reports?.open ?? 0}. View open reports.`}
-                />
-                <StatCard
-                  label="Photos"
-                  value={stats.pendingAttachments ?? 0}
-                  subtext={(stats.pendingAttachments ?? 0) > 0 ? oldestLabel(stats.oldestPendingAttachmentAt, now) : "All clear"}
-                  tone={(stats.pendingAttachments ?? 0) > 0 && isPastSla(stats.oldestPendingAttachmentAt, now) ? "amber" : undefined}
-                  onClick={() => jumpTo("photos")}
-                  ariaLabel={`Photos awaiting review: ${stats.pendingAttachments ?? 0}. View photo queue.`}
-                />
-                <StatCard
-                  label="Profile photos"
-                  value={stats.pendingProfilePhotos ?? 0}
-                  subtext={(stats.pendingProfilePhotos ?? 0) > 0 ? oldestLabel(stats.oldestPendingProfilePhotoAt, now) : "All clear"}
-                  tone={(stats.pendingProfilePhotos ?? 0) > 0 && isPastSla(stats.oldestPendingProfilePhotoAt, now) ? "amber" : undefined}
-                  onClick={() => jumpTo("profile-photos")}
-                  ariaLabel={`Profile photos awaiting review: ${stats.pendingProfilePhotos ?? 0}. View profile-photo queue.`}
-                />
-                <StatCard
-                  label="Verification"
-                  value={stats.pendingVerifications ?? 0}
-                  subtext={(stats.pendingVerifications ?? 0) > 0 ? oldestLabel(stats.oldestPendingVerificationAt, now) : "All clear"}
-                  tone={(stats.pendingVerifications ?? 0) > 0 && isPastSla(stats.oldestPendingVerificationAt, now) ? "amber" : undefined}
-                  onClick={() => jumpTo("verification")}
-                  ariaLabel={`Verification requests: ${stats.pendingVerifications ?? 0}. View verification queue.`}
-                />
-              </div>
-            </AdminCollapsible>
-
-            {/* Report breakdown strip (F-A) — tap a segment to filter */}
-            <AdminCollapsible
-              id="reportBreakdown"
-              title="Report breakdown"
-              open={openSections.reportBreakdown}
-              onToggle={() => toggleSection("reportBreakdown")}
-              style={{ marginBottom: 24 }}
-            >
-              <BreakdownStrip reports={stats.reports} active={activeTab === "reports" ? statusFilter : null} onPick={pickBreakdown} />
-            </AdminCollapsible>
-
-            {/* Community health (F-A) — de-emphasized context, not a to-do list */}
-            <AdminCollapsible
-              id="communityHealth"
-              title="Community health"
-              open={openSections.communityHealth}
-              onToggle={() => toggleSection("communityHealth")}
-              style={{ marginBottom: 24 }}
-            >
-              <div style={gridStyle}>
-                <StatCard
-                  label="Members"
-                  value={stats.members ?? 0}
-                  subtext={demo ? "Demo view — includes sample members" : `Excludes test accounts${(stats.testAccounts ?? 0) > 0 ? ` (+${stats.testAccounts} test)` : ""}`}
-                  muted
-                  onClick={() => jumpToMembers("all")}
-                  ariaLabel={`Members: ${stats.members ?? 0}. View member list.`}
-                />
-                <StatCard
-                  label="Suspended"
-                  value={stats.suspended ?? 0}
-                  muted
-                  onClick={() => jumpToMembers("suspended")}
-                  ariaLabel={`Suspended members: ${stats.suspended ?? 0}. View suspended members.`}
-                />
-                <StatCard
-                  label="Matches"
-                  value={stats.matches ?? 0}
-                  muted
-                  onClick={() => setActivityMetric("matches")}
-                  ariaLabel={`Matches: ${stats.matches ?? 0}. View match activity trends.`}
-                />
-                <StatCard
-                  label="Messages"
-                  value={stats.messages ?? 0}
-                  muted
-                  onClick={() => setActivityMetric("messages")}
-                  ariaLabel={`Messages: ${stats.messages ?? 0}. View message activity trends.`}
-                />
-              </div>
-            </AdminCollapsible>
-          </>
-        )}
-
-        {/* Tabs */}
+        {/* Four calm areas — a real tablist. Only the chosen area renders
+            (progressive disclosure); focus moves to its heading on switch. */}
         <div
           role="tablist"
-          aria-label="Moderation sections"
+          aria-label="Console areas"
           style={{
             display: "flex", gap: 6, background: t.surfaceAlt, border: `1px solid ${t.borderLight}`,
-            borderRadius: 12, padding: 4, marginBottom: 20, overflowX: "auto",
-            WebkitOverflowScrolling: "touch", scrollbarWidth: "thin",
+            borderRadius: 14, padding: 5, marginBottom: 20, flexWrap: "wrap",
           }}
         >
-          {ADMIN_TABS.map((tab) => (
-            <TabButton
-              key={tab.value}
-              label={tab.label}
-              active={activeTab === tab.value}
-              onClick={() => (tab.value === "members" ? jumpToMembers("all") : setActiveTab(tab.value))}
+          {CONSOLE_AREAS.map((a) => (
+            <AreaTab
+              key={a.value}
+              id={`area-tab-${a.value}`}
+              panelId={`area-panel-${a.value}`}
+              label={a.label}
+              active={area === a.value}
+              onClick={() => setArea(a.value)}
             />
           ))}
         </div>
 
-        {activeTab === "overview" ? (
-          <OverviewTab demo={demo} setDemo={setDemo} onDataChanged={loadStats} />
-        ) : activeTab === "population" ? (
-          <PopulationTab onDrill={drillToMembers} demo={demo} />
-        ) : activeTab === "transparency" ? (
-          <TransparencyTab />
-        ) : activeTab === "members" ? (
-          <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} initialFilters={membersInitialFilters} includeDemo={demo} />
-        ) : activeTab === "verification" ? (
-          <VerificationQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
-        ) : activeTab === "photos" ? (
-          <PhotoReviewQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
-        ) : activeTab === "profile-photos" ? (
-          <ProfilePhotoReviewQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
-        ) : activeTab === "feedback" ? (
-          <FeedbackInbox reloadToken={queueToken} />
-        ) : activeTab === "activity" ? (
-          <AuditLogView reloadToken={queueToken} />
-        ) : (
-          <>
-            {/* Filter */}
-            <div style={{ marginBottom: 20 }}>
-              <SegmentedControl value={statusFilter} onChange={setStatusFilter} />
-            </div>
+        <div role="tabpanel" id={`area-panel-${area}`} aria-labelledby={`area-tab-${area}`}>
+          <h2
+            ref={areaHeadingRef}
+            tabIndex={-1}
+            style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 700, color: t.text, margin: "0 0 4px", outline: "none" }}
+          >
+            {CONSOLE_AREAS.find((a) => a.value === area)?.label}
+          </h2>
+          <p style={{ margin: "0 0 16px", fontSize: 14, color: t.textMuted, lineHeight: 1.5 }}>
+            {area === "queue" ? "The casework queue — reports, photo review, and verification."
+              : area === "members" ? "The member directory, membership tiers, and per-member controls."
+                : area === "insights" ? "Dashboards and analytics — pick one at a time."
+                  : "Service health, billing demo tools, and maintenance."}
+          </p>
 
-            {/* Reports list */}
-            {loadingReports ? (
-              <ReportsSkeleton />
-            ) : error ? (
-              <ErrorState title="Couldn't load reports" message="Something went wrong on our end. Please try again." onRetry={refresh} />
-            ) : reports.length === 0 ? (
-              <EmptyCard>
-                {statusFilter === "open" ? "No open reports — all clear." : "No reports to show here."}
-              </EmptyCard>
-            ) : (
-              <ul style={{ margin: 0, padding: 0 }}>
-                {reports.map((report) => (
-                  <ReportCard key={report.id} report={report} onRefresh={refresh} onStatus={setStatusMsg} onDone={focusHeading} />
-                ))}
-              </ul>
-            )}
-          </>
-        )}
+          {/* ── QUEUE ─────────────────────────────────────────────────────── */}
+          {area === "queue" && (
+            <>
+              {/* Kept triage row — what needs attention, oldest-first, amber past SLA */}
+              {stats && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted, marginBottom: 10 }}>
+                    Needs attention
+                  </div>
+                  <div style={gridStyle}>
+                    <StatCard
+                      label="Open reports"
+                      value={stats.reports?.open ?? 0}
+                      subtext={(stats.reports?.open ?? 0) > 0 ? oldestLabel(stats.oldestOpenReportAt, now) : "All clear"}
+                      tone={(stats.reports?.open ?? 0) > 0 && isPastSla(stats.oldestOpenReportAt, now) ? "amber" : undefined}
+                      onClick={() => pickBreakdown("open")}
+                      ariaLabel={`Open reports: ${stats.reports?.open ?? 0}. View open reports.`}
+                    />
+                    <StatCard
+                      label="Photos"
+                      value={stats.pendingAttachments ?? 0}
+                      subtext={(stats.pendingAttachments ?? 0) > 0 ? oldestLabel(stats.oldestPendingAttachmentAt, now) : "All clear"}
+                      tone={(stats.pendingAttachments ?? 0) > 0 && isPastSla(stats.oldestPendingAttachmentAt, now) ? "amber" : undefined}
+                      onClick={() => jumpToQueue("photos")}
+                      ariaLabel={`Photos awaiting review: ${stats.pendingAttachments ?? 0}. View photo review.`}
+                    />
+                    <StatCard
+                      label="Profile photos"
+                      value={stats.pendingProfilePhotos ?? 0}
+                      subtext={(stats.pendingProfilePhotos ?? 0) > 0 ? oldestLabel(stats.oldestPendingProfilePhotoAt, now) : "All clear"}
+                      tone={(stats.pendingProfilePhotos ?? 0) > 0 && isPastSla(stats.oldestPendingProfilePhotoAt, now) ? "amber" : undefined}
+                      onClick={() => jumpToQueue("photos")}
+                      ariaLabel={`Profile photos awaiting review: ${stats.pendingProfilePhotos ?? 0}. View photo review.`}
+                    />
+                    <StatCard
+                      label="Verification"
+                      value={stats.pendingVerifications ?? 0}
+                      subtext={(stats.pendingVerifications ?? 0) > 0 ? oldestLabel(stats.oldestPendingVerificationAt, now) : "All clear"}
+                      tone={(stats.pendingVerifications ?? 0) > 0 && isPastSla(stats.oldestPendingVerificationAt, now) ? "amber" : undefined}
+                      onClick={() => jumpToQueue("verification")}
+                      ariaLabel={`Verification requests: ${stats.pendingVerifications ?? 0}. View verification queue.`}
+                    />
+                  </div>
+                </div>
+              )}
 
-        {/* Maintenance — low-emphasis, collapsed by default */}
-        <MaintenanceSection onStatus={setStatusMsg} onRefresh={() => { loadStats(); }} />
+              {/* Queue sub-nav — one casework queue at a time */}
+              <div style={{ marginBottom: 20 }}>
+                <Segmented options={QUEUE_VIEWS} value={queueView} onChange={setQueueView} ariaLabel="Choose a queue" />
+              </div>
+
+              {queueView === "reports" ? (
+                <>
+                  {/* Report status filter (also absorbs the old "Report breakdown" zone) */}
+                  <div style={{ marginBottom: 20 }}>
+                    <SegmentedControl value={statusFilter} onChange={setStatusFilter} />
+                  </div>
+                  {loadingReports ? (
+                    <ReportsSkeleton />
+                  ) : error ? (
+                    <ErrorState title="Couldn't load reports" message="Something went wrong on our end. Please try again." onRetry={refresh} />
+                  ) : reports.length === 0 ? (
+                    <EmptyCard>
+                      {statusFilter === "open" ? "No open reports — all clear." : "No reports to show here."}
+                    </EmptyCard>
+                  ) : (
+                    <ul style={{ margin: 0, padding: 0 }}>
+                      {reports.map((report) => (
+                        <ReportCard key={report.id} report={report} onRefresh={refresh} onStatus={setStatusMsg} onDone={focusHeading} />
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : queueView === "photos" ? (
+                <MergedPhotoQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
+              ) : (
+                <VerificationQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
+              )}
+            </>
+          )}
+
+          {/* ── MEMBERS ───────────────────────────────────────────────────── */}
+          {area === "members" && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                <DemoToggle value={demo} onChange={setDemo} />
+                <span style={{ fontSize: 13, color: t.textMuted }}>
+                  Include the seeded sample members in the listing and counts.
+                </span>
+              </div>
+              <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} initialFilters={membersInitialFilters} includeDemo={demo} />
+            </>
+          )}
+
+          {/* ── INSIGHTS ──────────────────────────────────────────────────── */}
+          {area === "insights" && (
+            <>
+              {/* Community health — de-emphasized cross-cutting context */}
+              {stats && (
+                <div style={{ ...gridStyle, marginBottom: 20 }}>
+                  <StatCard
+                    label="Members"
+                    value={stats.members ?? 0}
+                    subtext={demo ? "Demo view — includes sample members" : `Excludes test accounts${(stats.testAccounts ?? 0) > 0 ? ` (+${stats.testAccounts} test)` : ""}`}
+                    muted
+                    onClick={() => jumpToMembers("all")}
+                    ariaLabel={`Members: ${stats.members ?? 0}. View member list.`}
+                  />
+                  <StatCard label="Suspended" value={stats.suspended ?? 0} muted onClick={() => jumpToMembers("suspended")} ariaLabel={`Suspended members: ${stats.suspended ?? 0}. View suspended members.`} />
+                  <StatCard label="Matches" value={stats.matches ?? 0} muted onClick={() => setActivityMetric("matches")} ariaLabel={`Matches: ${stats.matches ?? 0}. View match activity trends.`} />
+                  <StatCard label="Messages" value={stats.messages ?? 0} muted onClick={() => setActivityMetric("messages")} ariaLabel={`Messages: ${stats.messages ?? 0}. View message activity trends.`} />
+                </div>
+              )}
+
+              {/* Insights sub-nav — one dashboard at a time (progressive disclosure) */}
+              <div style={{ marginBottom: 20 }}>
+                <Segmented options={INSIGHTS_VIEWS} value={insightsView} onChange={setInsightsView} ariaLabel="Choose an insight" />
+              </div>
+
+              {insightsView === "overview" ? (
+                <OverviewTab demo={demo} setDemo={setDemo} onDataChanged={loadStats} />
+              ) : insightsView === "population" ? (
+                <PopulationTab onDrill={drillToMembers} demo={demo} />
+              ) : insightsView === "transparency" ? (
+                <TransparencyTab />
+              ) : insightsView === "activity" ? (
+                <AuditLogView reloadToken={queueToken} />
+              ) : insightsView === "feedback" ? (
+                <FeedbackInbox reloadToken={queueToken} />
+              ) : (
+                <SiteHealthPanel />
+              )}
+            </>
+          )}
+
+          {/* ── SYSTEM ────────────────────────────────────────────────────── */}
+          {area === "system" && (
+            <>
+              {/* Billing demo — moved OUT of the T&S casework view. Clearly tagged
+                  DEMO (never real billing); per-member grants live in the drawer. */}
+              <div style={sectionCardStyle}>
+                <h3 style={zoneHeadingStyle}>Billing demo (paid tier)</h3>
+                <BillingDemoSection />
+              </div>
+              {/* Maintenance — purge test/demo accounts (low-emphasis, collapsed) */}
+              <MaintenanceSection onStatus={setStatusMsg} onRefresh={() => { loadStats(); }} />
+            </>
+          )}
+        </div>
 
         {/* Matches / Messages aggregate drill-in (privacy-safe, counts only) */}
         {activityMetric && (

@@ -140,7 +140,7 @@ describe('POST /admin/roles — grant / revoke + end-to-end', () => {
     // A DB-granted admin can now use admin endpoints — e.g. grant on someone else.
     const other = makeUser();
     const chain = await api('/admin/roles', {
-      token: tok(target), method: 'POST', body: { userId: other, admin: true },
+      token: tok(target), method: 'POST', body: { userId: other, admin: true, reason: 'chain grant' },
     });
     expect(chain.status).toBe(200);
     expect(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(other).is_admin).toBe(1);
@@ -243,6 +243,22 @@ describe('POST /admin/roles — input validation', () => {
     const res = await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: target, admin: true, reason: 5 } });
     expect(res.status).toBe(400);
   });
+  // MED-1: a real grant/revoke MUST carry a non-empty reason (audit justification).
+  it('400 when a real grant/revoke omits the reason, and no change is made', async () => {
+    const target = makeUser();
+    const missing = await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: target, admin: true } });
+    expect(missing.status).toBe(400);
+    // No privilege escalation and no audit row on the refused change.
+    expect(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(target).is_admin).toBe(0);
+    expect(modLogCount('grant_admin', target)).toBe(0);
+    // An empty/whitespace reason is also rejected.
+    const blank = await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: target, admin: true, reason: '   ' } });
+    expect(blank.status).toBe(400);
+    // With a reason it succeeds.
+    const ok = await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: target, admin: true, reason: 'valid reason' } });
+    expect(ok.status).toBe(200);
+    expect(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(target).is_admin).toBe(1);
+  });
   it('404 on a non-existent target', async () => {
     const res = await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: 'nope', admin: true } });
     expect(res.status).toBe(404);
@@ -257,7 +273,7 @@ describe('client-facing admin status honors is_admin', () => {
     expect(before.status).toBe(200);
     expect(before.json.isAdmin).toBe(false);
 
-    await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: u, admin: true } });
+    await api('/admin/roles', { token: tok(envRootId), method: 'POST', body: { userId: u, admin: true, reason: 'promoted' } });
     const after = await api('/profile/me', { token: tok(u) });
     expect(after.json.isAdmin).toBe(true);
   });

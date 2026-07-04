@@ -949,7 +949,7 @@ export async function getMembers({
   query = "", status = "", page = 1, pageSize = 25, sort = "joined",
   gender = "", orientation = "", seeking = "", relationshipStructure = "",
   relationshipGoal = "", city = "", ageMin = null, ageMax = null,
-  includeDemo = false, includeTest = false,
+  tier = "", includeDemo = false, includeTest = false,
 } = {}) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
@@ -967,11 +967,19 @@ export async function getMembers({
   if (city) params.set("city", city);
   if (Number.isFinite(ageMin) && ageMin > 0) params.set("ageMin", String(ageMin));
   if (Number.isFinite(ageMax) && ageMax > 0) params.set("ageMax", String(ageMax));
+  // Membership-tier segment (free | companion). "" / "all" = no filter.
+  if (tier && tier !== "all") params.set("tier", tier);
   const d = await apiFetch(`/admin/members?${params.toString()}`);
   return {
     total: d?.total ?? 0,
     page: d?.page ?? page,
     pageSize: d?.pageSize ?? pageSize,
+    // Per-tier counts for the Free/Companion segment control (normalized so the
+    // UI never has to guard for a missing field on an older backend).
+    tierCounts: {
+      free: d?.tierCounts?.free ?? 0,
+      companion: d?.tierCounts?.companion ?? 0,
+    },
     members: Array.isArray(d?.members) ? d.members : [],
   };
 }
