@@ -5,6 +5,7 @@ import { onSocket, joinConversation, leaveConversation, subscribeConnection } fr
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
 import { hasSafetySignal, shouldNudgeBeforeSend } from "./safetySignals.js";
+import { hasCrisisSignal } from "./crisisSignals.js";
 import ErrorState from "../ErrorState.jsx";
 import Avatar from "../Avatar.jsx";
 import MatchProfileModal from "../MatchProfileModal.jsx";
@@ -1651,6 +1652,105 @@ function SafetyInlineNote() {
   );
 }
 
+// Crisis-line auto-routing — a calm, private, compassionate note shown ONLY to
+// the person who expressed distress (their OWN message tripped hasCrisisSignal).
+// It is NOT a system alert: warm human language, no red, no "we detected…", no
+// surveillance framing. It gently surfaces the crisis resources we already
+// publish in the Safety Center (988 Suicide & Crisis Lifeline, Crisis Text Line)
+// as tappable tel:/sms: links. Dismissible, shown once per conversation per
+// session, and never sent or shown to the other person. All hooks (useFocusable)
+// run unconditionally — no early return.
+function CrisisSupportNote({ onDismiss }) {
+  const f = useFocusable();
+  const linkStyle = {
+    color: t.accentStrong,
+    fontWeight: 600,
+    textDecoration: "underline",
+  };
+  return (
+    <section
+      // role="note", NOT alert — this is a gentle offer of support, not a
+      // warning. aria-label reads warmly, never clinically.
+      role="note"
+      aria-label="A kind note, just for you"
+      style={{
+        position: "relative",
+        margin: "12px auto",
+        maxWidth: 520,
+        padding: "16px 18px",
+        // Calm surface tokens (same family as the other supportive cards) — no
+        // red, no danger styling.
+        background: t.green50,
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 16,
+        color: t.textSoft,
+        fontSize: 14.5,
+        lineHeight: 1.55,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss this note"
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          background: "transparent",
+          border: "none",
+          color: t.textMuted,
+          fontSize: 16,
+          cursor: "pointer",
+          padding: "4px 6px",
+          borderRadius: 8,
+          minHeight: 44,
+          minWidth: 44,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          ...f.style,
+        }}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+      >
+        ✕
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, paddingRight: 36 }}>
+        <span aria-hidden="true" style={{ fontSize: 18 }}>🌿</span>
+        <div style={{ fontFamily: t.serif, fontSize: 16, fontWeight: 700, color: t.text }}>
+          You're not alone
+        </div>
+      </div>
+      <p style={{ margin: "0 0 12px" }}>
+        It sounds like things might be really heavy right now. You don't have to
+        carry that by yourself — kind, trained people are there to listen any
+        time, for free.
+      </p>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+        <li style={{ display: "flex", gap: 8 }}>
+          <span aria-hidden="true" style={{ color: t.accentStrong, flexShrink: 0 }}>•</span>
+          <span>
+            Call or text{" "}
+            <a href="tel:988" style={linkStyle}>988</a>{" "}
+            — the 988 Suicide &amp; Crisis Lifeline (US), any time.
+          </span>
+        </li>
+        <li style={{ display: "flex", gap: 8 }}>
+          <span aria-hidden="true" style={{ color: t.accentStrong, flexShrink: 0 }}>•</span>
+          <span>
+            Text{" "}
+            <a href="sms:741741?&body=HOME" style={linkStyle}>HOME to 741741</a>{" "}
+            to reach the Crisis Text Line.
+          </span>
+        </li>
+      </ul>
+      <p style={{ margin: "12px 0 0", fontSize: 13.5, color: t.textMuted }}>
+        This note is only visible to you.
+      </p>
+    </section>
+  );
+}
+
 // Needed #6 (recipient) — calm, muted, dismissible affordance beneath a RECEIVED
 // message that trips a safety signal. Informational, never alarm-red: a one-tap
 // "Report" pins THIS message into the existing report flow (via onReportMessage),
@@ -2126,6 +2226,17 @@ export default function ConversationScreen({
   // any message.
   const [safetySignalSeen, setSafetySignalSeen] = useState(false);
 
+  // Crisis-line auto-routing — when the CURRENT USER'S OWN message expresses
+  // self-harm / suicidal-crisis language, quietly surface support (988 / Crisis
+  // Text Line) to THEM only. Shown once per conversation per session so it never
+  // nags: a sessionStorage flag (per conversation) records that it has surfaced,
+  // and `crisisSupportOpen` controls the currently-visible note. This is support,
+  // NOT moderation — nothing is sent, logged, reported, or shown to the other
+  // person, and it never blocks or alters the message.
+  const crisisShownKey = `spectrum_crisis_shown_${conversationId}`;
+  const [crisisSupportOpen, setCrisisSupportOpen] = useState(false);
+  const dismissCrisisSupport = useCallback(() => setCrisisSupportOpen(false), []);
+
   // Needed #6 (sender) — gentle, NON-BLOCKING pre-send nudge. When the composed
   // message first trips a safety signal we show a calm confirm instead of
   // sending; "Send anyway" records the exact confirmed text (in the ref) so
@@ -2350,6 +2461,27 @@ export default function ConversationScreen({
       setSafetySignalSeen(true);
     }
   }, [messages, safetySignalSeen]);
+
+  // Crisis-line auto-routing — if the CURRENT USER'S OWN message (composed or
+  // sent) expresses self-harm / crisis language, surface the support note to
+  // them. Once per conversation per session: the sessionStorage flag guards
+  // against re-surfacing after dismissal, reload, or re-entry within the session.
+  // Only their own, non-deleted messages count (never the other person's — that
+  // stays private and unalarmed). Never blocks or alters anything.
+  useEffect(() => {
+    if (crisisSupportOpen) return;
+    try {
+      if (sessionStorage.getItem(crisisShownKey) === "1") return;
+    } catch { /* sessionStorage may be unavailable; fall through and show once */ }
+    const own = messages.some(
+      (m) => !m.deleted && m.senderId === currentUserId && hasCrisisSignal(m.body)
+    );
+    if (own) {
+      setCrisisSupportOpen(true);
+      try { sessionStorage.setItem(crisisShownKey, "1"); }
+      catch { /* ignore storage failures — still shows this mount */ }
+    }
+  }, [messages, currentUserId, crisisSupportOpen, crisisShownKey]);
 
   // Clear send status after 2s (only for success statuses)
   useEffect(() => {
@@ -3306,6 +3438,12 @@ export default function ConversationScreen({
                 signal is detected in either person's message. Never blocks or
                 alters any message. */}
             {safetySignalSeen && <SafetyInlineNote />}
+
+            {/* Crisis-line auto-routing — private, compassionate support note
+                shown ONLY to the person whose own message expressed distress.
+                Once per conversation per session; dismissible; never sent or
+                shown to the other person; never blocks or alters the message. */}
+            {crisisSupportOpen && <CrisisSupportNote onDismiss={dismissCrisisSupport} />}
            </div>
           </div>
         </>
