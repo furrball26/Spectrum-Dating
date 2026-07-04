@@ -388,6 +388,91 @@ describe('admin telemetry endpoints', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Activity trends — per-UTC-day match/message counts, PII-free by construction.
+// ---------------------------------------------------------------------------
+describe('activity trends (/admin/telemetry/activity)', () => {
+  const SECRET_BODY = 'SECRET_MESSAGE_BODY_do_not_leak';
+  const SECRET_NAME = 'SecretDisplayNameXyz';
+  let a, b, matchId, convId;
+
+  beforeAll(() => {
+    a = makeUser({ email: 'act-a@t.dev' });
+    b = makeUser({ email: 'act-b@t.dev' });
+    // A distinctive display name we can prove never appears in the payload.
+    db.prepare('INSERT INTO profiles (user_id, display_name, updated_at) VALUES (?,?,?)')
+      .run(a, SECRET_NAME, Date.now());
+
+    const now = Date.now();
+    matchId = 'mtch-act-1';
+    db.prepare('INSERT INTO matches (id, user_a_id, user_b_id, matched_at) VALUES (?,?,?,?)')
+      .run(matchId, a, b, now - 1 * DAY_MS);
+    convId = 'conv-act-1';
+    db.prepare('INSERT INTO conversations (id, match_id, user_a_id, user_b_id, created_at) VALUES (?,?,?,?,?)')
+      .run(convId, matchId, a, b, now - 1 * DAY_MS);
+    // 2 messages inside the 7d window; 1 far outside (40d ago).
+    db.prepare('INSERT INTO messages (id, conversation_id, sender_id, body, sent_at) VALUES (?,?,?,?,?)')
+      .run('msg-act-1', convId, a, SECRET_BODY, now - 2 * DAY_MS);
+    db.prepare('INSERT INTO messages (id, conversation_id, sender_id, body, sent_at) VALUES (?,?,?,?,?)')
+      .run('msg-act-2', convId, b, SECRET_BODY, now - 3 * DAY_MS);
+    db.prepare('INSERT INTO messages (id, conversation_id, sender_id, body, sent_at) VALUES (?,?,?,?,?)')
+      .run('msg-act-3', convId, a, SECRET_BODY, now - 40 * DAY_MS);
+  });
+
+  it('returns strict {day,count} aggregates + all-time totals (7d window)', async () => {
+    const res = await api('/admin/telemetry/activity?window=7d', { token: adminToken() });
+    expect(res.status).toBe(200);
+    const j = res.json;
+    expect(j.window).toBe('7d');
+
+    // Every daily row is EXACTLY {day, count} — no ids, names, or extra fields.
+    for (const arr of [j.matchesDaily, j.messagesDaily]) {
+      expect(Array.isArray(arr)).toBe(true);
+      for (const row of arr) {
+        expect(Object.keys(row).sort()).toEqual(['count', 'day']);
+        expect(row.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(typeof row.count).toBe('number');
+      }
+    }
+
+    const sum = (arr) => arr.reduce((s, r) => s + r.count, 0);
+    expect(sum(j.matchesDaily)).toBeGreaterThanOrEqual(1);
+    // The 2 in-window messages count; the 40d-old one is excluded from the trend.
+    expect(sum(j.messagesDaily)).toBe(2);
+    // All-time totals include the out-of-window message.
+    expect(j.totalMatches).toBeGreaterThanOrEqual(1);
+    expect(j.totalMessages).toBeGreaterThanOrEqual(3);
+  });
+
+  it('payload is PII-FREE — no user ids, display names, match/convo ids, or message bodies', async () => {
+    const j = (await api('/admin/telemetry/activity?window=30d', { token: adminToken() })).json;
+    const payload = JSON.stringify(j);
+    expect(payload).not.toContain(SECRET_BODY);
+    expect(payload).not.toContain(SECRET_NAME);
+    expect(payload).not.toContain(a);
+    expect(payload).not.toContain(b);
+    expect(payload).not.toContain(matchId);
+    expect(payload).not.toContain(convId);
+    // 'act-a@t.dev' etc. — no email fragment either.
+    expect(payload).not.toContain('@t.dev');
+  });
+
+  it('window=30d sees at least as much message activity as 7d', async () => {
+    const seven = (await api('/admin/telemetry/activity?window=7d', { token: adminToken() })).json;
+    const thirty = (await api('/admin/telemetry/activity?window=30d', { token: adminToken() })).json;
+    expect(thirty.window).toBe('30d');
+    const sum = (arr) => arr.reduce((s, r) => s + r.count, 0);
+    expect(sum(thirty.messagesDaily)).toBeGreaterThanOrEqual(sum(seven.messagesDaily));
+  });
+
+  it('requires admin (403 non-admin, 401 anon)', async () => {
+    const plain = makeUser({ email: 'act-plain@t.dev' });
+    const plainTok = signToken(plain, 0);
+    expect((await api('/admin/telemetry/activity', { token: plainTok })).status).toBe(403);
+    expect((await api('/admin/telemetry/activity')).status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Lazy last_active — one write per user per day max.
 // ---------------------------------------------------------------------------
 describe('lazy last_active_at', () => {

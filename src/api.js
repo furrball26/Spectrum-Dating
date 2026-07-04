@@ -625,6 +625,21 @@ export async function getTelemetryUptime(demo = false) {
   };
 }
 
+// Privacy-safe activity trends for the Matches / Messages drill-ins — matches
+// and messages counted per UTC day, plus all-time totals. COUNTS ONLY: the
+// backend never returns identities, match pairs, or message content. window ∈
+// '7d'|'30d'. Normalized to one flat, defaulted shape at the api boundary.
+export async function getActivityTrends(window = "7d") {
+  const d = await apiFetch(`/admin/telemetry/activity?window=${encodeURIComponent(window)}`);
+  return {
+    window: d?.window || window,
+    matchesDaily: Array.isArray(d?.matchesDaily) ? d.matchesDaily : [],
+    messagesDaily: Array.isArray(d?.messagesDaily) ? d.messagesDaily : [],
+    totalMatches: d?.totalMatches ?? 0,
+    totalMessages: d?.totalMessages ?? 0,
+  };
+}
+
 // Member email-domain breakdown — real members only (test/demo excluded server
 // side). Not demo-toggled: this is member data, not visitor telemetry.
 export async function getMemberDomains() {

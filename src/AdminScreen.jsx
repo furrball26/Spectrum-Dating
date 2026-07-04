@@ -4,7 +4,7 @@ import {
   reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog,
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
-  getMemberDomains, getMembers, getMemberDetail, setDemoData,
+  getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -1660,10 +1660,14 @@ function MembersTableSkeleton() {
   );
 }
 
-function MembersTab() {
+// `initialStatus` seeds the status filter so a stat-card jump (e.g. the
+// Suspended card → status=suspended) lands pre-filtered. The parent remounts
+// this tab (via a key) on each card-driven jump, so the initial value always
+// reflects the latest request without fighting the user's manual filtering.
+function MembersTab({ initialStatus = "all" }) {
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState(initialStatus);
   const [sort, setSort] = useState("joined");
   const [page, setPage] = useState(1);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -1919,6 +1923,113 @@ function MemberDrawer({ id, onClose }) {
   );
 }
 
+// Privacy-safe activity drill-in for the Matches / Messages cards. Reuses the
+// MemberDrawer overlay + focus conventions (focus in on open, Escape closes,
+// Tab trapped, focus restored on close) and the static Sparkline. Shows a
+// per-UTC-day COUNT trend + the all-time total for one metric — COUNTS ONLY.
+// It never fetches or renders identities, match pairs, or message content
+// (the backend can't return them), so who-matched-whom / message bodies are
+// impossible to surface here. Calm-by-design: no live ticker, the chart is the
+// static Sparkline. All hooks run before any early return (React #310).
+const ACTIVITY_WINDOWS = [
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+];
+
+function ActivityDrawer({ metric, onClose }) {
+  const [win, setWin] = useState("7d");
+  const { data, loading, error, reload } = useAdminResource(() => getActivityTrends(win), `${metric}|${win}`);
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  const returnFocusRef = useRef(null);
+
+  useEffect(() => {
+    returnFocusRef.current = typeof document !== "undefined" ? document.activeElement : null;
+    const id = setTimeout(() => closeRef.current?.focus(), 0);
+    return () => {
+      clearTimeout(id);
+      const el = returnFocusRef.current;
+      if (el && typeof el.focus === "function") el.focus();
+    };
+  }, []);
+
+  function onKeyDown(e) {
+    if (e.key === "Escape") { e.stopPropagation(); onClose(); return; }
+    if (e.key !== "Tab") return;
+    const focusables = panelRef.current?.querySelectorAll(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusables || focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+
+  const isMatches = metric === "matches";
+  const title = isMatches ? "Match activity" : "Message activity";
+  const daily = (isMatches ? data?.matchesDaily : data?.messagesDaily) || [];
+  const total = (isMatches ? data?.totalMatches : data?.totalMessages) ?? 0;
+  const values = daily.map((d) => d.count || 0);
+  const windowed = values.reduce((a, b) => a + b, 0);
+  const winLabel = win === "30d" ? "30 days" : "7 days";
+  const noun = isMatches ? "matches" : "messages";
+
+  return (
+    <div
+      role="presentation"
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(36,51,45,0.45)", display: "flex", justifyContent: "flex-end", zIndex: 1000 }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${title} — aggregate counts`}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+        style={{
+          width: "min(440px, 100%)", height: "100%", background: t.bg, boxShadow: t.shadow.lg,
+          padding: "20px 20px 40px", overflowY: "auto", boxSizing: "border-box",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+          <h2 style={{ fontFamily: t.serif, fontSize: 22, fontWeight: 700, color: t.text, margin: 0, minWidth: 0 }}>{title}</h2>
+          <PlainButton kind="quiet" onClick={onClose} buttonRef={closeRef} ariaLabel={`Close ${title.toLowerCase()}`}>Close</PlainButton>
+        </div>
+
+        <p style={{ margin: "0 0 14px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+          Aggregate counts only — never who matched whom or any message content.
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          <Segmented options={ACTIVITY_WINDOWS} value={win} onChange={setWin} ariaLabel={`${title} time window`} />
+        </div>
+
+        {loading ? (
+          <div aria-hidden="true"><Skeleton width="100%" height={56} /><div style={{ height: 12 }} /><Skeleton width="60%" height={14} /></div>
+        ) : error || !data ? (
+          <ErrorState title={`Couldn't load ${title.toLowerCase()}`} message="Something went wrong on our end. Please try again." onRetry={reload} />
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              {values.length > 0 ? (
+                <Sparkline values={values} ariaLabel={`${noun} per day over the last ${winLabel}`} />
+              ) : (
+                <div style={{ fontSize: 14, color: t.textMuted }}>No {noun} in this window yet.</div>
+              )}
+            </div>
+            <div style={telemetryGrid}>
+              <StatCard label={`Total ${noun}`} value={total} />
+              <StatCard label={`Last ${winLabel}`} value={windowed} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "overview", label: "Overview" },
@@ -1963,6 +2074,13 @@ export default function AdminScreen() {
   const [statusMsg, setStatusMsg] = useState("");
   const [activeTab, setActiveTab] = useState("reports");
   const [queueToken, setQueueToken] = useState(0); // bump to refetch the active queue
+  // Members-tab jump state: the requested initial status filter + a token that
+  // bumps on each stat-card jump so the tab remounts pre-filtered (a Suspended
+  // card lands on status=suspended even if Members is already open).
+  const [membersInitialStatus, setMembersInitialStatus] = useState("all");
+  const [membersNavToken, setMembersNavToken] = useState(0);
+  // Which activity drill-in (Matches/Messages) is open, if any.
+  const [activityMetric, setActivityMetric] = useState(null);
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -2021,6 +2139,13 @@ export default function AdminScreen() {
 
   const jumpTo = useCallback((tab) => { setActiveTab(tab); }, []);
   const pickBreakdown = useCallback((filter) => { setStatusFilter(filter); setActiveTab("reports"); }, []);
+  // Jump to the Members tab, optionally pre-filtered by status. Bumping the nav
+  // token forces a fresh MembersTab mount so the initial filter always applies.
+  const jumpToMembers = useCallback((status = "all") => {
+    setMembersInitialStatus(status);
+    setMembersNavToken((x) => x + 1);
+    setActiveTab("members");
+  }, []);
 
   const page = {
     minHeight: "100%", background: t.bgGradient, color: t.text, fontFamily: t.sans, fontSize: 16,
@@ -2118,10 +2243,30 @@ export default function AdminScreen() {
                   value={stats.members ?? 0}
                   subtext={`Excludes test accounts${(stats.testAccounts ?? 0) > 0 ? ` (+${stats.testAccounts} test)` : ""}`}
                   muted
+                  onClick={() => jumpToMembers("all")}
+                  ariaLabel={`Members: ${stats.members ?? 0}. View member list.`}
                 />
-                <StatCard label="Suspended" value={stats.suspended ?? 0} muted />
-                <StatCard label="Matches" value={stats.matches ?? 0} muted />
-                <StatCard label="Messages" value={stats.messages ?? 0} muted />
+                <StatCard
+                  label="Suspended"
+                  value={stats.suspended ?? 0}
+                  muted
+                  onClick={() => jumpToMembers("suspended")}
+                  ariaLabel={`Suspended members: ${stats.suspended ?? 0}. View suspended members.`}
+                />
+                <StatCard
+                  label="Matches"
+                  value={stats.matches ?? 0}
+                  muted
+                  onClick={() => setActivityMetric("matches")}
+                  ariaLabel={`Matches: ${stats.matches ?? 0}. View match activity trends.`}
+                />
+                <StatCard
+                  label="Messages"
+                  value={stats.messages ?? 0}
+                  muted
+                  onClick={() => setActivityMetric("messages")}
+                  ariaLabel={`Messages: ${stats.messages ?? 0}. View message activity trends.`}
+                />
               </div>
             </div>
           </>
@@ -2138,14 +2283,19 @@ export default function AdminScreen() {
           }}
         >
           {ADMIN_TABS.map((tab) => (
-            <TabButton key={tab.value} label={tab.label} active={activeTab === tab.value} onClick={() => setActiveTab(tab.value)} />
+            <TabButton
+              key={tab.value}
+              label={tab.label}
+              active={activeTab === tab.value}
+              onClick={() => (tab.value === "members" ? jumpToMembers("all") : setActiveTab(tab.value))}
+            />
           ))}
         </div>
 
         {activeTab === "overview" ? (
           <OverviewTab />
         ) : activeTab === "members" ? (
-          <MembersTab />
+          <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} />
         ) : activeTab === "verification" ? (
           <VerificationQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
         ) : activeTab === "photos" ? (
@@ -2184,6 +2334,11 @@ export default function AdminScreen() {
 
         {/* Maintenance — low-emphasis, collapsed by default */}
         <MaintenanceSection onStatus={setStatusMsg} onRefresh={() => { loadStats(); }} />
+
+        {/* Matches / Messages aggregate drill-in (privacy-safe, counts only) */}
+        {activityMetric && (
+          <ActivityDrawer metric={activityMetric} onClose={() => setActivityMetric(null)} />
+        )}
       </div>
     </div>
   );

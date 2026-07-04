@@ -210,6 +210,56 @@ router.get('/telemetry/member-domains', requireAuth, requireAdmin, (req, res) =>
 });
 
 // ---------------------------------------------------------------------------
+// GET /admin/telemetry/activity?window=7d|30d — privacy-safe activity trends.
+// Aggregate COUNT(*) grouped by UTC day for matches (matched_at) and messages
+// (sent_at), plus all-time totals (matching the /stats Matches/Messages cards).
+//
+// PII-FREE BY CONSTRUCTION: every SELECT projects ONLY a UTC day bucket + a
+// count. No user ids, names, match pairs (user_a_id/user_b_id), or message
+// bodies are ever selected or returned — this drill-in can never reveal who
+// matched whom or what anyone said.
+//
+// Counts are PLATFORM TOTALS (no test/demo exclusion): matches/messages have no
+// email column and excluding would mean joining both participant ids to users —
+// awkward, and it would make these totals disagree with the all-time Matches /
+// Messages stat cards (admin.js:384-386) that also count platform-wide. Keeping
+// them consistent with the card the admin tapped is the right trade here.
+// ---------------------------------------------------------------------------
+router.get('/telemetry/activity', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const window = req.query.window === '30d' ? '30d' : '7d';
+  const since = Date.now() - WINDOWS[window];
+
+  // matched_at / sent_at are epoch ms → /1000 for unixepoch (as page_views).
+  const matchesDaily = db.prepare(
+    `SELECT strftime('%Y-%m-%d', matched_at / 1000, 'unixepoch') AS day, COUNT(*) AS count
+       FROM matches
+      WHERE matched_at >= ?
+      GROUP BY day
+      ORDER BY day ASC`
+  ).all(since);
+
+  const messagesDaily = db.prepare(
+    `SELECT strftime('%Y-%m-%d', sent_at / 1000, 'unixepoch') AS day, COUNT(*) AS count
+       FROM messages
+      WHERE sent_at >= ?
+      GROUP BY day
+      ORDER BY day ASC`
+  ).all(since);
+
+  const totalMatches = db.prepare('SELECT COUNT(*) AS c FROM matches').get().c;
+  const totalMessages = db.prepare('SELECT COUNT(*) AS c FROM messages').get().c;
+
+  res.json({
+    window,
+    matchesDaily: matchesDaily.map((r) => ({ day: r.day, count: r.count })),
+    messagesDaily: messagesDaily.map((r) => ({ day: r.day, count: r.count })),
+    totalMatches,
+    totalMessages,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /admin/telemetry/demo  body { action: 'load' | 'clear' }
 // Furnish (or clear) the live-demo dashboard from inside the admin panel — the
 // CLI seed script can't reach the prod DB on Railway's volume. Reuses the shared
