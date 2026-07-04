@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
 import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, getStarters, uploadAttachmentIntent, confirmAttachment } from "../api.js";
-import { io } from "socket.io-client";
+import { onSocket, joinConversation, leaveConversation, subscribeConnection } from "../socketClient.js";
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
 import { hasSafetySignal } from "./safetySignals.js";
@@ -1948,25 +1948,26 @@ export default function ConversationScreen({
     return () => { cancelled = true; };
   }, [conversationId]);
 
-  // socket.io real-time updates
+  // E12 — real-time updates over the ONE shared connection (App owns its
+  // connect/disconnect lifecycle; see src/socketClient.js). This effect scopes to
+  // the OPEN thread only: it joins the room, registers render handlers, and — on
+  // switch/close — unregisters them WITHOUT tearing down the underlying socket.
+  //
+  // The shared socket is a member of ALL of the user's conv rooms (the server
+  // auto-joins them at connect and has no leave handler), so every handler here
+  // filters on payload.conversationId to render ONLY events for this thread. The
+  // old per-conversation socket relied on being a fresh connection per thread;
+  // with a persistent shared socket the conversationId guard is what keeps a
+  // message bound for another thread from leaking into this one.
   useEffect(() => {
-    const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-    const token = localStorage.getItem("spectrum_token");
-    if (!token) return;
+    const forThisThread = (payload) =>
+      !payload?.conversationId || payload.conversationId === conversationId;
 
-    const socket = io(BASE_URL, {
-      auth: { token },
-      transports: ["websocket"],
-    });
+    // Join this thread's room on open (and re-assert on every reconnect below).
+    joinConversation(conversationId);
 
-    socket.on("connect", () => {
-      setSocketConnected(true);
-      socket.emit("join_conversation", { conversationId });
-    });
-    socket.on("disconnect", () => setSocketConnected(false));
-    socket.on("connect_error", () => setSocketConnected(false));
-
-    socket.on("new_message", (payload) => {
+    const offMessage = onSocket("new_message", (payload) => {
+      if (!forThisThread(payload)) return;
       // Server emits { conversationId, message: {...} }; tolerate a flat shape too.
       const msg = payload?.message || payload;
       if (!msg || !msg.id) return;
@@ -1978,18 +1979,36 @@ export default function ConversationScreen({
       });
     });
 
-    socket.on("message_deleted", ({ messageId }) => {
+    const offDeleted = onSocket("message_deleted", (payload) => {
+      if (!forThisThread(payload)) return;
+      const messageId = payload?.messageId;
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, deleted: true, body: null } : m));
     });
 
-    socket.on("reaction_update", ({ messageId, reactions }) => {
+    const offReaction = onSocket("reaction_update", (payload) => {
+      if (!forThisThread(payload)) return;
+      const { messageId, reactions } = payload || {};
       const emojiMap = {};
       (reactions || []).forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
       setReactions(prev => ({ ...prev, [messageId]: emojiMap }));
     });
 
+    // Mirror the shared connection's status into the offline indicator, and
+    // re-emit the room join whenever it (re)connects.
+    const offConnection = subscribeConnection((connected) => {
+      setSocketConnected(connected);
+      if (connected) joinConversation(conversationId);
+    });
+
     return () => {
-      socket.disconnect();
+      offMessage();
+      offDeleted();
+      offReaction();
+      offConnection();
+      // Unregistering the handlers is the "leave": the shared connection stays
+      // up. The server manages room membership itself (no leave_conversation
+      // handler), so this is a no-op emit-wise but keeps the API symmetric.
+      leaveConversation(conversationId);
     };
   }, [conversationId, currentUserId]);
 

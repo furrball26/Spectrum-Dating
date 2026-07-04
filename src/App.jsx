@@ -23,6 +23,7 @@ const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
+import { connectSocket, disconnectSocket, onSocket } from "./socketClient.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
@@ -1126,57 +1127,44 @@ export default function App() {
   const activeTabRef = useRef(activeTab);
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
 
-  // App-level socket connection — increments badge for new messages on non-active tabs
+  // E12 — App owns the ONE shared socket connection's lifecycle: connect when
+  // authed, disconnect on logout / auth:expired (both flip `authed` false, which
+  // re-runs this effect's cleanup). It subscribes for the badge behavior only;
+  // ConversationScreen subscribes to the SAME connection for thread rendering
+  // without opening a second socket or churning one on every thread switch.
   useEffect(() => {
     if (!authed) return;
     const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");
     const token = getToken();
     if (!token || !BASE_URL) return;
 
-    // socket.io-client is dynamically imported here so it stays out of the main
-    // (logged-out) bundle. The effect is already gated on `authed`, so the first
-    // time a session needs a socket we fetch the client, then connect. A
-    // cancellation flag guards against the effect tearing down before the import
-    // resolves so we never leak a live socket.
-    let socket = null;
-    let cancelled = false;
+    // Idempotent — opens the connection once (socket.io-client is dynamically
+    // imported inside, staying off the logged-out bundle).
+    connectSocket(token, BASE_URL);
 
-    import("socket.io-client").then(({ io }) => {
-      if (cancelled) return;
+    const offMessage = onSocket("new_message", (payload) => {
+      // Don't count the user's own sent messages — the badge tracks messages
+      // *received* while away from the Messages tab.
+      if (payload?.message?.senderId === getUserId()) return;
+      if (activeTabRef.current !== "messages") {
+        setUnreadCount(prev => prev + 1);
+      }
+    });
 
-      socket = io(BASE_URL, {
-        auth: { token },
-        transports: ["websocket"],
-      });
-
-      socket.on("new_message", (payload) => {
-        // Don't count the user's own sent messages — the badge tracks messages
-        // *received* while away from the Messages tab.
-        if (payload?.message?.senderId === getUserId()) return;
-        if (activeTabRef.current !== "messages") {
-          setUnreadCount(prev => prev + 1);
-        }
-      });
-
-      // Realtime new-match signal — bump the Matches tab activity badge when a
-      // mutual match lands while the user is elsewhere. Mirrors new_message.
-      socket.on("new_match", () => {
-        if (activeTabRef.current !== "matches") {
-          setActivityCount(prev => prev + 1);
-        }
-      });
-
-      socket.on("connect_error", () => {
-        // Silent — badge just won't update in real-time; no UX impact
-      });
-    }).catch(() => {
-      // Import failed (offline / chunk load error) — realtime badges just won't
-      // update this session; no UX impact.
+    // Realtime new-match signal — bump the Matches tab activity badge when a
+    // mutual match lands while the user is elsewhere. Mirrors new_message.
+    const offMatch = onSocket("new_match", () => {
+      if (activeTabRef.current !== "matches") {
+        setActivityCount(prev => prev + 1);
+      }
     });
 
     return () => {
-      cancelled = true;
-      if (socket) socket.disconnect();
+      offMessage();
+      offMatch();
+      // Sever the shared connection on logout / expiry (authed → false). A
+      // subsequent login re-runs this effect and reconnects with the new token.
+      disconnectSocket();
     };
   }, [authed]);
 
