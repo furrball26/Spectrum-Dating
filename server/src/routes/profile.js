@@ -9,6 +9,8 @@ import { coarseCity, isGeocodable } from '../utils/metros.js';
 import { containsSlur } from '../utils/nameScreen.js';
 import { newId } from '../utils/ids.js';
 import { PROMPTS, PROMPT_KEYS, PROMPT_TEXT_BY_KEY } from '../data/prompts.js';
+import { lookupGeo } from '../telemetry/geo.js';
+import { isHostileRegion } from '../data/hostileRegions.js';
 
 const router = Router();
 
@@ -248,6 +250,26 @@ router.get('/me', requireAuth, (req, res) => {
     emailVerificationEnabled: emailConfigured(),
     isAdmin: isAdminEmail(userRow?.email),
   });
+});
+
+// Traveler / at-risk region alert — protective, transient, privacy-preserving.
+//
+// Looks up the caller's COARSE country from their IP for THIS request only, to
+// tell them whether they appear to be somewhere LGBTQ+ people can face legal
+// risk (so the client can offer to hide their profile — reusing the existing
+// pause mechanism). The IP and country are NEVER stored and NEVER logged: we
+// look up, decide `atRisk`, and discard — the same discipline as visitor
+// telemetry. This endpoint writes NOTHING (no table, no column, no row). It is
+// protective, not tracking. Defined BEFORE `/:userId` so the literal path wins.
+router.get('/region-safety', requireAuth, (req, res) => {
+  // `trust proxy = 1` (src/index.js) yields the real client IP behind Railway's
+  // proxy. lookupGeo is offline (geoip-lite) — zero network egress, and it keeps
+  // only the country/region ISO codes, never the raw IP.
+  const { country } = lookupGeo(req.ip);
+  const atRisk = isHostileRegion(country);
+  // Return ONLY the boolean + the member's OWN country code back to that same
+  // member. Nothing here is persisted or logged.
+  return res.json({ atRisk, country: country || '' });
 });
 
 // POST /profile/verification-request

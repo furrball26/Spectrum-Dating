@@ -217,6 +217,15 @@ export async function updateProfile(fields) {
   return apiFetch("/profile/me", { method: "PUT", body: fields });
 }
 
+// Traveler / at-risk region check. The backend looks up the caller's COARSE
+// country from their IP for THIS request only and returns { atRisk, country }
+// without storing or logging anything (see server/src/routes/profile.js). Used
+// to offer the member the option to hide their profile in a region where
+// LGBTQ+ people can face legal risk. Protective, not tracking.
+export async function getRegionSafety() {
+  return apiFetch("/profile/region-safety");
+}
+
 // Self-serve identity-verification request (backlog #11).
 // Idempotent — safe to call even if a request already exists.
 export async function requestVerification() {

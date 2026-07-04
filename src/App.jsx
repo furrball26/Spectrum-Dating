@@ -22,7 +22,8 @@ const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
 const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
-import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview } from "./api.js";
+import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview, getRegionSafety, updateProfile } from "./api.js";
+import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY } from "./regionSafety.js";
 import { connectSocket, disconnectSocket, onSocket } from "./socketClient.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
@@ -636,6 +637,98 @@ function VerifyEmailBanner({ onDismiss }) {
   );
 }
 
+// ── Traveler / at-risk region alert (calm-by-design) ─────────────────────────
+// Shown at most once per session when the backend flags the member's COARSE
+// region as one where LGBTQ+ people can face legal risk (the server-side lookup
+// is transient — never stored or logged; see server/src/routes/profile.js).
+// Calm amber ONLY (the shared `sand` warning surface used by the verify-email
+// banner) — never a red alarm; supportive and brief. Offers to HIDE the profile
+// (reuses the existing pause mechanism → paused=true, so the member stops
+// appearing in Discover) plus a Dismiss. If already hidden, the copy simply
+// confirms it and only Dismiss remains.
+function RegionSafetyBanner({ paused, busy, onHide, onDismiss }) {
+  const fHide = useFocusable();
+  const fDismiss = useFocusable();
+  return (
+    <div
+      role="status"
+      style={{
+        background: t.sand,
+        borderBottom: `1px solid ${t.warningBorder}`,
+        padding: "12px 20px",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: t.layout.maxContent,
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          fontSize: 14,
+          color: t.text,
+        }}
+      >
+        {/* minWidth:0 so the message can shrink/wrap next to the buttons
+            (flex-row truncation invariant). */}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {paused
+            ? "Your profile is hidden — you're not visible in Discover. You can turn it back on anytime from your profile."
+            : "You appear to be somewhere LGBTQ+ people can face risk. If you'd like, you can hide your profile so you're not visible here."}
+        </span>
+        {!paused && (
+          <button
+            type="button"
+            onClick={onHide}
+            disabled={busy}
+            {...fHide}
+            style={{
+              background: "none",
+              border: `1px solid ${t.warningBorder}`,
+              color: t.text,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: busy ? "not-allowed" : "pointer",
+              padding: "6px 12px",
+              borderRadius: 8,
+              whiteSpace: "nowrap",
+              ...fHide.style,
+            }}
+          >
+            {busy ? "Hiding…" : "Hide my profile"}
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={onDismiss}
+          {...fDismiss}
+          style={{
+            background: "none",
+            border: "none",
+            color: t.text,
+            fontSize: 20,
+            lineHeight: 1,
+            cursor: "pointer",
+            // 44px hit target without enlarging the glyph (matches the other banners).
+            width: 44,
+            height: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            borderRadius: 6,
+            ...fDismiss.style,
+          }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Inactivity warning banner (WCAG 2.2.1) ───────────────────────────────────
 // Fixed top banner shown when the user has been idle. Appears before the abrupt
 // 401 logout so the user can extend their session.
@@ -828,6 +921,35 @@ export default function App() {
   const [emailVerifyEnabled, setEmailVerifyEnabled] = useState(false);
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
 
+  // ── Traveler / at-risk region alert ─────────────────────────────────────────
+  // Whether the backend flagged our COARSE region as one where LGBTQ+ people can
+  // face legal risk. Whether the member has hidden (paused) their profile — drives
+  // the banner copy + the Hide button. Dismissed-this-session gate (sessionStorage)
+  // so the calm banner shows at most once per session and never nags.
+  const [regionAtRisk, setRegionAtRisk] = useState(false);
+  const [myPaused, setMyPaused] = useState(false);
+  const [regionHideBusy, setRegionHideBusy] = useState(false);
+  const [regionAlertDismissed, setRegionAlertDismissed] = useState(() => {
+    try { return !!sessionStorage.getItem(REGION_ALERT_SESSION_KEY); } catch { return false; }
+  });
+  const dismissRegionAlert = useCallback(() => {
+    setRegionAlertDismissed(true);
+    try { sessionStorage.setItem(REGION_ALERT_SESSION_KEY, "1"); } catch { /* no-op */ }
+  }, []);
+  const handleRegionHide = useCallback(async () => {
+    setRegionHideBusy(true);
+    try {
+      // Reuse the existing instant-pause mechanism (F17): paused=true removes the
+      // member from Discover. Same field, same endpoint as the Profile toggle.
+      await updateProfile({ paused: true });
+      setMyPaused(true);
+    } catch {
+      // Leave the banner in place so the member can retry; don't hide it silently.
+    } finally {
+      setRegionHideBusy(false);
+    }
+  }, []);
+
   // iOS Safari can leave a phantom out-of-bounds window scroll after the
   // keyboard dismisses (it pans the window to lift a focused field, then fails
   // to re-clamp), exposing un-painted backdrop below the document (IMG_3119).
@@ -855,6 +977,8 @@ export default function App() {
   const applyMyProfile = useCallback((p) => {
     if (!p || typeof p !== "object") return;
     if (typeof p.displayName === "string") setMyDisplayName(p.displayName);
+    // Track pause state so the at-risk banner can reflect "already hidden".
+    if (typeof p.paused === "boolean") setMyPaused(p.paused);
     if (Array.isArray(p.photos)) {
       const primary = p.photos.find((ph) => ph && ph.isPrimary) || p.photos[0] || null;
       setMyPhotoUrl(primary?.url || null);
@@ -1061,6 +1185,20 @@ export default function App() {
         // handle it; don't block auth behind a network error.
       });
   }, [authed, applyMyProfile]);
+
+  // Traveler / at-risk region alert. Once authed and past onboarding, ask the
+  // backend whether our COARSE region is one where LGBTQ+ people can face legal
+  // risk (the lookup is transient server-side — never stored or logged). Skip the
+  // call entirely if the member already dismissed the banner this session.
+  // Best-effort and protective: any failure is swallowed so it never blocks the app.
+  useEffect(() => {
+    if (!authed || onboarding || regionAlertDismissed) return;
+    let cancelled = false;
+    getRegionSafety()
+      .then((r) => { if (!cancelled && r && r.atRisk === true) setRegionAtRisk(true); })
+      .catch(() => { /* protective, best-effort — never block the app */ });
+    return () => { cancelled = true; };
+  }, [authed, onboarding, regionAlertDismissed]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -1296,6 +1434,14 @@ export default function App() {
             <div aria-live="polite" style={srOnly}>{SCREEN_NAMES[activeTab]}</div>
             {emailVerifyEnabled && !emailVerified && !verifyBannerDismissed && (
               <VerifyEmailBanner onDismiss={() => setVerifyBannerDismissed(true)} />
+            )}
+            {shouldShowRegionAlert(regionAtRisk, regionAlertDismissed) && (
+              <RegionSafetyBanner
+                paused={myPaused}
+                busy={regionHideBusy}
+                onHide={handleRegionHide}
+                onDismiss={dismissRegionAlert}
+              />
             )}
             {/* App-level header / wordmark */}
             <header
