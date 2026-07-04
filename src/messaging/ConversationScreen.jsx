@@ -1449,9 +1449,7 @@ function SafetyProtectionsDisclosure() {
   const [open, setOpen] = useState(false);
   const lines = [
     "New profile photos are looked over by a real person before anyone else can see them.",
-    "If a message brings up moving to another app or sending money, we'll gently note it — whoever it's from.",
     "Display names are screened, so slurs and abusive handles don't make it in.",
-    "You can block or report anyone privately, anytime — they're never told.",
   ];
   return (
     <div style={{ marginTop: 16, borderTop: `1px solid ${t.borderLight}`, paddingTop: 12 }}>
@@ -1485,10 +1483,10 @@ function SafetyProtectionsDisclosure() {
       {open && (
         <div
           id="d18-safety-protections"
-          style={{ marginTop: 8, padding: "12px 16px", background: t.surface, border: `1px solid ${t.borderLight}`, borderRadius: 12 }}
+          style={{ marginTop: 8, padding: "12px 16px", background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: t.radius.md }}
         >
           <p style={{ margin: "0 0 10px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
-            A few quiet protections are always running in the background, so you can take your time:
+            A couple of quiet protections are always running in the background, so you can take your time:
           </p>
           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
             {lines.map((line) => (
@@ -1498,7 +1496,7 @@ function SafetyProtectionsDisclosure() {
               </li>
             ))}
           </ul>
-          <p style={{ margin: "10px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+          <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted, lineHeight: 1.5 }}>
             There's more, including check-in tools, in the Safety Center whenever you want it.
           </p>
         </div>
