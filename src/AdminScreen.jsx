@@ -5,6 +5,7 @@ import {
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
   getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
+  getServerHealth,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -144,6 +145,107 @@ function useAdminResource(fetcher, token) {
   useEffect(() => { reload(); }, [reload, token]);
 
   return { data, loading, error, reload };
+}
+
+// ─── Collapsible dashboard sections (mirrors ProfileScreen) ─────────────────
+// Same disclosure pattern the profile screen uses: a real <button> header with
+// aria-expanded/aria-controls, a 44px target + focus ring, keyboard toggle, and
+// a chevron that rotates (gated on prefers-reduced-motion). Each section's
+// open/closed choice persists to localStorage per-section so it survives
+// reloads — identical contract to profile's SECTIONS_STORAGE_KEY.
+const ADMIN_SECTIONS_STORAGE_KEY = "spectrum_admin_sections";
+
+// Sensible defaults: the two action-oriented zones are open; the context zones
+// (report breakdown, community health) start collapsed to reduce overwhelm.
+const ADMIN_SECTION_DEFAULTS = {
+  siteHealth: true,
+  needsAttention: true,
+  reportBreakdown: false,
+  communityHealth: false,
+};
+
+function loadAdminSections() {
+  try {
+    const raw = localStorage.getItem(ADMIN_SECTIONS_STORAGE_KEY);
+    if (!raw) return { ...ADMIN_SECTION_DEFAULTS };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return { ...ADMIN_SECTION_DEFAULTS };
+    // Merge over defaults so a newly-added section id still gets its default.
+    return { ...ADMIN_SECTION_DEFAULTS, ...parsed };
+  } catch {
+    return { ...ADMIN_SECTION_DEFAULTS };
+  }
+}
+
+function persistAdminSections(open) {
+  try {
+    localStorage.setItem(ADMIN_SECTIONS_STORAGE_KEY, JSON.stringify(open));
+  } catch { /* private-mode / quota — non-fatal, just won't persist */ }
+}
+
+// Mirrors ProfileScreen's usePrefersReduced — chevron rotation is the only
+// motion here, and it must honor the OS reduce-motion preference.
+function useAdminPrefersReduced() {
+  const [prefersReduced, setPrefersReduced] = useState(
+    () => typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handler = (e) => setPrefersReduced(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return prefersReduced;
+}
+
+// A single collapsible dashboard zone. Flat (no card wrapper) so it drops in for
+// the existing `<h2 style={zoneHeading}>` + content pattern without card-in-card
+// heaviness. The panel stays MOUNTED and is toggled via the `hidden` attribute
+// (keeps child fetch state alive), exactly like profile's CollapsibleSection.
+function AdminCollapsible({ id, title, open, onToggle, style, children }) {
+  const f = useFocusable();
+  const prefersReduced = useAdminPrefersReduced();
+  const buttonId = `admin-section-${id}-button`;
+  const panelId = `admin-section-${id}-panel`;
+  return (
+    <div style={style}>
+      <button
+        type="button"
+        id={buttonId}
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+        style={{
+          width: "100%", minHeight: 44, display: "flex", alignItems: "center",
+          justifyContent: "space-between", gap: 12, background: "transparent",
+          border: "none", padding: "4px 0", textAlign: "left", cursor: "pointer",
+          font: "inherit", color: "inherit", ...f.style,
+        }}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted }}>
+          {title}
+        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            flexShrink: 0, fontSize: 16, lineHeight: 1, color: t.textMuted,
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: prefersReduced ? "none" : "transform 180ms cubic-bezier(0.2,0,0,1)",
+          }}
+        >
+          ⌄
+        </span>
+      </button>
+      <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!open} style={{ marginTop: open ? 10 : 0 }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // Calm placeholder cards shown while reports load.
@@ -1491,6 +1593,119 @@ function UptimeBoard({ data, loading, error, onRetry, demo }) {
   );
 }
 
+// Calm live-status row for the Site-health panel: a small dot + label. NEVER
+// alarm-red — "ok" reads positive/green, any degraded/unreachable state reads
+// amber (t.warningFill), matching the calm-by-design rule. Carries the WORD, so
+// it's never color-only.
+function HealthIndicator({ label, state, okText, downText }) {
+  const ok = state === "ok";
+  const color = ok ? t.positiveFill : t.warningFill;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+      <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
+      <span style={{ fontSize: 15, color: t.text, minWidth: 0 }}>
+        <span style={{ fontWeight: 600 }}>{label}:</span> {ok ? okText : downText}
+      </span>
+    </div>
+  );
+}
+
+// Site health — always-visible summary near the top of the dashboard. Live
+// service status (GET /health, public), current process uptime + 24h/7d %
+// (from the already-built /admin/telemetry/uptime), and the most recent
+// incident. Reuses the "Updated HH:MM" + Refresh pattern; NO live ticker. It
+// degrades gracefully: /health never throws (getServerHealth normalizes a dead
+// probe to reachable:false → calm "Unreachable"), and if uptime has little data
+// it shows the short real uptime, never an error. All hooks run before any
+// early return (React #310). The detailed uptime board stays on the Overview
+// tab untouched.
+function SiteHealthPanel() {
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const health = useAdminResource(() => getServerHealth(), `sh-health-${refreshToken}`);
+  const uptime = useAdminResource(() => getTelemetryUptime(false), `sh-uptime-${refreshToken}`);
+
+  const settled = !health.loading && !uptime.loading;
+  useEffect(() => { if (settled) setUpdatedAt(Date.now()); }, [settled]);
+
+  const h = health.data;                    // { reachable, status, db, sha } — never throws
+  const reachable = !!h?.reachable;
+  const dbState = h?.db;                     // 'up' | 'down' | null (older build omits it)
+  const up = uptime.data;
+  const uptimeReady = !uptime.error && !!up; // little data is still "ready" — render it
+  const lastIncident = uptimeReady && up.incidents.length > 0 ? up.incidents[0] : null;
+
+  return (
+    <div style={sectionCardStyle}>
+      {/* Freshness + Refresh — grounded stamp, never a live ticker */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <span style={{ fontSize: 13, color: t.textMuted }}>
+          {updatedAt ? `Updated ${formatClock(updatedAt)}` : "Loading…"}
+        </span>
+        <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
+      </div>
+
+      {/* Live service status */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {health.loading ? (
+          <div aria-hidden="true"><Skeleton width="55%" height={16} /></div>
+        ) : (
+          <>
+            <HealthIndicator label="Server" state={reachable ? "ok" : "down"} okText="Operational" downText="Unreachable" />
+            {dbState && (
+              <HealthIndicator label="Database" state={dbState === "up" ? "ok" : "down"} okText="Operational" downText="Degraded" />
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Uptime */}
+      <div style={{ marginTop: 16 }}>
+        {uptime.loading ? (
+          <div aria-hidden="true"><Skeleton width="40%" height={22} /></div>
+        ) : !uptimeReady ? (
+          <p style={{ margin: 0, fontSize: 14, color: t.textMuted }}>Uptime not recorded yet.</p>
+        ) : (
+          <>
+            <div style={{ fontFamily: t.serif, fontSize: 22, fontWeight: 700, color: t.text, lineHeight: 1.1 }}>
+              {up.currentUptimeMs > 0 ? `Up for ${formatDuration(up.currentUptimeMs)}` : "Uptime not yet recorded"}
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+              {["24h", "7d"].map((w) => (
+                <div key={w} style={{ background: t.surfaceAlt, border: `1px solid ${t.borderLight}`, borderRadius: 12, padding: "10px 14px", minWidth: 96 }}>
+                  <div style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 700, color: t.text }}>{formatUptimePct(up.windows?.[w])}</div>
+                  <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>last {w}</div>
+                </div>
+              ))}
+            </div>
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+              Measured at the application layer — app + database liveness, not edge/network.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Last incident */}
+      <div style={{ marginTop: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 6px" }}>Last incident</h3>
+        {uptime.loading ? (
+          <div aria-hidden="true"><Skeleton width="50%" height={13} /></div>
+        ) : uptimeReady && lastIncident ? (
+          <div style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+            <span style={{ textTransform: "capitalize", fontWeight: 600, color: t.text }}>
+              {String(lastIncident.kind || "gap").replace(/_/g, " ")}
+            </span>
+            {" · "}{formatDuration(lastIncident.durationMs)}
+            <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>{formatTimestamp(lastIncident.startedAt)}</div>
+          </div>
+        ) : (
+          <p style={{ margin: 0, fontSize: 14, color: t.textMuted }}>No incidents recorded.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // One ranked-bars section card (geo / referrers / member email-domains).
 function RankedSection({ title, res, emptyLabel, note }) {
   return (
@@ -2081,7 +2296,17 @@ export default function AdminScreen() {
   const [membersNavToken, setMembersNavToken] = useState(0);
   // Which activity drill-in (Matches/Messages) is open, if any.
   const [activityMetric, setActivityMetric] = useState(null);
+  // Collapsible dashboard sections (persisted per-section, like ProfileScreen).
+  const [openSections, setOpenSections] = useState(loadAdminSections);
   const headingRef = useRef(null);
+
+  const toggleSection = useCallback((sid) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [sid]: !prev[sid] };
+      persistAdminSections(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -2154,7 +2379,6 @@ export default function AdminScreen() {
   const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
   const now = Date.now();
 
-  const zoneHeading = { fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted, margin: "0 0 10px" };
   const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 };
 
   return (
@@ -2188,11 +2412,28 @@ export default function AdminScreen() {
           </p>
         )}
 
+        {/* Site health — always visible (renders regardless of the active tab
+            or whether stats loaded), collapsible + persisted like profile. */}
+        <AdminCollapsible
+          id="siteHealth"
+          title="Site health"
+          open={openSections.siteHealth}
+          onToggle={() => toggleSection("siteHealth")}
+          style={{ marginBottom: 20 }}
+        >
+          <SiteHealthPanel />
+        </AdminCollapsible>
+
         {stats && (
           <>
             {/* Needs attention (F-A) — queues awaiting a moderator */}
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={zoneHeading}>Needs attention</h2>
+            <AdminCollapsible
+              id="needsAttention"
+              title="Needs attention"
+              open={openSections.needsAttention}
+              onToggle={() => toggleSection("needsAttention")}
+              style={{ marginBottom: 20 }}
+            >
               <div style={gridStyle}>
                 <StatCard
                   label="Open reports"
@@ -2227,16 +2468,27 @@ export default function AdminScreen() {
                   ariaLabel={`Verification requests: ${stats.pendingVerifications ?? 0}. View verification queue.`}
                 />
               </div>
-            </div>
+            </AdminCollapsible>
 
             {/* Report breakdown strip (F-A) — tap a segment to filter */}
-            <div style={{ marginBottom: 24 }}>
+            <AdminCollapsible
+              id="reportBreakdown"
+              title="Report breakdown"
+              open={openSections.reportBreakdown}
+              onToggle={() => toggleSection("reportBreakdown")}
+              style={{ marginBottom: 24 }}
+            >
               <BreakdownStrip reports={stats.reports} active={activeTab === "reports" ? statusFilter : null} onPick={pickBreakdown} />
-            </div>
+            </AdminCollapsible>
 
             {/* Community health (F-A) — de-emphasized context, not a to-do list */}
-            <div style={{ marginBottom: 24 }}>
-              <h2 style={zoneHeading}>Community health</h2>
+            <AdminCollapsible
+              id="communityHealth"
+              title="Community health"
+              open={openSections.communityHealth}
+              onToggle={() => toggleSection("communityHealth")}
+              style={{ marginBottom: 24 }}
+            >
               <div style={gridStyle}>
                 <StatCard
                   label="Members"
@@ -2268,7 +2520,7 @@ export default function AdminScreen() {
                   ariaLabel={`Messages: ${stats.messages ?? 0}. View message activity trends.`}
                 />
               </div>
-            </div>
+            </AdminCollapsible>
           </>
         )}
 

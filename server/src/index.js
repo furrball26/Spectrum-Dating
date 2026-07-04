@@ -22,6 +22,7 @@ import adminRouter from './routes/admin.js';
 import adminTelemetryRouter from './routes/adminTelemetry.js';
 import telemetryRouter from './routes/telemetry.js';
 import feedbackRouter from './routes/feedback.js';
+import healthRouter from './routes/health.js';
 import { lastActiveMiddleware } from './middleware/lastActive.js';
 import { startHeartbeat } from './telemetry/heartbeat.js';
 import { startTelemetryFlush } from './telemetry/ingest.js';
@@ -89,8 +90,10 @@ app.use('/telemetry', telemetryRouter);
 app.use('/feedback', feedbackRouter);
 
 // /health includes the deployed git SHA so the deploy script can confirm the
-// NEW build is live (not the old replica still serving during rollover).
-app.get('/health', (_req, res) => res.json({ status: 'ok', sha: BUILD_SHA }));
+// NEW build is live (not the old replica still serving during rollover), plus a
+// cheap application-layer DB liveness signal (SELECT 1) for the admin Site-health
+// panel. Always 200 while serving; see routes/health.js.
+app.use(healthRouter(db, BUILD_SHA));
 
 // 404 for unmatched routes (JSON API).
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

@@ -585,6 +585,30 @@ export function sendPageview(path) {
   } catch { /* never surface a beacon error */ }
 }
 
+// ─── Public server health probe (admin Site-health panel) ───────────────────
+// GET /health is public (no auth) and returns { status, sha, db }. We fetch it
+// with the raw BASE_URL — not apiFetch — so it stays auth-agnostic and a failed
+// probe can't throw through the shared 401 handling. Any network failure or
+// non-200 is normalized to `{ reachable:false }` so the caller renders a calm
+// "unreachable" state instead of an error. Never throws.
+export async function getServerHealth() {
+  if (!BASE_URL) return { reachable: false, status: null, db: null, sha: null };
+  try {
+    const res = await fetch(`${BASE_URL}/health`, { method: "GET" });
+    if (!res.ok) return { reachable: false, status: null, db: null, sha: null };
+    const d = await res.json().catch(() => ({}));
+    return {
+      reachable: true,
+      status: d?.status || "ok",
+      // 'up' | 'down' | null (older builds omit `db` → null = "not reported").
+      db: d?.db || null,
+      sha: d?.sha || null,
+    };
+  } catch {
+    return { reachable: false, status: null, db: null, sha: null };
+  }
+}
+
 // ─── Admin: telemetry dashboard + member management ─────────────────────────
 // All requireAuth+requireAdmin. `demo` flips the telemetry queries to the
 // seeded demo dataset (is_demo=1); real queries hardcode is_demo=0. Shapes
