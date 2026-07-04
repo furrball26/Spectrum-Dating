@@ -435,9 +435,17 @@ router.get('/activity', requireAuth, (req, res) => {
         WHERE (m.user_a_id = ? AND m.user_b_id = s.swiper_id)
            OR (m.user_b_id = ? AND m.user_a_id = s.swiper_id)
       )
+      -- Block filter (both directions): a person the viewer has blocked, or who
+      -- has blocked the viewer, must never surface in Activity with photo/age/
+      -- coarse city (harassment-around-block). Mirrors the Discover deck filter.
+      AND NOT EXISTS (
+        SELECT 1 FROM blocks bl
+        WHERE (bl.blocker_id = ? AND bl.blocked_id = s.swiper_id)
+           OR (bl.blocker_id = s.swiper_id AND bl.blocked_id = ?)
+      )
     ORDER BY s.created_at DESC
     LIMIT 20
-  `).all(userId, userId, userId, userId);
+  `).all(userId, userId, userId, userId, userId, userId);
 
   const incomingLikes = likesRows.map(r => ({
     userId: r.user_id,
@@ -460,6 +468,14 @@ router.get('/activity', requireAuth, (req, res) => {
     WHERE (m.user_a_id = ? OR m.user_b_id = ?)
       AND m.matched_at >= ?
       AND m.ended_at IS NULL
+      -- Block filter (both directions): drop any recent match where the pair is
+      -- now blocked, so a blocked user can't linger in the "new matches" section.
+      -- Symmetric over the match pair, so it needs no bind params.
+      AND NOT EXISTS (
+        SELECT 1 FROM blocks bl
+        WHERE (bl.blocker_id = m.user_a_id AND bl.blocked_id = m.user_b_id)
+           OR (bl.blocker_id = m.user_b_id AND bl.blocked_id = m.user_a_id)
+      )
     ORDER BY m.matched_at DESC
     LIMIT 10
   `).all(userId, userId, userId, sevenDaysAgo);

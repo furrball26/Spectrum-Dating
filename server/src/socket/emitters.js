@@ -55,3 +55,20 @@ export function joinConversationRoom(io, conversationId, userIdA, userIdB) {
     console.error('[socket] joinConversationRoom failed:', e?.message);
   }
 }
+
+// Tear down a conversation room for BOTH parties the moment a block is placed
+// (block-drops-room, BE-5). Pulls every live socket for each user OUT of
+// `conv:<id>` so a blocked pair stops live-receiving each other's events
+// immediately — without waiting for a reconnect (the connect-time block skip in
+// socket/index.js only runs on the NEXT connection). Best-effort and defensive:
+// a missing io or an adapter error must never break the HTTP block request.
+export function leaveConversationRoom(io, conversationId, userIdA, userIdB) {
+  if (!io || !conversationId) return;
+  try {
+    const room = `conv:${conversationId}`;
+    io.in(`user:${userIdA}`).socketsLeave(room);
+    io.in(`user:${userIdB}`).socketsLeave(room);
+  } catch (e) {
+    console.error('[socket] leaveConversationRoom failed:', e?.message);
+  }
+}

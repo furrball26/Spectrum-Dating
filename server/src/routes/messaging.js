@@ -17,7 +17,7 @@ function makeSnippet(body) {
   if (collapsed.length <= SNIPPET_MAX) return collapsed;
   return collapsed.slice(0, SNIPPET_MAX - 1).trimEnd() + '…';
 }
-import { emitNewMessage, emitMessageDeleted, emitConversationArchived, joinConversationRoom } from '../socket/emitters.js';
+import { emitNewMessage, emitMessageDeleted, emitConversationArchived, joinConversationRoom, leaveConversationRoom } from '../socket/emitters.js';
 import { notifyUser } from '../push/notify.js';
 import { getReactionSummary } from './reactions.js';
 
@@ -67,6 +67,19 @@ function isBlocked(db, userA, userB) {
   );
 }
 
+// A block in EITHER direction between the two participants of conversation `c`
+// severs the thread: it disappears from BOTH people's lists (so the blocked
+// person no longer keeps the blocker's name/photo, and the blocker's thread does
+// not return on reload). Symmetric over the pair, so it needs NO bind params and
+// can be dropped into any query that aliases the conversations row as `c`.
+// Mirrors the Discover deck's block filter (matching/candidates.js) so Messages
+// and Discover agree on what a block hides.
+const NOT_BLOCKED_PAIR = `NOT EXISTS (
+  SELECT 1 FROM blocks bl
+  WHERE (bl.blocker_id = c.user_a_id AND bl.blocked_id = c.user_b_id)
+     OR (bl.blocker_id = c.user_b_id AND bl.blocked_id = c.user_a_id)
+)`;
+
 function activeConvoCount(db, userId) {
   // F21: an ENDED (unmatched) conversation is read-only and must not occupy an
   // active-conversation slot for either party.
@@ -75,6 +88,7 @@ function activeConvoCount(db, userId) {
     JOIN matches mt ON mt.id = c.match_id
     WHERE ((c.user_a_id = ? AND c.archived_by_a = 0) OR (c.user_b_id = ? AND c.archived_by_b = 0))
       AND mt.ended_at IS NULL
+      AND ${NOT_BLOCKED_PAIR}
   `).get(userId, userId).cnt;
 }
 
@@ -104,6 +118,7 @@ router.get('/conversations', requireAuth, (req, res) => {
     WHERE ((c.user_a_id = ? AND c.archived_by_a = 0)
        OR (c.user_b_id = ? AND c.archived_by_b = 0))
       AND (mt.ended_at IS NULL OR mt.ended_by != ?)
+      AND ${NOT_BLOCKED_PAIR}
     ORDER BY COALESCE(m.sent_at, c.created_at) DESC
   `).all(userId, userId, userId);
 
@@ -140,8 +155,9 @@ router.get('/conversations', requireAuth, (req, res) => {
 
   const activeCount = activeConvoCount(db, userId);
   const archivedCount = db.prepare(`
-    SELECT COUNT(*) as cnt FROM conversations
-    WHERE (user_a_id = ? AND archived_by_a = 1) OR (user_b_id = ? AND archived_by_b = 1)
+    SELECT COUNT(*) as cnt FROM conversations c
+    WHERE ((c.user_a_id = ? AND c.archived_by_a = 1) OR (c.user_b_id = ? AND c.archived_by_b = 1))
+      AND ${NOT_BLOCKED_PAIR}
   `).get(userId, userId).cnt;
   res.json({ conversations, activeCap: 5, activeCount, capReached: activeCount >= 5, archivedCount });
 });
@@ -159,8 +175,9 @@ router.get('/conversations/archived', requireAuth, (req, res) => {
     LEFT JOIN messages m ON m.id = (
       SELECT id FROM messages WHERE conversation_id = c.id ORDER BY sent_at DESC LIMIT 1
     )
-    WHERE (c.user_a_id = ? AND c.archived_by_a = 1)
-       OR (c.user_b_id = ? AND c.archived_by_b = 1)
+    WHERE ((c.user_a_id = ? AND c.archived_by_a = 1)
+       OR (c.user_b_id = ? AND c.archived_by_b = 1))
+      AND ${NOT_BLOCKED_PAIR}
     ORDER BY COALESCE(m.sent_at, c.created_at) DESC
   `).all(userId, userId);
 
@@ -261,7 +278,12 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
       // F21 — read-only flag. True once EITHER party has unmatched; the client
       // renders the neutral "This conversation has ended." notice and hides the
       // composer. We never say who ended it.
-      ended: isConversationEnded(db, req.params.id),
+      //
+      // A block (in EITHER direction) reads the SAME way: a stale client or deep
+      // link that reaches this thread after a block gets the identical neutral
+      // "ended" payload — read-only, composer hidden — so we never leak that the
+      // other person specifically BLOCKED them (mirrors how an unmatch reads).
+      ended: isConversationEnded(db, req.params.id) || isBlocked(db, userId, otherId),
     },
     messages,
     hasMore,
@@ -583,6 +605,28 @@ router.post('/block', requireAuth, safetyActionLimiter, (req, res) => {
       return res.status(409).json({ error: 'Already blocked' });
     }
     throw err;
+  }
+
+  // Sever the live channel for the pair. The block already hides the thread from
+  // both conversation lists (NOT_BLOCKED_PAIR) and makes GET /conversations/:id
+  // read as ended, but an ALREADY-OPEN socket would keep receiving new_message /
+  // reaction events on the conv room until it happens to reconnect (the
+  // connect-time block skip in socket/index.js only runs on the NEXT connect).
+  // Drop BOTH users' live sockets from the room now so delivery stops
+  // immediately. We do NOT soft-end the match (no ended_at): the block filter
+  // fully hides the pair from Discover (candidates.js) and Messages already, and
+  // leaving the match row untouched keeps block cleanly reversible on unblock
+  // without stranding a read-only "ended" artifact. Best-effort — a missing io
+  // (e.g. under test) or an adapter hiccup must never fail the block.
+  const { io } = req.app.locals;
+  if (io) {
+    const convs = db.prepare(
+      `SELECT id FROM conversations
+       WHERE (user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?)`
+    ).all(userId, blockedUserId, blockedUserId, userId);
+    for (const c of convs) {
+      leaveConversationRoom(io, c.id, userId, blockedUserId);
+    }
   }
 
   res.status(201).json({ blocked: true });
