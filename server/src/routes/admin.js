@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { requireAdmin, isAdminEmail } from '../middleware/admin.js';
+import { requireAdmin, isAdminEmail, isAdminUser } from '../middleware/admin.js';
 import { newId } from '../utils/ids.js';
 import { disconnectUser } from '../socket/index.js';
 import { syncPrimaryPhotoUrl } from './photos.js';
@@ -93,8 +93,10 @@ function readNote(body) {
 // ---------------------------------------------------------------------------
 router.get('/me', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
-  const row = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
-  res.json({ isAdmin: isAdminEmail(row?.email) });
+  const row = db.prepare('SELECT email, is_admin FROM users WHERE id = ?').get(userId);
+  // Combined env-OR-db check so a DB-granted admin (migration 055) also sees the
+  // admin UI, not only env-allowlist admins.
+  res.json({ isAdmin: isAdminUser(row) });
 });
 
 // ---------------------------------------------------------------------------
@@ -518,6 +520,74 @@ router.post('/users/:id/unban', requireAuth, requireAdmin, (req, res) => {
   logMod(db, userId, 'unban', req.params.id, note);
 
   res.json({ ok: true, banned: false });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/roles — body { userId, admin: boolean, reason? }
+//
+// DB-based admin role management (migration 055). Grants or revokes the admin
+// role on a target user by setting users.is_admin. This is a PRIVILEGE-ESCALATION
+// surface, so it is defended in depth:
+//   • requireAuth + requireAdmin (only an existing admin can call it) and it runs
+//     under the rate-limited /admin mount.
+//   • The ADMIN_EMAILS allowlist is the IMMUTABLE ROOT: an env-listed admin can
+//     NEVER be modified here (grant or revoke), so no one can lock out the owner
+//     or dress a DB flag over the env root. Env admins keep access with is_admin=0.
+//   • SELF-LOCKOUT is prevented: a caller cannot revoke their OWN admin (unless
+//     they are also an env root, in which case the env-immutability guard already
+//     refused above and their access is unaffected either way).
+//   • EVERY grant/revoke is written to moderation_log (actor, target, action,
+//     reason, timestamp) — role changes must be in the audit trail.
+// The UI is NOT the security boundary — requireAdmin (env OR db) is authoritative.
+// ---------------------------------------------------------------------------
+router.post('/roles', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId: actorId } = req.ctx;
+  const { userId, admin } = req.body ?? {};
+
+  if (typeof userId !== 'string' || !userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+  if (typeof admin !== 'boolean') {
+    return res.status(400).json({ error: 'admin must be a boolean.' });
+  }
+  let reason;
+  try {
+    reason = readNote(req.body); // reads body.note ?? body.reason
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+
+  const target = db.prepare('SELECT id, email, is_admin FROM users WHERE id = ?').get(userId);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+
+  // Env-root immutability — the ADMIN_EMAILS allowlist owns these accounts; the UI
+  // may never grant OR revoke on them. Guards the owner against lockout.
+  if (isAdminEmail(target.email)) {
+    return res.status(400).json({
+      error: 'This account is a root admin configured in the environment and can’t be changed here.',
+    });
+  }
+
+  // Self-lockout guard — a DB admin can't strip their own admin role (an env root
+  // was already refused above, and their access wouldn't change regardless).
+  if (userId === actorId && admin === false) {
+    return res.status(403).json({ error: 'You can’t revoke your own admin access.' });
+  }
+
+  const already = !!target.is_admin;
+  if (already === admin) {
+    // No-op — not a grant/revoke, so no audit row. Report the (unchanged) state.
+    return res.json({ ok: true, userId, admin, changed: false });
+  }
+
+  db.transaction(() => {
+    db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(admin ? 1 : 0, userId);
+    // Role changes MUST be in the audit trail (actor, target, grant/revoke, reason).
+    logMod(db, actorId, admin ? 'grant_admin' : 'revoke_admin', userId, reason);
+  })();
+
+  res.json({ ok: true, userId, admin, changed: true });
 });
 
 // ---------------------------------------------------------------------------

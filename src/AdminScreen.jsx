@@ -7,6 +7,7 @@ import {
   getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
   getServerHealth, getPopulation, getTransparency, getQaSample, submitQaReview,
   getMyEntitlement, adminSetEntitlement, adminSetSelfEntitlement, adminClearDemoEntitlements,
+  adminSetUserRole, getUserId,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -2887,10 +2888,19 @@ function MemberDrawer({ id, onClose }) {
               />
             </div>
 
-            {/* Membership (demo tier grant) */}
+            {/* Manual access — admin role + Companion subscription, granted
+                directly. Serious/deliberate (a privilege-escalation surface) but
+                calm. Every admin-role change is audit-logged server-side. */}
             <div style={{ marginTop: 20 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 8px" }}>Membership (demo)</h3>
-              <MemberTierControl userId={data.userContext?.userId || id} userName={c.displayName} />
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 8px" }}>Manual access</h3>
+              <MemberManualAccess
+                userId={data.userContext?.userId || id}
+                userName={c.displayName}
+                isEnvAdmin={!!data.isEnvAdmin}
+                isDbAdmin={!!data.isDbAdmin}
+                tier={data.tier || "free"}
+                onRoleChanged={reload}
+              />
             </div>
 
             {/* Report history */}
@@ -3179,40 +3189,169 @@ function BillingDemoSection() {
   );
 }
 
-// Per-member demo tier control — lives in the member drawer. Grants/revokes
-// Companion on ONE member (source='admin_demo'). Clearly a demo control.
-function MemberTierControl({ userId, userName }) {
+// ─── Manual access (member drawer) ─────────────────────────────────────────────
+// Small, calm status pills (no fill — an accent border marks the "on" state so
+// both themes stay low-stimulation).
+const rolePill = {
+  fontSize: 12, fontWeight: 600, padding: "2px 9px", borderRadius: 999,
+  background: t.surface, color: t.textMuted, border: `1px solid ${t.borderLight}`,
+};
+const rolePillActive = {
+  ...rolePill, color: t.accentStrong, border: `1px solid ${t.accent}`,
+};
+const rolePillLocked = {
+  ...rolePill, color: t.textSoft,
+};
+
+// Two direct-grant controls for one member: the DB-based ADMIN ROLE (POST
+// /admin/roles — audit-logged, env-root immutable, no self-lockout; the backend
+// requireAdmin check is the real security boundary) and their COMPANION
+// SUBSCRIPTION (adminSetEntitlement; source stays the machine-stable
+// 'admin_demo'). Serious/deliberate without being alarmist; all hooks live in the
+// child components before any early return.
+function MemberManualAccess({ userId, userName, isEnvAdmin, isDbAdmin, tier, onRoleChanged }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+      <MemberAdminRoleControl
+        userId={userId}
+        userName={userName}
+        isEnvAdmin={isEnvAdmin}
+        isDbAdmin={isDbAdmin}
+        onChanged={onRoleChanged}
+      />
+      <div style={{ borderTop: `1px solid ${t.borderLight}`, paddingTop: 14 }}>
+        <MemberTierControl userId={userId} userName={userName} initialTier={tier} />
+      </div>
+    </div>
+  );
+}
+
+// Admin-role grant/revoke. Grant AND revoke go through a confirm step (this is
+// powerful). Env-root admins render as a locked "Owner / root" state with no
+// toggle (they're managed in ADMIN_EMAILS, immutable via the UI). A caller can't
+// remove their OWN admin here (the backend blocks self-lockout; the UI says so).
+function MemberAdminRoleControl({ userId, userName, isEnvAdmin, isDbAdmin, onChanged }) {
+  const [admin, setAdmin] = useState(!!isDbAdmin); // current DB admin state
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tier, setTier] = useState(null); // last-set value (optimistic display)
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const name = userName || "this member";
+  const isSelf = userId === getUserId();
+
+  const apply = useCallback(async () => {
+    const next = !admin;
+    setBusy(true); setError(""); setStatus("");
+    try {
+      await adminSetUserRole(userId, next);
+      setAdmin(next);
+      setConfirming(false);
+      setStatus(next
+        ? `${name} is now an admin. Recorded in the audit log.`
+        : `Admin access removed from ${name}. Recorded in the audit log.`);
+      onChanged?.();
+    } catch (err) {
+      setError(safeErrorMessage(err, "Couldn't change admin access. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  }, [admin, userId, name, onChanged]);
+
+  // Env-root admins are managed in server configuration — immutable here. (Hooks
+  // above run unconditionally; this early return is safe — React #310.)
+  if (isEnvAdmin) {
+    return (
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Admin role</span>
+          <span style={rolePillLocked}>Owner / root · locked</span>
+        </div>
+        <p style={{ margin: "6px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+          This account is a root admin set in the server configuration. It can’t be changed here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Admin role</span>
+        <span style={admin ? rolePillActive : rolePill}>{admin ? "Admin" : "Not admin"}</span>
+      </div>
+      <p style={{ margin: "6px 0 8px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+        Admins can review reports and take enforcement action. Every change is recorded in the audit log.
+      </p>
+
+      {isSelf && admin ? (
+        <p style={{ margin: 0, fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+          This is your own account — you can’t remove your own admin access here.
+        </p>
+      ) : confirming ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <span style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+            {admin
+              ? `Revoke admin access from ${name}? They’ll immediately lose access to the moderation console.`
+              : `Grant admin access to ${name}? They’ll be able to review reports and take enforcement action.`}
+          </span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <PlainButton kind={admin ? "danger" : "accent"} onClick={apply} disabled={busy}>
+              {busy ? "Saving…" : admin ? "Revoke admin" : "Grant admin"}
+            </PlainButton>
+            <PlainButton kind="neutral" onClick={() => setConfirming(false)} disabled={busy}>Cancel</PlainButton>
+          </div>
+        </div>
+      ) : (
+        <PlainButton kind={admin ? "quiet" : "neutral"} onClick={() => { setError(""); setStatus(""); setConfirming(true); }}>
+          {admin ? "Revoke admin" : "Grant admin"}
+        </PlainButton>
+      )}
+
+      {status && <p role="status" style={{ margin: "8px 0 0", fontSize: 13, color: t.accentStrong }}>{status}</p>}
+      {error && <p role="alert" style={{ margin: "8px 0 0", fontSize: 13, color: t.danger }}>{error}</p>}
+    </div>
+  );
+}
+
+// Per-member Companion subscription — Free ↔ Companion. Reuses adminSetEntitlement
+// (source stays the machine-stable 'admin_demo'); member-facing copy is a calm
+// "manual grant — no charge", not "demo". Seeded from the member detail's `tier`.
+function MemberTierControl({ userId, userName, initialTier = "free" }) {
+  const [busy, setBusy] = useState(false);
+  const [tier, setTier] = useState(initialTier); // current tier (seeded from detail)
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const name = userName || "this member";
 
   const setTierTo = useCallback(async (next) => {
-    if (busy) return;
+    if (busy || next === tier) return;
     setBusy(true); setError(""); setStatus("");
     try {
       const e = await adminSetEntitlement(userId, next);
       setTier(e.tier);
-      setStatus(`Set ${name} to ${e.tier === "companion" ? "Companion" : "Free"} (demo).`);
+      setStatus(`${name} is now on ${e.tier === "companion" ? "Companion" : "Free"}.`);
     } catch (err) {
-      setError(safeErrorMessage(err, "Couldn't set the demo tier. Please try again."));
+      setError(safeErrorMessage(err, "Couldn't change the subscription. Please try again."));
     } finally {
       setBusy(false);
     }
-  }, [busy, userId, name]);
+  }, [busy, tier, userId, name]);
 
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Companion subscription</span>
+        <span style={tier === "companion" ? rolePillActive : rolePill}>{tier === "companion" ? "Companion" : "Free"}</span>
+      </div>
       <p style={{ margin: "0 0 8px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
-        Grant or revoke Companion for this member (demo only — not real billing).
+        Comp this member to Companion, or return them to Free. This is a manual grant — no charge.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <PlainButton kind={tier === "companion" ? "accent" : "neutral"} onClick={() => setTierTo("companion")} disabled={busy}>
-          Set Companion (demo)
+        <PlainButton kind={tier === "companion" ? "accent" : "neutral"} onClick={() => setTierTo("companion")} disabled={busy || tier === "companion"}>
+          Companion
         </PlainButton>
-        <PlainButton kind="neutral" onClick={() => setTierTo("free")} disabled={busy}>
-          Set Free (demo)
+        <PlainButton kind={tier === "free" ? "accent" : "neutral"} onClick={() => setTierTo("free")} disabled={busy || tier === "free"}>
+          Free
         </PlainButton>
       </div>
       {status && <p role="status" style={{ margin: "8px 0 0", fontSize: 13, color: t.accentStrong }}>{status}</p>}

@@ -1,0 +1,14 @@
+-- DB-based admin role (additive). Until now admin access was gated ONLY by the
+-- ADMIN_EMAILS env allowlist (middleware/admin.js), so admins could not be
+-- managed from the moderation console. This column lets an existing admin
+-- grant/revoke the admin role on any account from the UI (POST /admin/roles).
+--
+-- Resolution is env OR db: isAdminUser(row) = isAdminEmail(row.email) ||
+-- !!row.is_admin. The ADMIN_EMAILS allowlist remains the IMMUTABLE ROOT — an
+-- env-listed admin is always an admin regardless of this flag, and the role
+-- endpoint refuses to modify an env-listed target, so the owner can never be
+-- locked out via the UI. Every grant/revoke is audit-logged to moderation_log.
+--
+-- Additive only (head was 054). 0 = not a DB admin (the safe default for every
+-- existing row); env-root admins keep their access with is_admin = 0.
+ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;

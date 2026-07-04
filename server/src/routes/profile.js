@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { abuseReportLimiter } from '../middleware/rateLimits.js';
-import { isAdminEmail } from '../middleware/admin.js';
+import { isAdminUser } from '../middleware/admin.js';
 import { getEntitlement } from '../billing/entitlements.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos, listPublicPhotos } from './photos.js';
@@ -174,7 +174,7 @@ router.get('/me', requireAuth, (req, res) => {
     dobAge !== null && dobAge >= 18
   );
 
-  const userRow = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(userId);
+  const userRow = db.prepare('SELECT email, email_verified, is_admin FROM users WHERE id = ?').get(userId);
 
   // E19: profiles.identity_verified is the SINGLE SOURCE OF TRUTH for whether a
   // user is verified. verification_requests only tracks the QUEUE state
@@ -249,7 +249,7 @@ router.get('/me', requireAuth, (req, res) => {
     verificationRequested,
     emailVerified: !!userRow?.email_verified,
     emailVerificationEnabled: emailConfigured(),
-    isAdmin: isAdminEmail(userRow?.email),
+    isAdmin: isAdminUser(userRow),
     // Billing tier so the app knows free vs Companion on load (no row = free).
     tier: getEntitlement(db, userId).tier,
   });

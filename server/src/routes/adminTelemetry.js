@@ -9,7 +9,8 @@
 
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/admin.js';
+import { requireAdmin, isAdminEmail, isAdminUser } from '../middleware/admin.js';
+import { getEntitlement } from '../billing/entitlements.js';
 import { loadDemoData, wipeDemoData } from '../telemetry/demoSeed.js';
 import { newId } from '../utils/ids.js';
 
@@ -695,7 +696,7 @@ router.get('/members/:id', requireAuth, requireAdmin, (req, res) => {
   const id = req.params.id;
 
   const user = db.prepare(
-    'SELECT id, email, created_at, suspended, banned, last_active_at FROM users WHERE id = ?'
+    'SELECT id, email, created_at, suspended, banned, last_active_at, is_admin FROM users WHERE id = ?'
   ).get(id);
   if (!user) return res.status(404).json({ error: 'Member not found.' });
 
@@ -751,6 +752,16 @@ router.get('/members/:id', requireAuth, requireAdmin, (req, res) => {
     verified: !!profile?.identity_verified,
     suspended: !!user.suspended,
     banned: !!user.banned,
+    // Manual-access state for the drawer. `isEnvAdmin` = an ADMIN_EMAILS root
+    // (immutable via the UI — shown as a locked "Owner/root" state). `isDbAdmin`
+    // = the migration-055 flag (the only thing the toggle changes). `isAdmin` is
+    // the combined authoritative check the backend actually gates on.
+    isAdmin: isAdminUser(user),
+    isEnvAdmin: isAdminEmail(user.email),
+    isDbAdmin: !!user.is_admin,
+    // Current subscription tier (no row = free) so the drawer's Free↔Companion
+    // toggle reflects reality on open.
+    tier: getEntitlement(db, id).tier,
     warnCount,
     latestNotice,
     accountAgeMs: Date.now() - user.created_at,

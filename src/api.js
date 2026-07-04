@@ -1133,6 +1133,19 @@ export async function adminClearDemoEntitlements() {
   return apiFetch("/admin/entitlements/demo", { method: "DELETE" });
 }
 
+// ─── Admin: manual access — DB-based admin role (migration 055) ──────────────────
+// POST /admin/roles { userId, admin, reason? } → grant/revoke the admin role on a
+// target user (requireAdmin + rate-limited). This is a privilege-escalation
+// surface: the backend is authoritative (env-root admins are immutable here; a
+// caller can't revoke their own admin; every change is written to the moderation
+// audit log). `reason` (optional) is recorded in that audit trail. Returns
+// { ok, userId, admin, changed }.
+export async function adminSetUserRole(userId, admin, reason) {
+  const body = { userId, admin };
+  if (reason && reason.trim()) body.reason = reason.trim();
+  return apiFetch("/admin/roles", { method: "POST", body });
+}
+
 // ─── Push notifications ────────────────────────────────────────────────────────
 
 export async function getPushVapidKey() {

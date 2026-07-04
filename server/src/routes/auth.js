@@ -4,7 +4,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { randomBytes } from 'crypto';
 import { newId } from '../utils/ids.js';
 import { signToken, requireAuth, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
-import { isAdminEmail } from '../middleware/admin.js';
+import { isAdminUser } from '../middleware/admin.js';
 import { getEntitlement } from '../billing/entitlements.js';
 import { disconnectUser } from '../socket/index.js';
 import { emailConfigured, sendVerificationEmail, sendPasswordResetEmail } from '../email/resend.js';
@@ -100,7 +100,9 @@ router.post('/register', authLimiter, async (req, res) => {
     userId,
     emailVerified: false,
     emailVerificationEnabled: emailConfigured(),
-    isAdmin: isAdminEmail(normalizedEmail),
+    // A brand-new user is never a DB admin, so this is just the env check; kept
+    // via isAdminUser for one consistent code path with login / profile.
+    isAdmin: isAdminUser({ email: normalizedEmail, is_admin: 0 }),
     // Billing tier (a brand-new user has no subscription row → 'free').
     tier: getEntitlement(db, userId).tier,
   });
@@ -118,7 +120,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 
   const { db } = req.ctx;
-  const user = db.prepare('SELECT id, password_hash, token_version, email_verified, suspended, banned, email FROM users WHERE email = ?').get(normalizedEmail);
+  const user = db.prepare('SELECT id, password_hash, token_version, email_verified, suspended, banned, email, is_admin FROM users WHERE email = ?').get(normalizedEmail);
 
   // Use constant-time comparison even if user not found (timing safety)
   const dummyHash = '$2b$12$invalidhashfortimingprotection000000000000000000000000';
@@ -159,7 +161,9 @@ router.post('/login', authLimiter, async (req, res) => {
     userId: user.id,
     emailVerified: !!user.email_verified,
     emailVerificationEnabled: emailConfigured(),
-    isAdmin: isAdminEmail(user.email),
+    // Combined env-OR-db admin check so a DB-granted admin (migration 055) sees
+    // the admin UI on login, not only env-allowlist admins.
+    isAdmin: isAdminUser(user),
     // Billing tier so the app knows free vs Companion on load (no row = free).
     tier: getEntitlement(db, user.id).tier,
   });
