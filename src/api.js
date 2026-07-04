@@ -426,16 +426,62 @@ export async function getAdminReports(status = 'open') {
     reportedEmail: r.reported?.email || r.reportedEmail || '',
     reportedSuspended: r.reported?.suspended ?? r.reportedSuspended ?? false,
     reportedVerified: r.reported?.verified ?? r.reportedVerified ?? false,
+    // B-C resolute receipt fields — who/when/why a non-open report was resolved.
+    resolvedBy: r.resolvedBy || null,
+    resolvedAt: r.resolvedAt ?? null,
+    moderatorNote: r.moderatorNote || '',
+    // P1-A durable snapshot of the reported message (fallback when the live
+    // conversation is gone).
+    reportedMessage: r.reportedMessage || null,
+    // P1-B repeat-offender signal. reportCount is the TOTAL reports against this
+    // member (incl. the current one); actionedCount how many were actioned;
+    // blockedByCount distinct members who blocked them; createdAt account age.
+    reportedReportCount: r.reported?.reportCount ?? 0,
+    reportedActionedCount: r.reported?.actionedCount ?? 0,
+    reportedBlockedByCount: r.reported?.blockedByCount ?? 0,
+    reportedCreatedAt: r.reported?.createdAt ?? null,
   }));
 }
 
 export async function resolveReport(id, status, note) { return apiFetch(`/admin/reports/${id}/resolve`, { method: 'POST', body: { status, note } }); }
-export async function suspendUser(userId, suspended) { return apiFetch(`/admin/users/${userId}/suspend`, { method: 'POST', body: { suspended } }); }
+
+// A suspend requires a moderator note (backend 400s without one); unsuspend does
+// not. Only send `note` when provided so unsuspend stays a clean no-op body.
+export async function suspendUser(userId, suspended, note) {
+  const body = { suspended };
+  if (note) body.note = note;
+  return apiFetch(`/admin/users/${userId}/suspend`, { method: 'POST', body });
+}
 
 // F1 — identity-verification action on a member (from the report context).
-// POST /admin/users/:id/verify { verified } → { ok, verified }
-export async function verifyUser(userId, verified) {
-  return apiFetch(`/admin/users/${userId}/verify`, { method: 'POST', body: { verified } });
+// POST /admin/users/:id/verify { verified, note? } → { ok, verified }.
+// Note optional (backend doesn't require it for verify). 409 on a no-op.
+export async function verifyUser(userId, verified, note) {
+  const body = { verified };
+  if (note) body.note = note;
+  return apiFetch(`/admin/users/${userId}/verify`, { method: 'POST', body });
+}
+
+// P1-A — reported conversation context. GET /admin/reports/:id/context →
+// { conversationId, live, messages:[{ id, senderId, senderName, senderEmail,
+//   fromReported, body, deleted, createdAt, attachments:[{id,url,mimeType,status}] }],
+//   snapshot }. `live:false` → render the `snapshot` saved-evidence fallback.
+export async function getReportContext(id) {
+  const d = await apiFetch(`/admin/reports/${encodeURIComponent(id)}/context`);
+  return {
+    conversationId: d?.conversationId ?? null,
+    live: !!d?.live,
+    messages: Array.isArray(d?.messages) ? d.messages : [],
+    snapshot: d?.snapshot ?? null,
+  };
+}
+
+// P1-B — one user's repeat-offender history. GET /admin/users/:id/history →
+// { userId, email, suspended, accountCreatedAt, reportsAgainst, reportsActioned,
+//   distinctBlockers }. (The report cards render from the serialized per-report
+// counts; this is here for a dedicated user drill-down.)
+export async function getUserHistory(id) {
+  return apiFetch(`/admin/users/${encodeURIComponent(id)}/history`);
 }
 
 // F1 — pending identity-verification queue (admin).
@@ -475,16 +521,29 @@ export async function purgeTestAccounts(includeDemo = false) {
   return d?.deleted ?? 0;
 }
 
-// Backend stats use total*/suspendedUsers keys; AdminScreen reads users/suspended/etc.
+// Backend stats use members/total*/suspendedUsers keys; normalise to the flat
+// shape AdminScreen reads. `members` excludes test/demo accounts (B-A); the
+// oldest-*-At epochs (null when the queue is empty) drive the age subtext + the
+// past-SLA amber tone (B-B).
 export async function getAdminStats() {
   const s = await apiFetch('/admin/stats');
+  const members = s.members ?? s.totalUsers ?? s.users ?? 0;
   return {
-    users: s.totalUsers ?? s.users ?? 0,
+    members,
+    users: members, // back-compat alias
+    testAccounts: s.testAccounts ?? 0,
     suspended: s.suspendedUsers ?? s.suspended ?? 0,
     matches: s.totalMatches ?? s.matches ?? 0,
     conversations: s.totalConversations ?? s.conversations ?? 0,
     messages: s.totalMessages ?? s.messages ?? 0,
     reports: s.reports || { open: 0, reviewed: 0, actioned: 0, dismissed: 0 },
+    pendingAttachments: s.pendingAttachments ?? 0,
+    pendingProfilePhotos: s.pendingProfilePhotos ?? 0,
+    pendingVerifications: s.pendingVerifications ?? 0,
+    oldestOpenReportAt: s.oldestOpenReportAt ?? null,
+    oldestPendingAttachmentAt: s.oldestPendingAttachmentAt ?? null,
+    oldestPendingProfilePhotoAt: s.oldestPendingProfilePhotoAt ?? null,
+    oldestPendingVerificationAt: s.oldestPendingVerificationAt ?? null,
   };
 }
 export async function reportUser(reportedUserId, reason, details, conversationId) {
@@ -572,9 +631,12 @@ export async function getPendingAttachments(status = 'pending_review') {
   return Array.isArray(d?.attachments) ? d.attachments : [];
 }
 
-// POST /admin/attachments/:id/review { decision: 'approved'|'rejected' } → { ok, status }
-export async function reviewAttachment(id, decision) {
-  return apiFetch(`/admin/attachments/${id}/review`, { method: 'POST', body: { decision } });
+// POST /admin/attachments/:id/review { decision: 'approved'|'rejected', note? } → { ok, status }
+// A rejection requires a moderator note (backend 400s without one); approve does not.
+export async function reviewAttachment(id, decision, note) {
+  const body = { decision };
+  if (note) body.note = note;
+  return apiFetch(`/admin/attachments/${id}/review`, { method: 'POST', body });
 }
 
 // ─── Admin: profile-photo review (SAFETY-2) ─────────────────────────────────────
@@ -586,9 +648,12 @@ export async function getPendingProfilePhotos() {
   return Array.isArray(d?.photos) ? d.photos : [];
 }
 
-// POST /admin/profile-photos/:id/review { decision: 'approve'|'reject' } → { ok, status }
-export async function reviewProfilePhoto(id, decision) {
-  return apiFetch(`/admin/profile-photos/${id}/review`, { method: 'POST', body: { decision } });
+// POST /admin/profile-photos/:id/review { decision: 'approve'|'reject', note? } → { ok, status }
+// A rejection requires a moderator note (backend 400s without one); approve does not.
+export async function reviewProfilePhoto(id, decision, note) {
+  const body = { decision };
+  if (note) body.note = note;
+  return apiFetch(`/admin/profile-photos/${id}/review`, { method: 'POST', body });
 }
 
 // ─── Account ───────────────────────────────────────────────────────────────────
