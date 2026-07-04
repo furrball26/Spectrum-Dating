@@ -22,7 +22,7 @@ const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
 const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
-import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification } from "./api.js";
+import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview } from "./api.js";
 import { connectSocket, disconnectSocket, onSocket } from "./socketClient.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
@@ -786,6 +786,21 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [activeTab]);
+
+  // ── Page-view telemetry beacon (fire-and-forget) ──────────────────────────
+  // One anonymous beacon per distinct tab the user lands on. Gated exactly like
+  // the nav effect above (authed, past onboarding, not the reset screen). The
+  // last-sent ref DEDUPES: the mount that also primes the nav effect records the
+  // landing view once, and each later tab change (including Back/Forward, which
+  // routes through setActiveTab) sends once — never twice for the same view. The
+  // beacon itself never blocks nav and swallows every error (see api.js).
+  const lastBeaconTab = useRef(null);
+  useEffect(() => {
+    if (!authed || onboarding || resetToken) return;
+    if (lastBeaconTab.current === activeTab) return;
+    lastBeaconTab.current = activeTab;
+    sendPageview(activeTab);
+  }, [activeTab, authed, onboarding, resetToken]);
 
   // Offline awareness — a calm banner when the connection drops.
   const [isOffline, setIsOffline] = useState(typeof navigator !== "undefined" && navigator.onLine === false);

@@ -562,6 +562,100 @@ export async function withdrawReport(reportId) {
   return apiFetch(`/messaging/reports/${reportId}/withdraw`, { method: 'POST' });
 }
 
+// ─── Telemetry beacon (public, fire-and-forget) ─────────────────────────────
+// Records a single anonymous page view. It NEVER blocks navigation, NEVER
+// surfaces an error, and swallows everything — a telemetry beacon must never
+// affect the client. The server derives session/geo (cookieless, IP never
+// stored); we send only the current app path + the browser referrer. keepalive
+// lets the request survive a tab/route teardown. No cookies, no stored id.
+// Uses the raw BASE_URL (not apiFetch) so it stays auth-agnostic and can't throw
+// through the shared 401 handling. NEVER await this.
+export function sendPageview(path) {
+  try {
+    if (!BASE_URL) return; // no backend configured → nothing to send
+    fetch(`${BASE_URL}/telemetry/pageview`, {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: path || "",
+        referrer: typeof document !== "undefined" ? document.referrer : "",
+      }),
+    }).catch(() => {});
+  } catch { /* never surface a beacon error */ }
+}
+
+// ─── Admin: telemetry dashboard + member management ─────────────────────────
+// All requireAuth+requireAdmin. `demo` flips the telemetry queries to the
+// seeded demo dataset (is_demo=1); real queries hardcode is_demo=0. Shapes
+// mirror server/src/routes/adminTelemetry.js exactly (normalized here so the UI
+// reads one flat, defaulted shape — house rule: normalize at the api boundary).
+const demoQuery = (demo) => (demo ? "&demo=1" : "");
+
+export async function getTelemetryOverview(window = "7d", demo = false) {
+  const d = await apiFetch(`/admin/telemetry/overview?window=${encodeURIComponent(window)}${demoQuery(demo)}`);
+  return {
+    window: d?.window || window,
+    demo: !!d?.demo,
+    totalViews: d?.totalViews ?? 0,
+    uniqueVisitors: d?.uniqueVisitors ?? 0,
+    series: Array.isArray(d?.series) ? d.series : [],
+    topPaths: Array.isArray(d?.topPaths) ? d.topPaths : [],
+  };
+}
+
+export async function getTelemetryGeo(window = "7d", demo = false) {
+  const d = await apiFetch(`/admin/telemetry/geo?window=${encodeURIComponent(window)}${demoQuery(demo)}`);
+  return Array.isArray(d?.rows) ? d.rows : [];
+}
+
+export async function getTelemetryReferrers(window = "7d", demo = false) {
+  const d = await apiFetch(`/admin/telemetry/referrers?window=${encodeURIComponent(window)}${demoQuery(demo)}`);
+  return Array.isArray(d?.rows) ? d.rows : [];
+}
+
+export async function getTelemetryUptime(demo = false) {
+  const d = await apiFetch(`/admin/telemetry/uptime?${demo ? "demo=1" : ""}`);
+  return {
+    layer: d?.layer || "application",
+    processStartedAt: d?.processStartedAt ?? null,
+    currentUptimeMs: d?.currentUptimeMs ?? 0,
+    windows: d?.windows || { "24h": 0, "7d": 0, "30d": 0 },
+    incidents: Array.isArray(d?.incidents) ? d.incidents : [],
+  };
+}
+
+// Member email-domain breakdown — real members only (test/demo excluded server
+// side). Not demo-toggled: this is member data, not visitor telemetry.
+export async function getMemberDomains() {
+  const d = await apiFetch("/admin/telemetry/member-domains");
+  return Array.isArray(d?.rows) ? d.rows : [];
+}
+
+// Paginated member listing. status ∈ ''|'active'|'suspended'|'verified';
+// sort ∈ 'joined'|'reports'. Returns { total, page, pageSize, members }.
+export async function getMembers({ query = "", status = "", page = 1, pageSize = 25, sort = "joined" } = {}) {
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+  if (status && status !== "all") params.set("status", status);
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+  params.set("sort", sort);
+  const d = await apiFetch(`/admin/members?${params.toString()}`);
+  return {
+    total: d?.total ?? 0,
+    page: d?.page ?? page,
+    pageSize: d?.pageSize ?? pageSize,
+    members: Array.isArray(d?.members) ? d.members : [],
+  };
+}
+
+// Member detail for the drawer — userContext + report history + counts +
+// verified/suspended/accountAge/lastActiveAt.
+export async function getMemberDetail(id) {
+  return apiFetch(`/admin/members/${encodeURIComponent(id)}`);
+}
+
 // ─── Reactions ────────────────────────────────────────────────────────────────
 
 export async function toggleReaction(messageId, emoji) {

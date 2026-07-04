@@ -3,13 +3,18 @@ import {
   getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments,
   reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog,
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
+  getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
+  getMemberDomains, getMembers, getMemberDetail,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
 import SectionRule from "./SectionRule.jsx";
+import Sparkline from "./Sparkline.jsx";
+import RankedBars from "./RankedBars.jsx";
+import { formatUptimePct } from "./chartMath.js";
 import { useFocusable } from "./useFocusable.js";
-import { waitingLabel, oldestLabel, accountAgeLabel, isPastSla } from "./adminFormat.js";
+import { waitingLabel, oldestLabel, accountAgeLabel, isPastSla, formatDuration } from "./adminFormat.js";
 
 // Moderation dashboard — autism-friendly: calm, low-stimulation, clear states.
 // Reds reserved for genuinely destructive actions (suspend). Numbers are static,
@@ -111,6 +116,34 @@ function useAdminList(fetcher, token) {
   useEffect(() => { reload(); }, [reload, token]);
 
   return { items, loading, error, reload };
+}
+
+// Object-shaped sibling of useAdminList — same load/loading/error + token-driven
+// refetch contract, but keeps the raw response object (telemetry overview /
+// uptime, the paginated member listing) instead of coercing to an array. The
+// fetcher is held in a ref so callers can pass an inline arrow that closes over
+// the current window/demo/query without re-triggering the effect; `token` (a
+// string keying those params) drives the refetch.
+function useAdminResource(fetcher, token) {
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const reload = useCallback(() => {
+    setLoading(true);
+    setError(false);
+    Promise.resolve()
+      .then(() => fetcherRef.current())
+      .then((d) => setData(d))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { reload(); }, [reload, token]);
+
+  return { data, loading, error, reload };
 }
 
 // Calm placeholder cards shown while reports load.
@@ -1286,8 +1319,524 @@ function MaintenanceSection({ onStatus, onRefresh }) {
   );
 }
 
+// ─── Telemetry Overview + Member management (admin dashboard) ───────────────
+// Shared, calm styling for the telemetry sections. Numbers are grounded and
+// stamped with an "Updated HH:MM" — never a live ticker/animated counter. All
+// charts are static (Sparkline / RankedBars).
+
+const zoneHeadingStyle = { fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted, margin: "0 0 10px" };
+const sectionCardStyle = { background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "18px 20px", marginBottom: 16, boxShadow: t.shadow.sm };
+const telemetryGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 };
+
+const WINDOW_OPTIONS = [
+  { value: "24h", label: "24 hours" },
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+];
+
+// Generic segmented control (reuses SegmentButton's pill look) for the window
+// selector and the member status/sort filters.
+function Segmented({ options, value, onChange, ariaLabel }) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      style={{
+        display: "flex", gap: 4, background: t.surfaceAlt, border: `1px solid ${t.borderLight}`,
+        borderRadius: 12, padding: 4, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin",
+      }}
+    >
+      {options.map((o) => (
+        <SegmentButton key={o.value} label={o.label} active={value === o.value} onClick={() => onChange(o.value)} />
+      ))}
+    </div>
+  );
+}
+
+// Admin-only "Demo data" switch — flips the telemetry queries to the seeded
+// demo dataset (?demo=1) so the live demo view is populated without polluting
+// real counts. Plain checkbox semantics (accessible), styled small.
+function DemoToggle({ value, onChange }) {
+  return (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, color: t.textSoft, cursor: "pointer", whiteSpace: "nowrap" }}>
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: 18, height: 18, cursor: "pointer" }}
+      />
+      Demo data
+    </label>
+  );
+}
+
+// Uptime board — current process uptime, the three window %s, an "application
+// layer" honesty label (so 100% never reads as fabricated edge/network uptime),
+// and the incident list. Percentages are floored (formatUptimePct), never
+// rounded up past measured downtime.
+function UptimeBoard({ data, loading, error, onRetry, demo }) {
+  return (
+    <div style={sectionCardStyle}>
+      <h2 style={zoneHeadingStyle}>Service uptime</h2>
+      {loading ? (
+        <div aria-hidden="true"><Skeleton width="40%" height={22} /><div style={{ height: 10 }} /><Skeleton width="70%" height={14} /></div>
+      ) : error || !data ? (
+        <ErrorState title="Couldn't load uptime" message="Something went wrong on our end. Please try again." onRetry={onRetry} />
+      ) : (
+        <>
+          <div style={{ fontFamily: t.serif, fontSize: 26, fontWeight: 700, color: t.text, lineHeight: 1.1 }}>
+            {data.currentUptimeMs > 0 ? `Up for ${formatDuration(data.currentUptimeMs)}` : "Uptime not yet recorded"}
+          </div>
+          <div style={{ ...telemetryGrid, marginTop: 14 }}>
+            {["24h", "7d", "30d"].map((w) => (
+              <div key={w} style={{ background: t.surfaceAlt, border: `1px solid ${t.borderLight}`, borderRadius: 14, padding: "12px 14px" }}>
+                <div style={{ fontFamily: t.serif, fontSize: 22, fontWeight: 700, color: t.text }}>
+                  {formatUptimePct(data.windows?.[w])}
+                </div>
+                <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>last {w}</div>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: "12px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+            Measured at the application layer — app + database liveness, not edge/network.
+            {demo ? " Showing demo data." : ""}
+          </p>
+
+          <div style={{ marginTop: 14 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 8px" }}>Recent incidents</h3>
+            {data.incidents.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 14, color: t.textMuted }}>No downtime recorded in the last 30 days.</p>
+            ) : (
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+                {data.incidents.map((inc) => (
+                  <li key={inc.id} style={{ border: `1px solid ${t.borderLight}`, borderRadius: 10, padding: "10px 12px", background: t.bg }}>
+                    <div style={{ fontSize: 14, color: t.text, fontWeight: 600, textTransform: "capitalize" }}>
+                      {String(inc.kind || "gap").replace(/_/g, " ")} · {formatDuration(inc.durationMs)}
+                    </div>
+                    <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+                      {formatTimestamp(inc.startedAt)} → {formatTimestamp(inc.endedAt)}
+                    </div>
+                    {inc.note && <div style={{ fontSize: 13, color: t.textSoft, marginTop: 4 }}>{inc.note}</div>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// One ranked-bars section card (geo / referrers / member email-domains).
+function RankedSection({ title, res, emptyLabel, note }) {
+  return (
+    <div style={sectionCardStyle}>
+      <h2 style={zoneHeadingStyle}>{title}</h2>
+      {note && <p style={{ margin: "0 0 10px", fontSize: 13, color: t.textMuted }}>{note}</p>}
+      {res.loading ? (
+        <div aria-hidden="true"><Skeleton width="90%" height={12} /><div style={{ height: 8 }} /><Skeleton width="70%" height={12} /><div style={{ height: 8 }} /><Skeleton width="50%" height={12} /></div>
+      ) : res.error ? (
+        <ErrorState title={`Couldn't load ${title.toLowerCase()}`} message="Something went wrong on our end. Please try again." onRetry={res.reload} />
+      ) : (
+        <RankedBars rows={res.items} emptyLabel={emptyLabel} />
+      )}
+    </div>
+  );
+}
+
+function OverviewTab() {
+  const [win, setWin] = useState("7d");
+  const [demo, setDemo] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState(null);
+
+  // Telemetry queries key off window+demo+refresh; member-domains ignores both
+  // (it's member data, not visitor telemetry) so it only refetches on refresh.
+  const telemetryKey = `${win}|${demo ? 1 : 0}|${refreshToken}`;
+  const overview = useAdminResource(() => getTelemetryOverview(win, demo), telemetryKey);
+  const uptime = useAdminResource(() => getTelemetryUptime(demo), `${demo ? 1 : 0}|${refreshToken}`);
+  const geo = useAdminList(() => getTelemetryGeo(win, demo), telemetryKey);
+  const referrers = useAdminList(() => getTelemetryReferrers(win, demo), telemetryKey);
+  const domains = useAdminList(() => getMemberDomains(), `dom-${refreshToken}`);
+
+  // Stamp "Updated HH:MM" whenever the primary (overview) resource settles.
+  useEffect(() => { if (!overview.loading) setUpdatedAt(Date.now()); }, [overview.loading]);
+
+  const visitsSeries = Array.isArray(overview.data?.series) ? overview.data.series.map((s) => s.views || 0) : [];
+
+  return (
+    <div>
+      {/* Header: window + demo toggle on the left; freshness + refresh right */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+          <Segmented options={WINDOW_OPTIONS} value={win} onChange={setWin} ariaLabel="Telemetry time window" />
+          <DemoToggle value={demo} onChange={setDemo} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: t.textMuted }}>
+            {updatedAt ? `Updated ${formatClock(updatedAt)}` : "Loading…"}
+          </span>
+          <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
+        </div>
+      </div>
+
+      <UptimeBoard data={uptime.data} loading={uptime.loading} error={uptime.error} onRetry={uptime.reload} demo={demo} />
+
+      {/* Visits */}
+      <div style={sectionCardStyle}>
+        <h2 style={zoneHeadingStyle}>Visits{demo ? " · demo data" : ""}</h2>
+        {overview.loading ? (
+          <div aria-hidden="true"><Skeleton width="100%" height={56} /><div style={{ height: 12 }} /><Skeleton width="60%" height={14} /></div>
+        ) : overview.error ? (
+          <ErrorState title="Couldn't load visits" message="Something went wrong on our end. Please try again." onRetry={overview.reload} />
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <Sparkline values={visitsSeries} ariaLabel={`Visits over the last ${win}`} />
+            </div>
+            <div style={telemetryGrid}>
+              <StatCard label="Total views" value={overview.data.totalViews} />
+              <StatCard label="Unique visitors" value={overview.data.uniqueVisitors} />
+            </div>
+          </>
+        )}
+      </div>
+
+      <RankedSection title="Top locations" res={geo} emptyLabel="No location data in this window yet." />
+      <RankedSection title="Traffic sources" res={referrers} emptyLabel="No referrers in this window yet." />
+      <RankedSection
+        title="Member email domains"
+        res={domains}
+        emptyLabel="No members yet."
+        note="Real members only — excludes test and demo accounts."
+      />
+    </div>
+  );
+}
+
+// ─── Members tab ────────────────────────────────────────────────────────────
+const MEMBER_STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "suspended", label: "Suspended" },
+  { value: "verified", label: "Verified" },
+];
+const MEMBER_SORT_OPTIONS = [
+  { value: "joined", label: "Newest" },
+  { value: "reports", label: "Most reported" },
+];
+const MEMBER_PAGE_SIZE = 25;
+
+// Coarse status badge for a member row (active/suspended). Reuses the report
+// StatusBadge palette semantics: suspended = danger, active = neutral.
+function MemberStatusBadge({ suspended, verified }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <span
+        style={{
+          fontSize: 13, fontWeight: 600, borderRadius: 20, padding: "3px 10px",
+          ...(suspended
+            ? { background: t.dangerFill, color: "#fff", border: `1px solid ${t.dangerFill}` }
+            : { background: t.surfaceAlt, color: t.text, border: `1px solid ${t.border}` }),
+        }}
+      >
+        {suspended ? "Suspended" : "Active"}
+      </span>
+      {verified && (
+        <span style={{ fontSize: 13, color: t.positiveText, fontWeight: 600 }}>
+          <span aria-hidden="true">✓ </span>Verified
+        </span>
+      )}
+    </span>
+  );
+}
+
+// "YYYY-MM-DD" (or a date-ish value) → a short calm date. Empty → "".
+function formatDate(value) {
+  if (!value) return "";
+  const d = new Date(typeof value === "number" ? value : `${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function MembersTableSkeleton() {
+  return (
+    <div aria-hidden="true">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} style={{ display: "flex", gap: 12, padding: "12px 8px", borderBottom: `1px solid ${t.borderLight}` }}>
+          <Skeleton width="40%" height={14} />
+          <Skeleton width="20%" height={14} />
+          <Skeleton width="15%" height={14} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MembersTab() {
+  const [queryInput, setQueryInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("joined");
+  const [page, setPage] = useState(1);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [openId, setOpenId] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const fSearch = useFocusable();
+
+  // Debounce the free-text search (350ms) so we don't fire a request per key.
+  useEffect(() => {
+    const id = setTimeout(() => { setQuery(queryInput.trim()); setPage(1); }, 350);
+    return () => clearTimeout(id);
+  }, [queryInput]);
+
+  const listKey = `${query}|${status}|${sort}|${page}|${refreshToken}`;
+  const res = useAdminResource(
+    () => getMembers({ query, status, page, pageSize: MEMBER_PAGE_SIZE, sort }),
+    listKey
+  );
+
+  useEffect(() => { if (!res.loading) setUpdatedAt(Date.now()); }, [res.loading]);
+
+  const total = res.data?.total ?? 0;
+  const members = res.data?.members ?? [];
+  const totalPages = Math.max(1, Math.ceil(total / MEMBER_PAGE_SIZE));
+
+  const changeStatus = useCallback((v) => { setStatus(v); setPage(1); }, []);
+  const changeSort = useCallback((v) => { setSort(v); setPage(1); }, []);
+
+  const cellHead = { textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: t.textMuted, padding: "8px 10px", whiteSpace: "nowrap", borderBottom: `1px solid ${t.border}` };
+  const cell = { fontSize: 14, color: t.text, padding: "12px 10px", borderBottom: `1px solid ${t.borderLight}`, verticalAlign: "top" };
+
+  return (
+    <div>
+      {/* Controls */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+        <input
+          type="search"
+          value={queryInput}
+          onChange={(e) => setQueryInput(e.target.value)}
+          placeholder="Search by name or email"
+          aria-label="Search members by name or email"
+          style={{
+            width: "100%", boxSizing: "border-box", minHeight: 44, padding: "10px 14px", borderRadius: 11,
+            border: `1px solid ${t.formBorder}`, background: t.surface, color: t.text, fontSize: 16, fontFamily: t.sans,
+            ...fSearch.style,
+          }}
+          onFocus={fSearch.onFocus}
+          onBlur={fSearch.onBlur}
+        />
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+            <Segmented options={MEMBER_STATUS_OPTIONS} value={status} onChange={changeStatus} ariaLabel="Filter members by status" />
+            <Segmented options={MEMBER_SORT_OPTIONS} value={sort} onChange={changeSort} ariaLabel="Sort members" />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, color: t.textMuted }}>
+              {updatedAt ? `Updated ${formatClock(updatedAt)}` : "Loading…"}
+            </span>
+            <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
+          </div>
+        </div>
+      </div>
+
+      {res.loading ? (
+        <MembersTableSkeleton />
+      ) : res.error ? (
+        <ErrorState title="Couldn't load members" message="Something went wrong on our end. Please try again." onRetry={res.reload} />
+      ) : members.length === 0 ? (
+        <EmptyCard>No members match these filters.</EmptyCard>
+      ) : (
+        <>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", border: `1px solid ${t.border}`, borderRadius: 14, background: t.surface, boxShadow: t.shadow.sm }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+              <thead>
+                <tr>
+                  <th style={cellHead}>Member</th>
+                  <th style={cellHead}>Status</th>
+                  <th style={{ ...cellHead, textAlign: "right" }}>Reports</th>
+                  <th style={cellHead}>Joined</th>
+                  <th style={cellHead}>City</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr
+                    key={m.id}
+                    onClick={() => setOpenId(m.id)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td style={cell}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setOpenId(m.id); }}
+                        style={{ display: "block", textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", font: "inherit", color: t.text, maxWidth: 260 }}
+                        aria-label={`Open details for ${m.displayName || m.email}`}
+                      >
+                        <span style={{ display: "block", fontWeight: 600, color: t.accentStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m.displayName || "Unnamed member"}
+                        </span>
+                        <span style={{ display: "block", fontSize: 13, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m.email}
+                        </span>
+                      </button>
+                    </td>
+                    <td style={cell}><MemberStatusBadge suspended={m.suspended} verified={m.verified} /></td>
+                    <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {m.reportCount}
+                      {m.reportCount > 0 && m.actionedCount > 0 && (
+                        <span style={{ color: t.textMuted }}> ({m.actionedCount} actioned)</span>
+                      )}
+                    </td>
+                    <td style={{ ...cell, whiteSpace: "nowrap", color: t.textSoft }}>{formatDate(m.createdAt)}</td>
+                    <td style={{ ...cell, color: t.textSoft }}>{m.distCity || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
+            <span style={{ fontSize: 13, color: t.textMuted }}>
+              {total} member{total === 1 ? "" : "s"} · page {page} of {totalPages}
+            </span>
+            <div style={{ display: "flex", gap: 10 }}>
+              <PlainButton kind="neutral" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</PlainButton>
+              <PlainButton kind="neutral" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</PlainButton>
+            </div>
+          </div>
+        </>
+      )}
+
+      {openId && <MemberDrawer id={openId} onClose={() => setOpenId(null)} />}
+    </div>
+  );
+}
+
+// Member detail drawer — full status, verification, report history, block
+// count, account age, and the admin-only "Last active" date. Focus management
+// per the moderation-console a11y conventions: focus moves in on open, Escape
+// closes, Tab is trapped inside, and focus is restored to the trigger on close.
+function MemberDrawer({ id, onClose }) {
+  const { data, loading, error, reload } = useAdminResource(() => getMemberDetail(id), id);
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  const returnFocusRef = useRef(null);
+
+  useEffect(() => {
+    // Remember what was focused so we can restore it on close.
+    returnFocusRef.current = typeof document !== "undefined" ? document.activeElement : null;
+    // Move focus into the drawer (close button) on open.
+    const id2 = setTimeout(() => closeRef.current?.focus(), 0);
+    return () => {
+      clearTimeout(id2);
+      const el = returnFocusRef.current;
+      if (el && typeof el.focus === "function") el.focus();
+    };
+  }, []);
+
+  function onKeyDown(e) {
+    if (e.key === "Escape") { e.stopPropagation(); onClose(); return; }
+    if (e.key !== "Tab") return;
+    // Basic focus trap — keep Tab inside the panel.
+    const focusables = panelRef.current?.querySelectorAll(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusables || focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+
+  const c = data?.userContext || {};
+  const lastActive = data?.lastActiveAt ? formatDate(data.lastActiveAt) : "";
+
+  return (
+    <div
+      role="presentation"
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(36,51,45,0.45)", display: "flex", justifyContent: "flex-end", zIndex: 1000 }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Member details"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+        style={{
+          width: "min(440px, 100%)", height: "100%", background: t.bg, boxShadow: t.shadow.lg,
+          padding: "20px 20px 40px", overflowY: "auto", boxSizing: "border-box",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+          <h2 style={{ fontFamily: t.serif, fontSize: 22, fontWeight: 700, color: t.text, margin: 0, minWidth: 0 }}>Member details</h2>
+          <PlainButton kind="quiet" onClick={onClose} buttonRef={closeRef} ariaLabel="Close member details">Close</PlainButton>
+        </div>
+
+        {loading ? (
+          <div aria-hidden="true"><Skeleton width="60%" height={20} /><div style={{ height: 12 }} /><Skeleton width="90%" height={14} /><div style={{ height: 8 }} /><Skeleton width="70%" height={14} /></div>
+        ) : error || !data ? (
+          <ErrorState title="Couldn't load this member" message="Something went wrong on our end. Please try again." onRetry={reload} />
+        ) : (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{c.displayName || "Unnamed member"}</div>
+            {c.email && <div style={{ fontSize: 14, color: t.textMuted, wordBreak: "break-word", marginTop: 2 }}>{c.email}</div>}
+            <div style={{ marginTop: 10 }}>
+              <MemberStatusBadge suspended={data.suspended} verified={data.verified} />
+            </div>
+
+            {/* Key facts */}
+            <dl style={{ margin: "16px 0 0", display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 14px", fontSize: 14 }}>
+              <dt style={{ color: t.textMuted }}>City</dt>
+              <dd style={{ margin: 0, color: t.text }}>{c.distCity || "—"}</dd>
+              <dt style={{ color: t.textMuted }}>Joined</dt>
+              <dd style={{ margin: 0, color: t.text }}>{formatTimestamp(data.accountCreatedAt)}</dd>
+              <dt style={{ color: t.textMuted }}>Account age</dt>
+              <dd style={{ margin: 0, color: t.text }}>{formatDuration(data.accountAgeMs) || "—"}</dd>
+              <dt style={{ color: t.textMuted }}>Last active</dt>
+              <dd style={{ margin: 0, color: lastActive ? t.text : t.textMuted }}>{lastActive || "Not recorded yet"}</dd>
+              <dt style={{ color: t.textMuted }}>Reports against</dt>
+              <dd style={{ margin: 0, color: t.text }}>{data.reportsAgainst} ({data.reportsActioned} actioned)</dd>
+              <dt style={{ color: t.textMuted }}>Blocked by</dt>
+              <dd style={{ margin: 0, color: t.text }}>{data.distinctBlockers} member{data.distinctBlockers === 1 ? "" : "s"}</dd>
+            </dl>
+
+            {/* Report history */}
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 8px" }}>Report history</h3>
+              {(!data.reportsAgainstList || data.reportsAgainstList.length === 0) ? (
+                <p style={{ margin: 0, fontSize: 14, color: t.textMuted }}>No reports filed against this member.</p>
+              ) : (
+                <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {data.reportsAgainstList.map((r) => (
+                    <li key={r.id} style={{ border: `1px solid ${t.borderLight}`, borderRadius: 12, padding: "12px 14px", background: t.surface }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: t.text, textTransform: "capitalize" }}>{r.reason || "—"}</span>
+                        <StatusBadge status={r.status} />
+                      </div>
+                      <div style={{ fontSize: 13, color: t.textMuted, marginTop: 6 }}>
+                        {r.reporterName ? `From ${r.reporterName} · ` : ""}{formatTimestamp(r.createdAt)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
+  { value: "overview", label: "Overview" },
+  { value: "members", label: "Members" },
   { value: "verification", label: "Verification" },
   { value: "photos", label: "Photos" },
   { value: "profile-photos", label: "Profile photos" },
@@ -1507,7 +2056,11 @@ export default function AdminScreen() {
           ))}
         </div>
 
-        {activeTab === "verification" ? (
+        {activeTab === "overview" ? (
+          <OverviewTab />
+        ) : activeTab === "members" ? (
+          <MembersTab />
+        ) : activeTab === "verification" ? (
           <VerificationQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
         ) : activeTab === "photos" ? (
           <PhotoReviewQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
