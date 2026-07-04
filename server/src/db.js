@@ -60,6 +60,8 @@ const MIGRATIONS = [
   '040_expanded_gender_orientation.sql',
   '041_relationship_structure.sql',
   '042_special_interests.sql',
+  '043_report_resolution.sql',
+  '044_report_evidence_snapshot.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't

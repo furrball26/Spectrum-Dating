@@ -15,12 +15,35 @@ const DEMO_EMAIL_DOMAIN = '@sample.spectrum-dating.app';
 const router = Router();
 
 const RESOLVE_STATUSES = ['reviewed', 'actioned', 'dismissed'];
+// A report in one of these states is FINAL evidence — never re-actionable. This
+// mirrors the photo/attachment-queue guard (a queue item leaves 'pending_review'
+// exactly once). 'reviewed' is intentionally NOT terminal (it's a triage note),
+// so open→reviewed→actioned/dismissed still works.
+const TERMINAL_REPORT_STATUSES = ['actioned', 'dismissed'];
+
+// Test/demo accounts are excluded from the real member count (B-A).
+const TEST_ACCOUNT_LIKE = `%${TEST_EMAIL_DOMAIN}`;
+const DEMO_ACCOUNT_LIKE = `%${DEMO_EMAIL_DOMAIN}`;
 
 // Append-only moderation audit log.
 function logMod(db, actorId, action, targetId, detail = '') {
   db.prepare(
     'INSERT INTO moderation_log (id, actor_id, action, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(newId(), actorId, action, targetId ?? null, detail, Date.now());
+}
+
+// B-E: destructive actions accept an optional moderator note under either
+// `note` or `reason`. Returns the trimmed string, or '' when absent. Throws a
+// tagged error for a non-string so the caller can 400.
+function readNote(body) {
+  const raw = body?.note ?? body?.reason;
+  if (raw === undefined || raw === null) return '';
+  if (typeof raw !== 'string') {
+    const err = new Error('note must be a string.');
+    err.badNote = true;
+    throw err;
+  }
+  return raw.trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -43,15 +66,22 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
   const base = `
     SELECT r.id, r.reporter_id, r.reported_id, r.conversation_id,
            r.reason, r.details, r.status, r.moderator_note,
-           r.created_at, r.resolved_at,
+           r.created_at, r.resolved_at, r.resolved_by, r.reported_message,
            ru.email AS reporter_email, rp.display_name AS reporter_display_name,
            du.email AS reported_email, dp.display_name AS reported_display_name,
-           du.suspended AS reported_suspended
+           du.suspended AS reported_suspended, du.created_at AS reported_created_at,
+           dp.identity_verified AS reported_verified,
+           rbu.email AS resolver_email, rbp.display_name AS resolver_display_name,
+           (SELECT COUNT(*) FROM reports r2 WHERE r2.reported_id = r.reported_id) AS reported_report_count,
+           (SELECT COUNT(*) FROM reports r3 WHERE r3.reported_id = r.reported_id AND r3.status = 'actioned') AS reported_actioned_count,
+           (SELECT COUNT(DISTINCT b.blocker_id) FROM blocks b WHERE b.blocked_id = r.reported_id) AS reported_block_count
     FROM reports r
     LEFT JOIN users ru ON ru.id = r.reporter_id
     LEFT JOIN profiles rp ON rp.user_id = r.reporter_id
     LEFT JOIN users du ON du.id = r.reported_id
     LEFT JOIN profiles dp ON dp.user_id = r.reported_id
+    LEFT JOIN users rbu ON rbu.id = r.resolved_by
+    LEFT JOIN profiles rbp ON rbp.user_id = r.resolved_by
   `;
 
   let rows;
@@ -95,21 +125,41 @@ router.get('/reports/:id', requireAuth, requireAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/reports/:id/resolve', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
-  const { status, note } = req.body ?? {};
+  const { status } = req.body ?? {};
 
   if (!RESOLVE_STATUSES.includes(status)) {
     return res.status(400).json({ error: `status must be one of: ${RESOLVE_STATUSES.join(', ')}` });
   }
-  if (note !== undefined && note !== null && typeof note !== 'string') {
-    return res.status(400).json({ error: 'note must be a string.' });
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
   }
 
-  const existing = db.prepare('SELECT id FROM reports WHERE id = ?').get(req.params.id);
+  const existing = db.prepare('SELECT id, status FROM reports WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Report not found.' });
 
+  // Terminal guard — mirror the photo/attachment-queue guard (admin.js photo
+  // review). Once a report is actioned or dismissed the decision is FINAL; block
+  // re-actioning so its note, timestamp, and resolver identity can never be
+  // overwritten. (A 'reviewed' report is not terminal and can still be
+  // actioned/dismissed.) This does not affect the "resolved drops out of the
+  // Open filter" behavior — status is still written for every non-open outcome.
+  if (TERMINAL_REPORT_STATUSES.includes(existing.status)) {
+    return res.status(409).json({ error: `Report already ${existing.status} — this decision is final.` });
+  }
+
+  // A terminal decision must carry a moderator note (accountability trail). A
+  // 'reviewed' triage mark may be noteless.
+  if (TERMINAL_REPORT_STATUSES.includes(status) && !note) {
+    return res.status(400).json({ error: 'A note is required to action or dismiss a report.' });
+  }
+
   db.prepare(
-    'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ? WHERE id = ?'
-  ).run(status, note ?? null, Date.now(), req.params.id);
+    'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ?, resolved_by = ? WHERE id = ?'
+  ).run(status, note || null, Date.now(), req.ctx.userId, req.params.id);
   logMod(db, req.ctx.userId, 'resolve_report', req.params.id, note ? `${status}: ${note}` : status);
 
   res.json({ ok: true, status });
@@ -125,24 +175,64 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
   if (typeof suspended !== 'boolean') {
     return res.status(400).json({ error: 'suspended must be a boolean.' });
   }
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  // B-E: a suspension (a destructive, force-logout action) must be justified.
+  if (suspended && !note) {
+    return res.status(400).json({ error: 'A note/reason is required to suspend a user.' });
+  }
 
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, suspended FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
+  // B-D: idempotency guard — no-op requests 409 rather than re-writing an audit
+  // row (and, for suspend, re-bumping token_version / re-closing reports).
+  if (!!user.suspended === suspended) {
+    return res.status(409).json({ error: suspended ? 'User is already suspended.' : 'User is not suspended.' });
+  }
+
+  const userId = req.ctx.userId;
+  let autoClosedReports = 0;
+
   if (suspended) {
-    // Suspend AND force-logout immediately by bumping token_version.
-    db.prepare(
-      'UPDATE users SET suspended = 1, token_version = token_version + 1 WHERE id = ?'
-    ).run(req.params.id);
+    const now = Date.now();
+    // P1-D: suspending a user atomically auto-closes their sibling OPEN reports
+    // as 'actioned' — the suspension IS the action, so leaving those reports
+    // "open" would be a false backlog. Only 'open' reports are touched;
+    // reviewed/terminal rows (which carry their own notes) are never clobbered.
+    const suspendTxn = db.transaction(() => {
+      // Suspend AND force-logout immediately by bumping token_version.
+      db.prepare(
+        'UPDATE users SET suspended = 1, token_version = token_version + 1 WHERE id = ?'
+      ).run(req.params.id);
+      logMod(db, userId, 'suspend', req.params.id, note);
+
+      const openReports = db.prepare(
+        "SELECT id FROM reports WHERE reported_id = ? AND status = 'open'"
+      ).all(req.params.id);
+      for (const rep of openReports) {
+        db.prepare(
+          'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ?, resolved_by = ? WHERE id = ?'
+        ).run('actioned', 'auto-closed: user suspended', now, userId, rep.id);
+        logMod(db, userId, 'resolve_report', rep.id, 'actioned: auto-closed: user suspended');
+      }
+      autoClosedReports = openReports.length;
+    });
+    suspendTxn();
     // Kill any already-open sockets so the suspended user stops live-receiving
     // room events immediately (the socket auth check only runs at connect time).
     disconnectUser(req.app.locals.io, req.params.id);
   } else {
     db.prepare('UPDATE users SET suspended = 0 WHERE id = ?').run(req.params.id);
+    logMod(db, userId, 'unsuspend', req.params.id, note);
   }
-  logMod(db, req.ctx.userId, suspended ? 'suspend' : 'unsuspend', req.params.id);
 
-  res.json({ ok: true, suspended });
+  res.json({ ok: true, suspended, autoClosedReports });
 });
 
 // ---------------------------------------------------------------------------
@@ -158,15 +248,30 @@ router.post('/users/:id/verify', requireAuth, requireAdmin, (req, res) => {
   if (typeof verified !== 'boolean') {
     return res.status(400).json({ error: 'verified must be a boolean.' });
   }
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
 
-  const result = db.prepare(
-    'UPDATE profiles SET identity_verified = ? WHERE user_id = ?'
-  ).run(verified ? 1 : 0, req.params.id);
-
-  if (result.changes === 0) {
+  const profile = db.prepare(
+    'SELECT identity_verified FROM profiles WHERE user_id = ?'
+  ).get(req.params.id);
+  if (!profile) {
     return res.status(404).json({ error: 'Profile not found.' });
   }
-  logMod(db, req.ctx.userId, verified ? 'verify' : 'unverify', req.params.id);
+  // B-D: idempotency guard — a no-op verify/unverify 409s rather than writing a
+  // spurious audit row.
+  if (!!profile.identity_verified === verified) {
+    return res.status(409).json({ error: verified ? 'User is already verified.' : 'User is not verified.' });
+  }
+
+  db.prepare(
+    'UPDATE profiles SET identity_verified = ? WHERE user_id = ?'
+  ).run(verified ? 1 : 0, req.params.id);
+  logMod(db, req.ctx.userId, verified ? 'verify' : 'unverify', req.params.id, note);
 
   // E19: profiles.identity_verified (set above) is the SINGLE SOURCE OF TRUTH.
   // We still advance the verification_requests row so the moderation QUEUE
@@ -222,16 +327,25 @@ router.get('/verification-requests', requireAuth, requireAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/audit-log', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
+  // P1-C: LEFT JOIN target_id → email/display-name so the Activity view can show
+  // a human name instead of a raw id. The join only resolves for USER-targeted
+  // actions (suspend/verify); for report/photo/attachment targets it yields null
+  // (target_id isn't a user id) — the frontend falls back to the raw id there.
   const rows = db.prepare(`
     SELECT m.id, m.action, m.target_id, m.detail, m.created_at,
-           u.email AS actor_email
+           u.email AS actor_email,
+           tu.email AS target_email, tp.display_name AS target_display_name
     FROM moderation_log m
     LEFT JOIN users u ON u.id = m.actor_id
+    LEFT JOIN users tu ON tu.id = m.target_id
+    LEFT JOIN profiles tp ON tp.user_id = m.target_id
     ORDER BY m.created_at DESC
     LIMIT 200
   `).all();
   res.json({ log: rows.map(r => ({
     id: r.id, action: r.action, targetId: r.target_id,
+    targetEmail: r.target_email || null,
+    targetName: r.target_display_name || null,
     detail: r.detail, createdAt: r.created_at, actor: r.actor_email || 'unknown',
   })) });
 });
@@ -242,8 +356,20 @@ router.get('/audit-log', requireAuth, requireAdmin, (req, res) => {
 router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
 
-  const totalUsers = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
-  const suspendedUsers = db.prepare('SELECT COUNT(*) AS c FROM users WHERE suspended = 1').get().c;
+  // B-A: real member count EXCLUDES automated-test + demo personas (these inflate
+  // the "Members" figure and produced the phantom "597"). `testAccounts` is
+  // surfaced so the UI can show an explainable "(+N test)".
+  const notTestFilter = 'email NOT LIKE ? AND email NOT LIKE ?';
+  const members = db.prepare(
+    `SELECT COUNT(*) AS c FROM users WHERE ${notTestFilter}`
+  ).get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
+  const testAccounts = db.prepare(
+    'SELECT COUNT(*) AS c FROM users WHERE email LIKE ? OR email LIKE ?'
+  ).get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
+  const suspendedUsers = db.prepare(
+    `SELECT COUNT(*) AS c FROM users WHERE suspended = 1 AND ${notTestFilter}`
+  ).get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
+
   const totalMatches = db.prepare('SELECT COUNT(*) AS c FROM matches').get().c;
   const totalConversations = db.prepare('SELECT COUNT(*) AS c FROM conversations').get().c;
   const totalMessages = db.prepare('SELECT COUNT(*) AS c FROM messages').get().c;
@@ -251,16 +377,52 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   const reportRows = db.prepare('SELECT status, COUNT(*) AS c FROM reports GROUP BY status').all();
   const reports = { open: 0, reviewed: 0, actioned: 0, dismissed: 0 };
   for (const row of reportRows) {
-    reports[row.status] = row.c;
+    if (row.status in reports) reports[row.status] = row.c;
   }
 
+  // B-B: per-queue depth + oldest-pending age so the dashboard can flag backlog
+  // and past-SLA items. All hit existing indexes / small pending sets.
+  const pendingAttachments = db.prepare(
+    "SELECT COUNT(*) AS c FROM message_attachments WHERE upload_status = 'pending_review'"
+  ).get().c;
+  const pendingProfilePhotos = db.prepare(
+    "SELECT COUNT(*) AS c FROM profile_photos WHERE review_status = 'pending_review'"
+  ).get().c;
+  const pendingVerifications = db.prepare(
+    "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
+  ).get().c;
+
+  const oldestOpenReportAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
+  ).get().t ?? null;
+  const oldestPendingAttachmentAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM message_attachments WHERE upload_status = 'pending_review'"
+  ).get().t ?? null;
+  const oldestPendingProfilePhotoAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM profile_photos WHERE review_status = 'pending_review'"
+  ).get().t ?? null;
+  const oldestPendingVerificationAt = db.prepare(
+    "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
+  ).get().t ?? null;
+
   res.json({
-    totalUsers,
+    // Real members (test/demo excluded). `totalUsers` kept as an alias for
+    // backward compat with the current dashboard read.
+    totalUsers: members,
+    members,
+    testAccounts,
     suspendedUsers,
     totalMatches,
     totalConversations,
     totalMessages,
     reports,
+    pendingAttachments,
+    pendingProfilePhotos,
+    pendingVerifications,
+    oldestOpenReportAt,
+    oldestPendingAttachmentAt,
+    oldestPendingProfilePhotoAt,
+    oldestPendingVerificationAt,
   });
 });
 
@@ -365,6 +527,17 @@ router.post('/attachments/:id/review', requireAuth, requireAdmin, (req, res) => 
   if (decision !== 'approved' && decision !== 'rejected') {
     return res.status(400).json({ error: "decision must be 'approved' or 'rejected'." });
   }
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  // B-E: a rejection (a destructive moderation action) must be justified.
+  if (decision === 'rejected' && !note) {
+    return res.status(400).json({ error: 'A note/reason is required to reject an attachment.' });
+  }
 
   const attachment = db.prepare(
     'SELECT id, upload_status FROM message_attachments WHERE id = ?'
@@ -377,7 +550,7 @@ router.post('/attachments/:id/review', requireAuth, requireAdmin, (req, res) => 
   db.prepare(
     'UPDATE message_attachments SET upload_status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
   ).run(decision, Date.now(), userId, req.params.id);
-  logMod(db, userId, decision === 'approved' ? 'approve_attachment' : 'reject_attachment', req.params.id);
+  logMod(db, userId, decision === 'approved' ? 'approve_attachment' : 'reject_attachment', req.params.id, note);
 
   res.json({ ok: true, status: decision });
 });
@@ -427,6 +600,17 @@ router.post('/profile-photos/:id/review', requireAuth, requireAdmin, (req, res) 
   if (decision !== 'approve' && decision !== 'reject') {
     return res.status(400).json({ error: "decision must be 'approve' or 'reject'." });
   }
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  // B-E: a rejection (a destructive moderation action) must be justified.
+  if (decision === 'reject' && !note) {
+    return res.status(400).json({ error: 'A note/reason is required to reject a photo.' });
+  }
 
   const photo = db.prepare(
     'SELECT id, user_id, review_status, storage_key FROM profile_photos WHERE id = ?'
@@ -450,7 +634,7 @@ router.post('/profile-photos/:id/review', requireAuth, requireAdmin, (req, res) 
     syncPrimaryPhotoUrl(db, photo.user_id, now);
   })();
 
-  logMod(db, userId, decision === 'approve' ? 'approve_profile_photo' : 'reject_profile_photo', photo.id);
+  logMod(db, userId, decision === 'approve' ? 'approve_profile_photo' : 'reject_profile_photo', photo.id, note);
 
   // On reject, best-effort remove the object from R2 (skip empty/legacy keys).
   if (decision === 'reject' && photo.storage_key) {
@@ -458,6 +642,96 @@ router.post('/profile-photos/:id/review', requireAuth, requireAdmin, (req, res) 
   }
 
   res.json({ ok: true, status: nextStatus });
+});
+
+// ---------------------------------------------------------------------------
+// GET /admin/reports/:id/context — P1-A: surface the reported conversation so a
+// moderator isn't triaging blind. Returns the last ~30 messages of the report's
+// conversation (sender-attributed, with attachment refs). If the live
+// conversation is gone (CASCADE-deleted with a departed user / ended match), we
+// fall back to the message text snapshotted onto the report at report time.
+// Read-only, admin-gated.
+// ---------------------------------------------------------------------------
+router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const report = db.prepare(
+    'SELECT id, conversation_id, reported_id, reported_message FROM reports WHERE id = ?'
+  ).get(req.params.id);
+  if (!report) return res.status(404).json({ error: 'Report not found.' });
+
+  let messages = [];
+  if (report.conversation_id) {
+    const rows = db.prepare(`
+      SELECT m.id, m.sender_id, m.body, m.deleted, m.sent_at,
+             p.display_name AS sender_display_name, u.email AS sender_email
+      FROM messages m
+      LEFT JOIN profiles p ON p.user_id = m.sender_id
+      LEFT JOIN users u ON u.id = m.sender_id
+      WHERE m.conversation_id = ?
+      ORDER BY m.sent_at DESC
+      LIMIT 30
+    `).all(report.conversation_id);
+
+    const attachStmt = db.prepare(
+      'SELECT id, public_url, mime_type, upload_status FROM message_attachments WHERE message_id = ?'
+    );
+
+    // Oldest-first for natural reading order.
+    messages = rows.reverse().map(m => ({
+      id: m.id,
+      senderId: m.sender_id,
+      senderName: m.sender_display_name || '',
+      senderEmail: m.sender_email || null,
+      fromReported: m.sender_id === report.reported_id,
+      body: m.deleted ? null : m.body,
+      deleted: !!m.deleted,
+      createdAt: m.sent_at,
+      attachments: attachStmt.all(m.id).map(a => ({
+        id: a.id, url: a.public_url, mimeType: a.mime_type, status: a.upload_status,
+      })),
+    }));
+  }
+
+  res.json({
+    conversationId: report.conversation_id || null,
+    // `live` = the conversation is still present; else the caller renders the
+    // snapshot fallback.
+    live: messages.length > 0,
+    messages,
+    snapshot: report.reported_message || null,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /admin/users/:id/history — P1-B: repeat-offender context for one user.
+// Prior reports against them (and how many were actioned), distinct members who
+// blocked them (strong, non-gameable signal), and account age. Query-only,
+// hits idx_reports_reported. Read-only, admin-gated.
+// ---------------------------------------------------------------------------
+router.get('/users/:id/history', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const user = db.prepare('SELECT id, email, created_at, suspended FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const reportsAgainst = db.prepare(
+    'SELECT COUNT(*) AS c FROM reports WHERE reported_id = ?'
+  ).get(req.params.id).c;
+  const reportsActioned = db.prepare(
+    "SELECT COUNT(*) AS c FROM reports WHERE reported_id = ? AND status = 'actioned'"
+  ).get(req.params.id).c;
+  const distinctBlockers = db.prepare(
+    'SELECT COUNT(DISTINCT blocker_id) AS c FROM blocks WHERE blocked_id = ?'
+  ).get(req.params.id).c;
+
+  res.json({
+    userId: user.id,
+    email: user.email,
+    suspended: !!user.suspended,
+    accountCreatedAt: user.created_at,
+    reportsAgainst,
+    reportsActioned,
+    distinctBlockers,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -476,11 +750,26 @@ function serializeReport(r) {
     moderatorNote: r.moderator_note,
     createdAt: r.created_at,
     resolvedAt: r.resolved_at,
+    // B-C: who resolved it (null until resolved / if the resolver was deleted).
+    resolvedBy: r.resolved_by
+      ? { userId: r.resolved_by, email: r.resolver_email, displayName: r.resolver_display_name || '' }
+      : null,
+    // P1-A: durable snapshot of the reported user's message(s) at report time.
+    reportedMessage: r.reported_message || null,
     reporter: { email: r.reporter_email, displayName: r.reporter_display_name || '' },
     reported: {
       email: r.reported_email,
       displayName: r.reported_display_name || '',
       suspended: !!r.reported_suspended,
+      // B-F: real verification state (the badge previously always lied).
+      verified: !!r.reported_verified,
+      // P1-B: repeat-offender signal on every card. `reportCount` is the TOTAL
+      // reports against this user (incl. the current one); `blockedByCount` is
+      // distinct members who blocked them (strong, non-gameable).
+      createdAt: r.reported_created_at ?? null,
+      reportCount: r.reported_report_count ?? 0,
+      actionedCount: r.reported_actioned_count ?? 0,
+      blockedByCount: r.reported_block_count ?? 0,
     },
   };
 }

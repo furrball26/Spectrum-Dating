@@ -1,0 +1,15 @@
+-- Moderation console overhaul (B-C) — make report resolution RESOLUTE.
+--
+-- Records WHICH moderator resolved a report so the console can render a
+-- read-only receipt ("Actioned by X · 14:36 · '<note>'") and so a terminal
+-- decision has an accountable owner. This is ADD COLUMN ONLY — the `reports`
+-- table is the abuse-evidence trail (see 030_reports_preserve_evidence.sql) and
+-- must NEVER be rebuilt here.
+--
+-- ON DELETE SET NULL mirrors reporter_id/reported_id: if the resolving admin's
+-- account is ever deleted, the report row (and its decision) SURVIVES; only the
+-- resolver link is nulled. SQLite permits a REFERENCES clause on ADD COLUMN as
+-- long as the default is NULL (it is), even with foreign_keys = ON.
+--
+-- Idempotent via the runner's "duplicate column name" tolerance (src/db.js).
+ALTER TABLE reports ADD COLUMN resolved_by TEXT REFERENCES users(id) ON DELETE SET NULL;

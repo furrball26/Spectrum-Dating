@@ -173,7 +173,7 @@ describe('SAFETY-2: profile photos require admin approval', () => {
     const pid = addPhotoRow(subject, { status: 'pending_review', primary: 1, url: 'https://x/bad.jpg' });
 
     const rr = await api(`/admin/profile-photos/${pid}/review`, {
-      token: signToken(admin, 0), method: 'POST', body: { decision: 'reject' },
+      token: signToken(admin, 0), method: 'POST', body: { decision: 'reject', note: 'nudity' },
     });
     expect(rr.status).toBe(200);
     expect(rr.json.status).toBe('rejected');

@@ -654,10 +654,28 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
     return res.status(400).json({ error: 'conversationId must be a string' });
   }
 
+  // P1-A: snapshot the reported user's most recent message(s) in the reported
+  // conversation into the report row. The live conversation CASCADE-deletes when
+  // a participant leaves / the match ends, so this frozen copy is the durable
+  // trust-&-safety trail a moderator triages against even after the fact.
+  let reportedMessage = null;
+  if (conversationId) {
+    const recent = db.prepare(`
+      SELECT body FROM messages
+      WHERE conversation_id = ? AND sender_id = ? AND deleted = 0
+      ORDER BY sent_at DESC
+      LIMIT 3
+    `).all(conversationId, reportedUserId);
+    if (recent.length) {
+      // Oldest-first so it reads in conversational order.
+      reportedMessage = recent.map(m => m.body).reverse().join('\n');
+    }
+  }
+
   db.prepare(`
-    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'open', ?)
-  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now());
+    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at, reported_message)
+    VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)
+  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now(), reportedMessage);
 
   res.status(201).json({ reported: true });
 });

@@ -1,0 +1,12 @@
+-- Moderation console overhaul (P1-A) — durable evidence snapshot.
+--
+-- A report captures conversation_id, but the conversation (and its messages)
+-- CASCADE-delete if either participant deletes their account or the match ends,
+-- leaving a moderator triaging blind. This column snapshots the reported user's
+-- most recent message text AT REPORT TIME so the trust-&-safety trail survives
+-- even after the live conversation is gone. The context endpoint returns the
+-- live conversation when still present and falls back to this snapshot.
+--
+-- ADD COLUMN ONLY — never rebuild `reports` (the abuse-evidence trail, see 030).
+-- Idempotent via the runner's "duplicate column name" tolerance (src/db.js).
+ALTER TABLE reports ADD COLUMN reported_message TEXT;
