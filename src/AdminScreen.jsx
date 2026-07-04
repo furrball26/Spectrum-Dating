@@ -5,7 +5,7 @@ import {
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
   getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
-  getServerHealth, getPopulation,
+  getServerHealth, getPopulation, getTransparency,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -2160,6 +2160,129 @@ function PopulationTab({ onDrill, demo = false }) {
   );
 }
 
+// ─── Transparency tab ───────────────────────────────────────────────────────
+// Aggregate enforcement report over a period — the internal analog of a public
+// "Safe Dating Report". COUNTS ONLY: the backend returns enum labels + counts +
+// anonymous resolution durations, never ids/names/message content, so nothing
+// here can reveal who was actioned or what was said. Calm-by-design: static
+// RankedBars + StatCards, an "Updated HH:MM" stamp, no live ticker. Mirrors the
+// Population tab's collapsible-section + RankedBars pattern. All hooks run before
+// any early return (React #310).
+const TRANSPARENCY_PERIOD_OPTIONS = [
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "90 days" },
+  { value: "all", label: "All time" },
+];
+const TRANSPARENCY_SECTIONS_KEY = "spectrum_admin_transparency_sections";
+const TRANSPARENCY_BREAKDOWNS = [
+  { id: "byAction", title: "Enforcement actions by type", pick: (d) => d.enforcement.byAction },
+  { id: "byNoticeKind", title: "Due-process notices by kind", pick: (d) => d.enforcement.byNoticeKind },
+  { id: "byReason", title: "Reports by reason", pick: (d) => d.reports.byReason },
+  { id: "byOutcome", title: "Reports by outcome", pick: (d) => d.reports.byOutcome },
+  { id: "safetyByKind", title: "Chat safety signals by kind", pick: (d) => d.safetySignals.byKind },
+];
+
+// Enum label → human-friendly ("resolve_report" → "Resolve report"). Labels are
+// bounded server-side enums (action/kind/reason/status/signal_kind) — never PII.
+function humanizeLabel(s) {
+  const str = String(s || "").replace(/_/g, " ").trim();
+  return str ? str.charAt(0).toUpperCase() + str.slice(1) : "—";
+}
+const humanizeRows = (rows) =>
+  (Array.isArray(rows) ? rows : []).map((r) => ({ label: humanizeLabel(r.label), count: r.count }));
+
+function TransparencyTab() {
+  const [period, setPeriod] = useState("30d");
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [openSections, setOpenSections] = useState(() => {
+    const base = Object.fromEntries(TRANSPARENCY_BREAKDOWNS.map((b) => [b.id, true]));
+    try {
+      const raw = localStorage.getItem(TRANSPARENCY_SECTIONS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? { ...base, ...parsed } : base;
+    } catch { return base; }
+  });
+
+  const res = useAdminResource(() => getTransparency(period), `transp-${period}-${refreshToken}`);
+  useEffect(() => { if (!res.loading) setUpdatedAt(Date.now()); }, [res.loading]);
+
+  const toggle = useCallback((id) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try { localStorage.setItem(TRANSPARENCY_SECTIONS_KEY, JSON.stringify(next)); } catch { /* private-mode/quota — non-fatal */ }
+      return next;
+    });
+  }, []);
+
+  const d = res.data;
+  const median = d?.reports?.medianResolutionMs;
+  const avg = d?.reports?.avgResolutionMs;
+
+  return (
+    <div>
+      {/* Header: period selector left; freshness + refresh right */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <Segmented options={TRANSPARENCY_PERIOD_OPTIONS} value={period} onChange={setPeriod} ariaLabel="Transparency report period" />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: t.textMuted }}>
+            {updatedAt ? `Updated ${formatClock(updatedAt)}` : "Loading…"}
+          </span>
+          <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
+        </div>
+      </div>
+
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+        Aggregate enforcement activity over the selected period — counts only, never who was
+        actioned or what was said. Platform-wide (includes test &amp; demo activity).
+      </p>
+
+      {res.error ? (
+        <ErrorState title="Couldn't load the transparency report" message="Something went wrong on our end. Please try again." onRetry={res.reload} />
+      ) : (
+        <>
+          {/* Key totals */}
+          <div style={{ ...telemetryGrid, marginBottom: 16 }}>
+            <StatCard label="Reports filed" value={res.loading ? "…" : (d?.reports?.filed ?? 0)} />
+            <StatCard label="Enforcement actions" value={res.loading ? "…" : (d?.enforcement?.totalActions ?? 0)} />
+            <StatCard
+              label="Reports resolved"
+              value={res.loading ? "…" : (d?.reports?.resolvedCount ?? 0)}
+              subtext={!res.loading && avg != null ? `avg ${formatDuration(avg)}` : undefined}
+            />
+            <StatCard
+              label="Median time to resolve"
+              value={res.loading ? "…" : (median != null ? formatDuration(median) : "—")}
+            />
+            <StatCard label="Safety signals" value={res.loading ? "…" : (d?.safetySignals?.total ?? 0)} />
+          </div>
+
+          {/* Breakdowns — one collapsible RankedBars each */}
+          {TRANSPARENCY_BREAKDOWNS.map((bd) => (
+            <AdminCollapsible
+              key={bd.id}
+              id={`transp-${bd.id}`}
+              title={bd.title}
+              open={openSections[bd.id]}
+              onToggle={() => toggle(bd.id)}
+              style={sectionCardStyle}
+            >
+              {res.loading ? (
+                <div aria-hidden="true"><Skeleton width="90%" height={12} /><div style={{ height: 8 }} /><Skeleton width="70%" height={12} /><div style={{ height: 8 }} /><Skeleton width="50%" height={12} /></div>
+              ) : (
+                <RankedBars rows={humanizeRows(bd.pick(d))} emptyLabel="Nothing in this period yet." />
+              )}
+            </AdminCollapsible>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Members tab ────────────────────────────────────────────────────────────
 const MEMBER_STATUS_OPTIONS = [
   { value: "all", label: "All" },
@@ -2751,6 +2874,7 @@ const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "overview", label: "Overview" },
   { value: "population", label: "Population" },
+  { value: "transparency", label: "Transparency" },
   { value: "members", label: "Members" },
   { value: "verification", label: "Verification" },
   { value: "photos", label: "Photos" },
@@ -3061,6 +3185,8 @@ export default function AdminScreen() {
           <OverviewTab demo={demo} setDemo={setDemo} onDataChanged={loadStats} />
         ) : activeTab === "population" ? (
           <PopulationTab onDrill={drillToMembers} demo={demo} />
+        ) : activeTab === "transparency" ? (
+          <TransparencyTab />
         ) : activeTab === "members" ? (
           <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} initialFilters={membersInitialFilters} includeDemo={demo} />
         ) : activeTab === "verification" ? (

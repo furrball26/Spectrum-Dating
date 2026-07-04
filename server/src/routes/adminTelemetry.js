@@ -271,6 +271,142 @@ router.get('/telemetry/activity', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /admin/transparency?period=7d|30d|90d|all — aggregate enforcement report.
+// The internal analog of a public "Safety/Transparency" report: how much
+// enforcement happened over a window, what kinds, and how fast reports were
+// resolved. Feeds the admin dashboard's Transparency section.
+//
+// PII-FREE BY CONSTRUCTION: every SELECT projects ONLY an enum label
+// (moderation_log.action / enforcement_notices.kind / reports.reason /
+// reports.status / chat_safety_signals.signal_kind) plus a COUNT, or an
+// anonymous resolution-duration in ms. No user ids, actor ids, target ids,
+// display names, emails, report `details`, `moderator_note`, or message bodies
+// are ever selected or returned — the payload can never reveal WHO was actioned
+// or WHAT was said.
+//
+// SCOPE = platform-wide (no test/demo exclusion). moderation_log.target_id and
+// enforcement_notices.user_id would each need a users join to filter, and
+// moderation_log.target_id is sometimes a REPORT id (not a user id), so a clean
+// email exclusion isn't possible there. Test/demo enforcement volume is
+// negligible, and platform-wide keeps these totals honest — mirrors the same
+// trade the /telemetry/activity endpoint documents above. Surfaced as
+// `scope: 'platform'` so the UI can label it.
+//
+// Period → since(ms). 'all' means all-time (since = 0).
+// ---------------------------------------------------------------------------
+const TRANSPARENCY_PERIODS = { '7d': 7 * DAY_MS, '30d': 30 * DAY_MS, '90d': 90 * DAY_MS, all: null };
+
+router.get('/transparency', requireAuth, requireAdmin, (req, res) => {
+  const { db } = req.ctx;
+  const period = Object.prototype.hasOwnProperty.call(TRANSPARENCY_PERIODS, req.query.period)
+    ? req.query.period
+    : '30d';
+  const span = TRANSPARENCY_PERIODS[period];
+  const since = span == null ? 0 : Date.now() - span;
+
+  // ── Enforcement actions by type (moderation_log, grouped by action) ────────
+  const byAction = db.prepare(
+    `SELECT action AS label, COUNT(*) AS count
+       FROM moderation_log
+      WHERE created_at >= ?
+      GROUP BY action
+      ORDER BY count DESC, label ASC`
+  ).all(since);
+
+  // Due-process notices by kind (warn | suspend | unsuspend | ban).
+  const byNoticeKind = db.prepare(
+    `SELECT kind AS label, COUNT(*) AS count
+       FROM enforcement_notices
+      WHERE created_at >= ?
+      GROUP BY kind
+      ORDER BY count DESC, label ASC`
+  ).all(since);
+
+  // ── Reports filed in the window — by reason and by outcome (status) ────────
+  const reportsFiled = db.prepare(
+    'SELECT COUNT(*) AS c FROM reports WHERE created_at >= ?'
+  ).get(since).c;
+
+  const reportsByReason = db.prepare(
+    `SELECT reason AS label, COUNT(*) AS count
+       FROM reports
+      WHERE created_at >= ?
+      GROUP BY reason
+      ORDER BY count DESC, label ASC`
+  ).all(since);
+
+  const reportsByOutcome = db.prepare(
+    `SELECT status AS label, COUNT(*) AS count
+       FROM reports
+      WHERE created_at >= ?
+      GROUP BY status
+      ORDER BY count DESC, label ASC`
+  ).all(since);
+
+  // Time-to-resolution over reports FILED in the window that have since been
+  // resolved. Avg in SQL; median computed in JS from anonymous durations only
+  // (each row is a bare elapsed-ms number — no ids attached).
+  const durations = db.prepare(
+    `SELECT (resolved_at - created_at) AS ms
+       FROM reports
+      WHERE created_at >= ? AND resolved_at IS NOT NULL AND resolved_at >= created_at
+      ORDER BY ms ASC`
+  ).all(since).map((r) => r.ms);
+
+  const resolvedCount = durations.length;
+  const avgResolutionMs = resolvedCount
+    ? Math.round(durations.reduce((a, b) => a + b, 0) / resolvedCount)
+    : null;
+  let medianResolutionMs = null;
+  if (resolvedCount) {
+    const mid = Math.floor(resolvedCount / 2);
+    medianResolutionMs = resolvedCount % 2
+      ? durations[mid]
+      : Math.round((durations[mid - 1] + durations[mid]) / 2);
+  }
+
+  // ── Chat safety signals (off-platform / money) in the window ───────────────
+  const safetyTotal = db.prepare(
+    'SELECT COUNT(*) AS c FROM chat_safety_signals WHERE created_at >= ?'
+  ).get(since).c;
+
+  const safetyByKind = db.prepare(
+    `SELECT signal_kind AS label, COUNT(*) AS count
+       FROM chat_safety_signals
+      WHERE created_at >= ?
+      GROUP BY signal_kind
+      ORDER BY count DESC, label ASC`
+  ).all(since);
+
+  const totalActions = byAction.reduce((s, r) => s + r.count, 0);
+  const totalNotices = byNoticeKind.reduce((s, r) => s + r.count, 0);
+
+  res.json({
+    period,
+    scope: 'platform',
+    generatedAt: Date.now(),
+    enforcement: {
+      byAction,
+      byNoticeKind,
+      totalActions,
+      totalNotices,
+    },
+    reports: {
+      filed: reportsFiled,
+      byReason: reportsByReason,
+      byOutcome: reportsByOutcome,
+      resolvedCount,
+      avgResolutionMs,
+      medianResolutionMs,
+    },
+    safetySignals: {
+      total: safetyTotal,
+      byKind: safetyByKind,
+    },
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /admin/telemetry/demo  body { action: 'load' | 'clear' }
 // Furnish (or clear) the live-demo dashboard from inside the admin panel — the
 // CLI seed script can't reach the prod DB on Railway's volume. Reuses the shared

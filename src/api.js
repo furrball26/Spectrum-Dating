@@ -763,6 +763,39 @@ export async function getActivityTrends(window = "7d") {
   };
 }
 
+// Transparency report — aggregate enforcement stats over a period (the internal
+// analog of a public "Safe Dating Report"). period ∈ '7d'|'30d'|'90d'|'all'.
+// COUNTS ONLY: the backend returns enum labels (action/kind/reason/status/
+// signal_kind) + counts + anonymous resolution durations — never ids, names, or
+// message content. Normalized to one flat, defaulted shape at the api boundary.
+export async function getTransparency(period = "30d") {
+  const d = await apiFetch(`/admin/transparency?period=${encodeURIComponent(period)}`);
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  return {
+    period: d?.period || period,
+    scope: d?.scope || "platform",
+    generatedAt: d?.generatedAt ?? null,
+    enforcement: {
+      byAction: arr(d?.enforcement?.byAction),
+      byNoticeKind: arr(d?.enforcement?.byNoticeKind),
+      totalActions: d?.enforcement?.totalActions ?? 0,
+      totalNotices: d?.enforcement?.totalNotices ?? 0,
+    },
+    reports: {
+      filed: d?.reports?.filed ?? 0,
+      byReason: arr(d?.reports?.byReason),
+      byOutcome: arr(d?.reports?.byOutcome),
+      resolvedCount: d?.reports?.resolvedCount ?? 0,
+      avgResolutionMs: d?.reports?.avgResolutionMs ?? null,
+      medianResolutionMs: d?.reports?.medianResolutionMs ?? null,
+    },
+    safetySignals: {
+      total: d?.safetySignals?.total ?? 0,
+      byKind: arr(d?.safetySignals?.byKind),
+    },
+  };
+}
+
 // Member email-domain breakdown — real members only (test/demo excluded server
 // side). Not demo-toggled: this is member data, not visitor telemetry.
 export async function getMemberDomains() {
