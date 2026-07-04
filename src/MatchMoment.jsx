@@ -295,7 +295,9 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
           >
             You both said yes.
           </p>
-          {/* D-15 — quiet line naming who you matched with, with pronouns. */}
+          {/* D-15 — quiet line naming who you matched with. Pronouns intentionally
+              omitted here to keep the Match Moment uncluttered (they show on the
+              profile + chat header). */}
           {them?.name && (
             <p
               style={{
@@ -307,9 +309,6 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
               }}
             >
               with {them.name}
-              {them?.pronouns ? (
-                <span style={{ opacity: 0.8 }}> · {them.pronouns}</span>
-              ) : null}
             </p>
           )}
         </div>
