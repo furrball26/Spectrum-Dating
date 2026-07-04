@@ -700,6 +700,14 @@ router.delete('/blocked/:userId', requireAuth, (req, res) => {
 // SEPARATE from /block: a user can report without blocking and vice versa.
 // ---------------------------------------------------------------------------
 
+// Canonical report-reason taxonomy, mirrored from the frontend's
+// src/safetyReasons.js (SAFETY_REASONS values). The UI only ever offers this
+// fixed set, so we enforce it server-side too: a raw API caller can't inject an
+// arbitrary free-text reason. Same set the /block route enforces via
+// VALID_REASONS above; kept as its own constant so the report surface documents
+// its own contract. Free-text `details` stays free text (that's its job).
+const REPORT_REASONS = ['harassment', 'inappropriate', 'spam', 'fake_profile', 'other'];
+
 router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
   const { reportedUserId, reason, details, conversationId, requestId, messageId } = req.body ?? {};
@@ -717,8 +725,11 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   if (typeof reason !== 'string' || !reason.trim()) {
     return res.status(400).json({ error: 'reason is required' });
   }
-  if (reason.length > 100) {
-    return res.status(400).json({ error: 'reason exceeds 100 characters' });
+  // Enum enforcement: `reason` MUST be one of the canonical safety reasons the
+  // UI offers (see REPORT_REASONS / src/safetyReasons.js). This closes the gap
+  // where a raw API caller could file a report with an arbitrary reason string.
+  if (!REPORT_REASONS.includes(reason)) {
+    return res.status(400).json({ error: `reason must be one of: ${REPORT_REASONS.join(', ')}` });
   }
   if (details !== undefined && details !== null) {
     if (typeof details !== 'string') return res.status(400).json({ error: 'details must be a string' });

@@ -26,6 +26,7 @@ import telemetryRouter from './routes/telemetry.js';
 import feedbackRouter from './routes/feedback.js';
 import healthRouter from './routes/health.js';
 import { lastActiveMiddleware } from './middleware/lastActive.js';
+import { adminApiLimiter } from './middleware/rateLimits.js';
 import { startHeartbeat } from './telemetry/heartbeat.js';
 import { startTelemetryFlush } from './telemetry/ingest.js';
 import { scheduleTelemetryMaintenance } from './telemetry/scheduler.js';
@@ -87,7 +88,11 @@ app.use('/export', exportRouter);
 app.use('/starters', startersRouter);
 app.use('/push', pushRouter);
 app.use('/account', accountRouter);
-app.use('/admin', adminRouter);
+// adminApiLimiter is attached to the FIRST /admin mount only: as a middleware at
+// the '/admin' path it runs exactly once for EVERY /admin/* request (covering
+// all three admin routers) before any router handles it — so it can't be
+// triple-counted across the three mounts. It exempts GET /admin/me internally.
+app.use('/admin', adminApiLimiter, adminRouter);
 app.use('/admin', adminTelemetryRouter);
 app.use('/admin', adminPopulationRouter);
 app.use('/telemetry', telemetryRouter);

@@ -471,6 +471,17 @@ router.put('/me', requireAuth, (req, res) => {
 
   // Date of birth: must be a real YYYY-MM-DD date and 18+.
   if (body.dateOfBirth !== undefined) {
+    // Age-gate lock (security hardening): once a DOB is on file it CANNOT be
+    // self-edited through this shared PUT. A user who could freely rewrite their
+    // DOB post-signup could sidestep the 18+ gate; a genuine correction must go
+    // through support, not a silent self-edit. Re-submitting the SAME value is a
+    // harmless no-op (profile saves legitimately resend it), so we only block an
+    // actual change. First-time set (no DOB yet) still works normally below.
+    // TODO: add a support-reviewed DOB-correction path if a real need appears.
+    const currentDob = db.prepare('SELECT date_of_birth FROM profiles WHERE user_id = ?').get(userId)?.date_of_birth;
+    if (currentDob && currentDob !== body.dateOfBirth) {
+      return res.status(403).json({ error: 'Your date of birth is already set and can’t be changed here. Please contact support if it needs correcting.' });
+    }
     if (typeof body.dateOfBirth !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateOfBirth)) {
       return res.status(400).json({ error: 'Please enter a valid date of birth.' });
     }

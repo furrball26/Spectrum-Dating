@@ -123,3 +123,27 @@ export const safetyActionLimiter = rateLimit({
   message: { error: 'Too many report or block actions. Please wait a few minutes before trying again.' },
   skipSuccessfulRequests: false,
 });
+
+// ── Admin-endpoint limiter (moderation backstop) ─────────────────────────────
+// The admin routers (admin.js / adminTelemetry.js / adminPopulation.js) perform
+// the most destructive actions on the platform — suspend / ban / verify / purge.
+// They had NO rate limit, so a compromised admin token could hammer them
+// unbounded. This is its OWN bucket (never shares a window with member-facing
+// limiters), keyed per-admin (userId) so one admin can't starve another. The cap
+// is deliberately GENEROUS — a real moderation sweep touches many members — but a
+// hard backstop against abuse/automation. `limit` is read from env at request
+// time so ops can tune (and tests can exercise) the cap without a redeploy;
+// default is 300 requests / 15 min. GET /admin/me is exempted at the mount (the
+// dashboard polls it) so normal dashboard use is never throttled — see index.js.
+export const adminApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  limit: () => Number(process.env.ADMIN_MAX_PER_WINDOW) || 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: { error: 'Too many admin requests. Please wait a few minutes before trying again.' },
+  // GET /admin/me is the frontend's admin-status poll — never throttle it.
+  // req.path is mount-relative ('/me') because this runs at the '/admin' mount.
+  skip: (req) => req.method === 'GET' && req.path === '/me',
+  skipSuccessfulRequests: false,
+});
