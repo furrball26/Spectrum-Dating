@@ -11,6 +11,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { loadDemoData, wipeDemoData } from '../telemetry/demoSeed.js';
+import { newId } from '../utils/ids.js';
 
 const router = Router();
 
@@ -381,10 +382,33 @@ router.get('/transparency', requireAuth, requireAdmin, (req, res) => {
   const totalActions = byAction.reduce((s, r) => s + r.count, 0);
   const totalNotices = byNoticeKind.reduce((s, r) => s + r.count, 0);
 
+  // ── Moderator QA calibration health (counts only, PII-free) ────────────────
+  // How many resolved-decision re-reviews were logged in the window, and what
+  // share AGREED with the original moderator. created_at is stored with TEXT
+  // affinity (see migration 051), so CAST it to INTEGER for the epoch-ms window
+  // compare. No ids, names, or notes are ever selected here — calibration health
+  // is a bare agreement rate, never a per-moderator scoreboard.
+  const qaRows = db.prepare(
+    `SELECT verdict AS label, COUNT(*) AS count
+       FROM moderation_qa_reviews
+      WHERE CAST(created_at AS INTEGER) >= ?
+      GROUP BY verdict`
+  ).all(since);
+  const agreeCount = qaRows.find((r) => r.label === 'agree')?.count ?? 0;
+  const disagreeCount = qaRows.find((r) => r.label === 'disagree')?.count ?? 0;
+  const qaTotal = agreeCount + disagreeCount;
+  const agreementRate = qaTotal ? Math.round((agreeCount / qaTotal) * 100) / 100 : 0;
+
   res.json({
     period,
     scope: 'platform',
     generatedAt: Date.now(),
+    qa: {
+      totalReviews: qaTotal,
+      agreeCount,
+      disagreeCount,
+      agreementRate,
+    },
     enforcement: {
       byAction,
       byNoticeKind,
@@ -403,6 +427,95 @@ router.get('/transparency', requireAuth, requireAdmin, (req, res) => {
       total: safetyTotal,
       byKind: safetyByKind,
     },
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Moderator QA / decision re-review sampling (calibration-only — see migration
+// 051). Trust & Safety pulls a small random sample of ALREADY-RESOLVED reports
+// (that the requesting admin did NOT resolve — you can't QA your own decision)
+// and marks each Agree/Disagree with an optional note. NO punitive action ever
+// flows from a QA verdict; it is quality tracking, not a moderator scoreboard.
+// ---------------------------------------------------------------------------
+
+// GET /admin/qa/sample?limit=5 — up to `limit` (clamp 1–10, default 5) resolved
+// reports NOT resolved by the requesting admin AND not already QA-reviewed, in
+// random order. Serialization mirrors the report-card shape (admin.js) so the
+// frontend can render context, WITHOUT leaking reporter identity.
+router.get('/qa/sample', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  const limit = Math.min(10, Math.max(1, parseInt(req.query.limit, 10) || 5));
+
+  const rows = db.prepare(
+    `SELECT r.id, r.reason, r.moderator_note, r.status, r.resolved_at, r.resolved_by,
+            rbu.email AS resolver_email, rbp.display_name AS resolver_display_name,
+            dp.display_name AS reported_display_name
+       FROM reports r
+       LEFT JOIN users rbu ON rbu.id = r.resolved_by
+       LEFT JOIN profiles rbp ON rbp.user_id = r.resolved_by
+       LEFT JOIN profiles dp ON dp.user_id = r.reported_id
+      WHERE r.resolved_by IS NOT NULL
+        AND r.resolved_by != ?
+        AND NOT EXISTS (SELECT 1 FROM moderation_qa_reviews q WHERE q.report_id = r.id)
+      ORDER BY RANDOM()
+      LIMIT ?`
+  ).all(userId, limit);
+
+  res.json({
+    sample: rows.map((r) => ({
+      id: r.id,
+      reason: r.reason,
+      // The decision/action note the resolving moderator recorded.
+      moderatorNote: r.moderator_note || '',
+      status: r.status,
+      resolvedAt: r.resolved_at,
+      resolvedBy: r.resolved_by
+        ? { displayName: r.resolver_display_name || '', email: r.resolver_email || '' }
+        : null,
+      // Reported user's display name only — reporter identity is never exposed
+      // here (same as the normal report card's public surface).
+      reportedName: r.reported_display_name || '',
+    })),
+  });
+});
+
+// POST /admin/qa/:reportId/review  body { verdict: 'agree'|'disagree', note? }
+// Records one calibration verdict. 400 on a bad verdict; 404 if the report is
+// unknown; 409 if the report isn't resolved, the caller resolved it themselves,
+// or it's already been QA-reviewed.
+router.post('/qa/:reportId/review', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  const verdict = req.body?.verdict;
+  if (verdict !== 'agree' && verdict !== 'disagree') {
+    return res.status(400).json({ error: "verdict must be 'agree' or 'disagree'." });
+  }
+  const rawNote = req.body?.note;
+  if (rawNote !== undefined && rawNote !== null && typeof rawNote !== 'string') {
+    return res.status(400).json({ error: 'note must be a string.' });
+  }
+  const note = typeof rawNote === 'string' ? rawNote.trim().slice(0, 500) : '';
+
+  const report = db.prepare('SELECT id, resolved_by FROM reports WHERE id = ?').get(req.params.reportId);
+  if (!report) return res.status(404).json({ error: 'Report not found.' });
+  if (!report.resolved_by) {
+    return res.status(409).json({ error: "This report isn't resolved yet — nothing to QA." });
+  }
+  if (report.resolved_by === userId) {
+    return res.status(409).json({ error: "You can't QA a decision you made yourself." });
+  }
+  const existing = db.prepare('SELECT 1 FROM moderation_qa_reviews WHERE report_id = ?').get(report.id);
+  if (existing) {
+    return res.status(409).json({ error: 'This decision has already been QA-reviewed.' });
+  }
+
+  const id = newId();
+  const now = Date.now();
+  db.prepare(
+    'INSERT INTO moderation_qa_reviews (id, report_id, reviewer_id, verdict, note, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, report.id, userId, verdict, note || null, String(now));
+
+  res.status(201).json({
+    review: { id, reportId: report.id, reviewerId: userId, verdict, note, createdAt: now },
   });
 });
 

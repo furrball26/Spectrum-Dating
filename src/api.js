@@ -793,7 +793,43 @@ export async function getTransparency(period = "30d") {
       total: d?.safetySignals?.total ?? 0,
       byKind: arr(d?.safetySignals?.byKind),
     },
+    // Moderator QA calibration health (counts only — never a per-moderator
+    // scoreboard). agreementRate is a 0–1 ratio; 0 when there are no reviews.
+    qa: {
+      totalReviews: d?.qa?.totalReviews ?? 0,
+      agreeCount: d?.qa?.agreeCount ?? 0,
+      disagreeCount: d?.qa?.disagreeCount ?? 0,
+      agreementRate: d?.qa?.agreementRate ?? 0,
+    },
   };
+}
+
+// Moderator QA / decision re-review sampling (calibration-only). Pull a small
+// random sample of ALREADY-RESOLVED reports the current admin did NOT resolve
+// themselves and that haven't been QA-reviewed yet. Each item mirrors the
+// report-card shape (reason, moderatorNote, status, resolvedAt, resolvedBy,
+// reportedName) — reporter identity is never included. → normalized array.
+export async function getQaSample(limit = 5) {
+  const d = await apiFetch(`/admin/qa/sample?limit=${encodeURIComponent(limit)}`);
+  const arr = Array.isArray(d?.sample) ? d.sample : [];
+  return arr.map((r) => ({
+    id: r.id,
+    reason: r.reason || "",
+    moderatorNote: r.moderatorNote || "",
+    status: r.status || "",
+    resolvedAt: r.resolvedAt ?? null,
+    resolvedBy: r.resolvedBy || null,
+    reportedName: r.reportedName || "",
+  }));
+}
+
+// Record one QA calibration verdict for a resolved report. verdict ∈
+// 'agree'|'disagree'; note optional. The backend 409s if the report isn't
+// resolved, the caller resolved it themselves, or it's already been reviewed.
+export async function submitQaReview(reportId, verdict, note) {
+  const body = { verdict };
+  if (note && note.trim()) body.note = note.trim();
+  return apiFetch(`/admin/qa/${encodeURIComponent(reportId)}/review`, { method: "POST", body });
 }
 
 // Member email-domain breakdown — real members only (test/demo excluded server

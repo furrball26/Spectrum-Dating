@@ -5,7 +5,7 @@ import {
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
   getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
-  getServerHealth, getPopulation, getTransparency,
+  getServerHealth, getPopulation, getTransparency, getQaSample, submitQaReview,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -2197,7 +2197,9 @@ function TransparencyTab() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [openSections, setOpenSections] = useState(() => {
-    const base = Object.fromEntries(TRANSPARENCY_BREAKDOWNS.map((b) => [b.id, true]));
+    // Breakdowns default open; the interactive QA-review section starts collapsed
+    // (calm-by-design — it's a deliberate action, not passive context).
+    const base = { ...Object.fromEntries(TRANSPARENCY_BREAKDOWNS.map((b) => [b.id, true])), qaReview: false };
     try {
       const raw = localStorage.getItem(TRANSPARENCY_SECTIONS_KEY);
       const parsed = raw ? JSON.parse(raw) : null;
@@ -2277,8 +2279,173 @@ function TransparencyTab() {
               )}
             </AdminCollapsible>
           ))}
+
+          {/* Moderator QA / decision re-review — calibration only, no punitive
+              action. Summary reads from the same transparency payload; the
+              sample fetch + verdicts live in QaReviewContent. */}
+          <AdminCollapsible
+            id="transp-qaReview"
+            title="Moderator QA (calibration)"
+            open={openSections.qaReview}
+            onToggle={() => toggle("qaReview")}
+            style={sectionCardStyle}
+          >
+            <QaReviewContent qa={d?.qa} loading={res.loading} onReviewed={() => setRefreshToken((x) => x + 1)} />
+          </AdminCollapsible>
         </>
       )}
+    </div>
+  );
+}
+
+// Moderator QA / decision re-review sampling — calibration-only (no punitive
+// action, no per-moderator scoreboard). Shows the aggregate agreement rate from
+// the transparency payload, then lets an admin pull a small random sample of
+// resolved decisions they did NOT make and mark each Agree/Disagree with an
+// optional note. Calm-by-design: neither verdict is red, a muted amber tone
+// appears ONLY when disagreement is notably high on a meaningful sample (never
+// color-shaming a tiny one). All hooks run before any early return (React #310).
+function QaReviewContent({ qa, loading, onReviewed }) {
+  const [sample, setSample] = useState(null); // null = not pulled yet; [] = empty
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [sampleError, setSampleError] = useState("");
+  const [notes, setNotes] = useState({}); // reportId → note text
+  const [busyId, setBusyId] = useState(null);
+  const [rowError, setRowError] = useState({}); // reportId → error message
+
+  const loadSample = useCallback(async () => {
+    setSampleLoading(true);
+    setSampleError("");
+    try {
+      setSample(await getQaSample(5));
+    } catch (err) {
+      setSampleError(safeErrorMessage(err, "Couldn't pull a sample. Please try again."));
+    } finally {
+      setSampleLoading(false);
+    }
+  }, []);
+
+  const submit = useCallback(async (reportId, verdict) => {
+    setBusyId(reportId);
+    setRowError((p) => ({ ...p, [reportId]: "" }));
+    try {
+      await submitQaReview(reportId, verdict, notes[reportId] || "");
+      setSample((prev) => (prev || []).filter((r) => r.id !== reportId));
+      if (onReviewed) onReviewed(); // refresh the aggregate summary
+    } catch (err) {
+      setRowError((p) => ({ ...p, [reportId]: safeErrorMessage(err, "Couldn't record that. Please try again.") }));
+    } finally {
+      setBusyId(null);
+    }
+  }, [notes, onReviewed]);
+
+  const total = qa?.totalReviews ?? 0;
+  const pct = Math.round((qa?.agreementRate ?? 0) * 100);
+  // Muted amber only when disagreement is notably high AND the sample is big
+  // enough to mean something — never a scarlet letter on 1–2 reviews.
+  const concern = total >= 5 && pct < 70;
+
+  return (
+    <div>
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+        Re-review a random sample of resolved decisions you didn't make, to check consistency between
+        moderators. Calibration only — recording a verdict takes no action against anyone.
+      </p>
+
+      {/* Aggregate calibration health (from the transparency payload) */}
+      <div
+        style={{
+          display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap",
+          background: concern ? t.warningSurface : t.surfaceAlt,
+          border: `1px solid ${concern ? t.warningBorder : t.border}`,
+          borderRadius: 12, padding: "12px 14px", marginBottom: 14,
+        }}
+      >
+        {loading ? (
+          <span style={{ fontSize: 14, color: t.textMuted }}>Loading calibration health…</span>
+        ) : total > 0 ? (
+          <>
+            <span style={{ fontSize: 20, fontWeight: 700, fontFamily: t.serif, color: concern ? t.warningSurfaceText : t.text, lineHeight: 1.1 }}>
+              Agreement {pct}%
+            </span>
+            <span style={{ fontSize: 13, color: concern ? t.warningSurfaceText : t.textMuted }}>
+              · {total} review{total === 1 ? "" : "s"} this period
+            </span>
+          </>
+        ) : (
+          <span style={{ fontSize: 14, color: t.textMuted }}>No calibration reviews in this period yet.</span>
+        )}
+      </div>
+
+      {/* Sample controls */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: sample ? 14 : 0 }}>
+        <PlainButton kind="neutral" onClick={loadSample} disabled={sampleLoading}>
+          {sampleLoading ? "Pulling a sample…" : (sample ? "Pull another sample" : "Review a sample")}
+        </PlainButton>
+      </div>
+
+      {sampleError && (
+        <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: t.warningSurfaceText }}>{sampleError}</p>
+      )}
+
+      {/* Sampled decisions */}
+      {sample && !sampleLoading && sample.length === 0 && (
+        <p style={{ margin: "6px 0 0", fontSize: 14, color: t.textMuted }}>No decisions to review right now.</p>
+      )}
+
+      {sample && sample.map((r) => (
+        <div
+          key={r.id}
+          style={{ border: `1px solid ${t.border}`, borderRadius: 12, padding: "14px 16px", background: t.surface, marginBottom: 12 }}
+        >
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline", minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{humanizeLabel(r.reason)}</span>
+            <span style={{ fontSize: 13, color: t.textMuted }}>· {r.status ? humanizeLabel(r.status) : "Resolved"}</span>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+            Reported member: <span style={{ color: t.text }}>{r.reportedName || "—"}</span>
+          </p>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+            Resolved by: <span style={{ color: t.text }}>{r.resolvedBy?.displayName || r.resolvedBy?.email || "—"}</span>
+          </p>
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: t.text, lineHeight: 1.5 }}>
+            <span style={{ color: t.textMuted }}>Action / note: </span>
+            {r.moderatorNote ? r.moderatorNote : <span style={{ color: t.textMuted, fontStyle: "italic" }}>none recorded</span>}
+          </p>
+
+          <label
+            htmlFor={`qa-note-${r.id}`}
+            style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "12px 0 6px" }}
+          >
+            Note (optional)
+          </label>
+          <textarea
+            id={`qa-note-${r.id}`}
+            value={notes[r.id] || ""}
+            onChange={(e) => setNotes((p) => ({ ...p, [r.id]: e.target.value.slice(0, 500) }))}
+            maxLength={500}
+            rows={2}
+            style={{
+              width: "100%", border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "10px 12px",
+              fontSize: 16, color: t.text, background: t.bg, resize: "vertical", fontFamily: t.sans,
+              lineHeight: 1.5, boxSizing: "border-box",
+            }}
+          />
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <PlainButton kind="accent" onClick={() => submit(r.id, "agree")} disabled={busyId === r.id}>
+              Agree
+            </PlainButton>
+            <PlainButton kind="neutral" onClick={() => submit(r.id, "disagree")} disabled={busyId === r.id}>
+              Disagree
+            </PlainButton>
+          </div>
+
+          {rowError[r.id] && (
+            <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: t.warningSurfaceText }}>{rowError[r.id]}</p>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
