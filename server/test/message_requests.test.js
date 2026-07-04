@@ -189,11 +189,54 @@ describe('silent-failure indistinguishability (byte-identical to a real send)', 
     const r = makeUser();
     const realRes = await sendIntro(s, r, 'Hi, I liked your profile — no rush to reply.');
 
-    // The blocked prober's response must be BYTE-for-BYTE the real one.
+    // The blocked prober's CLEAN send must be BYTE-for-BYTE the real one.
     expect(blockedRes.status).toBe(realRes.status);
     expect(blockedRes.raw).toBe(realRes.raw);
     expect(blockedRes.raw).toBe('{"ok":true}');
     // ...and nothing was inserted for the blocked pair.
+    expect(pendingRowId(prober, target)).toBeUndefined();
+  });
+
+  it('content-probe CLOSED: a BAD intro is BYTE-IDENTICAL across block state (screening runs first)', async () => {
+    // Screening runs BEFORE the target-dependent guards, so the CONTENT of a
+    // message can never reveal block status. A prober who sends a slur/link to a
+    // pair that BLOCKED them gets the SAME 400 as anyone sending bad content to a
+    // normal pair — 'bad content' is indistinguishable across block state.
+    const SLUR = 'hey you retard, wanna chat';
+    const LINK = 'hi! add me on whatsapp';
+
+    // Blocked pair — recipient blocked the prober.
+    const prober = makeUser();
+    const target = makeUser();
+    await api('/messaging/block', { token: tok(target), method: 'POST', body: { blockedUserId: prober, reason: 'harassment' } });
+
+    // Normal (un-blocked) pair.
+    const s = makeUser();
+    const r = makeUser();
+
+    // SLUR: blocked-pair response must equal the normal-pair response, byte-for-byte.
+    const blockedSlur = await sendIntro(prober, target, SLUR);
+    const normalSlur = await sendIntro(s, r, SLUR);
+    expect(blockedSlur.status).toBe(400);
+    expect(blockedSlur.status).toBe(normalSlur.status);
+    expect(blockedSlur.raw).toBe(normalSlur.raw);
+
+    // LINK (off-platform): same — 400, byte-identical across block state.
+    const blockedLink = await sendIntro(prober, target, LINK);
+    const normalLink = await sendIntro(s, makeUser(), LINK);
+    expect(blockedLink.status).toBe(400);
+    expect(blockedLink.status).toBe(normalLink.status);
+    expect(blockedLink.raw).toBe(normalLink.raw);
+
+    // And a CLEAN intro from the blocked prober STILL returns the identical 201
+    // SEND_OK as a real send (the clean-path indistinguishability is preserved).
+    const blockedClean = await sendIntro(prober, target, 'Hello, would you like to chat sometime?');
+    const realClean = await sendIntro(makeUser(), makeUser(), 'Hello, would you like to chat sometime?');
+    expect(blockedClean.status).toBe(201);
+    expect(blockedClean.raw).toBe(realClean.raw);
+    expect(blockedClean.raw).toBe('{"ok":true}');
+
+    // Nothing was ever inserted for the blocked pair, across all probes.
     expect(pendingRowId(prober, target)).toBeUndefined();
   });
 

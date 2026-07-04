@@ -197,6 +197,17 @@ router.post('/', requireAuth, introRequestHourlyLimiter, introRequestDailyLimite
     });
   }
 
+  // Intro screening runs FIRST — BEFORE every TARGET-dependent silent guard. The
+  // intro is the sender's OWN text, so a specific error is safe to surface, and
+  // screening-first STRICTLY CLOSES the content-probe channel: a BAD intro returns
+  // 400 regardless of block/match/existence state, and a CLEAN intro falls through
+  // to the generic SEND_OK regardless — so a prober can never learn block/match
+  // status from how the CONTENT of their message is treated. (An off-platform/money
+  // trip is still auto-flagged to mods here, before we even look at the target.)
+  const intro = typeof rawIntro === 'string' ? rawIntro.trim() : '';
+  const bad = screenIntro(db, intro, { senderId: userId, recipientId });
+  if (bad) return res.status(400).json(bad);
+
   // 3. recipient missing → generic success, insert nothing (no existence leak).
   const recipient = db.prepare('SELECT id, suspended FROM users WHERE id = ?').get(recipientId);
   if (!recipient) return res.status(201).json(SEND_OK);
@@ -221,11 +232,6 @@ router.post('/', requireAuth, introRequestHourlyLimiter, introRequestDailyLimite
     )
     .get(userId, recipientId, recipientId, userId);
   if (existingRow) return res.status(201).json(SEND_OK);
-
-  // 8-10. Intro screening (sender's OWN text — safe to surface a specific error).
-  const intro = typeof rawIntro === 'string' ? rawIntro.trim() : '';
-  const bad = screenIntro(db, intro, { senderId: userId, recipientId });
-  if (bad) return res.status(400).json(bad);
 
   // All guards cleared → the one real insert. Same success shape as every no-op
   // branch above. UNIQUE(sender_id, recipient_id) is a final backstop against a
