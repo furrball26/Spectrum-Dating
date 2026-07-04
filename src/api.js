@@ -632,6 +632,15 @@ export async function getMemberDomains() {
   return Array.isArray(d?.rows) ? d.rows : [];
 }
 
+// Admin — load or clear the demo telemetry dataset from inside the admin panel
+// (the CLI seed script can't reach the prod DB on Railway's volume).
+// POST /admin/telemetry/demo { action: 'load' | 'clear' } → { ok, action, counts }.
+// Everything it loads is is_demo=1 telemetry + `telemetry-demo-` members ONLY,
+// so it can never pollute real counts. Clear removes exactly those.
+export async function setDemoData(action) {
+  return apiFetch("/admin/telemetry/demo", { method: "POST", body: { action } });
+}
+
 // Paginated member listing. status ∈ ''|'active'|'suspended'|'verified';
 // sort ∈ 'joined'|'reports'. Returns { total, page, pageSize, members }.
 export async function getMembers({ query = "", status = "", page = 1, pageSize = 25, sort = "joined" } = {}) {

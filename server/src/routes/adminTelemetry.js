@@ -10,8 +10,14 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { loadDemoData, wipeDemoData } from '../telemetry/demoSeed.js';
 
 const router = Router();
+
+// In-module guard so the (potentially large) demo insert/delete can't run twice
+// concurrently. The op itself is synchronous (better-sqlite3), so this mostly
+// guards against overlapping requests slipping in — a 409 tells the caller to wait.
+let demoBusy = false;
 
 // Test/demo account exclusion (mirrors admin.js:25-26).
 const TEST_ACCOUNT_LIKE = '%@spectrum-test.dev';
@@ -201,6 +207,35 @@ router.get('/telemetry/member-domains', requireAuth, requireAdmin, (req, res) =>
       LIMIT 100`
   ).all(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE);
   res.json({ rows });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/telemetry/demo  body { action: 'load' | 'clear' }
+// Furnish (or clear) the live-demo dashboard from inside the admin panel — the
+// CLI seed script can't reach the prod DB on Railway's volume. Reuses the shared
+// demoSeed module, so what this loads/clears is EXACTLY what the CLI does:
+// is_demo=1 telemetry + `telemetry-demo-`-prefixed members ONLY. It can never
+// touch real (is_demo=0) rows or the existing @sample seed personas.
+// → { ok, action, counts: {...} }. Any other action → 400.
+// ---------------------------------------------------------------------------
+router.post('/telemetry/demo', requireAuth, requireAdmin, (req, res) => {
+  const action = req.body?.action;
+  if (action !== 'load' && action !== 'clear') {
+    return res.status(400).json({ error: 'action must be "load" or "clear".' });
+  }
+  if (demoBusy) {
+    return res.status(409).json({ error: 'A demo data operation is already running. Please wait a moment.' });
+  }
+  demoBusy = true;
+  try {
+    const { db } = req.ctx;
+    const counts = action === 'load' ? loadDemoData(db) : wipeDemoData(db);
+    res.json({ ok: true, action, counts });
+  } catch {
+    res.status(500).json({ error: 'Couldn’t update demo data. Please try again.' });
+  } finally {
+    demoBusy = false;
+  }
 });
 
 // ---------------------------------------------------------------------------

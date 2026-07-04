@@ -4,7 +4,7 @@ import {
   reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog,
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
-  getMemberDomains, getMembers, getMemberDetail,
+  getMemberDomains, getMembers, getMemberDetail, setDemoData,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -1370,6 +1370,69 @@ function DemoToggle({ value, onChange }) {
   );
 }
 
+// Admin-only "Load demo data" / "Clear demo data" controls — furnish (or clear)
+// the live-demo dashboard from inside the panel, since the CLI seed script can't
+// reach the prod DB on Railway's volume. Each action is behind a calm inline
+// confirm. Everything it loads is clearly-flagged demo/sample data (is_demo=1
+// telemetry + telemetry-demo- members), never real counts. On success the parent
+// refetches and — for Load — flips the "Demo data" view toggle ON.
+function DemoDataControls({ onLoaded, onCleared }) {
+  const [confirming, setConfirming] = useState(null); // 'load' | 'clear' | null
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function run(action) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await setDemoData(action);
+      setConfirming(null);
+      if (action === "load") onLoaded?.(res);
+      else onCleared?.(res);
+    } catch (err) {
+      setError(safeErrorMessage(
+        err,
+        action === "load" ? "Couldn't load demo data. Please try again." : "Couldn't clear demo data. Please try again."
+      ));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (confirming) {
+    const isLoad = confirming === "load";
+    return (
+      <div
+        role="group"
+        aria-label={isLoad ? "Confirm load demo data" : "Confirm clear demo data"}
+        style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}
+      >
+        <span style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5, maxWidth: 340 }}>
+          {isLoad
+            ? "Load sample data for the demo? This adds clearly-flagged demo rows you can clear anytime."
+            : "Remove all demo data?"}
+        </span>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <PlainButton kind={isLoad ? "accent" : "danger"} onClick={() => run(confirming)} disabled={busy}>
+            {busy ? (isLoad ? "Loading…" : "Clearing…") : (isLoad ? "Load demo data" : "Clear demo data")}
+          </PlainButton>
+          <PlainButton kind="neutral" onClick={() => { setConfirming(null); setError(""); }} disabled={busy}>
+            Cancel
+          </PlainButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+      <PlainButton kind="quiet" onClick={() => { setError(""); setConfirming("load"); }}>Load demo data</PlainButton>
+      <PlainButton kind="quiet" onClick={() => { setError(""); setConfirming("clear"); }}>Clear demo data</PlainButton>
+      {error && <span role="alert" style={{ fontSize: 13, color: t.danger }}>{error}</span>}
+    </div>
+  );
+}
+
 // Uptime board — current process uptime, the three window %s, an "application
 // layer" honesty label (so 100% never reads as fabricated edge/network uptime),
 // and the incident list. Percentages are floored (formatUptimePct), never
@@ -1450,6 +1513,20 @@ function OverviewTab() {
   const [demo, setDemo] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [demoStatus, setDemoStatus] = useState("");
+
+  // After loading demo data: flip the view toggle ON so the furnished data shows
+  // immediately, refetch every telemetry resource, and note it. After clearing:
+  // just refetch + note. (Both keep the current window.)
+  const handleDemoLoaded = useCallback(() => {
+    setDemo(true);
+    setRefreshToken((x) => x + 1);
+    setDemoStatus("Sample data loaded — showing the demo view.");
+  }, []);
+  const handleDemoCleared = useCallback(() => {
+    setRefreshToken((x) => x + 1);
+    setDemoStatus("Demo data cleared.");
+  }, []);
 
   // Telemetry queries key off window+demo+refresh; member-domains ignores both
   // (it's member data, not visitor telemetry) so it only refetches on refresh.
@@ -1479,6 +1556,15 @@ function OverviewTab() {
           </span>
           <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
         </div>
+      </div>
+
+      {/* Demo-data controls (admin) + calm status. Loading furnishes the demo
+          dashboard from clearly-flagged sample data; clearing removes it. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", minWidth: 0, marginBottom: 16 }}>
+        <DemoDataControls onLoaded={handleDemoLoaded} onCleared={handleDemoCleared} />
+        {demoStatus && (
+          <span role="status" style={{ fontSize: 13, color: t.textMuted }}>{demoStatus}</span>
+        )}
       </div>
 
       <UptimeBoard data={uptime.data} loading={uptime.loading} error={uptime.error} onRetry={uptime.reload} demo={demo} />
