@@ -10,7 +10,7 @@
 //   npx vite preview --port 4173   (background)
 //   node scripts/qa/profile-membership-tiers.mjs   (exit 0 = PASS)
 import { mkdirSync } from "node:fs";
-import { makeAccount, launch, login, check, finish, cleanupAccounts, OUT, API } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, OUT, API } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 
@@ -52,8 +52,9 @@ await ctx.route("**/*", async (route) => {
 });
 
 await login(page, acct);
-await page.getByRole("button", { name: /^profile$/i }).first().click();
-await page.waitForTimeout(1500);
+// The Membership group lives in the edit form (Hub → avatar pencil).
+await openProfileEdit(page);
+await page.waitForTimeout(800);
 
 // Membership is its own collapsed group — open it.
 const memBtn = page.locator("#section-membership-button");

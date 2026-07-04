@@ -103,6 +103,73 @@ export function HeartIcon({ size = 18, filled = false, strokeWidth = 1.5, ...res
   );
 }
 
+// Two-row slider control — the "Preferences" affordance (matching-filter tuning).
+export function SlidersIcon({ size = 18, ...rest }) {
+  return (
+    <Svg size={size} {...rest}>
+      <path d="M4 8h9M17 8h3" />
+      <circle cx="15" cy="8" r="2.2" fill="currentColor" fillOpacity={0.12} />
+      <circle cx="15" cy="8" r="2.2" />
+      <path d="M4 16h3M11 16h9" />
+      <circle cx="9" cy="16" r="2.2" fill="currentColor" fillOpacity={0.12} />
+      <circle cx="9" cy="16" r="2.2" />
+    </Svg>
+  );
+}
+
+// Pencil — the "edit your profile" affordance overlaid on the avatar hero.
+export function PencilIcon({ size = 18, ...rest }) {
+  return (
+    <Svg size={size} {...rest}>
+      <path d="M14.8 5.2l4 4L9 19l-4.4.9.9-4.4z" fill="currentColor" fillOpacity={0.12} />
+      <path d="M14.8 5.2l4 4L9 19l-4.4.9.9-4.4z" />
+      <path d="M13.3 6.7l4 4" />
+    </Svg>
+  );
+}
+
+// Small chevron — row "opens a destination" affordance for hub cards.
+export function ChevronRightIcon({ size = 18, ...rest }) {
+  return (
+    <Svg size={size} {...rest}>
+      <path d="M9 5l7 7-7 7" />
+    </Svg>
+  );
+}
+
+// Eye — the "How others see you" preview entry.
+export function EyeIcon({ size = 18, ...rest }) {
+  return (
+    <Svg size={size} {...rest}>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="currentColor" fillOpacity={0.12} />
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.6" />
+    </Svg>
+  );
+}
+
+// Sparkle — the calm Membership entry (Companion). No burst/urgency.
+export function SparkleIcon({ size = 18, ...rest }) {
+  return (
+    <Svg size={size} {...rest}>
+      <path d="M12 3.5c.4 3.6 1.9 5.1 5.5 5.5-3.6.4-5.1 1.9-5.5 5.5-.4-3.6-1.9-5.1-5.5-5.5 3.6-.4 5.1-1.9 5.5-5.5z" fill="currentColor" fillOpacity={0.12} />
+      <path d="M12 3.5c.4 3.6 1.9 5.1 5.5 5.5-3.6.4-5.1 1.9-5.5 5.5-.4-3.6-1.9-5.1-5.5-5.5 3.6-.4 5.1-1.9 5.5-5.5z" />
+      <path d="M18.5 15.5c.2 1.5.8 2.1 2.3 2.3-1.5.2-2.1.8-2.3 2.3-.2-1.5-.8-2.1-2.3-2.3 1.5-.2 2.1-.8 2.3-2.3z" />
+    </Svg>
+  );
+}
+
+// Star (outline) — the "Top Picks" curated best-fits entry.
+export function StarIcon({ size = 18, ...rest }) {
+  const d = "M12 3.6l2.5 5.1 5.6.8-4.1 4 1 5.6L12 16.4l-5 2.7 1-5.6-4.1-4 5.6-.8z";
+  return (
+    <Svg size={size} {...rest}>
+      <path d={d} fill="currentColor" fillOpacity={0.12} />
+      <path d={d} />
+    </Svg>
+  );
+}
+
 export function SealCheckIcon({ size = 18, ...rest }) {
   // A scalloped "seal" with a checkmark — for the Verified pill.
   return (

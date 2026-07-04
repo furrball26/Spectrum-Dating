@@ -131,7 +131,8 @@ check("No console pageerrors during chat touch flow", errors.length === 0, error
 // Navigate to Settings via the Profile hub, then tap the LABEL text (not switch).
 await page.getByRole("button", { name: /^profile$/i }).first().click();
 await page.waitForTimeout(1500);
-await page.getByRole("button", { name: /Appearance, accessibility, feedback/i }).first().click();
+// Settings is now the Profile Hub's top-right gear button.
+await page.getByRole("button", { name: /^Settings$/ }).first().click();
 await page.waitForTimeout(1200);
 check("Settings screen opened", (await page.getByRole("group", { name: /theme/i }).count()) > 0);
 

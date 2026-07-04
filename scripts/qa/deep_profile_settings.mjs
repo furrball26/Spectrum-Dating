@@ -1,6 +1,6 @@
 // Profile edit / pause / photos, Settings theme switch, Safety — 390px, dim+light.
 // Single account reused across themes to respect the register rate-limit.
-import { makeAccount, launch, login, check, finish, APP } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, openProfileEdit, APP } from "./harness.mjs";
 const OUT = "qa-artifacts";
 
 async function run(acct, theme) {
@@ -9,9 +9,9 @@ async function run(acct, theme) {
   await page.evaluate((th) => localStorage.setItem("spectrum_a11y", JSON.stringify({ theme: th })), theme);
   await login(page, acct);
 
-  // ---- PROFILE ----
-  await page.getByRole("button", { name: /^profile$/i }).first().click().catch(() => {});
-  await page.waitForTimeout(1500);
+  // ---- PROFILE ---- (Hub → avatar pencil → the full edit form)
+  await openProfileEdit(page);
+  await page.waitForTimeout(800);
   check(`[${theme}] Profile screen loaded`, (await page.getByText(/pause my profile/i).count()) > 0);
 
   // Age range now lives inside the "Looking for" GROUP (post-regroup). Open it

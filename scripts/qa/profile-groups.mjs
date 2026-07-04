@@ -9,7 +9,7 @@
 //   npx vite preview --port 4173   (background)
 //   node scripts/qa/profile-groups.mjs   (exit 0 = PASS)
 import { mkdirSync } from "node:fs";
-import { makeAccount, launch, login, check, finish, cleanupAccounts, OUT, APP } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, OUT, APP } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 
@@ -46,8 +46,10 @@ async function run(theme) {
   await page.evaluate((th) => localStorage.setItem("spectrum_a11y", JSON.stringify({ theme: th })), theme);
   await login(page, acct);
 
-  await page.getByRole("button", { name: /^profile$/i }).first().click();
-  await page.waitForTimeout(1500);
+  // Profile tab now defaults to the Profile Hub; the group editor lives behind
+  // the avatar pencil.
+  await openProfileEdit(page);
+  await page.waitForTimeout(500);
 
   // Exactly the 3 top-level group headers exist (the 9 old section ids are gone).
   for (const id of GROUPS) {

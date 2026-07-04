@@ -5,7 +5,7 @@
 // round-trip cannot be asserted pre-deploy. The Preview modal reads React state
 // (not the backend), so it is the meaningful frontend round-trip here.
 // Run: node scripts/qa/f28-facets.mjs
-import { makeAccount, launch, login, check, finish } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, openProfileEdit } from "./harness.mjs";
 
 const acct = await makeAccount("f28", { displayName: "Facet QA" });
 const { browser, page, errors } = await launch({ viewport: { width: 390, height: 844 } });
@@ -13,9 +13,9 @@ const { browser, page, errors } = await launch({ viewport: { width: 390, height:
 try {
   await login(page, acct);
 
-  // Navigate to Profile via the primary nav.
-  await page.getByRole("button", { name: /profile/i }).first().click();
-  await page.waitForTimeout(1200);
+  // Navigate to the Profile editor (Hub → avatar pencil); facets live there.
+  await openProfileEdit(page);
+  await page.waitForTimeout(600);
 
   // Ensure the "About me" GROUP is open (post-regroup the F28 facets are a
   // headed block inside it). It auto-opens for an incomplete profile, so a blind

@@ -55,18 +55,22 @@ try {
 
   await page.screenshot({ path: "qa-artifacts/bestfits-locked.png" }).catch(() => {});
 
-  // ── Profile → Membership section (its new home) ─────────────────────────────
+  // ── Profile Hub → Membership row → Membership screen ────────────────────────
+  // The Profile tab now defaults to the Profile Hub; its Membership row is the
+  // honest "See what Companion adds" door that opens the full Membership screen
+  // (for this FREE account, the calm "What Companion adds" surface — never a
+  // "Manage membership" control, which is Companion-only).
   await page.goto("http://127.0.0.1:4173/?tab=profile", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
 
-  const membershipSection = page.getByRole("button", { name: /^Membership/i }).first();
-  await membershipSection.waitFor({ state: "visible", timeout: 8000 });
-  await membershipSection.click(); // expand the collapsible section
-  await page.waitForTimeout(600);
+  const membershipRow = page.getByRole("button", { name: /^Membership/i }).first();
+  await membershipRow.waitFor({ state: "visible", timeout: 8000 });
+  await membershipRow.click();
+  await page.waitForTimeout(1500);
 
-  const manage = page.getByRole("button", { name: /Manage membership/i }).first();
-  check("Profile shows a Membership section with a Manage membership control",
-    await manage.isVisible().catch(() => false));
+  const memBody = await page.evaluate(() => document.body.innerText);
+  check("Profile Hub Membership row opens the Membership screen (free-state 'What Companion adds')",
+    /What Companion adds/i.test(memBody) && /Spectrum Companion/i.test(memBody));
 
   await page.screenshot({ path: "qa-artifacts/profile-membership.png" }).catch(() => {});
 

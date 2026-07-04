@@ -1,23 +1,26 @@
 // Final close-out: real Pause toggle, Settings-from-hub, Safety-from-hub. 390px dim.
-import { makeAccount, launch, login, check, finish, APP } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, openProfileEdit, APP } from "./harness.mjs";
 const OUT = "qa-artifacts";
 
 const acct = await makeAccount("hub", { displayName: "Hub QA", gender: "woman", pronouns: "she/her", seeking: "man", bio: "QA hub bio." });
 const { browser, page, errors } = await launch({ viewport: { width: 390, height: 844 } });
 await login(page, acct);
-await page.getByRole("button", { name: /^profile$/i }).first().click().catch(() => {});
-await page.waitForTimeout(1500);
+// Pause + the Settings/Safety footer rows live in the edit form (Hub → pencil).
+await openProfileEdit(page);
+await page.waitForTimeout(800);
 
-// Real pause toggle: the one accessibly-named "Pause my profile"
-const pause = page.locator('[role="switch"][aria-labelledby="pause-profile-label"]').first();
+// Real pause toggle: the F17 "Take a break" control — a button with aria-pressed
+// accessibly-named "Pause my profile" / "Turn profile back on" (near the top of
+// the edit form).
+const pause = page.getByRole("button", { name: /Pause my profile|Turn profile back on/i }).first();
 check("pause toggle present in DOM", (await pause.count()) > 0, `count=${await pause.count()}`);
 if (await pause.count()) {
   const vis = await pause.isVisible();
   if (vis) {
-    const before = await pause.getAttribute("aria-checked");
+    const before = await pause.getAttribute("aria-pressed");
     await pause.click();
     await page.waitForTimeout(1200);
-    const after = await pause.getAttribute("aria-checked");
+    const after = await pause.getAttribute("aria-pressed");
     check("pause toggle flips", before !== after, `before=${before} after=${after}`);
     await pause.click(); await page.waitForTimeout(800);
   } else {

@@ -7,7 +7,7 @@
 //      can never clobber what they wrote (the calm no-clobber guarantee).
 // Run: build + preview on :4173, then `node scripts/qa/profile-starters.mjs`.
 import { mkdirSync } from "node:fs";
-import { makeAccount, launch, login, check, finish, cleanupAccounts, OUT } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, OUT } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 const acct = await makeAccount("starters", { displayName: "Sam QA", gender: "nonbinary", pronouns: "they/them", seeking: "woman" });
@@ -15,9 +15,9 @@ const acct = await makeAccount("starters", { displayName: "Sam QA", gender: "non
 const { browser, page, errors } = await launch();
 await login(page, acct);
 
-// Go to Profile.
-await page.getByRole("button", { name: /Profile/ }).first().click();
-await page.waitForTimeout(1500);
+// Go to the Profile editor (Hub → avatar pencil); the prompt UI lives there.
+await openProfileEdit(page);
+await page.waitForTimeout(800);
 
 // Prompts now lives as a headed block inside the "About me" GROUP (post-regroup
 // there are no nested accordions — the group opens to reveal Prompts as an <h3>

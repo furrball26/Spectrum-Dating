@@ -9,7 +9,7 @@
 //   npx vite preview --port 4173   (background)
 //   node scripts/qa/profile-completeness-jump.mjs
 import { mkdirSync } from "node:fs";
-import { makeAccount, launch, login, check, finish, cleanupAccounts, OUT } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, OUT } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 
@@ -50,9 +50,10 @@ const EXPECT = {
 const { browser, page, errors } = await launch();
 await login(page, acct);
 
-// Navigate to the Profile tab.
-await page.getByRole("button", { name: /Profile/ }).first().click();
-await page.waitForTimeout(2000);
+// Navigate to the Profile tab's editor (Hub → avatar pencil). The completeness
+// nudge lives on the edit form, now reached via the pencil.
+await openProfileEdit(page);
+await page.waitForTimeout(1000);
 
 const region = page.locator('[aria-label="Profile completeness"]');
 check("Completeness nudge is visible", (await region.count()) > 0);

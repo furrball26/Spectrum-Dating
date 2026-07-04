@@ -12,7 +12,7 @@
 //   FE-6  theme cards are aria-pressed buttons (no role=radio/radiogroup);
 //         selection + persistence hold; identity disclosure is aria-describedby.
 //   FE-7  Undo / clear-filter × are ≥44px; the collapse pills are ≥14px.
-import { api, makeAccount, launch, login, check, finish, OUT } from "./harness.mjs";
+import { api, makeAccount, launch, login, check, finish, openProfileEdit, OUT } from "./harness.mjs";
 
 const VP = { width: 390, height: 844 };
 
@@ -215,8 +215,9 @@ await page.getByRole("button", { name: /Pride theme/ }).first().click().catch(()
 await page.waitForTimeout(600);
 check("FE-4 invariant: Pride set before sign-out",
   (await page.evaluate(() => document.documentElement.dataset.theme)) === "pride");
-await page.getByRole("button", { name: /Profile/ }).first().click().catch(() => {});
-await page.waitForTimeout(1600);
+// Sign out lives in the edit form's footer (Hub → avatar pencil).
+await openProfileEdit(page);
+await page.waitForTimeout(800);
 const signOut = page.getByRole("button", { name: /Sign out/ }).first();
 if (await signOut.count()) {
   await signOut.scrollIntoViewIfNeeded();

@@ -154,6 +154,20 @@ export async function login(page, acct) {
   await page.waitForTimeout(2200);
 }
 
+// The Profile tab now defaults to the Profile Hub (a calm home). The full edit
+// form (About me / Looking for / Membership / Account groups) is a drill-in
+// behind the avatar pencil. Drivers asserting edit-form content must open it via
+// this helper: tap Profile → the hub, then the "Edit profile" pencil → the form.
+export async function openProfileEdit(page) {
+  await page.getByRole("button", { name: /^profile$/i }).first().click().catch(() => {});
+  await page.waitForTimeout(1000);
+  const pencil = page.getByRole("button", { name: /^Edit profile$/ }).first();
+  if (await pencil.count()) {
+    await pencil.click().catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+}
+
 // ── Reporting ─────────────────────────────────────────────────────────────────
 const results = [];
 export function check(name, cond, extra = "") {

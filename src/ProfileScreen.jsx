@@ -2528,7 +2528,7 @@ function ProfilePreviewModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", pushEnabled, pushSupported, onEnablePush, onDisablePush }) {
+export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", pushEnabled, pushSupported, onEnablePush, onDisablePush, initialOpenSection = null, initialPreview = false }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -2885,9 +2885,51 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       }
     }
 
+    // Deep-link from the Hub's Preferences drill-in: force its group open so the
+    // member lands ON the preferences, not a collapsed header (wins over persisted).
+    if (initialOpenSection && COLLAPSIBLE_SECTIONS.includes(initialOpenSection)) {
+      defaults[initialOpenSection] = true;
+    }
+
     setSectionOpen(defaults);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
+
+  // ── Hub deep-links (declared with the other hooks, BEFORE the loading/error
+  //    early returns — React #310). Both run once after the profile loads.
+  // Preferences drill-in: once the forced-open Looking-for group is committed,
+  // scroll its header into view so the member lands on their preferences.
+  const scrolledToSectionRef = useRef(false);
+  useEffect(() => {
+    if (loading || scrolledToSectionRef.current) return;
+    if (!initialOpenSection) return;
+    scrolledToSectionRef.current = true;
+    requestAnimationFrame(() => {
+      const header = document.getElementById(`section-${initialOpenSection}-button`);
+      if (header) {
+        header.scrollIntoView({ behavior: prefersReduced ? "auto" : "smooth", block: "start" });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // "How others see you" drill-in: open the existing preview modal on mount.
+  const previewOpenedRef = useRef(false);
+  useEffect(() => {
+    if (loading || previewOpenedRef.current) return;
+    if (!initialPreview) return;
+    previewOpenedRef.current = true;
+    setShowPreview(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // ── Close the preview. When it was opened as the Hub's "How others see you"
+  // sub-view (initialPreview) and nothing's been edited, closing returns to the
+  // Hub so it reads as a hub destination, not a detour into the editor.
+  function closePreview() {
+    setShowPreview(false);
+    if (initialPreview && !isDirty) onDone?.();
+  }
 
   // ── Toggle a single section (VIEW change — never sets isDirty). Persists.
   function toggleSection(key) {
@@ -3517,7 +3559,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           prompts={prompts}
           promptTextFor={promptTextFor}
           verified={verified}
-          onClose={() => setShowPreview(false)}
+          onClose={closePreview}
         />
       )}
 

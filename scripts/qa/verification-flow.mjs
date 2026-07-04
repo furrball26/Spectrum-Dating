@@ -8,7 +8,7 @@
 //   npx vite preview --port 4173   (background)
 //   node scripts/qa/verification-flow.mjs   (exit 0 = PASS)
 import { mkdirSync } from "node:fs";
-import { makeAccount, launch, login, check, finish, cleanupAccounts, OUT } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, OUT } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 const acct = await makeAccount("verif", { displayName: "Vera QA", gender: "woman", pronouns: "she/her", seeking: "man" });
@@ -19,8 +19,8 @@ await login(page, acct);
 // Go to Profile and open the "Account" group (Profile review now lives inside it
 // as a headed <h3> block — post-regroup there are no nested accordions, so
 // opening the group reveals the review sub-section directly).
-await page.getByRole("button", { name: /Profile/ }).first().click();
-await page.waitForTimeout(1500);
+await openProfileEdit(page);
+await page.waitForTimeout(800);
 await page.getByRole("button", { name: /^Account/ }).first().click();
 await page.waitForTimeout(800);
 

@@ -16,6 +16,7 @@ import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
 // screen), MessagingApp, and MatchesScreen stay eager above. lazy() calls live at
 // module scope (never inside a component).
 const ProfileScreen = lazy(() => import("./ProfileScreen.jsx"));
+const ProfileHub = lazy(() => import("./ProfileHub.jsx"));
 const SafetyScreen = lazy(() => import("./SafetyScreen.jsx"));
 const SettingsScreen = lazy(() => import("./SettingsScreen.jsx"));
 const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
@@ -982,6 +983,17 @@ export default function App() {
   // when the user leaves the Profile screen (where photo edits happen).
   const [myPhotoUrl, setMyPhotoUrl] = useState(null);
   const [myDisplayName, setMyDisplayName] = useState("");
+  // Identity-review ("Reviewed") status — drives the Profile Hub's badge. Seeded
+  // from /profile/me (returns `verified`) alongside the avatar/name below.
+  const [myVerified, setMyVerified] = useState(false);
+  // Within the Profile tab, which sub-view is showing. The tab now DEFAULTS to a
+  // calm Profile Hub (home); Edit / Preferences are deliberate drill-ins reached
+  // from it. Reset to "hub" every time the Profile tab is (re)entered.
+  //   'hub'         → <ProfileHub>
+  //   'edit'        → <ProfileScreen> (full editor, via the avatar pencil)
+  //   'preferences' → <ProfileScreen> opened at the "Looking for" group
+  //   'preview'     → <ProfileScreen> with the "How others see you" preview open
+  const [profileView, setProfileView] = useState("hub");
   // Billing tier — drives the calm "Companion" marker on Settings + the
   // Membership screen. Seeded from /profile/me (which now returns `tier`) and
   // updated by the Membership screen after an upgrade/cancel. "no tier = free".
@@ -995,6 +1007,7 @@ export default function App() {
     // Track pause state so the at-risk banner can reflect "already hidden".
     if (typeof p.paused === "boolean") setMyPaused(p.paused);
     if (typeof p.tier === "string") setTier(p.tier);
+    if (typeof p.verified === "boolean") setMyVerified(p.verified);
     if (Array.isArray(p.photos)) {
       const primary = p.photos.find((ph) => ph && ph.isPrimary) || p.photos[0] || null;
       setMyPhotoUrl(primary?.url || null);
@@ -1621,7 +1634,7 @@ export default function App() {
                     setActiveTab("messages");
                     setUnreadCount(0);
                   }}
-                  onGoToProfile={() => setActiveTab("profile")}
+                  onGoToProfile={() => { setProfileView("hub"); setActiveTab("profile"); }}
                   onOpenTopPicks={() => { setPrevTab("suggestions"); setActiveTab("bestFits"); }}
                   onOpenMembership={() => { setPrevTab("suggestions"); setActiveTab("membership"); }}
                   tier={tier}
@@ -1652,9 +1665,31 @@ export default function App() {
                   plainLanguage={!!a11y.plainLanguage}
                 />
               )}
-              {activeTab === "profile" && (
+              {activeTab === "profile" && profileView === "hub" && (
+                <ProfileHub
+                  displayName={myDisplayName}
+                  photoUrl={myPhotoUrl}
+                  verified={myVerified}
+                  tier={tier}
+                  onEditProfile={() => setProfileView("edit")}
+                  onOpenPreferences={() => setProfileView("preferences")}
+                  onOpenPreview={() => setProfileView("preview")}
+                  onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
+                  onOpenMembership={() => { setPrevTab("profile"); setActiveTab("membership"); }}
+                  onOpenTopPicks={() => { setPrevTab("profile"); setActiveTab("bestFits"); }}
+                  onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
+                />
+              )}
+              {activeTab === "profile" && profileView !== "hub" && (
                 <ProfileScreen
-                  onDone={() => { refreshMyProfile(); setActiveTab(prevTab || "suggestions"); }}
+                  // Back / Done from the editor returns to the Hub (the tab's home),
+                  // refreshing the Hub avatar/name/verified from the saved profile.
+                  onDone={() => { refreshMyProfile(); setProfileView("hub"); }}
+                  // Preferences drill-in lands on the "Looking for" group, opened.
+                  initialOpenSection={profileView === "preferences" ? "lookingFor" : null}
+                  // "How others see you" drill-in opens the preview modal on mount;
+                  // closing it returns to the Hub (it reads as a hub sub-view).
+                  initialPreview={profileView === "preview"}
                   onSignOut={handleSignOut}
                   onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
                   onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
@@ -1821,7 +1856,7 @@ export default function App() {
                   />
                 }
                 active={activeTab === "profile"}
-                onClick={() => { setPrevTab(activeTab); setActiveTab("profile"); }}
+                onClick={() => { setPrevTab(activeTab); setProfileView("hub"); setActiveTab("profile"); }}
               />
               {isAdmin && (
                 <BottomNavTab
