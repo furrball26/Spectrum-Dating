@@ -68,6 +68,20 @@ export const accountSecurityLimiter = rateLimit({
   skipSuccessfulRequests: false,
 });
 
+// ── Telemetry beacon limiter (public, per-IP) ────────────────────────────────
+// The pageview beacon is public (no auth), so it MUST key on IP, not userId.
+// A generous per-IP ceiling absorbs normal multi-tab browsing while capping a
+// flood. On limit we respond 204 (fire-and-forget — the beacon never surfaces
+// an error to the tab) rather than a 429 with a body.
+export const telemetryLimiter = rateLimit({
+  windowMs: 60 * 1000,       // 1 minute
+  max: 120,                  // ~2/sec per IP — well above real page-view rates
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+  handler: (_req, res) => res.status(204).end(),
+});
+
 // ── Safety-action limiter (report / block) ───────────────────────────────────
 // SEPARATE bucket from feedback/verification so non-safety spam can never
 // exhaust a user's ability to report or block a bad actor. A more generous

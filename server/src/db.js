@@ -62,6 +62,8 @@ const MIGRATIONS = [
   '042_special_interests.sql',
   '043_report_resolution.sql',
   '044_report_evidence_snapshot.sql',
+  '045_telemetry.sql',
+  '046_last_active.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't

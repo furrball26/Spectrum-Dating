@@ -19,7 +19,13 @@ import startersRouter from './routes/starters.js';
 import pushRouter from './routes/push.js';
 import accountRouter from './routes/account.js';
 import adminRouter from './routes/admin.js';
+import adminTelemetryRouter from './routes/adminTelemetry.js';
+import telemetryRouter from './routes/telemetry.js';
 import feedbackRouter from './routes/feedback.js';
+import { lastActiveMiddleware } from './middleware/lastActive.js';
+import { startHeartbeat } from './telemetry/heartbeat.js';
+import { startTelemetryFlush } from './telemetry/ingest.js';
+import { scheduleTelemetryMaintenance } from './telemetry/scheduler.js';
 import { configurePush } from './push/webpush.js';
 import { r2Configured, backupConfigured } from './storage/r2.js';
 import { emailConfigured } from './email/resend.js';
@@ -64,6 +70,8 @@ app.use(cors({ origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173' }))
 app.use(express.json({ limit: '1mb' })); // cap request bodies
 app.use(optionalAuth);
 app.use(contextMiddleware(db));
+// Lazy admin-only "last active" date stamp (one write per user per day max).
+app.use(lastActiveMiddleware(db));
 
 app.use('/auth', authRouter);
 app.use('/profile', profileRouter);
@@ -76,6 +84,8 @@ app.use('/starters', startersRouter);
 app.use('/push', pushRouter);
 app.use('/account', accountRouter);
 app.use('/admin', adminRouter);
+app.use('/admin', adminTelemetryRouter);
+app.use('/telemetry', telemetryRouter);
 app.use('/feedback', feedbackRouter);
 
 // /health includes the deployed git SHA so the deploy script can confirm the
@@ -141,6 +151,12 @@ const pushConfigured = configurePush();
 scheduleBackups(db);
 scheduleWeeklyDigest(db);
 maybeResetPassword(db);
+
+// Telemetry infra: app-layer uptime heartbeat, the ~3s batched page_views
+// flush, and the daily rollup/prune/salt-rotation maintenance.
+startHeartbeat(db);
+startTelemetryFlush(db);
+scheduleTelemetryMaintenance(db);
 
 httpServer.listen(PORT, () => console.log(`Spectrum Dating server on :${PORT}`));
 
