@@ -1124,12 +1124,154 @@ function DealBreakerToggle({ id, label, checked, onChange }) {
 const MAX_PROMPTS = 3;
 const PROMPT_ANSWER_MAX = 200;
 
+// ─── Static profile-writing assist (free, client-side — no API, no LLM) ───────
+// Calm, opt-in "ways to start" an answer. Tapping one drops a short example
+// starter into the answer box as an EDITABLE draft the user then finishes in
+// their own words — never auto-filled, never content-aware. Scaffolding beats a
+// blank box, especially for autistic users. This stays free (Tier 1) forever;
+// the paid Companion is only the future LLM/content-aware version. Keyed by the
+// 12 stable catalog keys (server/src/data/prompts.js); GENERIC_STARTERS covers
+// any future key not yet mapped.
+const PROMPT_STARTERS = {
+  a_perfect_day: [
+    "A slow morning with coffee and no plans, then…",
+    "Somewhere quiet outdoors, then a favourite meal at home…",
+  ],
+  talk_for_hours: [
+    "I could go deep on…",
+    "Ask me about… and I won't stop.",
+  ],
+  comfortable_when: [
+    "I know the plan and the people, and…",
+    "Somewhere calm and familiar, where…",
+  ],
+  small_joy: [
+    "The first sip of tea in the morning…",
+    "Finding a song that fits exactly how I feel…",
+  ],
+  recharge: [
+    "A quiet evening on my own with…",
+    "Time outside, no phone, just…",
+  ],
+  looking_for: [
+    "Someone patient and kind who…",
+    "A person I can be quiet with, and who…",
+  ],
+  communicate_best: [
+    "I do best with direct, literal messages, and…",
+    "I like clear plans and a little time to reply…",
+  ],
+  green_flag: [
+    "Someone who says what they mean, plainly…",
+    "When a person respects that I need time to…",
+  ],
+  weekend: [
+    "On a long, slow walk somewhere calm, then…",
+    "At home with a project I'm slowly working on…",
+  ],
+  passionate: [
+    "I could spend a whole afternoon on…",
+    "I get really into…",
+  ],
+  good_first_meet: [
+    "A short coffee somewhere quiet, so we can actually hear each other…",
+    "A calm walk with no pressure, then…",
+  ],
+  understand_me: [
+    "I mean exactly what I say, so…",
+    "It helps to know I need a little time to…",
+  ],
+};
+
+// Fallback "ways to start" for any prompt key not in the map above.
+const GENERIC_STARTERS = [
+  "One honest thing about me is…",
+  "Something small but true…",
+];
+
+function startersFor(promptKey) {
+  const list = PROMPT_STARTERS[promptKey];
+  return list && list.length ? list : GENERIC_STARTERS;
+}
+
+// Append or set a starter into an answer without clobbering existing text, and
+// respecting the 200-char cap. Empty box → the starter becomes the draft; text
+// already there → the starter is appended after a space. Predictable either way.
+function withStarter(answer, starter) {
+  const base = answer.trim() === "" ? starter : `${answer} ${starter}`;
+  return base.slice(0, PROMPT_ANSWER_MAX);
+}
+
+// One tappable starter chip. useFocusable lives at the component top level (never
+// inside a .map body) so hook order stays stable — React #310 house rule.
+function StarterButton({ text, onUse }) {
+  const f = useFocusable();
+  return (
+    <button
+      type="button"
+      onClick={() => onUse(text)}
+      aria-label={`Use this starting point: ${text}`}
+      {...f}
+      style={{
+        display: "inline-block",
+        textAlign: "left",
+        maxWidth: "100%",
+        minWidth: 0,
+        minHeight: 44,
+        padding: "8px 14px",
+        borderRadius: 999,
+        border: `1.5px solid ${t.formBorder}`,
+        background: t.surface,
+        color: t.accentStrong,
+        fontSize: 14,
+        fontWeight: 500,
+        lineHeight: 1.4,
+        cursor: "pointer",
+        ...f.style,
+      }}
+    >
+      {text}
+    </button>
+  );
+}
+
+// The calm affordance shown under an EMPTY answer box: a soft label + framing +
+// 1–2 tappable example starters. Purely a writing aid — no counters, no urgency,
+// opt-in, and it never blocks typing your own answer.
+function PromptStarters({ promptKey, onUse }) {
+  const starters = startersFor(promptKey);
+  if (!starters.length) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p style={{ margin: "0 0 8px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+        Need a starting point? No pressure — just a starting point you can change.
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 }}>
+        {starters.map((s, i) => (
+          <StarterButton key={i} text={s} onUse={onUse} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Editor for a single filled prompt slot: shows the prompt text, an editable
 // answer textarea (≤200, live counter), and a Remove control.
-function PromptSlot({ index, promptText, answer, onChangeAnswer, onRemove }) {
+function PromptSlot({ index, promptKey, promptText, answer, onChangeAnswer, onRemove }) {
   const taId = `prompt-answer-${index}`;
   const counterId = `prompt-answer-${index}-counter`;
   const [touched, setTouched] = useState(false);
+  const answerRef = useRef(null);
+
+  function insertStarter(text) {
+    onChangeAnswer(withStarter(answer, text));
+    setTouched(true);
+    // Focus the box and drop the caret at the end so they can keep typing.
+    requestAnimationFrame(() => {
+      const el = answerRef.current;
+      if (el) { el.focus(); const end = el.value.length; el.setSelectionRange(end, end); }
+    });
+  }
   return (
     <div
       style={{
@@ -1151,6 +1293,7 @@ function PromptSlot({ index, promptText, answer, onChangeAnswer, onRemove }) {
       </label>
       <textarea
         id={taId}
+        ref={answerRef}
         maxLength={PROMPT_ANSWER_MAX}
         rows={3}
         aria-describedby={counterId}
@@ -1169,6 +1312,9 @@ function PromptSlot({ index, promptText, answer, onChangeAnswer, onRemove }) {
       >
         {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
       </div>
+      {answer.trim() === "" && (
+        <PromptStarters promptKey={promptKey} onUse={insertStarter} />
+      )}
     </div>
   );
 }
@@ -1302,11 +1448,22 @@ function PromptChooser({ available, onAdd, onCancel }) {
   const [key, setKey] = useState("");
   const [answer, setAnswer] = useState("");
   const [touched, setTouched] = useState(false);
+  const answerRef = useRef(null);
   const fSelect = useFocusable();
   const fAdd = useFocusable();
   const fCancel = useFocusable();
   const selected = available.find((p) => p.key === key);
   const canAdd = !!key && answer.trim() !== "";
+
+  function insertStarter(text) {
+    setAnswer((prev) => withStarter(prev, text));
+    setTouched(true);
+    // Focus the box and drop the caret at the end so they can keep typing.
+    requestAnimationFrame(() => {
+      const el = answerRef.current;
+      if (el) { el.focus(); const end = el.value.length; el.setSelectionRange(end, end); }
+    });
+  }
 
   return (
     <div
@@ -1339,6 +1496,7 @@ function PromptChooser({ available, onAdd, onCancel }) {
           <FieldLabel htmlFor="prompt-chooser-answer">Your answer</FieldLabel>
           <textarea
             id="prompt-chooser-answer"
+            ref={answerRef}
             maxLength={PROMPT_ANSWER_MAX}
             rows={3}
             aria-describedby="prompt-chooser-answer-counter"
@@ -1357,6 +1515,9 @@ function PromptChooser({ available, onAdd, onCancel }) {
           >
             {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
           </div>
+          {answer.trim() === "" && (
+            <PromptStarters promptKey={key} onUse={insertStarter} />
+          )}
         </div>
       )}
 
@@ -3633,6 +3794,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <PromptSlot
                 key={p.promptKey}
                 index={idx}
+                promptKey={p.promptKey}
                 promptText={promptTextFor(p.promptKey)}
                 answer={p.answer}
                 onChangeAnswer={(val) => handleChangePromptAnswer(idx, val)}
