@@ -381,16 +381,26 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   // B-A: real member count EXCLUDES automated-test + demo personas (these inflate
   // the "Members" figure and produced the phantom "597"). `testAccounts` is
   // surfaced so the UI can show an explainable "(+N test)".
-  const notTestFilter = 'email NOT LIKE ? AND email NOT LIKE ?';
+  //
+  // Admin-gated demo toggle (?demo=1): when ON, the @sample demo members are
+  // INCLUDED in the member/suspended counts (so the whole dashboard populates for
+  // a demo) and `testAccounts` narrows to the genuinely-excluded test accounts.
+  // When OFF (default), demo is excluded and the real-member discipline holds.
+  // Test accounts are ALWAYS excluded from the member count either way.
+  const includeDemo = req.query.demo === '1' || req.query.demo === 'true';
+  const memberFilter = includeDemo ? 'email NOT LIKE ?' : 'email NOT LIKE ? AND email NOT LIKE ?';
+  const memberParams = includeDemo ? [TEST_ACCOUNT_LIKE] : [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE];
   const members = db.prepare(
-    `SELECT COUNT(*) AS c FROM users WHERE ${notTestFilter}`
-  ).get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
-  const testAccounts = db.prepare(
-    'SELECT COUNT(*) AS c FROM users WHERE email LIKE ? OR email LIKE ?'
-  ).get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
+    `SELECT COUNT(*) AS c FROM users WHERE ${memberFilter}`
+  ).get(...memberParams).c;
+  // Accounts excluded from the member count: test always; demo only when the
+  // toggle is OFF (when ON, demo is counted as members, so it's not "excluded").
+  const testAccounts = includeDemo
+    ? db.prepare('SELECT COUNT(*) AS c FROM users WHERE email LIKE ?').get(TEST_ACCOUNT_LIKE).c
+    : db.prepare('SELECT COUNT(*) AS c FROM users WHERE email LIKE ? OR email LIKE ?').get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
   const suspendedUsers = db.prepare(
-    `SELECT COUNT(*) AS c FROM users WHERE suspended = 1 AND ${notTestFilter}`
-  ).get(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE).c;
+    `SELECT COUNT(*) AS c FROM users WHERE suspended = 1 AND ${memberFilter}`
+  ).get(...memberParams).c;
 
   const totalMatches = db.prepare('SELECT COUNT(*) AS c FROM matches').get().c;
   const totalConversations = db.prepare('SELECT COUNT(*) AS c FROM conversations').get().c;

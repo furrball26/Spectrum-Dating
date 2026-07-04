@@ -150,32 +150,43 @@ function locationBuckets(rows) {
 router.get('/population', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
 
-  // One pass over real member profiles; every profile-field breakdown is derived
+  // Admin-gated demo toggle (?demo=1): when ON, the @sample demo members are
+  // INCLUDED in every breakdown (so the whole dashboard populates for a demo);
+  // when OFF (default) they're excluded and the "597" real-member discipline
+  // holds. Test accounts (@spectrum-test.dev) are ALWAYS excluded — they're QA
+  // noise, never part of a demo view. Mirrors the ?demo pattern in adminTelemetry.js.
+  const includeDemo = req.query.demo === '1' || req.query.demo === 'true';
+  // Filter clause + params: always exclude test; conditionally exclude demo.
+  const memberFilter = includeDemo ? 'u.email NOT LIKE ?' : 'u.email NOT LIKE ? AND u.email NOT LIKE ?';
+  const memberParams = includeDemo ? [TEST_ACCOUNT_LIKE] : [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE];
+
+  // One pass over member profiles; every profile-field breakdown is derived
   // from this in JS (splitting + age + masking all need row-level control).
   const rows = db.prepare(
     `SELECT p.gender, p.orientation, p.seeking, p.relationship_structure,
             p.relationship_goal, p.date_of_birth, p.dist_city
        FROM users u
        JOIN profiles p ON p.user_id = u.id
-      WHERE u.email NOT LIKE ? AND u.email NOT LIKE ?`
-  ).all(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE);
+      WHERE ${memberFilter}`
+  ).all(...memberParams);
 
   const totalMembers = rows.length;
 
-  // Top interests: GROUP BY interest in SQL (test/demo excluded via the join),
+  // Top interests: GROUP BY interest in SQL (same member filter via the join),
   // top N, then mask. No "Other" bucket — a long tail of niche interests isn't
   // a useful single row, and masking already protects the small ones.
   const interestRows = db.prepare(
     `SELECT ui.interest AS label, COUNT(*) AS count
        FROM user_interests ui
        JOIN users u ON u.id = ui.user_id
-      WHERE u.email NOT LIKE ? AND u.email NOT LIKE ?
+      WHERE ${memberFilter}
       GROUP BY ui.interest
       ORDER BY count DESC, label ASC
       LIMIT ?`
-  ).all(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE, TOP_N);
+  ).all(...memberParams, TOP_N);
 
   res.json({
+    demo: includeDemo,
     totalMembers,
     gender: serializeSorted(countSingle(rows, 'gender', 'Not specified'), { emptyLabel: 'Not specified' }),
     orientation: serializeSorted(countMultiValue(rows, 'orientation', 'Not specified'), { emptyLabel: 'Not specified' }),

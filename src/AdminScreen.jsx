@@ -1511,7 +1511,7 @@ function DemoDataControls({ onLoaded, onCleared }) {
       >
         <span style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5, maxWidth: 340 }}>
           {isLoad
-            ? "Load sample data for the demo? This adds clearly-flagged demo rows you can clear anytime."
+            ? "Load sample data for the demo? This adds ~500 clearly-flagged demo members plus moderation activity (reports, blocks, verification requests, feedback) you can clear anytime."
             : "Remove all demo data?"}
         </span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1723,25 +1723,27 @@ function RankedSection({ title, res, emptyLabel, note }) {
   );
 }
 
-function OverviewTab() {
+function OverviewTab({ demo, setDemo, onDataChanged }) {
   const [win, setWin] = useState("7d");
-  const [demo, setDemo] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [demoStatus, setDemoStatus] = useState("");
 
-  // After loading demo data: flip the view toggle ON so the furnished data shows
-  // immediately, refetch every telemetry resource, and note it. After clearing:
-  // just refetch + note. (Both keep the current window.)
+  // After loading demo data: flip the shared view toggle ON so the whole
+  // dashboard (telemetry + population + member counts + listing) shows the demo
+  // data, refetch every telemetry resource, refresh the parent stats, and note
+  // it. After clearing: refetch + refresh stats + note. (Both keep the window.)
   const handleDemoLoaded = useCallback(() => {
     setDemo(true);
     setRefreshToken((x) => x + 1);
     setDemoStatus("Sample data loaded — showing the demo view.");
-  }, []);
+    onDataChanged?.();
+  }, [setDemo, onDataChanged]);
   const handleDemoCleared = useCallback(() => {
     setRefreshToken((x) => x + 1);
     setDemoStatus("Demo data cleared.");
-  }, []);
+    onDataChanged?.();
+  }, [onDataChanged]);
 
   // Telemetry queries key off window+demo+refresh; member-domains ignores both
   // (it's member data, not visitor telemetry) so it only refetches on refresh.
@@ -1838,7 +1840,7 @@ const POP_BREAKDOWNS = [
   { id: "interests", title: "Top interests", filterKey: null },
 ];
 
-function PopulationTab({ onDrill }) {
+function PopulationTab({ onDrill, demo = false }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [openSections, setOpenSections] = useState(() => {
@@ -1850,7 +1852,7 @@ function PopulationTab({ onDrill }) {
     } catch { return base; }
   });
 
-  const pop = useAdminResource(() => getPopulation(), `pop-${refreshToken}`);
+  const pop = useAdminResource(() => getPopulation(demo), `pop-${demo ? 1 : 0}-${refreshToken}`);
   useEffect(() => { if (!pop.loading) setUpdatedAt(Date.now()); }, [pop.loading]);
 
   const toggle = useCallback((id) => {
@@ -1881,7 +1883,7 @@ function PopulationTab({ onDrill }) {
             {pop.loading ? "…" : total.toLocaleString()}
           </div>
           <div style={{ fontSize: 13, color: t.textMuted }}>
-            members · real accounts only (excludes test &amp; demo)
+            {demo ? "members · demo view (includes sample members)" : "members · real accounts only (excludes test & demo)"}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -2027,7 +2029,7 @@ function MembersTableSkeleton() {
 // pre-filtered. The parent remounts this tab (via a key) on each jump, so the
 // initial values always reflect the latest request without fighting the user's
 // manual filtering.
-function MembersTab({ initialStatus = "all", initialFilters = {} }) {
+function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = false }) {
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState(initialStatus);
@@ -2036,6 +2038,10 @@ function MembersTab({ initialStatus = "all", initialFilters = {} }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [openId, setOpenId] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
+  // Independent opt-in to also list the @spectrum-test.dev QA accounts. Separate
+  // from the demo view (includeDemo, driven by the shared Demo toggle) — both
+  // default OFF so the real-member listing stays clean.
+  const [includeTest, setIncludeTest] = useState(false);
   // Demographic filters (seeded from a drill-in; "" / "" number = inactive).
   const [gender, setGender] = useState(initialFilters.gender || "");
   const [orientation, setOrientation] = useState(initialFilters.orientation || "");
@@ -2064,13 +2070,14 @@ function MembersTab({ initialStatus = "all", initialFilters = {} }) {
     setRelationshipGoal(""); setCity(""); setAgeMin(""); setAgeMax(""); setPage(1);
   }, []);
 
-  const listKey = `${query}|${status}|${sort}|${page}|${gender}|${orientation}|${seeking}|${relationshipStructure}|${relationshipGoal}|${city}|${ageMin}|${ageMax}|${refreshToken}`;
+  const listKey = `${query}|${status}|${sort}|${page}|${gender}|${orientation}|${seeking}|${relationshipStructure}|${relationshipGoal}|${city}|${ageMin}|${ageMax}|${includeDemo ? 1 : 0}|${includeTest ? 1 : 0}|${refreshToken}`;
   const res = useAdminResource(
     () => getMembers({
       query, status, page, pageSize: MEMBER_PAGE_SIZE, sort,
       gender, orientation, seeking, relationshipStructure, relationshipGoal, city,
       ageMin: ageMin === "" ? null : parseInt(ageMin, 10),
       ageMax: ageMax === "" ? null : parseInt(ageMax, 10),
+      includeDemo, includeTest,
     }),
     listKey
   );
@@ -2163,6 +2170,25 @@ function MembersTab({ initialStatus = "all", initialFilters = {} }) {
                 style={{ minHeight: 40, padding: "8px 10px", borderRadius: 10, border: `1px solid ${t.formBorder}`, background: t.surface, color: t.text, fontSize: 16, fontFamily: t.sans, minWidth: 0, boxSizing: "border-box" }}
               />
             </label>
+          </div>
+          {/* Independent account-visibility opt-ins. Demo members follow the
+              shared "Demo data" toggle in Overview; test accounts have their own
+              switch here. Both default OFF so the real-member view stays clean. */}
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 14, color: t.textSoft }}>
+              <input
+                type="checkbox"
+                checked={includeTest}
+                onChange={(e) => { setIncludeTest(e.target.checked); setPage(1); }}
+                style={{ width: 18, height: 18, cursor: "pointer" }}
+              />
+              Show test accounts (<code style={{ fontSize: 13 }}>@spectrum-test.dev</code>)
+            </label>
+            {includeDemo && (
+              <p style={{ margin: 0, fontSize: 13, color: t.textMuted }}>
+                Demo members are included — controlled by the “Demo data” toggle in Overview.
+              </p>
+            )}
           </div>
           {activeFilterCount > 0 && (
             <div style={{ marginTop: 12 }}>
@@ -2508,6 +2534,11 @@ function TabButton({ label, active, onClick }) {
 export default function AdminScreen() {
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(false);
+  // Shared "Demo data" view toggle (owned here so Overview's switch also drives
+  // the Population tab, the community-health member counts, and the Members
+  // listing). OFF = real-member view only ("597" discipline); ON = the seeded
+  // @sample demo dataset is included everywhere.
+  const [demo, setDemo] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [reports, setReports] = useState([]);
   const [statusFilter, setStatusFilter] = useState("open");
@@ -2545,7 +2576,7 @@ export default function AdminScreen() {
   // loadStats stamps lastUpdatedAt in .finally, surfaces its own error, and —
   // when `announce` — sets ONE calm summary in the polite status region.
   const loadStats = useCallback((announce = false) => {
-    return getAdminStats()
+    return getAdminStats(demo)
       .then((s) => {
         setStats(s);
         setStatsError(false);
@@ -2556,7 +2587,7 @@ export default function AdminScreen() {
       })
       .catch(() => { setStatsError(true); })
       .finally(() => { setLastUpdatedAt(Date.now()); });
-  }, []);
+  }, [demo]);
 
   const loadReports = useCallback((filter) => {
     setLoadingReports(true);
@@ -2725,7 +2756,7 @@ export default function AdminScreen() {
                 <StatCard
                   label="Members"
                   value={stats.members ?? 0}
-                  subtext={`Excludes test accounts${(stats.testAccounts ?? 0) > 0 ? ` (+${stats.testAccounts} test)` : ""}`}
+                  subtext={demo ? "Demo view — includes sample members" : `Excludes test accounts${(stats.testAccounts ?? 0) > 0 ? ` (+${stats.testAccounts} test)` : ""}`}
                   muted
                   onClick={() => jumpToMembers("all")}
                   ariaLabel={`Members: ${stats.members ?? 0}. View member list.`}
@@ -2777,11 +2808,11 @@ export default function AdminScreen() {
         </div>
 
         {activeTab === "overview" ? (
-          <OverviewTab />
+          <OverviewTab demo={demo} setDemo={setDemo} onDataChanged={loadStats} />
         ) : activeTab === "population" ? (
-          <PopulationTab onDrill={drillToMembers} />
+          <PopulationTab onDrill={drillToMembers} demo={demo} />
         ) : activeTab === "members" ? (
-          <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} initialFilters={membersInitialFilters} />
+          <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} initialFilters={membersInitialFilters} includeDemo={demo} />
         ) : activeTab === "verification" ? (
           <VerificationQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
         ) : activeTab === "photos" ? (

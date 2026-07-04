@@ -525,8 +525,8 @@ export async function purgeTestAccounts(includeDemo = false) {
 // shape AdminScreen reads. `members` excludes test/demo accounts (B-A); the
 // oldest-*-At epochs (null when the queue is empty) drive the age subtext + the
 // past-SLA amber tone (B-B).
-export async function getAdminStats() {
-  const s = await apiFetch('/admin/stats');
+export async function getAdminStats(demo = false) {
+  const s = await apiFetch(`/admin/stats${demo ? '?demo=1' : ''}`);
   const members = s.members ?? s.totalUsers ?? s.users ?? 0;
   return {
     members,
@@ -685,10 +685,11 @@ export async function setDemoData(action) {
 // bucket (count 1–4) has count:null + masked:true and is rendered "<5"; the
 // exact small count never leaves the server (k-anonymity, k=5). Multi-select
 // breakdowns can sum to more than totalMembers (one count per chosen token).
-export async function getPopulation() {
-  const d = await apiFetch("/admin/population");
+export async function getPopulation(demo = false) {
+  const d = await apiFetch(`/admin/population${demo ? "?demo=1" : ""}`);
   const arr = (v) => (Array.isArray(v) ? v : []);
   return {
+    demo: !!d?.demo,
     totalMembers: d?.totalMembers ?? 0,
     gender: arr(d?.gender),
     orientation: arr(d?.orientation),
@@ -705,11 +706,15 @@ export async function getPopulation() {
 // sort ∈ 'joined'|'reports'. Optional demographic filters (from the Population
 // report drill-down): gender, orientation, seeking, relationshipStructure,
 // relationshipGoal (single/token match), city (exact), ageMin/ageMax.
+// includeDemo/includeTest are independent opt-ins (both default OFF, keeping the
+// real-member view clean): includeDemo adds the @sample demo members, includeTest
+// adds the @spectrum-test.dev QA accounts.
 // Returns { total, page, pageSize, members }.
 export async function getMembers({
   query = "", status = "", page = 1, pageSize = 25, sort = "joined",
   gender = "", orientation = "", seeking = "", relationshipStructure = "",
   relationshipGoal = "", city = "", ageMin = null, ageMax = null,
+  includeDemo = false, includeTest = false,
 } = {}) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
@@ -717,6 +722,8 @@ export async function getMembers({
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   params.set("sort", sort);
+  if (includeDemo) params.set("includeDemo", "1");
+  if (includeTest) params.set("includeTest", "1");
   if (gender) params.set("gender", gender);
   if (orientation) params.set("orientation", orientation);
   if (seeking) params.set("seeking", seeking);
