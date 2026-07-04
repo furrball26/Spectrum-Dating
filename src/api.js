@@ -302,6 +302,43 @@ export async function getBestFits() {
   }
 }
 
+// ─── Deeper compatibility filters (Companion, MONETIZATION_STRATEGY §5 #3) ──────
+// Advanced Discover facets a member can save as a persisted set. They RE-RANK the
+// already-scored deck (soft boost) — they NEVER hide anyone. The paid gate lives
+// on the BACKEND: saveAdvancedFilters translates the 402 into a distinct
+// { upgradeRequired: true } so the UI can show the calm locked/upgrade path
+// rather than a generic error. Reading + clearing are allowed for anyone.
+
+// GET /matching/advanced-filters → { filters, tier }. Defaulted at this boundary.
+export async function getAdvancedFilters() {
+  const d = await apiFetch("/matching/advanced-filters");
+  return {
+    filters: (d && typeof d.filters === "object" && d.filters) || {},
+    tier: d?.tier || "free",
+  };
+}
+
+// PUT /matching/advanced-filters (requirePaid). Persists the validated set. A free
+// caller hits the backend 402 → we return { upgradeRequired: true } instead of
+// throwing, so the caller can surface the upgrade path. A 400 (bad value) and any
+// other error still throw. Returns { filters } on success.
+export async function saveAdvancedFilters(filters) {
+  try {
+    const d = await apiFetch("/matching/advanced-filters", { method: "PUT", body: { filters } });
+    return { upgradeRequired: false, filters: (d && d.filters) || {} };
+  } catch (err) {
+    if (err && err.status === 402) return { upgradeRequired: true, filters: {} };
+    throw err;
+  }
+}
+
+// DELETE /matching/advanced-filters → clears the set (revert to the base deck).
+// Allowed for anyone. Returns { filters: {} }.
+export async function clearAdvancedFilters() {
+  const d = await apiFetch("/matching/advanced-filters", { method: "DELETE" });
+  return { filters: (d && d.filters) || {} };
+}
+
 // Permanently unmatch: removes the match AND its conversation. The other person
 // is not notified.
 export async function unmatchConversation(matchId) {

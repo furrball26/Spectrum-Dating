@@ -181,10 +181,84 @@ const RADIUS_OPTIONS = [
   { value: 250, label: "Within 250 miles" },
 ];
 
+// ─── Advanced (Companion) filter options — MONETIZATION_STRATEGY §5 #3 ──────────
+// Each facet's values mirror the backend allowlist (server/src/matching/
+// advancedFilters.js) exactly, with a "No preference" ("") default. These are
+// POST-SCORE re-rank preferences: they gently prioritize who you see, never hide
+// anyone — so the copy stays honest and calm. Labels reuse the Discover card's
+// wording ("Direct", "Quiet settings", …) so the two surfaces read consistently.
+const ADV_COMM_OPTIONS = [
+  {
+    key: "commDirectness",
+    label: "How direct",
+    options: [
+      { value: "", label: "No preference" },
+      { value: "direct", label: "Direct" },
+      { value: "softened", label: "Gentler, softened" },
+    ],
+  },
+  {
+    key: "commLiteral",
+    label: "Literal or playful",
+    options: [
+      { value: "", label: "No preference" },
+      { value: "literal", label: "Literal" },
+      { value: "playful", label: "Playful, figurative" },
+    ],
+  },
+  {
+    key: "commCadence",
+    label: "Reply rhythm",
+    options: [
+      { value: "", label: "No preference" },
+      { value: "instant", label: "Quick back-and-forth" },
+      { value: "daily", label: "About once a day" },
+      { value: "whenever", label: "Whenever it suits" },
+    ],
+  },
+];
+
+const ADV_SENSORY_OPTIONS = [
+  {
+    key: "sensoryEnvironment",
+    label: "Preferred setting",
+    options: [
+      { value: "", label: "No preference" },
+      { value: "quiet", label: "Quiet settings" },
+      { value: "lively", label: "Lively settings" },
+    ],
+  },
+  {
+    key: "sensoryLighting",
+    label: "Preferred lighting",
+    options: [
+      { value: "", label: "No preference" },
+      { value: "dim", label: "Dim lighting" },
+      { value: "bright", label: "Bright lighting" },
+    ],
+  },
+];
+
 // Filters sheet. Pre-fills from `initial` (the current profile's filter fields).
 // On Apply: persists only the changed fields via onApply(changed) then closes;
 // the parent handles the deck re-fetch and loading state.
-export default function DiscoverFilters({ initial, onApply, onClose, applying = false, plainLanguage = false }) {
+export default function DiscoverFilters({
+  initial,
+  onApply,
+  onClose,
+  applying = false,
+  plainLanguage = false,
+  // Advanced (Companion) deeper-compatibility filters — MONETIZATION_STRATEGY §5
+  // #3. `tier` drives the lock state (UX only; the backend PUT is authoritative).
+  // `advancedInitial` seeds the saved set; onSaveAdvanced/onClearAdvanced persist
+  // + re-fetch the deck; onUpgrade routes a free member to the Membership screen.
+  tier = "free",
+  advancedInitial = {},
+  onSaveAdvanced,
+  onClearAdvanced,
+  onUpgrade,
+  advApplying = false,
+}) {
   const headingRef = useRef(null);
   const sheetRef = useRef(null);
   // Remember what had focus before the sheet opened so we can restore it on close.
@@ -195,6 +269,19 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
   const [searchRadius, setSearchRadius] = useState(initial.searchRadiusMiles ?? 0);
   const [seeking, setSeeking] = useState(initial.seeking || "");
 
+  // Advanced facet state — one string per facet ("" = No preference) + the
+  // shared-interests toggle. Seeded from the saved set. All hooks stay above any
+  // early return (React #310) — this component never early-returns before them.
+  const [adv, setAdv] = useState(() => ({
+    commDirectness: advancedInitial.commDirectness || "",
+    commLiteral: advancedInitial.commLiteral || "",
+    commCadence: advancedInitial.commCadence || "",
+    sensoryEnvironment: advancedInitial.sensoryEnvironment || "",
+    sensoryLighting: advancedInitial.sensoryLighting || "",
+    prioritizeSharedInterests: !!advancedInitial.prioritizeSharedInterests,
+  }));
+
+  const isCompanion = tier === "companion";
   const hasLocation = !!(initial.distanceCity && String(initial.distanceCity).trim());
 
   // Focus the heading on open; restore focus to the opener on unmount.
@@ -258,6 +345,37 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
     if ((initial.searchRadiusMiles ?? 0) !== searchRadius) changed.searchRadiusMiles = searchRadius;
     if ((initial.seeking || "") !== seeking) changed.seeking = seeking;
     onApply(changed);
+  }
+
+  // Build the advanced-filter object from state, keeping only set facets + a true
+  // toggle (matches the backend's minimal shape). Then persist + re-fetch via the
+  // parent; a free member is routed to Upgrade instead (the lock is UX only).
+  function handleSaveAdvanced() {
+    if (advApplying) return;
+    if (!isCompanion) { onUpgrade?.(); return; }
+    const obj = {};
+    for (const key of ["commDirectness", "commLiteral", "commCadence", "sensoryEnvironment", "sensoryLighting"]) {
+      if (adv[key]) obj[key] = adv[key];
+    }
+    if (adv.prioritizeSharedInterests) obj.prioritizeSharedInterests = true;
+    onSaveAdvanced?.(obj);
+  }
+
+  function handleClearAdvanced() {
+    if (advApplying) return;
+    setAdv({
+      commDirectness: "",
+      commLiteral: "",
+      commCadence: "",
+      sensoryEnvironment: "",
+      sensoryLighting: "",
+      prioritizeSharedInterests: false,
+    });
+    onClearAdvanced?.();
+  }
+
+  function setAdvFacet(key, value) {
+    setAdv((prev) => ({ ...prev, [key]: value }));
   }
 
   const fieldset = { border: "none", margin: "0 0 22px", padding: 0 };
@@ -472,6 +590,190 @@ export default function DiscoverFilters({ initial, onApply, onClose, applying = 
           >
             Reset to open (everyone, anywhere)
           </button>
+        </div>
+
+        {/* ─── Advanced filters · Companion (MONETIZATION_STRATEGY §5 #3) ─────
+            A post-score RE-RANK, never a wall: these gently prioritize who you
+            see, and never hide anyone. Companion members get functional controls
+            + Save/Clear; free members get the calm locked state + an Upgrade link
+            (the lock is UX only — the backend PUT is the real gate). */}
+        <div style={{ borderTop: `1px solid ${t.border}`, margin: "26px 0 0", paddingTop: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0, marginBottom: 4 }}>
+            <h3 style={{ margin: 0, fontFamily: t.serif, fontSize: 18, fontWeight: 700, color: t.text }}>
+              Advanced filters
+            </h3>
+            <span
+              style={{
+                display: "inline-block",
+                padding: "2px 10px",
+                borderRadius: 20,
+                background: t.surfaceAlt,
+                color: t.textSoft,
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.02em",
+                border: `1px solid ${t.borderLight}`,
+              }}
+            >
+              Companion
+            </span>
+          </div>
+
+          {isCompanion ? (
+            <>
+              <p style={{ margin: "0 0 18px", color: t.textSoft, fontSize: 14, lineHeight: 1.6 }}>
+                These gently prioritize who you see — they never hide people entirely.
+              </p>
+
+              <fieldset style={fieldset}>
+                <legend style={legend}>Preferred communication style</legend>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
+                  {ADV_COMM_OPTIONS.map(({ key, label, options }) => (
+                    <div key={key}>
+                      <label htmlFor={`adv-${key}`} style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 6 }}>
+                        {label}
+                      </label>
+                      <select
+                        id={`adv-${key}`}
+                        value={adv[key]}
+                        onChange={(e) => setAdvFacet(key, e.target.value)}
+                        onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                        onBlur={(e) => { e.target.style.outline = "none"; }}
+                        style={selectStyle}
+                      >
+                        {options.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset style={fieldset}>
+                <legend style={legend}>Preferred sensory environment</legend>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
+                  {ADV_SENSORY_OPTIONS.map(({ key, label, options }) => (
+                    <div key={key}>
+                      <label htmlFor={`adv-${key}`} style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 6 }}>
+                        {label}
+                      </label>
+                      <select
+                        id={`adv-${key}`}
+                        value={adv[key]}
+                        onChange={(e) => setAdvFacet(key, e.target.value)}
+                        onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                        onBlur={(e) => { e.target.style.outline = "none"; }}
+                        style={selectStyle}
+                      >
+                        {options.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset style={{ ...fieldset, marginBottom: 20 }}>
+                <legend style={legend}>Special interests</legend>
+                <label
+                  htmlFor="adv-prioritize-interests"
+                  style={{ display: "flex", alignItems: "flex-start", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 8 }}
+                >
+                  <input
+                    id="adv-prioritize-interests"
+                    type="checkbox"
+                    checked={adv.prioritizeSharedInterests}
+                    onChange={(e) => setAdvFacet("prioritizeSharedInterests", e.target.checked)}
+                    style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0, marginTop: 3 }}
+                  />
+                  <span style={{ fontSize: 16, color: t.text, lineHeight: 1.5 }}>
+                    Prioritize people who share my special interests
+                  </span>
+                </label>
+              </fieldset>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={handleSaveAdvanced}
+                  disabled={advApplying}
+                  style={{
+                    minHeight: 52,
+                    padding: "14px 24px",
+                    borderRadius: 14,
+                    border: `1px solid ${t.accentFill}`,
+                    background: t.accentFill,
+                    color: "#fff",
+                    fontSize: 17,
+                    fontWeight: 600,
+                    cursor: advApplying ? "wait" : "pointer",
+                    opacity: advApplying ? 0.75 : 1,
+                  }}
+                >
+                  {advApplying ? "Updating…" : "Save advanced filters"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearAdvanced}
+                  disabled={advApplying}
+                  style={{
+                    minHeight: 44,
+                    padding: "10px 24px",
+                    borderRadius: 14,
+                    border: `1px solid ${t.border}`,
+                    background: t.surface,
+                    color: t.text,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: advApplying ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Clear advanced filters
+                </button>
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                marginTop: 10,
+                background: t.surfaceAlt,
+                border: `1px solid ${t.borderLight}`,
+                borderRadius: 14,
+                padding: "16px 18px",
+              }}
+            >
+              <p style={{ margin: "0 0 8px", fontSize: 15, color: t.text, fontWeight: 600, lineHeight: 1.5 }}>
+                Advanced filters are part of Spectrum Companion
+              </p>
+              <p style={{ margin: "0 0 6px", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+                Gently prioritize who you see by communication style, sensory
+                environment, and shared special interests. They never hide anyone —
+                your base filters (age, distance, who you want to meet) always stay free.
+              </p>
+              <p style={{ margin: "0 0 16px", fontSize: 13, color: t.textMuted, lineHeight: 1.6 }}>
+                No rush, no pressure. Companion only ever adds comfort on top.
+              </p>
+              <button
+                type="button"
+                onClick={() => onUpgrade?.()}
+                style={{
+                  minHeight: 44,
+                  padding: "11px 20px",
+                  borderRadius: 11,
+                  border: `1px solid ${t.accentFill}`,
+                  background: t.accentFill,
+                  color: "#fff",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                See Companion plans
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>

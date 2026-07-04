@@ -2,7 +2,12 @@
 import { requireAuth } from '../middleware/auth.js';
 import { mutationLimiter } from '../middleware/rateLimits.js';
 import { getCandidates } from '../matching/candidates.js';
-import { requirePaid } from '../billing/entitlements.js';
+import { requirePaid, isCompanion, getEntitlement } from '../billing/entitlements.js';
+import {
+  validateAdvancedFilters,
+  parseStoredAdvancedFilters,
+  hasAdvancedFilters,
+} from '../matching/advancedFilters.js';
 import { listPrompts, parseFacetList } from './profile.js';
 import { listPublicPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
@@ -76,7 +81,20 @@ router.get('/candidates', requireAuth, (req, res) => {
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
   const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
 
-  const scored = getCandidates(db, userId, viewerInterests);
+  // Deeper compatibility filters (Companion-gated, MONETIZATION_STRATEGY §5 #3).
+  // The paid gate is AUTHORITATIVE HERE — advanced filters take effect ONLY for
+  // an active Companion. A free/non-Companion viewer's deck is byte-identical
+  // whether or not a filter set happens to be stored (we never read the column
+  // for them). getCandidates soft re-ranks (never hard-excludes), so the deck can
+  // never be emptied by a filter.
+  let advancedFilters = null;
+  if (isCompanion(db, userId)) {
+    const row = db.prepare('SELECT discover_advanced_filters FROM profiles WHERE user_id = ?').get(userId);
+    const parsed = parseStoredAdvancedFilters(row?.discover_advanced_filters || '');
+    if (hasAdvancedFilters(parsed)) advancedFilters = parsed;
+  }
+
+  const scored = getCandidates(db, userId, viewerInterests, { advancedFilters });
   const candidates = scored.slice(offset, offset + limit);
   res.set('X-Has-More', String(scored.length > offset + limit));
 
@@ -122,6 +140,52 @@ router.get('/best-fits', requireAuth, requirePaid, (req, res) => {
   const bestFits = scored.slice(0, limit).map(c => mapCandidateToCard(db, c));
 
   return res.json({ bestFits });
+});
+
+// ── Deeper compatibility filters (Companion, MONETIZATION_STRATEGY §5 #3) ──────
+// Advanced Discover facets a member can save as a persisted set. They RE-RANK the
+// already-scored deck (soft boost, applied in /candidates above) — they are the
+// second Companion feature. Base filters (age/distance/seeking) stay free and are
+// handled by the profile fields; these ADD on top and only take effect for an
+// active Companion (gate enforced in /candidates + on PUT below).
+
+// GET /matching/advanced-filters — the caller's OWN saved prefs (parsed) plus the
+// caller's { tier } so the UI knows the lock state. Reading is fine for anyone —
+// it's just their own stored preferences (never applied unless they're Companion).
+router.get('/advanced-filters', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
+  const row = db.prepare('SELECT discover_advanced_filters FROM profiles WHERE user_id = ?').get(userId);
+  const filters = parseStoredAdvancedFilters(row?.discover_advanced_filters || '');
+  const { tier } = getEntitlement(db, userId);
+  return res.json({ filters, tier });
+});
+
+// PUT /matching/advanced-filters — validate + persist the JSON. requirePaid gates
+// this on the BACKEND: a free/non-Companion caller gets 402 { error:
+// 'upgrade_required', upgrade:true } (they can't set advanced filters — the
+// frontend lock is UX only). A KNOWN key with a bad value → 400. Body may be the
+// filter object directly or wrapped as { filters: {...} }.
+router.put('/advanced-filters', requireAuth, requirePaid, mutationLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+  const input = req.body && typeof req.body === 'object' && 'filters' in req.body
+    ? req.body.filters
+    : req.body;
+  const clean = validateAdvancedFilters(input);
+  if (clean === null) {
+    return res.status(400).json({ error: 'Invalid advanced filters.' });
+  }
+  const json = hasAdvancedFilters(clean) ? JSON.stringify(clean) : '';
+  db.prepare('UPDATE profiles SET discover_advanced_filters = ? WHERE user_id = ?').run(json, userId);
+  return res.json({ filters: clean });
+});
+
+// DELETE /matching/advanced-filters — clear them (revert to the base deck).
+// Allowed for ANYONE: clearing a preference is always safe, and a former
+// Companion must always be able to turn the refinement off.
+router.delete('/advanced-filters', requireAuth, mutationLimiter, (req, res) => {
+  const { db, userId } = req.ctx;
+  db.prepare("UPDATE profiles SET discover_advanced_filters = '' WHERE user_id = ?").run(userId);
+  return res.json({ filters: {} });
 });
 
 // POST /matching/swipe

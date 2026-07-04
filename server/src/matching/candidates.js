@@ -1,4 +1,5 @@
 ﻿import { scoreCandidate } from './score.js';
+import { applyAdvancedRerank } from './advancedFilters.js';
 import { ageFromDob } from '../utils/time.js';
 import { metroKey, distanceMiles, isGeocodable } from '../utils/metros.js';
 import { containsSlur } from '../utils/nameScreen.js';
@@ -6,8 +7,18 @@ import { containsSlur } from '../utils/nameScreen.js';
 // Returns an array of candidate profiles the viewer hasn't swiped on yet,
 // ordered by score (shared interests) descending.
 // Excludes: the viewer themselves, users they've already swiped on, existing matches.
+//
+// opts.advancedFilters — the SECOND Companion-gated feature (deeper compatibility
+// filters, MONETIZATION_STRATEGY §5 #3). When supplied (a validated, non-empty
+// object), the ALREADY-SCORED deck is soft re-ranked so candidates matching the
+// viewer's preferred comm/sensory facets (and, if toggled, those sharing a
+// special interest) float higher. It is a POST-SCORE nudge only — it never
+// hard-excludes anyone, so the deck can't be emptied. The CALLER gates this: it
+// passes advancedFilters ONLY for an active Companion; free/non-Companion viewers
+// pass nothing and get the exact same deck they always would.
 
-export function getCandidates(db, viewerId, viewerInterests) {
+export function getCandidates(db, viewerId, viewerInterests, opts = {}) {
+  const advancedFilters = opts.advancedFilters || null;
   // Viewer's own profile fields used for weighted scoring (goal + city) and
   // for evaluating the viewer's active deal-breaker filters.
   const viewerProfile = db.prepare(
@@ -107,7 +118,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
 
   const norm = (s) => (s || '').trim().toLowerCase();
 
-  return allProfiles
+  const scored = allProfiles
     // 18+ gate: only surface candidates with a valid DOB yielding age >= 18.
     .filter(profile => {
       const age = ageFromDob(profile.date_of_birth);
@@ -189,4 +200,9 @@ export function getCandidates(db, viewerId, viewerInterests) {
       return { ...candidate, ...scoreCandidate(viewer, candidate) };
     })
     .sort((a, b) => b.score - a.score || b.updated_at - a.updated_at);
+
+  // Companion-only POST-SCORE re-rank. A no-op (returns `scored` unchanged) when
+  // advancedFilters is null/empty — so free/non-Companion decks are untouched and
+  // the count is always preserved (never empties the deck).
+  return applyAdvancedRerank(scored, advancedFilters);
 }

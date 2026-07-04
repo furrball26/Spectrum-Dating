@@ -1,0 +1,13 @@
+-- Deeper compatibility filters — the second Companion-gated feature
+-- (audit/MONETIZATION_STRATEGY.md §5 #3). Stores a member's ADVANCED Discover
+-- filter preferences as a small validated JSON object ('' = none set).
+--
+-- These are POST-SCORE RE-RANK preferences ONLY: when an active Companion has
+-- non-empty prefs, getCandidates soft-boosts candidates matching the preferred
+-- comm/sensory facets (and, if toggled, those sharing special interests) and
+-- re-sorts. They NEVER hard-exclude anyone, so the deck can never be emptied by
+-- a filter (the E20 scaling concern). Free / non-Companion viewers ignore this
+-- column entirely — the base deck is unchanged (gate enforced in the route).
+--
+-- Additive only (head was 053). '' default so "no row written" reads as "none".
+ALTER TABLE profiles ADD COLUMN discover_advanced_filters TEXT NOT NULL DEFAULT '';

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getCandidates, swipe, getProfile, updateProfile, undoSkip, undoLike, getUserId, createConversation } from "./api.js";
+import { getCandidates, swipe, getProfile, updateProfile, undoSkip, undoLike, getUserId, createConversation, getAdvancedFilters, saveAdvancedFilters, clearAdvancedFilters } from "./api.js";
 import { t } from "./tokens.js";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import Avatar from "./Avatar.jsx";
@@ -382,7 +382,7 @@ function PausedBanner({ onGoToProfile, plainLanguage = false }) {
   );
 }
 
-export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, onOpenTopPicks, plainLanguage = false, reducedSensory = false }) {
+export default function SuggestionScreen({ onOpenMessages, onOpenConversation, onGoToProfile, onOpenTopPicks, onOpenMembership, tier = "free", plainLanguage = false, reducedSensory = false }) {
   const [viewerInterests, setViewerInterests] = useState(() => getViewerInterests());
   const [viewerSpecialInterests, setViewerSpecialInterests] = useState(() => getViewerSpecialInterests());
   const [queue, setQueue] = useState([]);
@@ -415,6 +415,13 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // state while we persist + re-fetch the deck.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [applyingFilters, setApplyingFilters] = useState(false);
+  // Deeper compatibility filters (Companion, MONETIZATION_STRATEGY §5 #3). The
+  // saved set seeds the sheet's advanced controls; `advApplying` drives the calm
+  // loading state while we persist via PUT/DELETE and re-fetch the deck. Only
+  // fetched for a Companion (a free member sees the locked state — no fetch).
+  const [advancedFilters, setAdvancedFilters] = useState({});
+  const [advApplying, setAdvApplying] = useState(false);
+  const isCompanion = tier === "companion";
   // F22 — distinguish "zero candidates from the start" from "exhausted after
   // viewing people". A fresh load that returns 0 sets this true; any load with
   // results (or once the user has advanced) leaves it false so the exhausted
@@ -462,6 +469,16 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
         // Silently fall back to the localStorage-seeded initial value
       });
   }, []);
+
+  // Seed the saved advanced (Companion) filter set so the sheet's controls reflect
+  // what's persisted. Only a Companion has an applied set worth showing; a free
+  // member sees the locked state, so we skip the call (tier comes from app state).
+  useEffect(() => {
+    if (!isCompanion) return;
+    getAdvancedFilters()
+      .then((res) => setAdvancedFilters(res.filters || {}))
+      .catch(() => { /* non-blocking — the sheet just opens with empty controls */ });
+  }, [isCompanion]);
 
   // Fetch candidates and reset the deck to the top. Reused on mount and after Undo.
   const loadCandidates = useCallback(() => {
@@ -549,6 +566,45 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
       console.warn("Applying filters failed", e);
     } finally {
       setApplyingFilters(false);
+      setFiltersOpen(false);
+    }
+  }, [loadCandidates]);
+
+  // Persist the advanced (Companion) filter set via PUT, then re-fetch the deck so
+  // the post-score re-rank takes effect immediately. A stale-tier free member hits
+  // the backend 402 → we route them to the Membership screen instead of erroring.
+  const handleSaveAdvanced = useCallback(async (obj) => {
+    setAdvApplying(true);
+    try {
+      const res = await saveAdvancedFilters(obj);
+      if (res.upgradeRequired) {
+        setFiltersOpen(false);
+        onOpenMembership?.();
+        return;
+      }
+      setAdvancedFilters(res.filters || {});
+      await loadCandidates();
+      setStage("viewing");
+    } catch (e) {
+      console.warn("Saving advanced filters failed", e);
+    } finally {
+      setAdvApplying(false);
+      setFiltersOpen(false);
+    }
+  }, [loadCandidates, onOpenMembership]);
+
+  // Clear the advanced set via DELETE (revert to the base deck) + re-fetch.
+  const handleClearAdvanced = useCallback(async () => {
+    setAdvApplying(true);
+    try {
+      await clearAdvancedFilters();
+      setAdvancedFilters({});
+      await loadCandidates();
+      setStage("viewing");
+    } catch (e) {
+      console.warn("Clearing advanced filters failed", e);
+    } finally {
+      setAdvApplying(false);
       setFiltersOpen(false);
     }
   }, [loadCandidates]);
@@ -905,6 +961,12 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             plainLanguage={plainLanguage}
             onApply={handleApplyFilters}
             onClose={() => setFiltersOpen(false)}
+            tier={tier}
+            advancedInitial={advancedFilters}
+            advApplying={advApplying}
+            onSaveAdvanced={handleSaveAdvanced}
+            onClearAdvanced={handleClearAdvanced}
+            onUpgrade={() => { setFiltersOpen(false); onOpenMembership?.(); }}
           />
         )}
       </div>
@@ -1004,6 +1066,12 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             plainLanguage={plainLanguage}
             onApply={handleApplyFilters}
             onClose={() => setFiltersOpen(false)}
+            tier={tier}
+            advancedInitial={advancedFilters}
+            advApplying={advApplying}
+            onSaveAdvanced={handleSaveAdvanced}
+            onClearAdvanced={handleClearAdvanced}
+            onUpgrade={() => { setFiltersOpen(false); onOpenMembership?.(); }}
           />
         )}
       </div>
@@ -1420,6 +1488,12 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           plainLanguage={plainLanguage}
           onApply={handleApplyFilters}
           onClose={() => setFiltersOpen(false)}
+          tier={tier}
+          advancedInitial={advancedFilters}
+          advApplying={advApplying}
+          onSaveAdvanced={handleSaveAdvanced}
+          onClearAdvanced={handleClearAdvanced}
+          onUpgrade={() => { setFiltersOpen(false); onOpenMembership?.(); }}
         />
       )}
     </div>

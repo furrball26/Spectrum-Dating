@@ -1601,6 +1601,8 @@ export default function App() {
                   }}
                   onGoToProfile={() => setActiveTab("profile")}
                   onOpenTopPicks={() => { setPrevTab("suggestions"); setActiveTab("bestFits"); }}
+                  onOpenMembership={() => { setPrevTab("suggestions"); setActiveTab("membership"); }}
+                  tier={tier}
                   plainLanguage={!!a11y.plainLanguage}
                   reducedSensory={!!a11y.reducedSensory}
                 />
