@@ -20,6 +20,7 @@ import pushRouter from './routes/push.js';
 import accountRouter from './routes/account.js';
 import adminRouter from './routes/admin.js';
 import adminTelemetryRouter from './routes/adminTelemetry.js';
+import adminPopulationRouter from './routes/adminPopulation.js';
 import telemetryRouter from './routes/telemetry.js';
 import feedbackRouter from './routes/feedback.js';
 import healthRouter from './routes/health.js';
@@ -86,6 +87,7 @@ app.use('/push', pushRouter);
 app.use('/account', accountRouter);
 app.use('/admin', adminRouter);
 app.use('/admin', adminTelemetryRouter);
+app.use('/admin', adminPopulationRouter);
 app.use('/telemetry', telemetryRouter);
 app.use('/feedback', feedbackRouter);
 

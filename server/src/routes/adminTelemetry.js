@@ -26,6 +26,17 @@ const DEMO_ACCOUNT_LIKE = '%@sample.spectrum-dating.app';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WINDOWS = { '24h': DAY_MS, '7d': 7 * DAY_MS, '30d': 30 * DAY_MS };
 
+// 'YYYY-MM-DD' for the date exactly `years` ago (UTC). Used to translate an age
+// bound into a date-of-birth cut-off: because DOB is stored zero-padded
+// 'YYYY-MM-DD', lexicographic string comparison IS chronological comparison.
+//   age >= ageMin  ⟺  dob <= (today − ageMin years)
+//   age <= ageMax  ⟺  dob >  (today − (ageMax+1) years)
+function isoYearsAgo(years) {
+  const d = new Date();
+  d.setUTCFullYear(d.getUTCFullYear() - years);
+  return d.toISOString().slice(0, 10);
+}
+
 // Parse ?window= into ms (default 7d). Only the three fixed windows are allowed.
 function windowMs(q) {
   return WINDOWS[q] || WINDOWS['7d'];
@@ -327,6 +338,53 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
   if (req.query.status === 'suspended') where.push('u.suspended = 1');
   else if (req.query.status === 'active') where.push('u.suspended = 0');
   else if (req.query.status === 'verified') where.push('COALESCE(p.identity_verified, 0) = 1');
+
+  // ── Population (demographic) filters ──────────────────────────────────────
+  // Optional drill-downs from the Population report. Single-value fields match
+  // exactly; multi-value comma-joined fields (orientation/seeking/
+  // relationshipStructure) match on a TOKEN boundary — NOT a naive substring.
+  // We comma-PAD the column ( ',' || col || ',' ) and look for ',token,', so
+  // filtering seeking='man' can never match 'woman' (',woman,' has no ',man,').
+  const val = (v) => (typeof v === 'string' ? v.trim() : '');
+
+  const gender = val(req.query.gender);
+  if (gender) { where.push('p.gender = ?'); params.push(gender); }
+
+  const relationshipGoal = val(req.query.relationshipGoal);
+  if (relationshipGoal) { where.push('p.relationship_goal = ?'); params.push(relationshipGoal); }
+
+  const city = val(req.query.city);
+  if (city) { where.push('p.dist_city = ?'); params.push(city); }
+
+  // Token-boundary matches for the comma-joined multi-selects.
+  const orientation = val(req.query.orientation);
+  if (orientation) {
+    where.push("(',' || COALESCE(p.orientation, '') || ',') LIKE ?");
+    params.push(`%,${orientation},%`);
+  }
+  const seeking = val(req.query.seeking);
+  if (seeking) {
+    where.push("(',' || COALESCE(p.seeking, '') || ',') LIKE ?");
+    params.push(`%,${seeking},%`);
+  }
+  const relationshipStructure = val(req.query.relationshipStructure);
+  if (relationshipStructure) {
+    where.push("(',' || COALESCE(p.relationship_structure, '') || ',') LIKE ?");
+    params.push(`%,${relationshipStructure},%`);
+  }
+
+  // Age band: DOB cut-offs (see isoYearsAgo). Requires a real DOB — an empty
+  // date_of_birth ('') would lexicographically satisfy the "<=" bound, so guard
+  // it out whenever either age bound is applied.
+  const ageMin = parseInt(req.query.ageMin, 10);
+  const ageMax = parseInt(req.query.ageMax, 10);
+  const hasAgeMin = Number.isInteger(ageMin) && ageMin > 0;
+  const hasAgeMax = Number.isInteger(ageMax) && ageMax > 0;
+  if (hasAgeMin || hasAgeMax) {
+    where.push("p.date_of_birth != ''");
+    if (hasAgeMin) { where.push('p.date_of_birth <= ?'); params.push(isoYearsAgo(ageMin)); }
+    if (hasAgeMax) { where.push('p.date_of_birth > ?'); params.push(isoYearsAgo(ageMax + 1)); }
+  }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 

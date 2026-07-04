@@ -680,15 +680,51 @@ export async function setDemoData(action) {
   return apiFetch("/admin/telemetry/demo", { method: "POST", body: { action } });
 }
 
+// Real-member Population / Demographics breakdowns (test/demo excluded server
+// side). Each breakdown is [{ label, count|null, masked, value? }] — a masked
+// bucket (count 1–4) has count:null + masked:true and is rendered "<5"; the
+// exact small count never leaves the server (k-anonymity, k=5). Multi-select
+// breakdowns can sum to more than totalMembers (one count per chosen token).
+export async function getPopulation() {
+  const d = await apiFetch("/admin/population");
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  return {
+    totalMembers: d?.totalMembers ?? 0,
+    gender: arr(d?.gender),
+    orientation: arr(d?.orientation),
+    seeking: arr(d?.seeking),
+    relationshipStructure: arr(d?.relationshipStructure),
+    relationshipGoal: arr(d?.relationshipGoal),
+    ageBands: arr(d?.ageBands),
+    location: arr(d?.location),
+    interests: arr(d?.interests),
+  };
+}
+
 // Paginated member listing. status ∈ ''|'active'|'suspended'|'verified';
-// sort ∈ 'joined'|'reports'. Returns { total, page, pageSize, members }.
-export async function getMembers({ query = "", status = "", page = 1, pageSize = 25, sort = "joined" } = {}) {
+// sort ∈ 'joined'|'reports'. Optional demographic filters (from the Population
+// report drill-down): gender, orientation, seeking, relationshipStructure,
+// relationshipGoal (single/token match), city (exact), ageMin/ageMax.
+// Returns { total, page, pageSize, members }.
+export async function getMembers({
+  query = "", status = "", page = 1, pageSize = 25, sort = "joined",
+  gender = "", orientation = "", seeking = "", relationshipStructure = "",
+  relationshipGoal = "", city = "", ageMin = null, ageMax = null,
+} = {}) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (status && status !== "all") params.set("status", status);
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   params.set("sort", sort);
+  if (gender) params.set("gender", gender);
+  if (orientation) params.set("orientation", orientation);
+  if (seeking) params.set("seeking", seeking);
+  if (relationshipStructure) params.set("relationshipStructure", relationshipStructure);
+  if (relationshipGoal) params.set("relationshipGoal", relationshipGoal);
+  if (city) params.set("city", city);
+  if (Number.isFinite(ageMin) && ageMin > 0) params.set("ageMin", String(ageMin));
+  if (Number.isFinite(ageMax) && ageMax > 0) params.set("ageMax", String(ageMax));
   const d = await apiFetch(`/admin/members?${params.toString()}`);
   return {
     total: d?.total ?? 0,

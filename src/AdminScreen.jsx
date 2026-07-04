@@ -5,7 +5,7 @@ import {
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
   getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
-  getServerHealth,
+  getServerHealth, getPopulation,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -1816,6 +1816,116 @@ function OverviewTab() {
   );
 }
 
+// ─── Population / Demographics tab ──────────────────────────────────────────
+// Real-member aggregate breakdowns (test/demo excluded server side) of the
+// CHOSEN profile fields, for marketing/reporting. This is REAL member data
+// (existing profile fields) — DISTINCT from the anonymous visitor telemetry in
+// the Overview tab. Each breakdown is a static RankedBars (calm, no live
+// ticker). Buckets of 1–4 arrive ALREADY masked ("<5") from the backend
+// (k-anonymity, k=5) — the exact small count never reaches the client. Tapping a
+// bar drills into the Members tab pre-filtered to that value.
+const MULTI_SELECT_NOTE = "Members can choose more than one, so these can add up to more than the member count.";
+const POPULATION_SECTIONS_KEY = "spectrum_admin_population_sections";
+const POP_BREAKDOWNS = [
+  { id: "gender", title: "Gender", filterKey: "gender" },
+  { id: "orientation", title: "Sexual orientation", filterKey: "orientation", note: MULTI_SELECT_NOTE },
+  { id: "seeking", title: "Seeking", filterKey: "seeking", note: MULTI_SELECT_NOTE },
+  { id: "relationshipStructure", title: "Relationship structure", filterKey: "relationshipStructure", note: MULTI_SELECT_NOTE },
+  { id: "relationshipGoal", title: "Relationship goal", filterKey: "relationshipGoal" },
+  { id: "ageBands", title: "Age", filterKey: "age" },
+  { id: "location", title: "Location", filterKey: "city" },
+  // Interests are not a member-list filter, so this breakdown is display-only.
+  { id: "interests", title: "Top interests", filterKey: null },
+];
+
+function PopulationTab({ onDrill }) {
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [openSections, setOpenSections] = useState(() => {
+    const base = Object.fromEntries(POP_BREAKDOWNS.map((b) => [b.id, true]));
+    try {
+      const raw = localStorage.getItem(POPULATION_SECTIONS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? { ...base, ...parsed } : base;
+    } catch { return base; }
+  });
+
+  const pop = useAdminResource(() => getPopulation(), `pop-${refreshToken}`);
+  useEffect(() => { if (!pop.loading) setUpdatedAt(Date.now()); }, [pop.loading]);
+
+  const toggle = useCallback((id) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try { localStorage.setItem(POPULATION_SECTIONS_KEY, JSON.stringify(next)); } catch { /* private-mode/quota — non-fatal */ }
+      return next;
+    });
+  }, []);
+
+  // Turn a tapped bar into a member-list filter payload. Empty-valued buckets
+  // ("Not specified" / "Open to everyone" / "Other") carry no `value` and never
+  // reach here (RankedBars renders them non-interactive).
+  const drill = useCallback((bd, row) => {
+    const v = row?.value;
+    if (v === undefined || v === null || v === "") return;
+    if (bd.filterKey === "age") onDrill?.({ ageMin: v.ageMin, ageMax: v.ageMax ?? null });
+    else if (bd.filterKey) onDrill?.({ [bd.filterKey]: v });
+  }, [onDrill]);
+
+  const total = pop.data?.totalMembers ?? 0;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.serif, fontSize: 26, fontWeight: 700, color: t.text, lineHeight: 1.1 }}>
+            {pop.loading ? "…" : total.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 13, color: t.textMuted }}>
+            members · real accounts only (excludes test &amp; demo)
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: t.textMuted }}>
+            {updatedAt ? `Updated ${formatClock(updatedAt)}` : "Loading…"}
+          </span>
+          <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
+        </div>
+      </div>
+
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+        A small count (fewer than 5) shows as “&lt;5” to protect members’ privacy. Tap a bar to open those members.
+      </p>
+
+      {pop.error ? (
+        <ErrorState title="Couldn't load the population report" message="Something went wrong on our end. Please try again." onRetry={pop.reload} />
+      ) : (
+        POP_BREAKDOWNS.map((bd) => (
+          <AdminCollapsible
+            key={bd.id}
+            id={`pop-${bd.id}`}
+            title={bd.title}
+            open={openSections[bd.id]}
+            onToggle={() => toggle(bd.id)}
+            style={sectionCardStyle}
+          >
+            {bd.note && <p style={{ margin: "0 0 10px", fontSize: 13, color: t.textMuted }}>{bd.note}</p>}
+            {pop.loading ? (
+              <div aria-hidden="true"><Skeleton width="90%" height={12} /><div style={{ height: 8 }} /><Skeleton width="70%" height={12} /><div style={{ height: 8 }} /><Skeleton width="50%" height={12} /></div>
+            ) : (
+              <RankedBars
+                rows={pop.data?.[bd.id] || []}
+                emptyLabel="No members yet."
+                onSelect={bd.filterKey ? (row) => drill(bd, row) : undefined}
+                ariaAction={bd.filterKey ? `Filter members by ${bd.title.toLowerCase()}` : undefined}
+              />
+            )}
+          </AdminCollapsible>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ─── Members tab ────────────────────────────────────────────────────────────
 const MEMBER_STATUS_OPTIONS = [
   { value: "all", label: "All" },
@@ -1828,6 +1938,43 @@ const MEMBER_SORT_OPTIONS = [
   { value: "reports", label: "Most reported" },
 ];
 const MEMBER_PAGE_SIZE = 25;
+
+// Demographic filter options for the Members tab (mirror the backend VALID_*
+// enums in server/src/routes/profile.js). Used both for direct filtering and as
+// the drill-in target from a Population-tab bar tap.
+const GENDER_FILTER_OPTIONS = [
+  "woman", "man", "nonbinary", "other", "agender", "genderfluid", "genderqueer",
+  "trans-man", "trans-woman", "two-spirit", "bigender", "intersex", "questioning",
+];
+const ORIENTATION_FILTER_OPTIONS = [
+  "straight", "gay", "lesbian", "bisexual", "pansexual", "asexual", "demisexual", "queer", "questioning",
+];
+const SEEKING_FILTER_OPTIONS = ["woman", "man", "nonbinary"];
+const REL_STRUCTURE_FILTER_OPTIONS = ["monogamous", "open", "polyamorous", "queerplatonic", "figuring-it-out"];
+const REL_GOAL_FILTER_OPTIONS = ["long-term", "friendship", "open"];
+
+// A single labelled <select> for a demographic filter. "" = Any (no filter).
+function FilterSelect({ label, value, onChange, options }) {
+  const f = useFocusable();
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: t.textSoft, minWidth: 0 }}>
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          minHeight: 40, padding: "8px 10px", borderRadius: 10, border: `1px solid ${t.formBorder}`,
+          background: t.surface, color: t.text, fontSize: 16, fontFamily: t.sans, minWidth: 0, ...f.style,
+        }}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+      >
+        <option value="">Any</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+}
 
 // Coarse status badge for a member row (active/suspended). Reuses the report
 // StatusBadge palette semantics: suspended = danger, active = neutral.
@@ -1875,11 +2022,12 @@ function MembersTableSkeleton() {
   );
 }
 
-// `initialStatus` seeds the status filter so a stat-card jump (e.g. the
-// Suspended card → status=suspended) lands pre-filtered. The parent remounts
-// this tab (via a key) on each card-driven jump, so the initial value always
-// reflects the latest request without fighting the user's manual filtering.
-function MembersTab({ initialStatus = "all" }) {
+// `initialStatus` seeds the status filter and `initialFilters` seeds the
+// demographic filters so a stat-card OR Population-tab-bar jump lands
+// pre-filtered. The parent remounts this tab (via a key) on each jump, so the
+// initial values always reflect the latest request without fighting the user's
+// manual filtering.
+function MembersTab({ initialStatus = "all", initialFilters = {} }) {
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState(initialStatus);
@@ -1888,6 +2036,18 @@ function MembersTab({ initialStatus = "all" }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [openId, setOpenId] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
+  // Demographic filters (seeded from a drill-in; "" / "" number = inactive).
+  const [gender, setGender] = useState(initialFilters.gender || "");
+  const [orientation, setOrientation] = useState(initialFilters.orientation || "");
+  const [seeking, setSeeking] = useState(initialFilters.seeking || "");
+  const [relationshipStructure, setRelationshipStructure] = useState(initialFilters.relationshipStructure || "");
+  const [relationshipGoal, setRelationshipGoal] = useState(initialFilters.relationshipGoal || "");
+  const [city, setCity] = useState(initialFilters.city || "");
+  const [ageMin, setAgeMin] = useState(initialFilters.ageMin != null ? String(initialFilters.ageMin) : "");
+  const [ageMax, setAgeMax] = useState(initialFilters.ageMax != null ? String(initialFilters.ageMax) : "");
+  // Open the demographic-filter panel automatically when arriving pre-filtered.
+  const anyInitialFilter = Object.keys(initialFilters).length > 0;
+  const [filtersOpen, setFiltersOpen] = useState(anyInitialFilter);
   const fSearch = useFocusable();
 
   // Debounce the free-text search (350ms) so we don't fire a request per key.
@@ -1896,9 +2056,22 @@ function MembersTab({ initialStatus = "all" }) {
     return () => clearTimeout(id);
   }, [queryInput]);
 
-  const listKey = `${query}|${status}|${sort}|${page}|${refreshToken}`;
+  // Any demographic filter change resets to page 1.
+  const onFilter = useCallback((setter) => (v) => { setter(v); setPage(1); }, []);
+  const activeFilterCount = [gender, orientation, seeking, relationshipStructure, relationshipGoal, city, ageMin, ageMax].filter((v) => v !== "").length;
+  const clearFilters = useCallback(() => {
+    setGender(""); setOrientation(""); setSeeking(""); setRelationshipStructure("");
+    setRelationshipGoal(""); setCity(""); setAgeMin(""); setAgeMax(""); setPage(1);
+  }, []);
+
+  const listKey = `${query}|${status}|${sort}|${page}|${gender}|${orientation}|${seeking}|${relationshipStructure}|${relationshipGoal}|${city}|${ageMin}|${ageMax}|${refreshToken}`;
   const res = useAdminResource(
-    () => getMembers({ query, status, page, pageSize: MEMBER_PAGE_SIZE, sort }),
+    () => getMembers({
+      query, status, page, pageSize: MEMBER_PAGE_SIZE, sort,
+      gender, orientation, seeking, relationshipStructure, relationshipGoal, city,
+      ageMin: ageMin === "" ? null : parseInt(ageMin, 10),
+      ageMax: ageMax === "" ? null : parseInt(ageMax, 10),
+    }),
     listKey
   );
 
@@ -1944,6 +2117,59 @@ function MembersTab({ initialStatus = "all" }) {
             <PlainButton kind="neutral" onClick={() => setRefreshToken((x) => x + 1)}>Refresh</PlainButton>
           </div>
         </div>
+
+        {/* Demographic filters — collapsible so they don't overwhelm by default.
+            Drill-ins from the Population tab open this pre-filtered. */}
+        <AdminCollapsible
+          id="memberFilters"
+          title={activeFilterCount > 0 ? `Filters · ${activeFilterCount} active` : "Filters"}
+          open={filtersOpen}
+          onToggle={() => setFiltersOpen((v) => !v)}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+            <FilterSelect label="Gender" value={gender} onChange={onFilter(setGender)} options={GENDER_FILTER_OPTIONS} />
+            <FilterSelect label="Orientation" value={orientation} onChange={onFilter(setOrientation)} options={ORIENTATION_FILTER_OPTIONS} />
+            <FilterSelect label="Seeking" value={seeking} onChange={onFilter(setSeeking)} options={SEEKING_FILTER_OPTIONS} />
+            <FilterSelect label="Relationship structure" value={relationshipStructure} onChange={onFilter(setRelationshipStructure)} options={REL_STRUCTURE_FILTER_OPTIONS} />
+            <FilterSelect label="Relationship goal" value={relationshipGoal} onChange={onFilter(setRelationshipGoal)} options={REL_GOAL_FILTER_OPTIONS} />
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: t.textSoft, minWidth: 0 }}>
+              <span>City</span>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => onFilter(setCity)(e.target.value)}
+                placeholder="Exact city"
+                aria-label="Filter members by city"
+                style={{ minHeight: 40, padding: "8px 10px", borderRadius: 10, border: `1px solid ${t.formBorder}`, background: t.surface, color: t.text, fontSize: 16, fontFamily: t.sans, minWidth: 0, boxSizing: "border-box" }}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: t.textSoft, minWidth: 0 }}>
+              <span>Age min</span>
+              <input
+                type="number" inputMode="numeric" min={18} max={99}
+                value={ageMin}
+                onChange={(e) => onFilter(setAgeMin)(e.target.value)}
+                aria-label="Minimum age"
+                style={{ minHeight: 40, padding: "8px 10px", borderRadius: 10, border: `1px solid ${t.formBorder}`, background: t.surface, color: t.text, fontSize: 16, fontFamily: t.sans, minWidth: 0, boxSizing: "border-box" }}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: t.textSoft, minWidth: 0 }}>
+              <span>Age max</span>
+              <input
+                type="number" inputMode="numeric" min={18} max={99}
+                value={ageMax}
+                onChange={(e) => onFilter(setAgeMax)(e.target.value)}
+                aria-label="Maximum age"
+                style={{ minHeight: 40, padding: "8px 10px", borderRadius: 10, border: `1px solid ${t.formBorder}`, background: t.surface, color: t.text, fontSize: 16, fontFamily: t.sans, minWidth: 0, boxSizing: "border-box" }}
+              />
+            </label>
+          </div>
+          {activeFilterCount > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <PlainButton kind="quiet" onClick={clearFilters}>Clear filters</PlainButton>
+            </div>
+          )}
+        </AdminCollapsible>
       </div>
 
       {res.loading ? (
@@ -2248,6 +2474,7 @@ function ActivityDrawer({ metric, onClose }) {
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "overview", label: "Overview" },
+  { value: "population", label: "Population" },
   { value: "members", label: "Members" },
   { value: "verification", label: "Verification" },
   { value: "photos", label: "Photos" },
@@ -2293,6 +2520,7 @@ export default function AdminScreen() {
   // bumps on each stat-card jump so the tab remounts pre-filtered (a Suspended
   // card lands on status=suspended even if Members is already open).
   const [membersInitialStatus, setMembersInitialStatus] = useState("all");
+  const [membersInitialFilters, setMembersInitialFilters] = useState({});
   const [membersNavToken, setMembersNavToken] = useState(0);
   // Which activity drill-in (Matches/Messages) is open, if any.
   const [activityMetric, setActivityMetric] = useState(null);
@@ -2364,13 +2592,17 @@ export default function AdminScreen() {
 
   const jumpTo = useCallback((tab) => { setActiveTab(tab); }, []);
   const pickBreakdown = useCallback((filter) => { setStatusFilter(filter); setActiveTab("reports"); }, []);
-  // Jump to the Members tab, optionally pre-filtered by status. Bumping the nav
-  // token forces a fresh MembersTab mount so the initial filter always applies.
-  const jumpToMembers = useCallback((status = "all") => {
+  // Jump to the Members tab, optionally pre-filtered by status and/or a set of
+  // demographic filters (from a Population-tab bar tap). Bumping the nav token
+  // forces a fresh MembersTab mount so the initial filters always apply.
+  const jumpToMembers = useCallback((status = "all", filters = {}) => {
     setMembersInitialStatus(status);
+    setMembersInitialFilters(filters);
     setMembersNavToken((x) => x + 1);
     setActiveTab("members");
   }, []);
+  // Population breakdown bar → Members tab pre-filtered to that demographic.
+  const drillToMembers = useCallback((filters) => { jumpToMembers("all", filters); }, [jumpToMembers]);
 
   const page = {
     minHeight: "100%", background: t.bgGradient, color: t.text, fontFamily: t.sans, fontSize: 16,
@@ -2546,8 +2778,10 @@ export default function AdminScreen() {
 
         {activeTab === "overview" ? (
           <OverviewTab />
+        ) : activeTab === "population" ? (
+          <PopulationTab onDrill={drillToMembers} />
         ) : activeTab === "members" ? (
-          <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} />
+          <MembersTab key={`members-${membersNavToken}`} initialStatus={membersInitialStatus} initialFilters={membersInitialFilters} />
         ) : activeTab === "verification" ? (
           <VerificationQueue onStatus={setStatusMsg} reloadToken={queueToken} onAfterAction={afterQueueAction} />
         ) : activeTab === "photos" ? (
