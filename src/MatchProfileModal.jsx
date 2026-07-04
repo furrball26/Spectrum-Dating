@@ -6,6 +6,8 @@ import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 import { genderLabel, orientationLabels, relationshipStructureLabel } from "./IdentityFields.jsx";
+import { splitFeaturedPrompt } from "./featuredPrompt.js";
+import FeaturedInterest from "./FeaturedInterest.jsx";
 
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
@@ -202,16 +204,32 @@ export default function MatchProfileModal({ userId, onClose }) {
                 </div>
               )}
 
-              {Array.isArray(profile.prompts) && profile.prompts.filter(p => p && p.answer && p.answer.trim()).length > 0 && (
-                <div style={{ margin: "14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
-                  {profile.prompts.filter(p => p && p.answer && p.answer.trim()).map((p, i) => (
-                    <div key={p.promptKey || i}>
-                      <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 2 }}>{p.promptText || p.promptKey}</div>
-                      <div style={{ fontFamily: t.serif, fontSize: 17, color: t.text }}>{p.answer}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                // D-17 Phase 0 — promote the talk_for_hours answer into the
+                // "Could talk for hours about" hero; the remaining prompts render
+                // as before (deduped — the featured answer is pulled from rest).
+                const { featured, rest } = splitFeaturedPrompt(profile.prompts);
+                const restValid = rest.filter((p) => p && p.answer && p.answer.trim());
+                return (
+                  <>
+                    {featured && (
+                      <div style={{ margin: "14px 0" }}>
+                        <FeaturedInterest answer={featured.answer} />
+                      </div>
+                    )}
+                    {restValid.length > 0 && (
+                      <div style={{ margin: "14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
+                        {restValid.map((p, i) => (
+                          <div key={p.promptKey || i}>
+                            <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 2 }}>{p.promptText || p.promptKey}</div>
+                            <div style={{ fontFamily: t.serif, fontSize: 17, color: t.text }}>{p.answer}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </>
           ) : null}
         </div>

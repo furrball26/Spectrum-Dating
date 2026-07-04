@@ -13,6 +13,8 @@ import { useViewport } from "./useViewport.js";
 import { genderLabel } from "./IdentityFields.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 import { isMutualReason, isCommNoteReason, sortReasonsMutualFirst } from "./discoverReasons.js";
+import { splitFeaturedPrompt } from "./featuredPrompt.js";
+import FeaturedInterest from "./FeaturedInterest.jsx";
 
 // The current viewer's identity for the match moment — name/photo from the
 // cached profile, id from auth. Best-effort: the monogram avatar degrades
@@ -501,6 +503,10 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const topWhy = sortedWhy.slice(0, 2);
   const restWhy = sortedWhy.slice(2);
   const commChips = person ? commStyleChips(person) : [];
+  // D-17 Phase 0 — pull the talk_for_hours answer out of the generic prompt
+  // list so it can headline as the "Could talk for hours about" hero, with the
+  // remaining prompts rendering normally (and no duplicate answer).
+  const { featured: featuredPrompt, rest: restPrompts } = splitFeaturedPrompt(person?.prompts);
 
   // Perceived-speed: warm the next 1–2 candidates' hero photos so the next card
   // doesn't stall on a fresh fetch after a swipe. The deck advances by dropping
@@ -1145,13 +1151,20 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               )}
             </div>
 
-            {/* Hinge-style prompts — only when the candidate has answered any. */}
-            {Array.isArray(person.prompts) &&
-              person.prompts.some((p) => p && p.answer && p.answer.trim()) && (
-                <div style={card}>
-                  <PromptCards prompts={person.prompts} />
-                </div>
-              )}
+            {/* D-17 Phase 0 — "Could talk for hours about" hero, promoted out of
+                the generic prompt list below (deduped via restPrompts). */}
+            {featuredPrompt && (
+              <div style={card}>
+                <FeaturedInterest answer={featuredPrompt.answer} />
+              </div>
+            )}
+
+            {/* Hinge-style prompts — the remaining keys, only when any is answered. */}
+            {restPrompts.some((p) => p && p.answer && p.answer.trim()) && (
+              <div style={card}>
+                <PromptCards prompts={restPrompts} />
+              </div>
+            )}
 
             {/* Three actions: fixed order, fixed labels (3.2.4). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

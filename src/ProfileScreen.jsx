@@ -8,6 +8,8 @@ import SectionRule from "./SectionRule.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 import { GenderField, OrientationField, RelationshipStructureField } from "./IdentityFields.jsx";
+import { splitFeaturedPrompt } from "./featuredPrompt.js";
+import FeaturedInterest from "./FeaturedInterest.jsx";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -1869,7 +1871,11 @@ function ProfilePreviewModal({
   if (socialDuration === "short")    chips.push("Short meetups");
   if (socialDuration === "long")     chips.push("Longer meetups");
 
-  const validPrompts = (prompts || []).filter((p) => p && p.answer && p.answer.trim());
+  // D-17 Phase 0 — feature the talk_for_hours answer as the "Could talk for
+  // hours about" hero; the remaining prompts render as the generic cards below
+  // (deduped — the featured answer is pulled out of `restPrompts`).
+  const { featured: featuredPrompt, rest: restPrompts } = splitFeaturedPrompt(prompts);
+  const validPrompts = restPrompts.filter((p) => p && p.answer && p.answer.trim());
 
   const card = {
     background: t.surface,
@@ -2169,6 +2175,14 @@ function ProfilePreviewModal({
               }}>
                 {contextCard}
               </blockquote>
+            </div>
+          )}
+
+          {/* D-17 Phase 0 — "Could talk for hours about" hero (promoted out of
+              the generic prompt cards below to avoid duplication). */}
+          {featuredPrompt && (
+            <div style={card}>
+              <FeaturedInterest answer={featuredPrompt.answer} />
             </div>
           )}
 
