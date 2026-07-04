@@ -1017,6 +1017,55 @@ export async function deleteAccount() {
   return res;
 }
 
+// ─── Billing / entitlements ─────────────────────────────────────────────────────
+// Mirrors the backend billing routes (audit/BILLING_ARCHITECTURE.md). NO real
+// payments in this phase: the provider is the stub, so startCheckout resolves to
+// { configured: false } and the UI shows a calm "coming soon" — never a fake
+// charge. A member can never self-grant Companion; the admin* helpers below are
+// admin-gated + rate-limited server side (QA/non-admin callers get 403).
+
+// GET /billing/tiers → the static catalog. Normalised to an array (free first).
+export async function getBillingTiers() {
+  const d = await apiFetch("/billing/tiers");
+  return Array.isArray(d?.tiers) ? d.tiers : [];
+}
+
+// GET /billing/me → the caller's { tier, status, source }. Defaulted at this
+// boundary so callers never branch on a missing field ("no row = free").
+export async function getMyEntitlement() {
+  const d = await apiFetch("/billing/me");
+  return {
+    tier: d?.tier || "free",
+    status: d?.status || "active",
+    source: d?.source || "none",
+  };
+}
+
+// POST /billing/checkout → with the stub returns { configured: false } (grants
+// nothing). Callers show the calm "coming soon" note on { configured: false }.
+export async function startCheckout(tier = "companion") {
+  return apiFetch("/billing/checkout", { method: "POST", body: { tier } });
+}
+
+// POST /billing/cancel → for an admin_demo grant reverts the caller to free.
+// Returns { ...providerResult, entitlement }.
+export async function cancelSubscription() {
+  return apiFetch("/billing/cancel", { method: "POST" });
+}
+
+// Admin (requireAdmin, rate-limited) — demo tier controls. Never real billing.
+export async function adminSetEntitlement(userId, tier) {
+  return apiFetch("/admin/entitlements", { method: "POST", body: { userId, tier } });
+}
+
+export async function adminSetSelfEntitlement(tier) {
+  return apiFetch("/admin/entitlements/self", { method: "POST", body: { tier } });
+}
+
+export async function adminClearDemoEntitlements() {
+  return apiFetch("/admin/entitlements/demo", { method: "DELETE" });
+}
+
 // ─── Push notifications ────────────────────────────────────────────────────────
 
 export async function getPushVapidKey() {

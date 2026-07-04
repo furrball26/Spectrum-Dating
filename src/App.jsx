@@ -20,6 +20,7 @@ const SafetyScreen = lazy(() => import("./SafetyScreen.jsx"));
 const SettingsScreen = lazy(() => import("./SettingsScreen.jsx"));
 const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
 const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
+const MembershipScreen = lazy(() => import("./MembershipScreen.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview, getRegionSafety, updateProfile } from "./api.js";
@@ -78,6 +79,7 @@ const SCREEN_NAMES = {
   safety: "Safety Center",
   settings: "Settings",
   account: "Account & security",
+  membership: "Membership",
 };
 
 // Skip-to-content link — the first focusable element. Visibility is handled by
@@ -820,7 +822,7 @@ export default function App() {
   const initialTab = (() => {
     try {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account"];
+      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "membership"];
       return allowed.includes(tab) ? tab : "suggestions";
     } catch { return "suggestions"; }
   })();
@@ -971,6 +973,10 @@ export default function App() {
   // when the user leaves the Profile screen (where photo edits happen).
   const [myPhotoUrl, setMyPhotoUrl] = useState(null);
   const [myDisplayName, setMyDisplayName] = useState("");
+  // Billing tier — drives the calm "Companion" marker on Settings + the
+  // Membership screen. Seeded from /profile/me (which now returns `tier`) and
+  // updated by the Membership screen after an upgrade/cancel. "no tier = free".
+  const [tier, setTier] = useState("free");
 
   // Pull the signed-in user's primary photo + name out of a profile payload.
   // Primary = first photo flagged isPrimary, else the first photo, else none.
@@ -979,6 +985,7 @@ export default function App() {
     if (typeof p.displayName === "string") setMyDisplayName(p.displayName);
     // Track pause state so the at-risk banner can reflect "already hidden".
     if (typeof p.paused === "boolean") setMyPaused(p.paused);
+    if (typeof p.tier === "string") setTier(p.tier);
     if (Array.isArray(p.photos)) {
       const primary = p.photos.find((ph) => ph && ph.isPrimary) || p.photos[0] || null;
       setMyPhotoUrl(primary?.url || null);
@@ -1210,6 +1217,7 @@ export default function App() {
     setIsAdmin(false);
     setMyPhotoUrl(null);
     setMyDisplayName("");
+    setTier("free");
     setShowAuth(false); // back to the landing page
     // Trust & safety: identity-flag theme must not persist in-memory into the
     // next login on this page load (clearAuth already reset localStorage + DOM).
@@ -1641,6 +1649,7 @@ export default function App() {
                     setIsAdmin(false);
                     setMyPhotoUrl(null);
                     setMyDisplayName("");
+                    setTier("free");
                     setShowAuth(false); // back to the landing page
                   }}
                 />
@@ -1654,6 +1663,15 @@ export default function App() {
                   onBack={() => setActiveTab(prevTab || "suggestions")}
                   onChange={applyA11y}
                   onOpenAccount={() => { setPrevTab("settings"); setActiveTab("account"); }}
+                  onOpenMembership={() => { setPrevTab("settings"); setActiveTab("membership"); }}
+                  tier={tier}
+                />
+              )}
+              {activeTab === "membership" && (
+                <MembershipScreen
+                  onBack={() => setActiveTab(prevTab || "settings")}
+                  tier={tier}
+                  onTierChange={setTier}
                 />
               )}
               </Suspense>

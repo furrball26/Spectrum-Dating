@@ -6,6 +6,7 @@ import {
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
   getMemberDomains, getMembers, getMemberDetail, setDemoData, getActivityTrends,
   getServerHealth, getPopulation, getTransparency, getQaSample, submitQaReview,
+  getMyEntitlement, adminSetEntitlement, adminSetSelfEntitlement, adminClearDemoEntitlements,
 } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
@@ -159,6 +160,7 @@ const ADMIN_SECTIONS_STORAGE_KEY = "spectrum_admin_sections";
 // (report breakdown, community health) start collapsed to reduce overwhelm.
 const ADMIN_SECTION_DEFAULTS = {
   siteHealth: true,
+  billingDemo: true,
   needsAttention: true,
   reportBreakdown: false,
   communityHealth: false,
@@ -2902,6 +2904,12 @@ function MemberDrawer({ id, onClose }) {
               />
             </div>
 
+            {/* Membership (demo tier grant) */}
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 8px" }}>Membership (demo)</h3>
+              <MemberTierControl userId={data.userContext?.userId || id} userName={c.displayName} />
+            </div>
+
             {/* Report history */}
             <div style={{ marginTop: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 8px" }}>Report history</h3>
@@ -3072,6 +3080,164 @@ function TabButton({ label, active, onClick }) {
   );
 }
 
+// ─── Billing demo (paid-tier walkthrough) ─────────────────────────────────────
+// A clearly-labeled DEMO surface — NEVER real billing. The self-toggle flips the
+// CALLING admin's OWN tier free↔companion (source='admin_demo') so they can walk
+// a client through the paid experience live; "Reset demo tiers" clears ALL
+// admin_demo grants after a demo. Per-member grants live in the member drawer.
+const TIER_VIEW_OPTIONS = [
+  { value: "free", label: "Free" },
+  { value: "companion", label: "Companion" },
+];
+
+function BillingDemoSection() {
+  const [tier, setTier] = useState(null); // 'free' | 'companion' | null (loading)
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMsg, setResetMsg] = useState("");
+
+  const load = useCallback(() => {
+    getMyEntitlement()
+      .then((e) => setTier(e.tier))
+      .catch(() => setError("Couldn't load your current tier."));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const setSelf = useCallback(async (next) => {
+    if (busy || next === tier) return;
+    setBusy(true); setError(""); setStatus(""); setResetMsg("");
+    try {
+      const e = await adminSetSelfEntitlement(next);
+      setTier(e.tier);
+      setStatus(
+        e.tier === "companion"
+          ? "You're now viewing as Companion (demo). Open Settings › Membership to walk through the paid experience."
+          : "You're now viewing as Free (demo)."
+      );
+    } catch (err) {
+      setError(safeErrorMessage(err, "Couldn't change the demo tier. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, tier]);
+
+  const runReset = useCallback(async () => {
+    setResetBusy(true); setError(""); setStatus("");
+    try {
+      const res = await adminClearDemoEntitlements();
+      setConfirmReset(false);
+      const n = res?.cleared ?? 0;
+      setResetMsg(`Cleared ${n} demo tier grant${n === 1 ? "" : "s"}.`);
+      load();
+    } catch (err) {
+      setError(safeErrorMessage(err, "Couldn't reset demo tiers. Please try again."));
+    } finally {
+      setResetBusy(false);
+    }
+  }, [load]);
+
+  return (
+    <div>
+      <p style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
+        Demo controls for the paid tier — <strong>not real billing</strong>. Flip your
+        own view to walk a client through the Companion experience, or set a specific
+        member below (in their details). Every grant here is a clearly-separable demo
+        grant you can clear anytime.
+      </p>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>View as (demo):</span>
+        <Segmented
+          options={TIER_VIEW_OPTIONS}
+          value={tier || ""}
+          onChange={setSelf}
+          ariaLabel="View the app as this tier (demo)"
+        />
+        {tier && (
+          <span style={{ fontSize: 13, color: t.textMuted }}>
+            You are on <strong style={{ color: t.text }}>{tier === "companion" ? "Companion" : "Free"}</strong>
+          </span>
+        )}
+      </div>
+
+      {status && (
+        <p role="status" style={{ margin: "8px 0 0", fontSize: 13, color: t.accentStrong, lineHeight: 1.5 }}>
+          {status}
+        </p>
+      )}
+
+      <div style={{ marginTop: 16, borderTop: `1px solid ${t.borderLight}`, paddingTop: 14 }}>
+        {confirmReset ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
+            <span style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.5, maxWidth: 360 }}>
+              Clear ALL demo tier grants (yours and every member's)? Real subscriptions
+              are never touched — there are none in this phase.
+            </span>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <PlainButton kind="danger" onClick={runReset} disabled={resetBusy}>
+                {resetBusy ? "Clearing…" : "Reset demo tiers"}
+              </PlainButton>
+              <PlainButton kind="neutral" onClick={() => setConfirmReset(false)} disabled={resetBusy}>Cancel</PlainButton>
+            </div>
+          </div>
+        ) : (
+          <PlainButton kind="quiet" onClick={() => { setResetMsg(""); setError(""); setConfirmReset(true); }}>
+            Reset demo tiers
+          </PlainButton>
+        )}
+        {resetMsg && <p role="status" style={{ margin: "8px 0 0", fontSize: 13, color: t.textMuted }}>{resetMsg}</p>}
+      </div>
+
+      {error && <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: t.danger }}>{error}</p>}
+    </div>
+  );
+}
+
+// Per-member demo tier control — lives in the member drawer. Grants/revokes
+// Companion on ONE member (source='admin_demo'). Clearly a demo control.
+function MemberTierControl({ userId, userName }) {
+  const [busy, setBusy] = useState(false);
+  const [tier, setTier] = useState(null); // last-set value (optimistic display)
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const name = userName || "this member";
+
+  const setTierTo = useCallback(async (next) => {
+    if (busy) return;
+    setBusy(true); setError(""); setStatus("");
+    try {
+      const e = await adminSetEntitlement(userId, next);
+      setTier(e.tier);
+      setStatus(`Set ${name} to ${e.tier === "companion" ? "Companion" : "Free"} (demo).`);
+    } catch (err) {
+      setError(safeErrorMessage(err, "Couldn't set the demo tier. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, userId, name]);
+
+  return (
+    <div>
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+        Grant or revoke Companion for this member (demo only — not real billing).
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <PlainButton kind={tier === "companion" ? "accent" : "neutral"} onClick={() => setTierTo("companion")} disabled={busy}>
+          Set Companion (demo)
+        </PlainButton>
+        <PlainButton kind="neutral" onClick={() => setTierTo("free")} disabled={busy}>
+          Set Free (demo)
+        </PlainButton>
+      </div>
+      {status && <p role="status" style={{ margin: "8px 0 0", fontSize: 13, color: t.accentStrong }}>{status}</p>}
+      {error && <p role="alert" style={{ margin: "8px 0 0", fontSize: 13, color: t.danger }}>{error}</p>}
+    </div>
+  );
+}
+
 export default function AdminScreen() {
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(false);
@@ -3226,6 +3392,19 @@ export default function AdminScreen() {
           style={{ marginBottom: 20 }}
         >
           <SiteHealthPanel />
+        </AdminCollapsible>
+
+        {/* Billing demo — self view-as toggle + reset. Always visible (not gated
+            on stats), collapsible + persisted. Per-member grants are in the
+            member drawer (Members tab). Clearly labeled "(demo)" throughout. */}
+        <AdminCollapsible
+          id="billingDemo"
+          title="Billing demo (paid tier)"
+          open={openSections.billingDemo}
+          onToggle={() => toggleSection("billingDemo")}
+          style={{ marginBottom: 20 }}
+        >
+          <BillingDemoSection />
         </AdminCollapsible>
 
         {stats && (

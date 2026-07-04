@@ -461,7 +461,32 @@ function LinkRow({ title, description, onClick }) {
   );
 }
 
-export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
+// A calm, non-tappable "Companion" marker shown in the header for a Companion
+// member. Quiet status marker, never gamification.
+function CompanionMarker() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 11px",
+        borderRadius: t.radius.pill,
+        background: t.green100,
+        border: `1px solid ${t.green300}`,
+        color: t.accentStrong,
+        fontSize: 13,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span aria-hidden="true">✦</span>
+      Companion
+    </span>
+  );
+}
+
+export default function SettingsScreen({ onBack, onChange, onOpenAccount, onOpenMembership, tier }) {
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
 
@@ -505,13 +530,16 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
       <div style={shell}>
         <SecondaryButton onClick={onBack}>← Back</SecondaryButton>
 
-        <h1
-          ref={headingRef}
-          tabIndex={-1}
-          style={{ fontFamily: t.serif, fontSize: 28, fontWeight: 700, margin: "18px 0 6px", color: t.text, outline: "none" }}
-        >
-          Settings
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "18px 0 6px" }}>
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            style={{ fontFamily: t.serif, fontSize: 28, fontWeight: 700, margin: 0, color: t.text, outline: "none" }}
+          >
+            Settings
+          </h1>
+          {tier === "companion" && <CompanionMarker />}
+        </div>
         <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft }}>
           Adjust how Spectrum looks and feels. Changes save instantly and stay on
           this device.
@@ -572,6 +600,23 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount }) {
           These settings only change how the app appears for you. If text still
           isn't large enough, your browser or device zoom can enlarge it further.
         </p>
+
+        {onOpenMembership && (
+          <>
+            <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
+              Membership
+            </h2>
+            <LinkRow
+              title="Membership"
+              description={
+                tier === "companion"
+                  ? "You're on Spectrum Companion. View or manage your plan."
+                  : "You're on Spectrum (Free). See what Spectrum Companion adds."
+              }
+              onClick={onOpenMembership}
+            />
+          </>
+        )}
 
         {onOpenAccount && (
           <>
