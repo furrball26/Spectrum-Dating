@@ -137,7 +137,7 @@ function inputStyle() {
 }
 
 // ─── Gender field: common list + "More options" + self-describe ────────────────
-export function GenderField({ gender, setGender, genderCustom, setGenderCustom, idPrefix = "gender" }) {
+export function GenderField({ gender, setGender, genderCustom, setGenderCustom, idPrefix = "gender", required = false, error = "" }) {
   const advancedSelected = MORE_VALUES.has(gender) || gender === GENDER_SELF_DESCRIBE;
   const [expanded, setExpanded] = useState(false);
   const showMore = expanded || advancedSelected;
@@ -152,9 +152,10 @@ export function GenderField({ gender, setGender, genderCustom, setGenderCustom, 
     <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
       <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4, float: "left", width: "100%" }}>
         Your gender
+        {required && <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>}
       </legend>
       <span style={{ display: "block", fontSize: 14, color: t.textSoft, margin: "0 0 10px", clear: "both" }}>
-        Optional. Shown on your profile.
+        {required ? "Required. Shown on your profile." : "Optional. Shown on your profile."}
       </span>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -217,12 +218,18 @@ export function GenderField({ gender, setGender, genderCustom, setGenderCustom, 
           />
         </div>
       )}
+
+      {error && (
+        <span role="alert" style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 10, fontWeight: 500 }}>
+          {error}
+        </span>
+      )}
     </fieldset>
   );
 }
 
 // ─── Orientation field: optional chip multi-select ─────────────────────────────
-export function OrientationField({ orientation, setOrientation }) {
+export function OrientationField({ orientation, setOrientation, required = false, error = "" }) {
   const selected = String(orientation || "").split(",").map((s) => s.trim()).filter(Boolean);
 
   function toggle(value) {
@@ -236,9 +243,12 @@ export function OrientationField({ orientation, setOrientation }) {
     <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
       <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4, float: "left", width: "100%" }}>
         Sexuality
+        {required && <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>}
       </legend>
       <span style={{ display: "block", fontSize: 14, color: t.textSoft, margin: "0 0 10px", clear: "both" }}>
-        Optional. Choose any that fit — shown on your profile, never used to filter Discover.
+        {required
+          ? "Choose any that fit — shown on your profile, never used to filter Discover. You can change it later."
+          : "Optional. Choose any that fit — shown on your profile, never used to filter Discover."}
       </span>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {ORIENTATION_OPTIONS.map((o) => (
@@ -251,6 +261,12 @@ export function OrientationField({ orientation, setOrientation }) {
           />
         ))}
       </div>
+
+      {error && (
+        <span role="alert" style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 10, fontWeight: 500 }}>
+          {error}
+        </span>
+      )}
     </fieldset>
   );
 }

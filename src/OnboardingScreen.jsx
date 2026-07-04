@@ -4,7 +4,7 @@ import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
-import { GenderField, OrientationField, RelationshipStructureField } from "./IdentityFields.jsx";
+import { GenderField, OrientationField, RelationshipStructureField, GENDER_SELF_DESCRIBE } from "./IdentityFields.jsx";
 import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
 import { normalizeSpecialInterests } from "./specialInterests.js";
 
@@ -810,18 +810,25 @@ function Step4({
   relationshipStructure, setRelationshipStructure,
   pronouns, setPronouns,
   seeking, setSeeking,
+  seekingChosen, setSeekingChosen,
   prefAgeMin, prefAgeMax, setPrefAgeMin, setPrefAgeMax,
+  errors, attempted,
 }) {
   const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
-  // D-16 — "open to everyone" is the empty-seeking state. Making it an explicit,
-  // selectable affordance (vs. the unlabelled "leave all unchecked") clears it up.
-  const openToEveryone = seekingSet.length === 0;
+  // Gender / sexuality / seeking are REQUIRED at sign-up (owner). "Open to
+  // everyone" is the empty-seeking state, so an EXPLICIT pick has to be
+  // distinguishable from "hasn't chosen yet" — `seekingChosen` is that flag.
+  // It's checked only when the user has actively picked it (not merely left
+  // every box unchecked), which is what makes seeking a real required choice
+  // while still letting people stay open to everyone.
+  const openToEveryone = seekingChosen && seekingSet.length === 0;
 
   return (
     <>
       <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
-        This helps us shape your Discover deck. All of it is optional — you can
-        skip and adjust anytime in your profile.
+        This helps us shape your Discover deck. A few fields are required (marked
+        with <span aria-hidden="true" style={{ color: t.danger }}>*</span>); the
+        rest are optional, and you can adjust any of it anytime in your profile.
       </p>
 
       <GenderField
@@ -830,9 +837,16 @@ function Step4({
         genderCustom={genderCustom}
         setGenderCustom={setGenderCustom}
         idPrefix="ob-gender"
+        required
+        error={attempted ? errors.gender : ""}
       />
 
-      <OrientationField orientation={orientation} setOrientation={setOrientation} />
+      <OrientationField
+        orientation={orientation}
+        setOrientation={setOrientation}
+        required
+        error={attempted ? errors.orientation : ""}
+      />
 
       <RelationshipStructureField
         relationshipStructure={relationshipStructure}
@@ -859,6 +873,7 @@ function Step4({
       <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
         <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
           Who do you want to meet?
+          <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>
         </legend>
         <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
           Choose who you'd like to meet, or stay open to everyone.
@@ -878,6 +893,8 @@ function Step4({
                 onChange={() => {
                   const next = checked ? seekingSet.filter((x) => x !== value) : [...seekingSet, value];
                   setSeeking(next.join(","));
+                  // Picking (or clearing) a specific option is an explicit choice.
+                  setSeekingChosen(true);
                 }}
                 style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
               />
@@ -885,9 +902,10 @@ function Step4({
             </label>
           );
         })}
-        {/* D-16 — explicit "open to everyone" affordance. Selecting it clears the
-            seeking set (the existing empty-seeking = match-everyone semantics);
-            it auto-reflects whenever nothing is checked. */}
+        {/* Explicit "open to everyone" affordance. Selecting it clears the seeking
+            set (the existing empty-seeking = match-everyone semantics) AND marks
+            seeking as an actively-made choice, so "open to everyone" is a real
+            required selection rather than the untouched default. */}
         <label
           htmlFor="ob-seek-everyone"
           style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
@@ -896,11 +914,12 @@ function Step4({
             id="ob-seek-everyone"
             type="checkbox"
             checked={openToEveryone}
-            onChange={() => { if (!openToEveryone) setSeeking(""); }}
+            onChange={() => { setSeeking(""); setSeekingChosen(true); }}
             style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
           />
           <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
         </label>
+        <InlineError id="ob-seeking-error">{attempted ? errors.seeking : ""}</InlineError>
       </fieldset>
 
       <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
@@ -1034,6 +1053,11 @@ export default function OnboardingScreen({ onComplete }) {
   const [relationshipStructure, setRelationshipStructure] = useState(""); // D-14; display only
   const [pronouns, setPronouns] = useState("");
   const [seeking, setSeeking] = useState(""); // comma-joined: "woman,man,nonbinary"
+  // Tri-state helper for the required "who do you want to meet?" gate: seeking=""
+  // means BOTH "open to everyone" and "untouched", so this flag records that the
+  // user has actively made a choice (a specific option OR an explicit
+  // "open to everyone"). Empty seeking still saves as match-everyone.
+  const [seekingChosen, setSeekingChosen] = useState(false);
   const [prefAgeMin, setPrefAgeMin] = useState(18);
   const [prefAgeMax, setPrefAgeMax] = useState(99);
 
@@ -1094,10 +1118,31 @@ export default function OnboardingScreen({ onComplete }) {
     return errs;
   }
 
+  // Gender, sexual orientation, and seeking are required at sign-up (owner).
+  // Client-side gate only — like the required city field, the shared
+  // PUT /profile/me can't globally require these without breaking partial edits.
+  function validateStep4() {
+    const errs = {};
+    if (!gender) {
+      errs.gender = "Choose your gender to continue.";
+    } else if (gender === GENDER_SELF_DESCRIBE && !genderCustom.trim()) {
+      errs.gender = "Add a short description of your gender.";
+    }
+    const orientationSet = orientation.split(",").map((s) => s.trim()).filter(Boolean);
+    if (orientationSet.length === 0) errs.orientation = "Select at least one orientation.";
+    // Passes when a specific option is selected OR "open to everyone" was
+    // explicitly picked; fails only when the user has touched neither.
+    const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
+    if (seekingSet.length === 0 && !seekingChosen) {
+      errs.seeking = "Let us know who you're hoping to meet.";
+    }
+    return errs;
+  }
+
   // ── Navigation ───────────────────────────────────────────────────────────────
 
   function handleContinue() {
-    const errs = step === 1 ? validateStep1() : step === 2 ? validateStep2() : {};
+    const errs = step === 1 ? validateStep1() : step === 2 ? validateStep2() : step === 4 ? validateStep4() : {};
     if (Object.keys(errs).length > 0) {
       setAttempted(true);
       // Move focus to the first invalid field so keyboard/SR users are taken to
@@ -1168,6 +1213,7 @@ export default function OnboardingScreen({ onComplete }) {
   // ── Step errors (memoised-ish via inline) ────────────────────────────────────
   const step1Errors = attempted && step === 1 ? validateStep1() : {};
   const step2Errors = attempted && step === 2 ? validateStep2() : {};
+  const step4Errors = attempted && step === 4 ? validateStep4() : {};
 
   // ── Styles ───────────────────────────────────────────────────────────────────
 
@@ -1211,7 +1257,7 @@ export default function OnboardingScreen({ onComplete }) {
   const fBack = useFocusable();
   const fSkip = useFocusable();
 
-  // Skip an optional step (4 & 5). On the last step this saves with whatever
+  // Skip the optional step (5). On the last step this saves with whatever
   // has (or hasn't) been filled in — the skipped fields simply stay at their
   // calm defaults. Never forced (calm-by-design).
   function handleSkip() {
@@ -1225,7 +1271,9 @@ export default function OnboardingScreen({ onComplete }) {
   }
 
   const isLastStep = step === TOTAL_STEPS;
-  const isOptionalStep = step >= 4; // steps 4 & 5 are optional / skippable
+  // Step 4 now carries required fields (gender / sexual orientation / seeking),
+  // so it is no longer wholesale-skippable — only Step 5 (the "moat") is.
+  const isOptionalStep = step === 5;
 
   // D33 — "You're all set" arrival beat. Calm, low-stimulation: a soft spectrum
   // mark, a warm line, and a single clear button to enter. No confetti / sound /
@@ -1398,10 +1446,14 @@ export default function OnboardingScreen({ onComplete }) {
             setPronouns={setPronouns}
             seeking={seeking}
             setSeeking={setSeeking}
+            seekingChosen={seekingChosen}
+            setSeekingChosen={setSeekingChosen}
             prefAgeMin={prefAgeMin}
             prefAgeMax={prefAgeMax}
             setPrefAgeMin={setPrefAgeMin}
             setPrefAgeMax={setPrefAgeMax}
+            errors={step4Errors}
+            attempted={attempted}
           />
         )}
         {step === 5 && (
@@ -1461,9 +1513,9 @@ export default function OnboardingScreen({ onComplete }) {
             {isLastStep ? (saving ? "Saving…" : "Save & start exploring") : "Continue"}
           </button>
 
-          {/* Skip — only on the optional steps (4 & 5). Calm-by-design: these
-              steps are never forced. On the last step, Skip saves with the
-              fields left at their defaults. */}
+          {/* Skip — only on the optional step (5). Calm-by-design: the moat step
+              is never forced. On the last step, Skip saves with the fields left
+              at their defaults. */}
           {isOptionalStep && (
             <button
               type="button"

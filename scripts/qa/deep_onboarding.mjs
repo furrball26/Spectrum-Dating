@@ -42,7 +42,11 @@ await page.waitForTimeout(600);
 // Step 3
 const c3 = page.getByRole("button", { name: /^continue$/i });
 if (await c3.count()) { await c3.click(); await page.waitForTimeout(500); }
-// Step 4
+// Step 4 — gender, sexual orientation, and seeking are now REQUIRED at sign-up;
+// Continue is gated until each is chosen, so make a valid selection for each.
+await page.getByRole("button", { name: /^Woman$/ }).click();   // gender pill
+await page.getByRole("button", { name: /^Straight$/ }).click(); // orientation pill
+await page.getByLabel(/^Women$/).check();                       // seeking
 const c4 = page.getByRole("button", { name: /^continue$/i });
 if (await c4.count()) { await c4.click(); await page.waitForTimeout(500); }
 

@@ -81,7 +81,10 @@ await page.waitForTimeout(800);
 heading = await page.locator("h1").first().innerText().catch(() => "");
 log("After step3 Continue, heading:", JSON.stringify(heading));
 
-// Step 4 — who you'd like to meet (optional). Set seeking so deck populates.
+// Step 4 — gender, sexual orientation, and seeking are now REQUIRED at sign-up;
+// Continue is gated until each is chosen. Set seeking so the deck also populates.
+await page.getByRole("button", { name: /^Woman$/ }).click().catch((e) => log("gender pick err", e.message));
+await page.getByRole("button", { name: /^Straight$/ }).click().catch((e) => log("orientation pick err", e.message));
 await page.getByLabel(/Nonbinary people/i).check().catch((e) => log("seek check err", e.message));
 await measure(page, "onboarding-4");
 await page.getByRole("button", { name: /^Continue$/ }).click();

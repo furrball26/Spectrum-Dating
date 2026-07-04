@@ -39,10 +39,16 @@ async function walkOnboardingToStep5(page) {
   if (await custom.count()) { await custom.fill("hiking"); await page.getByRole("button", { name: /add interest/i }).click(); await page.waitForTimeout(300); }
   await page.getByRole("button", { name: /^continue$/i }).click();
   await page.waitForTimeout(500);
-  for (let i = 0; i < 2; i++) {
-    const c = page.getByRole("button", { name: /^continue$/i });
-    if (await c.count()) { await c.first().click(); await page.waitForTimeout(500); }
-  }
+  // Step 3 — accept calm defaults.
+  await page.getByRole("button", { name: /^continue$/i }).first().click();
+  await page.waitForTimeout(500);
+  // Step 4 — gender, sexual orientation, and seeking are now REQUIRED at
+  // sign-up; Continue is gated until each is chosen.
+  await page.getByRole("button", { name: /^Woman$/ }).click();
+  await page.getByRole("button", { name: /^Straight$/ }).click();
+  await page.getByLabel(/^Women$/).check();
+  await page.getByRole("button", { name: /^continue$/i }).first().click();
+  await page.waitForTimeout(500);
   await page.waitForTimeout(600);
 }
 
