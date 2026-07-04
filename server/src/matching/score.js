@@ -1,10 +1,27 @@
 ﻿// Scores a candidate against the viewer.
-// Returns { score, sharedInterests, whyReasons }.
+// Returns { score, sharedInterests, sharedSpecialInterests, whyReasons }.
 // Weighted score:
-//   sharedInterests.length * 2  (interests weighted higher)
-//   + (sameRelationshipGoal ? 3 : 0)  (goal alignment bonus)
-//   + (sameCity ? 2 : 0)              (proximity bonus)
+//   sharedInterests.length * 2         (generic interests weighted higher)
+//   + sharedSpecialInterests.length * 3 (D-17: deep-interest overlap IS the moat)
+//   + (sameRelationshipGoal ? 3 : 0)   (goal alignment bonus)
+//   + (sameCity ? 2 : 0)               (proximity bonus)
 // Tie-break by candidate's updated_at (recency) in candidates.js.
+//
+// SOFT-SCORE ONLY: special_interests reorders the deck; it NEVER excludes anyone.
+// A candidate with ZERO shared special interests still scores (just lower) and is
+// still returned by candidates.js — the filter there never reads this field.
+
+// D-17 — special_interests is stored as JSON-array text ('' or '["…"]'), the same
+// facet shape as F28. Parse tolerantly (never throw; always return string[]).
+function parseSpecialInterests(str) {
+  if (!str || typeof str !== 'string') return [];
+  try {
+    const arr = JSON.parse(str);
+    return Array.isArray(arr) ? arr.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 export function scoreCandidate(viewer, candidate) {
   // Back-compat: callers may pass an array of interests, or a viewer object.
@@ -20,6 +37,13 @@ export function scoreCandidate(viewer, candidate) {
 
   const viewerSet = new Set(viewerInterests);
   const sharedInterests = candidate.interests.filter(i => viewerSet.has(i));
+
+  // D-17 special interests — case-insensitive overlap. Candidate casing is kept
+  // for display in the why-reason. Empty on either side → no overlap, no bonus.
+  const viewerSpecial = Array.isArray(viewer) ? [] : parseSpecialInterests(viewer?.special_interests);
+  const viewerSpecialSet = new Set(viewerSpecial.map(s => s.trim().toLowerCase()));
+  const sharedSpecialInterests = parseSpecialInterests(candidate.special_interests)
+    .filter(s => viewerSpecialSet.has(s.trim().toLowerCase()));
 
   const sameRelationshipGoal = !!viewerGoal && viewerGoal === candidate.relationship_goal;
   const normCity = (s) => (s || '').trim().toLowerCase();
@@ -47,6 +71,7 @@ export function scoreCandidate(viewer, candidate) {
 
   const score =
     sharedInterests.length * 2 +
+    sharedSpecialInterests.length * 3 +
     (sameRelationshipGoal ? 3 : 0) +
     (sameCity ? 2 : 0) +
     (sameSensory ? 2 : 0) +
@@ -59,15 +84,20 @@ export function scoreCandidate(viewer, candidate) {
   const whyReasons = buildWhyReasons(sharedInterests, candidate, {
     sameRelationshipGoal, sameCity, sameSensory, sameCadence,
     sameDirectness, sameLiteral, sameLighting, sameSocialDuration,
+    sharedSpecialInterests,
   });
 
-  return { score, sharedInterests, whyReasons };
+  return { score, sharedInterests, sharedSpecialInterests, whyReasons };
 }
 
 function buildWhyReasons(sharedInterests, candidate, opts = {}) {
   const reasons = [];
   if (sharedInterests.length > 0) {
     reasons.push(`You both enjoy ${listify(sharedInterests.slice(0, 3))}`);
+  }
+  // D-17 — a shared deep interest is the strongest hook; lead with the first one.
+  if (opts.sharedSpecialInterests && opts.sharedSpecialInterests.length > 0) {
+    reasons.push(`You could both talk for hours about ${opts.sharedSpecialInterests[0]}`);
   }
   if (opts.sameCity && candidate.dist_city) {
     reasons.push(`You're both in ${candidate.dist_city}`);

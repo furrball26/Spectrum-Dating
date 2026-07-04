@@ -75,6 +75,42 @@ describe('scoreCandidate — moat-field alignment bonuses', () => {
   });
 });
 
+describe('scoreCandidate — special interests (D-17 soft-score)', () => {
+  it('adds +3 per shared special interest (case-insensitive) and a "talk for hours" why-reason', () => {
+    const viewer = {
+      interests: [],
+      special_interests: JSON.stringify(['Trains', 'Astronomy']),
+    };
+    // Candidate shares "trains" (different casing); "Astronomy" is not on their list.
+    const cand = candidate({ interests: [], special_interests: JSON.stringify(['trains']) });
+    const { score, sharedSpecialInterests, whyReasons } = scoreCandidate(viewer, cand);
+    // 1 shared special interest * 3, no other alignment (viewer has no goal/city/moat).
+    expect(score).toBe(3);
+    expect(sharedSpecialInterests).toEqual(['trains']);
+    // Why-reason keeps the candidate's casing.
+    expect(whyReasons).toContain('You could both talk for hours about trains');
+  });
+
+  it('ZERO special-interest overlap never drops the candidate — still returned, just no bonus', () => {
+    const viewer = { interests: ['hiking'], special_interests: JSON.stringify(['Trains']) };
+    const cand = candidate({ interests: ['hiking'], special_interests: JSON.stringify(['Knitting']) });
+    const { score, sharedInterests, sharedSpecialInterests, whyReasons } = scoreCandidate(viewer, cand);
+    // Only the shared generic interest counts (+2); the differing special interest adds nothing.
+    expect(sharedInterests).toEqual(['hiking']);
+    expect(sharedSpecialInterests).toEqual([]);
+    expect(score).toBe(2);
+    expect(whyReasons.some((r) => r.startsWith('You could both talk for hours about'))).toBe(false);
+  });
+
+  it('an unset special_interests column (empty or undefined) is treated as no overlap, no throw', () => {
+    const viewer = { interests: [], special_interests: '' };
+    const cand = candidate({ interests: [], special_interests: undefined });
+    const { score, sharedSpecialInterests } = scoreCandidate(viewer, cand);
+    expect(sharedSpecialInterests).toEqual([]);
+    expect(score).toBe(0);
+  });
+});
+
 describe('scoreCandidate — whyReasons', () => {
   it('includes a why-reason for each aligned moat field with the right copy', () => {
     const viewer = {

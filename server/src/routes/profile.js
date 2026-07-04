@@ -38,6 +38,10 @@ const MAX_OCCUPATION = 80;
 const MAX_LANGUAGES = 120;
 const MAX_FACET_ITEMS = 5;
 const MAX_FACET_ITEM_LEN = 60;
+// D-17 — special_interests reuses the F28 facet machinery but with its own caps:
+// a tighter list (deep interests, not a laundry list) and slur-screened per item.
+const MAX_SPECIAL_INTERESTS = 3;
+const MAX_SPECIAL_INTEREST_LEN = 40;
 
 // Parse a stored facet-list column ('' or JSON array text) back into a string[].
 // Tolerant of malformed/legacy values — never throws, always returns an array.
@@ -52,25 +56,34 @@ export function parseFacetList(str) {
 }
 
 // Serialise a client-supplied facet list for storage: trim, drop empties, cap to
-// MAX_FACET_ITEMS. An empty result stores as '' (not '[]') so unset === empty.
-function serializeFacetList(arr) {
+// maxItems. An empty result stores as '' (not '[]') so unset === empty.
+function serializeFacetList(arr, maxItems = MAX_FACET_ITEMS) {
   const cleaned = arr
     .map((s) => (typeof s === 'string' ? s.trim() : ''))
     .filter(Boolean)
-    .slice(0, MAX_FACET_ITEMS);
+    .slice(0, maxItems);
   return cleaned.length ? JSON.stringify(cleaned) : '';
 }
 
 // Validate a client-supplied facet list, pushing calm 400 copy on any violation.
-function validateFacetList(val, label, errors) {
+// opts: { maxItems, maxItemLen, screenSlurs } — default to the F28 facet caps so
+// existing helpsMe/hardForMe behaviour is unchanged. screenSlurs runs each item
+// through containsSlur (used by special_interests) with the same non-shaming copy.
+function validateFacetList(val, label, errors, opts = {}) {
+  const maxItems = opts.maxItems ?? MAX_FACET_ITEMS;
+  const maxItemLen = opts.maxItemLen ?? MAX_FACET_ITEM_LEN;
   if (!Array.isArray(val)) { errors.push(`${label} must be a list.`); return; }
-  if (val.length > MAX_FACET_ITEMS) {
-    errors.push(`${label} can have at most ${MAX_FACET_ITEMS} items.`);
+  if (val.length > maxItems) {
+    errors.push(`${label} can have at most ${maxItems} items.`);
   }
   for (const item of val) {
     if (typeof item !== 'string') { errors.push(`Each ${label} item must be text.`); break; }
-    if (item.length > MAX_FACET_ITEM_LEN) {
-      errors.push(`Each ${label} item must be ${MAX_FACET_ITEM_LEN} characters or fewer.`);
+    if (item.length > maxItemLen) {
+      errors.push(`Each ${label} item must be ${maxItemLen} characters or fewer.`);
+      break;
+    }
+    if (opts.screenSlurs && containsSlur(item)) {
+      errors.push(`Please choose ${label} without offensive language.`);
       break;
     }
   }
@@ -225,6 +238,7 @@ router.get('/me', requireAuth, (req, res) => {
     languages: profile.languages || '',
     helpsMe: parseFacetList(profile.helps_me),
     hardForMe: parseFacetList(profile.hard_for_me),
+    specialInterests: parseFacetList(profile.special_interests),
     interests,
     prompts: listPrompts(db, userId),
     onboardingComplete,
@@ -430,6 +444,15 @@ router.put('/me', requireAuth, (req, res) => {
   }
   if (body.helpsMe !== undefined) validateFacetList(body.helpsMe, 'helpsMe', errors);
   if (body.hardForMe !== undefined) validateFacetList(body.hardForMe, 'hardForMe', errors);
+  // D-17 special_interests — DISPLAY + SOFT-SCORE facet. Tighter caps than F28,
+  // and each item is slur-screened (it's shown on the profile + deck card).
+  if (body.specialInterests !== undefined) {
+    validateFacetList(body.specialInterests, 'specialInterests', errors, {
+      maxItems: MAX_SPECIAL_INTERESTS,
+      maxItemLen: MAX_SPECIAL_INTEREST_LEN,
+      screenSlurs: true,
+    });
+  }
   if (body.interests !== undefined) {
     if (!Array.isArray(body.interests)) {
       errors.push('interests must be an array.');
@@ -533,6 +556,11 @@ router.put('/me', requireAuth, (req, res) => {
     setClauses.push('hard_for_me = ?');
     values.push(serializeFacetList(body.hardForMe));
   }
+  // D-17 special_interests — same JSON-array serialisation, capped to 3 items.
+  if (body.specialInterests !== undefined) {
+    setClauses.push('special_interests = ?');
+    values.push(serializeFacetList(body.specialInterests, MAX_SPECIAL_INTERESTS));
+  }
 
   // D-12 — whenever gender changes, recompute the stored matchable-core group.
   // This is the ONLY column matching reads, so it MUST stay in lock-step with
@@ -616,6 +644,7 @@ router.put('/me', requireAuth, (req, res) => {
     languages: profile.languages || '',
     helpsMe: parseFacetList(profile.helps_me),
     hardForMe: parseFacetList(profile.hard_for_me),
+    specialInterests: parseFacetList(profile.special_interests),
     interests: interestRows.map(r => r.interest),
   });
 });
@@ -728,6 +757,7 @@ router.get('/:userId', requireAuth, (req, res) => {
     languages: profile.languages || '',
     helpsMe: parseFacetList(profile.helps_me),
     hardForMe: parseFacetList(profile.hard_for_me),
+    specialInterests: parseFacetList(profile.special_interests),
     prompts: listPrompts(db, targetId),
   });
 });

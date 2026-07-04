@@ -15,7 +15,8 @@ export function getCandidates(db, viewerId, viewerInterests) {
             db_wants_children, db_non_smoker, db_must_be_local, search_radius_miles,
             pref_age_min, pref_age_max,
             sensory_environment, comm_cadence,
-            comm_directness, comm_literal, sensory_lighting, social_duration
+            comm_directness, comm_literal, sensory_lighting, social_duration,
+            special_interests
      FROM profiles WHERE user_id = ?`
   ).get(viewerId);
   const viewer = {
@@ -41,6 +42,10 @@ export function getCandidates(db, viewerId, viewerInterests) {
     comm_literal: viewerProfile?.comm_literal ?? '',
     sensory_lighting: viewerProfile?.sensory_lighting ?? '',
     social_duration: viewerProfile?.social_duration ?? '',
+    // D-17 — special_interests is a SOFT-SCORE signal only. It is read here purely
+    // so scoreCandidate() can REORDER the deck by shared deep-interests. It is
+    // NEVER referenced in any filter below or in the candidate query's WHERE.
+    special_interests: viewerProfile?.special_interests ?? '',
   };
 
   // Get IDs already swiped on
@@ -82,6 +87,7 @@ export function getCandidates(db, viewerId, viewerInterests) {
            p.comm_directness, p.comm_literal, p.comm_cadence,
            p.sensory_environment, p.sensory_lighting, p.social_duration,
            p.context_card, p.occupation, p.languages,
+           p.special_interests,
            (SELECT pp.description FROM profile_photos pp
             WHERE pp.user_id = p.user_id AND pp.review_status = 'approved'
             ORDER BY pp.is_primary DESC, pp.position ASC, pp.created_at ASC

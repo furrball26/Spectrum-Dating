@@ -1,0 +1,15 @@
+-- D-17 Phase 1 — structured special_interests (DISPLAY + SOFT-SCORE ONLY).
+-- A person's deep, focused "special interests" (the autistic sense): the topics
+-- they could talk about for hours. Stored as a JSON array string, the SAME shape
+-- as F28's helps_me / hard_for_me (≤3 items, each ≤40 chars). Empty = '' (NOT a
+-- literal '[]'); the routes parse '' back to [] and serialise an empty list to ''
+-- so "unset" and "empty list" read identically. Lives on the profiles row already
+-- SELECTed by candidates.js — no new join.
+--
+-- SAFETY (load-bearing): special_interests is DISPLAY + SOFT-SCORE ONLY. It is
+-- NEVER read by the candidates FILTER (server/src/matching/candidates.js only
+-- filters on the derived matchable core, gender_group). It is ONLY read into
+-- scoreCandidate() to REORDER the deck — a person with ZERO shared special
+-- interests must STILL appear, just ranked lower. Adding this column CANNOT
+-- change WHO appears in anyone's deck, only the ORDER.
+ALTER TABLE profiles ADD COLUMN special_interests TEXT NOT NULL DEFAULT '';

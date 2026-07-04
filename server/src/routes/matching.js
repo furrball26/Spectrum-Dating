@@ -53,6 +53,9 @@ router.get('/candidates', requireAuth, (req, res) => {
     // profile view (post-match) to keep the deck card calm.
     occupation: c.occupation || '',
     languages: c.languages || '',
+    // D-17 — deep "special interests" (display + soft-score). Fine on the deck
+    // card: it's a low-stakes conversation hook, not a gated disclosure.
+    specialInterests: parseFacetList(c.special_interests),
     // contextCard ("how to talk to me", free-text personal disclosure) is
     // GATED to post-match only — see GET /matching/matches otherUser. It must
     // NOT be returned here, where any stranger browsing Discover would see it
@@ -301,7 +304,7 @@ router.get('/matches', requireAuth, (req, res) => {
               gender, gender_custom, orientation,
               comm_directness, comm_literal, comm_cadence,
               sensory_environment, sensory_lighting, social_duration, context_card,
-              occupation, languages, helps_me, hard_for_me
+              occupation, languages, helps_me, hard_for_me, special_interests
        FROM profiles WHERE user_id = ?`
     ).get(otherId);
     return {
@@ -335,6 +338,7 @@ router.get('/matches', requireAuth, (req, res) => {
         languages: p?.languages || '',
         helpsMe: parseFacetList(p?.helps_me),
         hardForMe: parseFacetList(p?.hard_for_me),
+        specialInterests: parseFacetList(p?.special_interests),
         prompts: listPrompts(db, otherId),
       },
     };
