@@ -57,6 +57,7 @@ await page.screenshot({ path: `${OUTDIR}/01_onboarding_step1.png` });
 // Step 1
 await page.fill("#ob-display-name", "Jordan");
 await page.fill("#ob-dob", "1995-03-10");
+await page.fill("#ob-dist-city", "Portland, OR"); // now a required Step 1 field
 // Can we reach + click Continue without being blocked?
 await page.getByRole("button", { name: /^Continue$/ }).click();
 await page.waitForTimeout(800);

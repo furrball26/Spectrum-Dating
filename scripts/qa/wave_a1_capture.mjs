@@ -30,6 +30,8 @@ async function walkOnboardingToStep5(page) {
   await page.locator('input[autocomplete="name"], input[type="text"]').first().fill("Onboarding QA");
   const dob = page.locator('input[type="date"]').first();
   if (await dob.count()) { const v = await dob.inputValue(); if (!v) await dob.fill("1990-05-15"); }
+  const city = page.locator('#ob-dist-city');
+  if (await city.count()) { const v = await city.inputValue(); if (!v) await city.fill("Portland, OR"); }
   await page.getByRole("button", { name: /^continue$/i }).click();
   await page.waitForTimeout(500);
   await page.locator("textarea").first().fill("I enjoy calm hikes, board games, and quiet cafes on weekends.");

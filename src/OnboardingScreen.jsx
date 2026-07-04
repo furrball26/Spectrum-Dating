@@ -379,7 +379,7 @@ function RemoveChipButton({ tag, onRemove }) {
 
 // ─── Step 1: Basics ────────────────────────────────────────────────────────────
 
-function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, setDateOfBirth, errors, attempted }) {
+function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, setDateOfBirth, distCity, setDistCity, errors, attempted }) {
   const [nameTouched, setNameTouched] = useState(false);
   const maxDob = maxDobToday();
 
@@ -433,7 +433,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
         <HelperText id="ob-tagline-hint">One line that tells people what you&apos;re about</HelperText>
       </div>
 
-      <div>
+      <div style={{ marginBottom: 20 }}>
         <FieldLabel htmlFor="ob-dob" required>Date of birth</FieldLabel>
         <input
           id="ob-dob"
@@ -450,6 +450,30 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
         />
         <HelperText id="ob-dob-hint">You must be 18 or older to use Spectrum Dating.</HelperText>
         <InlineError id="ob-dob-error">{attempted ? errors.dateOfBirth : ""}</InlineError>
+      </div>
+
+      <div>
+        <FieldLabel htmlFor="ob-dist-city" required>City / area</FieldLabel>
+        <input
+          id="ob-dist-city"
+          type="text"
+          maxLength={100}
+          aria-required="true"
+          aria-describedby="ob-dist-city-hint ob-dist-city-error"
+          aria-invalid={attempted && errors.distCity ? "true" : undefined}
+          value={distCity}
+          onChange={(e) => setDistCity(e.target.value)}
+          onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+          onBlur={(e) => { e.target.style.outline = "none"; }}
+          style={inputStyle(attempted && !!errors.distCity)}
+          autoComplete="address-level2"
+          placeholder="e.g. Portland, OR"
+        />
+        <HelperText id="ob-dist-city-hint">
+          Your general city or area — we only ever show a coarse location to
+          others, never a precise address.
+        </HelperText>
+        <InlineError id="ob-dist-city-error">{attempted ? errors.distCity : ""}</InlineError>
       </div>
     </>
   );
@@ -993,6 +1017,7 @@ export default function OnboardingScreen({ onComplete }) {
   const [displayName, setDisplayName] = useState("");
   const [tagline, setTagline] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [distCity, setDistCity] = useState("");
 
   // Step 2 fields
   const [bio, setBio] = useState("");
@@ -1058,6 +1083,7 @@ export default function OnboardingScreen({ onComplete }) {
         errs.dateOfBirth = "You must be 18 or older to use Spectrum Dating.";
       }
     }
+    if (!distCity.trim()) errs.distCity = "Please enter your city or area.";
     return errs;
   }
 
@@ -1106,6 +1132,9 @@ export default function OnboardingScreen({ onComplete }) {
         displayName: displayName.trim(),
         tagline,
         dateOfBirth,
+        // Coarse city/area collected in Step 1 (required). Backend coarsens +
+        // caps at 100 chars; sent under the `distCity` PUT key like the editor.
+        distCity: distCity.trim(),
         bio,
         interests: canonicalInterests,
         commNote,
@@ -1328,6 +1357,8 @@ export default function OnboardingScreen({ onComplete }) {
             setTagline={setTagline}
             dateOfBirth={dateOfBirth}
             setDateOfBirth={setDateOfBirth}
+            distCity={distCity}
+            setDistCity={setDistCity}
             errors={step1Errors}
             attempted={attempted}
           />

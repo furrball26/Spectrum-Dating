@@ -29,6 +29,9 @@ const VP = { width: 390, height: 844 };
   else await page.locator('input[type="text"]').first().fill("Onboarding Flow QA");
   const dob = page.locator('input[type="date"]').first();
   if (await dob.count()) { const v = await dob.inputValue(); if (!v) await dob.fill("1990-05-15"); }
+  // City / area — now a required Step 1 field; fill it or Continue blocks.
+  const city = page.locator('#ob-dist-city');
+  if (await city.count()) { const v = await city.inputValue(); if (!v) await city.fill("Portland, OR"); }
   await page.getByRole("button", { name: /^continue$/i }).click();
   await page.waitForTimeout(500);
   // Step 2 — bio + one interest
