@@ -466,6 +466,15 @@ export async function getAdminFeedback() {
   return Array.isArray(d?.feedback) ? d.feedback : [];
 }
 
+// Admin maintenance — bulk-delete automated-test accounts (@spectrum-test.dev).
+// POST /admin/purge-test-accounts { includeDemo } → { deleted: <count> }.
+// includeDemo (default false) ALSO removes @sample.spectrum-dating.app demo
+// personas; the default never touches demo or real accounts.
+export async function purgeTestAccounts(includeDemo = false) {
+  const d = await apiFetch('/admin/purge-test-accounts', { method: 'POST', body: { includeDemo } });
+  return d?.deleted ?? 0;
+}
+
 // Backend stats use total*/suspendedUsers keys; AdminScreen reads users/suspended/etc.
 export async function getAdminStats() {
   const s = await apiFetch('/admin/stats');

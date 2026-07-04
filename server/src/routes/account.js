@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { accountSecurityLimiter } from '../middleware/rateLimits.js';
 import { emailConfigured, sendVerificationEmail } from '../email/resend.js';
-import { deleteObject } from '../storage/r2.js';
+import { deleteUserCascade } from '../data/deleteUser.js';
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
@@ -71,60 +71,16 @@ router.post('/change-email', requireAuth, accountSecurityLimiter, async (req, re
   return res.json({ ok: true, email, emailVerified: !verifyOn, token: signToken(userId, newTv) });
 });
 
-// DELETE /account/me — permanently delete the user and all their data
+// DELETE /account/me — permanently delete the user and all their data via the
+// shared cascade (DB rows in a transaction, then best-effort R2 object cleanup).
 router.delete('/me', requireAuth, (req, res) => {
   const { db, userId } = req.ctx;
-
-  // Right-to-erasure: collect the user's object-storage keys BEFORE the DB
-  // cascade removes the rows. Otherwise the FK cascade drops the DB records but
-  // the actual photo/attachment objects stay world-fetchable in the public R2
-  // bucket forever. We delete the objects AFTER the DB transaction commits, so a
-  // storage error can never roll back (or block) the account deletion itself.
-  const photoKeys = db.prepare(
-    'SELECT storage_key FROM profile_photos WHERE user_id = ? AND storage_key IS NOT NULL AND storage_key != ?'
-  ).all(userId, '').map(r => r.storage_key);
-  let attachmentKeys = [];
   try {
-    attachmentKeys = db.prepare(
-      'SELECT storage_key FROM message_attachments WHERE uploader_id = ? AND storage_key IS NOT NULL AND storage_key != ?'
-    ).all(userId, '').map(r => r.storage_key);
-  } catch {
-    // message_attachments may not exist / be relevant in all deployments.
-    attachmentKeys = [];
-  }
-  const storageKeys = [...new Set([...photoKeys, ...attachmentKeys])];
-
-  // Foreign keys with ON DELETE CASCADE handle profiles, interests, swipes,
-  // matches, conversations, messages, reactions, blocks, push_subscriptions.
-  // Delete in a transaction for safety.
-  const deleteUser = db.transaction((uid) => {
-    // Explicitly clean up tables that may not cascade (defensive)
-    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(uid);
-    db.prepare('DELETE FROM user_interests WHERE user_id = ?').run(uid);
-    // Matches/conversations reference user via two columns — delete both sides
-    db.prepare('DELETE FROM matches WHERE user_a_id = ? OR user_b_id = ?').run(uid, uid);
-    db.prepare('DELETE FROM conversations WHERE user_a_id = ? OR user_b_id = ?').run(uid, uid);
-    db.prepare('DELETE FROM swipes WHERE swiper_id = ? OR swiped_id = ?').run(uid, uid);
-    db.prepare('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?').run(uid, uid);
-    db.prepare('DELETE FROM profiles WHERE user_id = ?').run(uid);
-    db.prepare('DELETE FROM users WHERE id = ?').run(uid);
-  });
-
-  try {
-    deleteUser(userId);
+    deleteUserCascade(db, userId);
   } catch (e) {
     console.error('Account deletion error:', e);
     return res.status(500).json({ error: 'Could not delete account. Please try again.' });
   }
-
-  // Best-effort object cleanup — after the commit, never awaited/blocking, and
-  // never able to fail the request (the account is already gone from the DB).
-  for (const key of storageKeys) {
-    deleteObject(key).catch((err) => {
-      console.error('[account-delete] failed to delete R2 object', key, '-', err?.message);
-    });
-  }
-
   res.json({ ok: true, deleted: true });
 });
 

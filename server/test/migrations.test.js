@@ -123,6 +123,68 @@ describe('036 profile-photo review (SAFETY-2)', () => {
   });
 });
 
+describe('039 seed demo comm/sensory prefs (D-1 data fix)', () => {
+  const COMM_COLS = [
+    'comm_directness', 'comm_cadence', 'comm_literal',
+    'sensory_environment', 'sensory_lighting', 'social_duration',
+  ];
+
+  function seedProfile(db, id, email) {
+    db.prepare('INSERT INTO users (id, email, password_hash, created_at) VALUES (?,?,?,?)')
+      .run(id, email, 'x', Date.now());
+    db.prepare('INSERT INTO profiles (user_id, display_name, updated_at) VALUES (?,?,?)')
+      .run(id, `Name ${id}`, Date.now());
+  }
+
+  function commFields(db, id) {
+    return db.prepare(
+      `SELECT ${COMM_COLS.join(', ')} FROM profiles WHERE user_id = ?`
+    ).get(id);
+  }
+
+  it('backfills every comm/sensory field on a @sample demo persona and leaves real users untouched', () => {
+    const db = freshDb();
+    try {
+      runMigrations(db);
+      seedProfile(db, 'demo1', 'ada@sample.spectrum-dating.app');
+      seedProfile(db, 'real1', 'real@example.com');
+
+      // Pre-condition: everything empty (columns default to '').
+      const before = commFields(db, 'demo1');
+      for (const c of COMM_COLS) expect(before[c]).toBe('');
+
+      // Re-run migrations so the idempotent 039 fires against the seeded demo row.
+      expect(() => runMigrations(db)).not.toThrow();
+
+      const demo = commFields(db, 'demo1');
+      for (const c of COMM_COLS) expect(demo[c]).not.toBe('');
+      // 'either' would be dropped by the matcher — assert concrete signalling values.
+      for (const c of COMM_COLS) expect(demo[c]).not.toBe('either');
+
+      // A real (non-demo) user's fields must stay empty.
+      const real = commFields(db, 'real1');
+      for (const c of COMM_COLS) expect(real[c]).toBe('');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('is idempotent — a second re-run does not change already-seeded values', () => {
+    const db = freshDb();
+    try {
+      runMigrations(db);
+      seedProfile(db, 'demo2', 'ben@sample.spectrum-dating.app');
+      runMigrations(db);
+      const first = commFields(db, 'demo2');
+      runMigrations(db);
+      const second = commFields(db, 'demo2');
+      expect(second).toEqual(first);
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe('037 drop notification_preferences (F29)', () => {
   it('drops the orphaned table and re-running stays idempotent', () => {
     const db = freshDb();

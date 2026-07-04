@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog, getAdminFeedback, getVerificationRequests } from "./api.js";
+import { getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments, reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog, getAdminFeedback, getVerificationRequests, purgeTestAccounts } from "./api.js";
 import { t } from "./tokens.js";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
@@ -1067,6 +1067,102 @@ function VerificationQueue({ onStatus }) {
   );
 }
 
+// --- Maintenance: purge automated-test accounts (A+B) ---
+// Bulk-deletes @spectrum-test.dev accounts (the QA harness leaves these behind).
+// Guarded by a calm confirm dialog stating exactly what it does. An optional
+// checkbox extends the purge to @sample.spectrum-dating.app demo personas.
+function PurgeTestAccountsPanel({ onStatus, onRefresh }) {
+  const [confirming, setConfirming] = useState(false);
+  const [includeDemo, setIncludeDemo] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+  const [result, setResult] = useState("");
+
+  async function handlePurge() {
+    setBusy(true);
+    setLocalError("");
+    try {
+      const deleted = await purgeTestAccounts(includeDemo);
+      const msg = `Removed ${deleted} test ${deleted === 1 ? "account" : "accounts"}${includeDemo ? " (including demo)" : ""}.`;
+      setResult(msg);
+      onStatus?.(msg);
+      setConfirming(false);
+      setIncludeDemo(false);
+      onRefresh?.();
+    } catch {
+      setLocalError("Couldn't purge test accounts. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 16,
+        padding: "18px 20px",
+        marginBottom: 24,
+        boxShadow: t.shadow.sm,
+      }}
+    >
+      <div style={{ fontSize: 16, fontWeight: 600, color: t.text }}>Purge test accounts</div>
+      <p style={{ margin: "6px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+        Permanently deletes automated-test accounts (<code style={{ fontSize: 13 }}>@spectrum-test.dev</code>)
+        and all their data. Real member accounts are never touched.
+      </p>
+
+      {result && !confirming && (
+        <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted }}>{result}</p>
+      )}
+      {localError && (
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "10px 0 0" }}>{localError}</p>
+      )}
+
+      {confirming ? (
+        <div
+          style={{
+            background: t.dangerSurface,
+            border: `1px solid ${t.danger}`,
+            borderRadius: 12,
+            padding: "14px 16px",
+            marginTop: 14,
+          }}
+        >
+          <p style={{ margin: "0 0 12px", fontSize: 14, color: t.text, lineHeight: 1.5 }}>
+            This deletes every <code style={{ fontSize: 13 }}>@spectrum-test.dev</code> account and
+            their profiles, matches, and conversations. This can't be undone.
+          </p>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: t.textSoft, marginBottom: 14, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={includeDemo}
+              onChange={(e) => setIncludeDemo(e.target.checked)}
+              style={{ width: 18, height: 18, cursor: "pointer" }}
+            />
+            Also delete demo accounts (<code style={{ fontSize: 13 }}>@sample.spectrum-dating.app</code>)
+          </label>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <PlainButton kind="danger" onClick={handlePurge} disabled={busy}>
+              {busy ? "Purging…" : "Purge accounts"}
+            </PlainButton>
+            <PlainButton kind="neutral" onClick={() => { setConfirming(false); setIncludeDemo(false); }} disabled={busy}>
+              Cancel
+            </PlainButton>
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: 14 }}>
+          <PlainButton kind="quiet" onClick={() => { setResult(""); setConfirming(true); }}>
+            Purge test accounts
+          </PlainButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ADMIN_TABS = [
   { value: "reports", label: "Reports" },
   { value: "verification", label: "Verification" },
@@ -1189,6 +1285,9 @@ export default function AdminScreen() {
             <StatCard label="Open reports" value={stats.reports?.open ?? 0} />
           </div>
         )}
+
+        {/* Maintenance: purge automated-test accounts (A+B) */}
+        <PurgeTestAccountsPanel onStatus={setStatusMsg} onRefresh={loadStats} />
 
         {/* Tabs: Reports / Photo review */}
         <div

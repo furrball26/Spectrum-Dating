@@ -6,7 +6,7 @@
 // Covers the golden path + layout invariants from past regressions
 // (bubble overlap, page growth, hooks crashes, theme system).
 import { mkdirSync } from "node:fs";
-import { makeMatchedPair, seedConversation, launch, login, check, finish, OUT } from "./harness.mjs";
+import { makeMatchedPair, seedConversation, launch, login, check, finish, cleanupAccounts, OUT } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 const pair = await makeMatchedPair("smoke");
@@ -90,3 +90,7 @@ check("No console pageerrors on the golden path", errors.length === 0, errors.sl
 
 await browser.close();
 finish();
+
+// Teardown: delete the qa+ accounts this run seeded so they don't pollute the
+// moderation board. Best-effort — never affects the PASS/FAIL result above.
+await cleanupAccounts([pair.a.token, pair.b.token]);

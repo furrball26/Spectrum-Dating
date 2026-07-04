@@ -5,6 +5,12 @@ import { newId } from '../utils/ids.js';
 import { disconnectUser } from '../socket/index.js';
 import { syncPrimaryPhotoUrl } from './photos.js';
 import { deleteObject } from '../storage/r2.js';
+import { deleteUserRows, purgeStorageObjects } from '../data/deleteUser.js';
+
+// Automated-test and demo account email domains. The purge endpoint targets the
+// TEST domain by default; the DEMO domain is only touched when includeDemo=true.
+const TEST_EMAIL_DOMAIN = '@spectrum-test.dev';
+const DEMO_EMAIL_DOMAIN = '@sample.spectrum-dating.app';
 
 const router = Router();
 
@@ -256,6 +262,42 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
     totalMessages,
     reports,
   });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/purge-test-accounts — bulk-delete automated-test accounts.
+// Deletes every user whose email ends with @spectrum-test.dev via the shared
+// account-deletion cascade, in one transaction. Body flag { includeDemo } (default
+// false) ALSO purges @sample.spectrum-dating.app demo personas — the default MUST
+// NOT touch demo accounts. Returns { deleted: <count> } and writes an audit row.
+// ---------------------------------------------------------------------------
+router.post('/purge-test-accounts', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  const includeDemo = req.body?.includeDemo === true;
+
+  const patterns = [`%${TEST_EMAIL_DOMAIN}`];
+  if (includeDemo) patterns.push(`%${DEMO_EMAIL_DOMAIN}`);
+  const where = patterns.map(() => 'email LIKE ?').join(' OR ');
+  const targets = db.prepare(`SELECT id FROM users WHERE ${where}`).all(...patterns).map(r => r.id);
+
+  const allKeys = [];
+  const purge = db.transaction((ids) => {
+    for (const id of ids) allKeys.push(...deleteUserRows(db, id));
+    // Audit row inside the same transaction so it's atomic with the deletions.
+    logMod(db, userId, 'purge_test_accounts', null, `deleted ${ids.length}${includeDemo ? ' (incl. demo)' : ''}`);
+  });
+
+  try {
+    purge(targets);
+  } catch (e) {
+    console.error('Purge test accounts error:', e);
+    return res.status(500).json({ error: 'Could not purge test accounts. Please try again.' });
+  }
+
+  // Best-effort R2 cleanup after the commit — never blocks or fails the request.
+  purgeStorageObjects(allKeys);
+
+  res.json({ deleted: targets.length });
 });
 
 // ---------------------------------------------------------------------------

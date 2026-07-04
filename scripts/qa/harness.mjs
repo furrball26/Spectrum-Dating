@@ -86,6 +86,20 @@ export async function seedConversation(pair, texts = []) {
   return convId;
 }
 
+// Best-effort teardown: DELETE /account/me for each seeded token so QA runs
+// don't leave qa+…@spectrum-test.dev accounts flooding the moderation board.
+// Accepts tokens (strings) and/or account objects ({ token }). Swallows errors —
+// cleanup must never fail a test run. Call after finish().
+export async function cleanupAccounts(tokens = []) {
+  for (const entry of tokens) {
+    const token = typeof entry === "string" ? entry : entry?.token;
+    if (!token) continue;
+    try {
+      await api("/account/me", { method: "DELETE" }, token);
+    } catch { /* best-effort — ignore */ }
+  }
+}
+
 // ── Browser (local preview + API forwarding) ─────────────────────────────────
 // Returns { browser, ctx, page, errors } — errors collects console pageerrors.
 export async function launch({ viewport = { width: 390, height: 844 }, hasTouch = false } = {}) {
