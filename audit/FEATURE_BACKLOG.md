@@ -75,7 +75,18 @@ Backend tests 49/49 · frontend smoke 11/11 · live markers confirmed.
   offline-banner overlap fixed.
 
 ### LOW — tech-debt (parked)
-- **E12** — two socket.io connections/user + per-thread-switch churn (consolidation).
+- [x] **E12 — SHIPPED TO PROD (master `b911be2`, live-verified).** Two socket.io
+  connections/user (app badge + per-conversation, the latter churning on every
+  thread switch) consolidated into ONE shared client (`src/socketClient.js`):
+  module singleton, idempotent `connectSocket`, per-event handler `Set`s (no
+  `socket.off` clobber), `joinConversation`/`subscribeConnection`, socket.io-client
+  kept code-split. App owns connect/disconnect on `authed`; ConversationScreen
+  re-subscribes per thread WITHOUT rebuilding the socket. Also closed a latent
+  cross-thread render leak (handlers now filter on `payload.conversationId`).
+  Gates: unit 6/6, eslint 0 errors, smoke 11/11, deep_messaging 30/30,
+  touch-chat-ux 15/15, a11y 37/37. **Real-time paths (live delivery, badge
+  increment, room scoping, block-severs-channel, reconnect re-join) need a live
+  two-device human smoke — sandbox stubs sockets 503.**
 - **E20** — `getCandidates` loads all eligible profiles + N+1 interest queries, scores
   in JS (accepted tradeoff until scale; needs SQL-side score/join).
 - No frontend unit tests (harness `scripts/qa/*` + ESLint cover it today).
