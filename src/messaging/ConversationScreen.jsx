@@ -1419,7 +1419,91 @@ function NewThreadStart({ firstName, openers, onSelectOpener, onOpenPrompts, wha
           <span>Conversation helpers</span>
         </button>
       </div>
+
+      {/* D-18 — a calm, collapsed-by-default disclosure naming the safety
+          protections already running. Sits BELOW the moat so it never pushes
+          "what to expect" down; discoverable, reassuring, never alarming. */}
+      <SafetyProtectionsDisclosure />
     </section>
+  );
+}
+
+// D-18 — "Make safety a visible identity." A quiet, collapsed-by-default
+// disclosure surfaced only at first contact (inside NewThreadStart, beneath the
+// "what to expect" moat) that names the safety protections ALREADY running, so
+// our safety-first stance is visible instead of invisible. This is reassurance,
+// not a warning: calm token palette, a soft leaf glyph, NO red/alarm styling and
+// no danger icons. Every line maps to a real, shipped protection:
+//   • human review of new profile photos before anyone else sees them
+//     (SAFETY-2 — migration 036_profile_photo_review.sql + routes/photos.js:
+//      new uploads are 'pending_review'; only 'approved' rows are served to viewers)
+//   • gentle in-chat flag when a message raises off-platform/money signals
+//     (F26 — messaging/safetySignals.js hasSafetySignal + SafetyInlineNote)
+//   • display-name screening so slurs/abusive handles don't get in
+//     (JRN-1 — server/src/utils/nameScreen.js containsSlur)
+//   • private report & block that never notifies the other person
+//     (F5/BE-5 — routes/messaging.js block/report insert with no socket emit)
+// No hooks run after an early return (there is none); useFocusable is unconditional.
+function SafetyProtectionsDisclosure() {
+  const f = useFocusable();
+  const [open, setOpen] = useState(false);
+  const lines = [
+    "New profile photos are looked over by a real person before anyone else can see them.",
+    "If a message brings up moving to another app or sending money, we'll gently note it — whoever it's from.",
+    "Display names are screened, so slurs and abusive handles don't make it in.",
+    "You can block or report anyone privately, anytime — they're never told.",
+  ];
+  return (
+    <div style={{ marginTop: 16, borderTop: `1px solid ${t.borderLight}`, paddingTop: 12 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="d18-safety-protections"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          background: "transparent",
+          border: "none",
+          color: t.accentStrong,
+          padding: "4px 2px",
+          fontSize: 14,
+          fontWeight: 600,
+          fontFamily: t.sans,
+          cursor: "pointer",
+          minHeight: 44,
+          ...f.style,
+        }}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+      >
+        <span aria-hidden="true" style={{ fontSize: 16 }}>🍃</span>
+        <span>How we keep this space calm and safe</span>
+        <span aria-hidden="true" style={{ fontSize: 12, color: t.textSoft }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div
+          id="d18-safety-protections"
+          style={{ marginTop: 8, padding: "12px 16px", background: t.surface, border: `1px solid ${t.borderLight}`, borderRadius: 12 }}
+        >
+          <p style={{ margin: "0 0 10px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
+            A few quiet protections are always running in the background, so you can take your time:
+          </p>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+            {lines.map((line) => (
+              <li key={line} style={{ display: "flex", gap: 8, fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+                <span aria-hidden="true" style={{ color: t.accentStrong, flexShrink: 0 }}>•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ margin: "10px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+            There's more, including check-in tools, in the Safety Center whenever you want it.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
