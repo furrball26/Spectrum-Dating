@@ -69,6 +69,7 @@ const MIGRATIONS = [
   '049_enforcement.sql',
   '050_report_pinned_message.sql',
   '051_moderator_qa.sql',
+  '052_demo_members_discoverable.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't

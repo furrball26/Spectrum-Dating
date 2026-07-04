@@ -14,11 +14,16 @@
 // This preserves the "597" discipline: the demo data can never pollute the real
 // member count or real telemetry.
 //
-// DECK-SAFETY: every demo member is created with profiles.paused = 1, which
-// hides them from other users' Discover deck (see matching/candidates.js WHERE
-// p.paused = 0). They have full profiles (bio/photo/interests) so the admin
-// dashboard breakdowns populate, but they can NEVER surface as a swipe
-// candidate to a real member — they exist only for the admin views.
+// DECK-VISIBLE (intentional): every demo member is created with
+// profiles.paused = 0, so they ARE discoverable in other users' Discover deck
+// (see matching/candidates.js WHERE p.paused = 0) — this populates the deck for
+// the live demo. They have full profiles (bio/photo/interests) so both the admin
+// dashboard breakdowns AND the Discover deck populate. Discoverability does NOT
+// weaken separability: every demo member is still tagged is_demo=1 (telemetry)
+// and carries the reserved `telemetry-demo-…@sample.spectrum-dating.app` email,
+// so real dashboard queries still exclude them and wipeDemoData() still removes
+// 100% of them. (Previously these were paused = 1 / deck-hidden; reversed so the
+// client sees a populated deck.)
 
 import { randomUUID, randomBytes } from 'node:crypto';
 
@@ -105,7 +110,8 @@ const LAST_NAMES = [
 
 // Full expanded gender set — weighted so common options dominate but every one
 // appears in a 500-member set. gender_group (the matchable core) is derived from
-// this; it is inert here (demo members are paused → never in a deck).
+// this and is now LIVE: demo members are discoverable (paused = 0), so the
+// mutual gender/seeking filter in matching/candidates.js uses it for real.
 const GENDERS = [
   ['woman', 30], ['man', 30], ['nonbinary', 12], ['genderfluid', 5], ['genderqueer', 5],
   ['agender', 4], ['trans-man', 4], ['trans-woman', 4], ['bigender', 2], ['two-spirit', 2],
@@ -284,7 +290,7 @@ export function loadDemoData(db) {
        (user_id, display_name, gender, gender_group, orientation, seeking,
         relationship_structure, relationship_goal, date_of_birth, dist_city,
         bio, photo_url, identity_verified, paused, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
   );
   const insInterest = db.prepare('INSERT INTO user_interests (user_id, interest) VALUES (?, ?)');
   const insReport = db.prepare(

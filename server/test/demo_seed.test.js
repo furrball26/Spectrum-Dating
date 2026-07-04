@@ -31,6 +31,7 @@ const { optionalAuth, signToken } = await import('../src/middleware/auth.js');
 const { contextMiddleware } = await import('../src/middleware/context.js');
 const adminPopulationRouter = (await import('../src/routes/adminPopulation.js')).default;
 const { loadDemoData, wipeDemoData, DEMO_MEMBER_PREFIX, DEMO_MEMBER_COUNT } = await import('../src/telemetry/demoSeed.js');
+const { getCandidates } = await import('../src/matching/candidates.js');
 
 const db = getDb();
 const DEMO_LIKE = `${DEMO_MEMBER_PREFIX}%@sample.spectrum-dating.app`;
@@ -171,12 +172,18 @@ describe('demoSeed — load / clear safety (the "597" discipline)', () => {
     ).get(DEMO_LIKE).c;
     expect(photos).toBeGreaterThan(1);
     expect(photos).toBeLessThanOrEqual(12);
-    // DECK-SAFETY: every demo member is paused (hidden from Discover).
-    const notPaused = db.prepare(
+    // DECK-VISIBLE (intentional): every demo member is now discoverable
+    // (paused = 0) so they populate other users' Discover deck for the live demo.
+    const pausedCount = db.prepare(
+      `SELECT COUNT(*) AS c FROM profiles p JOIN users u ON u.id = p.user_id
+        WHERE u.email LIKE ? AND p.paused = 1`
+    ).get(DEMO_LIKE).c;
+    expect(pausedCount).toBe(0);
+    const discoverable = db.prepare(
       `SELECT COUNT(*) AS c FROM profiles p JOIN users u ON u.id = p.user_id
         WHERE u.email LIKE ? AND p.paused = 0`
     ).get(DEMO_LIKE).c;
-    expect(notPaused).toBe(0);
+    expect(discoverable).toBe(DEMO_MEMBER_COUNT);
     // Some suspended, some verified — the state mix populates.
     const suspended = db.prepare('SELECT COUNT(*) AS c FROM users WHERE email LIKE ? AND suspended = 1').get(DEMO_LIKE).c;
     const verified = db.prepare(
@@ -252,6 +259,47 @@ describe('demoSeed — load / clear safety (the "597" discipline)', () => {
     // Demo view includes every @sample account: 500 demo members + the persona.
     expect(withDemo.demo).toBe(true);
     expect(withDemo.totalMembers).toBe(500 + 1);
+  });
+
+  it('demo members (paused=0) ARE returned by the Discover candidate query', () => {
+    loadDemoData(db); // fresh, idempotent load — 500 discoverable demo members
+
+    // A viewer with a broad filter (seeking '' = open to everyone, gender_group
+    // '' = matchable by everyone) so it is compatible with demo members across
+    // the whole gender/seeking spread. Test-domain email → excluded from real
+    // aggregates, so it never pollutes the population count.
+    const viewerId = 'discover-viewer-1';
+    db.prepare('INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)')
+      .run(viewerId, 'discover-viewer@spectrum-test.dev', 'x', Date.now());
+    db.prepare(
+      `INSERT INTO profiles (user_id, display_name, gender, gender_group, seeking,
+                             date_of_birth, dist_city, bio, photo_url, updated_at)
+       VALUES (?, 'Discover Viewer', 'woman', 'woman', '', '1994-05-05', 'Portland',
+               'Testing the deck.', '/demo-avatars/01.jpg', ?)`
+    ).run(viewerId, Date.now());
+    db.prepare('INSERT INTO user_interests (user_id, interest) VALUES (?, ?)').run(viewerId, 'hiking');
+
+    const candidates = getCandidates(db, viewerId, ['hiking']);
+    // The deck is populated now that demo members are discoverable.
+    expect(candidates.length).toBeGreaterThan(0);
+    // And it is specifically the demo members surfacing (bundled demo-avatar
+    // photos / reserved demo display names) — not just the lone @sample persona
+    // (which has no bio/photo/interests and is excluded by the eligibility WHERE).
+    const demoInDeck = candidates.filter((c) => (c.photo_url || '').startsWith('/demo-avatars/'));
+    expect(demoInDeck.length).toBeGreaterThan(0);
+
+    // SEPARABILITY INTACT: the paused flip does NOT change the demo/real split.
+    // Demo members are still identified by their reserved email and still fully
+    // EXCLUDED from real dashboards.
+    expect(demoMembers()).toBe(DEMO_MEMBER_COUNT); // still exactly 500 demo members
+    // The paused=0 change is purely deck visibility; is_demo/email exclusion is
+    // unaffected — real telemetry still sees zero of it.
+    expect(realPv()).toBe(1); // only the planted real page view; no demo bleed
+
+    // Clean up the viewer so later tests' real-aggregate assumptions hold.
+    db.prepare('DELETE FROM user_interests WHERE user_id = ?').run(viewerId);
+    db.prepare('DELETE FROM profiles WHERE user_id = ?').run(viewerId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(viewerId);
   });
 
   it('wipeDemoData removes 100% of the demo dataset (incl. activity rows)', () => {
