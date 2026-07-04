@@ -5,6 +5,15 @@ into a full admin/ops dashboard — uptime board, visitor counts + locations, si
 domain-level stats (BOTH referrer traffic sources AND member email-domains), full member
 listing with statuses + report counts + tap-in detail, populated for a live demo.
 
+> **SHIPPED TO PROD 2026-07-04** — `master 778b3ca` (Railway `/health 778b3ca` + Vercel).
+> Privacy-audited by coordinator (raw IP never stored/logged, DNT/GPC honored, daily-rotating
+> non-reversible session hash, coarse geo only). Backend 154/154 tests, frontend eslint 0 / unit
+> 72/72 / smoke 11/11. Migrations 045 (telemetry ×5 tables) + 046 (last_active) booted clean.
+> In-app privacy policy updated (public/privacy.html §2 "Analytics & site measurement") — the
+> legally-reviewed version is the client's to deploy at product approval. Real visitor capture is
+> LIVE. Remaining: in-app "Load/Clear demo data" admin button (building) to furnish the live demo
+> (CLI seed can't reach the Railway volume DB). NOT visually smokeable in-sandbox (admin gating).
+
 ## Owner decisions (locked)
 - **Real telemetry**, not mock (seed demo data so the live demo is populated from day one).
 - **Domain stats = BOTH** referrer traffic sources (real, from visits) + member email-domain
