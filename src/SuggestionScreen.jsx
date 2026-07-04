@@ -12,6 +12,7 @@ import { useFocusable } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
 import { genderLabel } from "./IdentityFields.jsx";
 import PhotoCarousel from "./PhotoCarousel.jsx";
+import { isMutualReason, isCommNoteReason, sortReasonsMutualFirst } from "./discoverReasons.js";
 
 // The current viewer's identity for the match moment — name/photo from the
 // cached profile, id from auth. Best-effort: the monogram avatar degrades
@@ -164,32 +165,8 @@ const eyebrowStyle = {
   lineHeight: 1.4,
 };
 
-// D-2 — a reason is a TRUE mutual signal only when it's phrased as a shared
-// ("You both…" / "You're both…") fact. One-sided context the backend echoes
-// from the candidate ("About talking: …", relationship-goal notes) is NOT a
-// mutual signal and must not wear the same green ✓ — that dilutes real fit.
-function isMutualReason(reason) {
-  return /^(you both|you'?re both)\b/i.test((reason || "").trim());
-}
-
-// The backend echoes the candidate's comm_note into whyReasons as an
-// `About talking: "…"` line. That exact sentence ALSO has a dedicated, better-
-// styled home — the bolded "About talking:" note below the bio — so surfacing
-// it in the why-block too rendered the same sentence twice, ~250px apart
-// (design-review #1). We strip it from the why list and keep the standalone
-// note as its single home.
-function isCommNoteReason(reason) {
-  return /^about talking:/i.test((reason || "").trim());
-}
-
-// Sort reasons so real mutual signals lead, preserving order within each group.
-// Used to pick the strongest 1–2 for the above-the-fold "why you fit" hook.
-function sortReasonsMutualFirst(reasons) {
-  const list = Array.isArray(reasons) ? reasons : [];
-  const mutual = list.filter(isMutualReason);
-  const other = list.filter((r) => !isMutualReason(r));
-  return [...mutual, ...other];
-}
+// D-2 — the mutual/comm-note reason helpers now live in ./discoverReasons.js
+// (imported above) so they can be unit-tested without a React render.
 
 // D-2 — one reason row. Mutual signals get the green ✓ (it now MEANS "you both");
 // one-sided "about them" context gets a quieter, neutral marker + muted text so

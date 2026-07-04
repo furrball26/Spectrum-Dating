@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:unit": "node --test scripts/qa/*.test.mjs",
     "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
