@@ -265,6 +265,12 @@ export default function SafetyScreen({ onBack }) {
   const [planCheckBy, setPlanCheckBy] = useState("");
   const [planStatus, setPlanStatus] = useState("");
 
+  // Share-my-location — fully on-device: geolocation → share sheet / clipboard.
+  // Nothing is sent to any server.
+  const [locNote, setLocNote] = useState("");
+  const [locStatus, setLocStatus] = useState("");
+  const [locBusy, setLocBusy] = useState(false);
+
   // check-in timer — { endsAt } persisted in localStorage
   const [endsAt, setEndsAt] = useState(() => {
     try {
@@ -438,6 +444,78 @@ export default function SafetyScreen({ onBack }) {
         : "Couldn't share or copy. You can write it down manually."
     );
   }, [buildPlanText]);
+
+  const handleShareLocation = useCallback(() => {
+    if (!("geolocation" in navigator) || !navigator.geolocation) {
+      setLocStatus(
+        "Location isn't available on this device. You can share your address manually."
+      );
+      return;
+    }
+    setLocBusy(true);
+    setLocStatus("");
+
+    const onSuccess = async (pos) => {
+      const lat = pos.coords.latitude.toFixed(5);
+      const lng = pos.coords.longitude.toFixed(5);
+      const parts = [];
+      const note = locNote.trim();
+      if (note) parts.push(note);
+      parts.push(`My current location: https://www.google.com/maps?q=${lat},${lng}`);
+      parts.push("Sent from Spectrum Dating's Safety Center.");
+      const text = parts.join("\n");
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ text });
+          setLocStatus("");
+          setLocBusy(false);
+          return;
+        } catch (e) {
+          // User cancelled the share sheet — say nothing. Only fall through on a real failure.
+          if (e && e.name === "AbortError") {
+            setLocStatus("");
+            setLocBusy(false);
+            return;
+          }
+        }
+      }
+      const ok = await copyText(text);
+      setLocStatus(
+        ok
+          ? "Location copied — paste it to your trusted contact."
+          : "Couldn't share or copy. You can share your address manually."
+      );
+      setLocBusy(false);
+    };
+
+    const onError = (err) => {
+      if (err && err.code === err.PERMISSION_DENIED) {
+        setLocStatus(
+          "Location permission is off. You can turn it on in your browser settings, or share your address manually."
+        );
+      } else {
+        setLocStatus(
+          "Couldn't get your location just now. Please try again, or share your address manually."
+        );
+      }
+      setLocBusy(false);
+    };
+
+    try {
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      });
+    } catch {
+      // Some browsers throw synchronously in insecure contexts.
+      setLocStatus(
+        "Couldn't get your location just now. Please try again, or share your address manually."
+      );
+      setLocBusy(false);
+    }
+  }, [locNote]);
 
   const startTimer = useCallback((ms) => {
     const target = Date.now() + ms;
@@ -639,6 +717,38 @@ export default function SafetyScreen({ onBack }) {
             {planStatus && (
               <p role="status" aria-live="polite" style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft }}>
                 {planStatus}
+              </p>
+            )}
+          </div>
+        </Section>
+
+        {/* Share my location — on-device geolocation → share sheet, nothing stored */}
+        <Section
+          title="Share my location"
+          note="If you ever feel unsafe, share where you are with someone you trust. Your location is read on your device and only leaves it through your own share sheet — we never see it or store it."
+        >
+          <div style={cardStyle}>
+            <label style={labelStyle} htmlFor="loc-note">A note (optional)</label>
+            <input
+              id="loc-note"
+              type="text"
+              value={locNote}
+              onChange={(e) => setLocNote(e.target.value)}
+              placeholder="I'm on a date at…"
+              style={{ ...inputStyle, marginBottom: 18 }}
+            />
+
+            <Button
+              variant="primary"
+              onClick={handleShareLocation}
+              disabled={locBusy}
+              style={{ width: "100%" }}
+            >
+              {locBusy ? "Getting your location…" : "Share my current location"}
+            </Button>
+            {locStatus && (
+              <p role="status" aria-live="polite" style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft }}>
+                {locStatus}
               </p>
             )}
           </div>
