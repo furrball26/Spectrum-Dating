@@ -6,6 +6,28 @@ verification, (c) AI moderation + T&S ops/regulatory. Shareable report artifact 
 separately. Prioritization is tuned for calm-by-design + a vulnerable audience — not every
 industry practice is an automatic adopt.
 
+## ✅ SHIPPED since this analysis (2026-07-04, all live on prod)
+Every in-code Critical + Needed gap is now closed:
+- **CRITICAL #1 Block-severance** — block fully severs the conversation both ways + socket room (master `df5bb66`).
+- **CRITICAL #2 Activity leak** — Activity feed filters blocked users (master `df5bb66`).
+- **Needed #4 Scam/grooming signal → moderators** — off-platform/money detection now logs a
+  `chat_safety_signals` row (observe-only, never blocks) surfaced as a repeat-offender indicator
+  (master `d79ac21`).
+- **Needed #7 Enforcement ladder + #11 due-process** — warn→suspend→**ban** with severity, the
+  reason shown to the actioned user, and an appeal affordance (master `6ed697f`).
+- **Needed #10 Evidence-on-report** — reporter can pin the specific offending message (validated to
+  the reported user + conversation); snapshot widened 3→10 (master `6da160c`).
+- **Needed #6 Gentle message nudges** — calm sender "are you sure?" + recipient "does this feel
+  off?" (one-tap report, pins the message), reusing the detector (master `0984a1b`).
+
+**Remaining Needed = VENDOR-DEPENDENT (need an external service/key, not in-code):**
+CRITICAL #3 CSAM hash-match + NCMEC (Thorn/PhotoDNA) · #5 unsolicited-image blur (ML vision) ·
+#8 ban-evasion / phone verify (SMS vendor) · #9 real photo/selfie verification (FaceTec/Veriff-class).
+
+**Nice-to-haves remain open** (see below): admin roles/rate-limiting, transparency reporting,
+moderator QA, panic button/live date-share, crisis-line auto-routing, contact-list/incognito,
+voice/video, traveler alerts, small validation hardening.
+
 ## Strengths to preserve (HAVE)
 Consent-gated messaging (match required; block/report never notify; unmatch soft-ends without
 revealing who); rebuilt moderator console (real queues + oldest-age SLA, reported-conversation
