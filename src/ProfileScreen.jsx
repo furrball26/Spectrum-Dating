@@ -4713,6 +4713,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                         : "Your review wasn't approved this time. You can review your details and try again.")
                     : "Ask our team to review your profile. Reviewed members get a badge that shows others a real person has looked over their profile. This is a team review, not a formal identity or ID check."}
                 </p>
+                {/* First-time explainer only — keep the rejected state to its
+                    existing retry + reason (no clutter). */}
+                {verificationRequested !== "rejected" && <VerificationGuide />}
                 {verifRequestError && (
                   <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "0 0 10px" }}>
                     {verifRequestError}
@@ -4876,6 +4879,107 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 // A calm navigation row: leading icon + title/description + trailing chevron.
 // Navigates to a full screen (no popup/disclosure). The text label carries the
 // accessible name; the leading icon is aria-hidden decorative (from icons.jsx).
+// ── Verification guide (calm, first-time explainer) ──────────────────────────
+// Static and presentational — no hooks, no tappables. Rendered ONLY in the
+// default not-yet-requested state so the pending/rejected/verified states stay
+// quiet and uncluttered. Purely lowers anxiety around the existing (free) team
+// review; it does not touch the request/pending/rejected/verified logic.
+function VerificationGuide() {
+  const panel = {
+    background: t.surfaceAlt,
+    border: `1px solid ${t.borderLight}`,
+    borderRadius: 14,
+    padding: "16px 18px",
+    margin: "0 0 14px",
+  };
+  const heading = { margin: "0 0 12px", fontSize: 15, fontWeight: 700, color: t.text };
+  const itemText = { minWidth: 0, fontSize: 15, color: t.textSoft, lineHeight: 1.6 };
+  const steps = [
+    "You ask for a review — one tap, that's it.",
+    "A real person on our team looks over your profile.",
+    "You get a calm badge that tells others a real person reviewed your profile.",
+  ];
+  const isList = [
+    "It's a light review by a real person on our team.",
+    "It's optional — you never have to ask, and it changes nothing else about your account.",
+    "If it isn't approved, you can quietly try again. There's no limit and no penalty.",
+  ];
+  const isntList = [
+    "It is not an ID or document upload.",
+    "It is not a face scan or any kind of biometric check.",
+    "Nothing is stored beyond the badge itself.",
+  ];
+  return (
+    <div>
+      {/* Step-by-step: what actually happens after you ask */}
+      <div style={panel}>
+        <p style={heading}>What happens when you ask for a review</p>
+        <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          {steps.map((s, i) => (
+            <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  flex: "0 0 auto",
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: t.accentFill,
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 1,
+                }}
+              >
+                {i + 1}
+              </span>
+              <span style={itemText}>{s}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {/* What it is — and isn't (honest framing that reduces anxiety) */}
+      <div style={panel}>
+        <p style={heading}>What this is — and isn't</p>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+          {isList.map((s, i) => (
+            <li key={`is-${i}`} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span aria-hidden="true" style={{ flex: "0 0 auto", color: t.positiveText, fontSize: 15, fontWeight: 700, lineHeight: 1.6 }}>✓</span>
+              <span style={itemText}>{s}</span>
+            </li>
+          ))}
+          {isntList.map((s, i) => (
+            <li key={`isnt-${i}`} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span aria-hidden="true" style={{ flex: "0 0 auto", color: t.textMuted, fontSize: 15, fontWeight: 700, lineHeight: 1.6 }}>×</span>
+              <span style={itemText}>{s}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Gentle, optional tips — friendly, never gates or pressure */}
+      <div style={{ ...panel, margin: 0 }}>
+        <p style={heading}>A couple of things that help</p>
+        <p style={{ margin: "0 0 10px", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
+          These aren't required — just two things that help the review go smoothly.
+        </p>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          {["A clear main photo.", "A filled-in bio."].map((s, i) => (
+            <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span aria-hidden="true" style={{ flex: "0 0 auto", color: t.accentStrong, fontSize: 15, lineHeight: 1.6 }}>•</span>
+              <span style={itemText}>{s}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function HubRow({ icon, title, description, onClick }) {
   const f = useFocusable();
   return (
