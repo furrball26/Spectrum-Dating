@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  getAdminStats, getAdminReports, resolveReport, suspendUser, getPendingAttachments,
+  getAdminStats, getAdminReports, resolveReport, suspendUser, warnUser, banUser, unbanUser, getPendingAttachments,
   reviewAttachment, getPendingProfilePhotos, reviewProfilePhoto, verifyUser, getAuditLog,
   getAdminFeedback, getVerificationRequests, purgeTestAccounts, getReportContext, safeErrorMessage,
   getTelemetryOverview, getTelemetryGeo, getTelemetryReferrers, getTelemetryUptime,
@@ -565,6 +565,160 @@ function RepeatOffenderLine({ report }) {
   );
 }
 
+// Needed #7/#11 — enforcement-ladder controls + current state, shared by the
+// report card and the member drawer. Renders the member's enforcement state
+// (banned / suspended / warned N times) + the latest reason, then Warn and Ban
+// (or Unban) actions. `includeSuspend` additionally renders Suspend/Unsuspend
+// (the drawer has no other suspend control; the report card keeps its own, so it
+// passes includeSuspend={false}). Every action requires a note; Ban/Unban carry
+// a danger-styled confirm. All hooks run before any early return (React #310).
+function EnforcementActions({
+  userId, userName, banned, suspended, warnCount = 0, latestNotice,
+  includeSuspend = false, onChanged, onStatus,
+}) {
+  const [panel, setPanel] = useState(null); // null | 'warn' | 'ban' | 'unban' | 'suspend'
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+  const fNote = useFocusable();
+  const noteRef = useRef(null);
+  const name = userName || "this member";
+
+  useEffect(() => { if (panel) noteRef.current?.focus(); }, [panel]);
+
+  function openPanel(which) { setNote(""); setLocalError(""); setPanel(which); }
+  function closePanel() { setPanel(null); setNote(""); }
+
+  async function run(fn, successMsg) {
+    setBusy(true);
+    setLocalError("");
+    try {
+      await fn();
+      onStatus?.(successMsg);
+      setPanel(null);
+      setNote("");
+      onChanged?.();
+    } catch (err) {
+      setLocalError(actionErrorMessage(err, "Couldn't update this account. Please try again."));
+      if (err && err.status === 409) onChanged?.();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const confirmAction = () => {
+    if (!note.trim()) return;
+    if (panel === "warn") return run(() => warnUser(userId, note.trim()), `${name} has been warned.`);
+    if (panel === "ban") return run(() => banUser(userId, note.trim()), `${name} has been permanently removed.`);
+    if (panel === "unban") return run(() => unbanUser(userId, note.trim()), `${name}'s removal has been lifted.`);
+    if (panel === "suspend") return run(() => suspendUser(userId, true, note.trim()), `${name} has been suspended.`);
+  };
+  // Unsuspend is a benign, one-click reversal (matches the report card) — no note.
+  const doUnsuspend = () => run(() => suspendUser(userId, false), `${name} has been reinstated.`);
+
+  // ── Current enforcement state (calm, muted; danger color only for lockouts) ──
+  const stateBits = [];
+  if (banned) stateBits.push("Permanently removed");
+  else if (suspended) stateBits.push("Suspended");
+  if (warnCount > 0) stateBits.push(`warned ${warnCount}×`);
+  const stateColor = banned || suspended ? t.danger : t.textMuted;
+
+  const isDanger = panel === "ban" || panel === "unban";
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: stateColor, lineHeight: 1.5, fontWeight: (banned || suspended) ? 600 : 400 }}>
+        {stateBits.length ? stateBits.join(" · ") : "No enforcement actions on record"}
+        {latestNotice && latestNotice.reason && (
+          <span style={{ color: t.textMuted, fontWeight: 400 }}>
+            {" · "}latest: {latestNotice.kind} — <span style={{ fontStyle: "italic" }}>“{latestNotice.reason}”</span>
+          </span>
+        )}
+      </p>
+
+      {localError && (
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "0 0 8px" }}>{localError}</p>
+      )}
+
+      {panel ? (
+        <div
+          role="group"
+          aria-label="Confirm enforcement action"
+          onKeyDown={(e) => { if (e.key === "Escape") closePanel(); }}
+          style={{
+            background: isDanger ? t.dangerSurface : t.surfaceAlt,
+            border: `1px solid ${isDanger ? t.danger : t.border}`,
+            borderRadius: 12, padding: "14px 16px",
+          }}
+        >
+          <p style={{ margin: "0 0 10px", fontSize: 14, color: t.text, lineHeight: 1.5 }}>
+            {panel === "warn" && `Warn ${name}? They keep access but see this notice with the reason.`}
+            {panel === "ban" && `Permanently remove ${name}? They'll be logged out and unable to sign in. This is harder to undo than a suspension.`}
+            {panel === "unban" && `Lift the permanent removal on ${name}? They'll be able to sign in again.`}
+            {panel === "suspend" && `Suspend ${name}? They'll be logged out and unable to sign in.`}
+          </p>
+          <label
+            htmlFor={`enf-note-${userId}`}
+            style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}
+          >
+            Reason (required, recorded &amp; shown to the member)
+          </label>
+          <textarea
+            id={`enf-note-${userId}`}
+            ref={noteRef}
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 500))}
+            maxLength={500}
+            rows={2}
+            style={{
+              width: "100%", border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "10px 12px",
+              fontSize: 16, color: t.text, background: t.surface, resize: "vertical", fontFamily: t.sans,
+              lineHeight: 1.5, boxSizing: "border-box", marginBottom: 12, ...fNote.style,
+            }}
+            onFocus={fNote.onFocus}
+            onBlur={fNote.onBlur}
+          />
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <PlainButton kind={isDanger ? "danger" : "accent"} onClick={confirmAction} disabled={busy || !note.trim()}>
+              {panel === "warn" ? "Send warning"
+                : panel === "ban" ? "Permanently remove"
+                : panel === "unban" ? "Lift removal"
+                : "Suspend"}
+            </PlainButton>
+            <PlainButton kind="neutral" onClick={closePanel} disabled={busy}>Cancel</PlainButton>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <PlainButton kind="quiet" onClick={() => openPanel("warn")} disabled={busy}>
+            Warn {userName}
+          </PlainButton>
+          {includeSuspend && (
+            suspended ? (
+              <PlainButton kind="quiet" onClick={doUnsuspend} disabled={busy}>
+                Unsuspend {userName}
+              </PlainButton>
+            ) : (
+              <PlainButton kind="quiet" onClick={() => openPanel("suspend")} disabled={busy}>
+                Suspend {userName}
+              </PlainButton>
+            )
+          )}
+          {banned ? (
+            <PlainButton kind="quiet" onClick={() => openPanel("unban")} disabled={busy}>
+              Unban {userName}
+            </PlainButton>
+          ) : (
+            <PlainButton kind="quiet" onClick={() => openPanel("ban")} disabled={busy}>
+              Ban {userName}
+            </PlainButton>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportCard({ report, onRefresh, onStatus, onDone }) {
   const [resolveAction, setResolveAction] = useState("");
   const [note, setNote] = useState("");
@@ -719,6 +873,21 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
 
       {/* P1-B repeat-offender signal (muted, always present) */}
       <RepeatOffenderLine report={report} />
+
+      {/* Needed #7/#11 — enforcement state (banned/suspended/warned N + latest
+          reason) + Warn/Ban ladder actions, right by the repeat-offender line.
+          Suspend stays in its own control below (includeSuspend={false}). */}
+      <EnforcementActions
+        userId={report.reportedId}
+        userName={report.reportedName}
+        banned={!!report.reportedBanned}
+        suspended={!!report.reportedSuspended}
+        warnCount={report.reportedWarnCount ?? 0}
+        latestNotice={report.reportedLatestNotice}
+        includeSuspend={false}
+        onChanged={onRefresh}
+        onStatus={onStatus}
+      />
 
       {/* P1-A reported-conversation view (read-only) */}
       <ReportedContext reportId={report.id} reportedName={report.reportedName} />
@@ -1989,20 +2158,23 @@ function FilterSelect({ label, value, onChange, options }) {
   );
 }
 
-// Coarse status badge for a member row (active/suspended). Reuses the report
-// StatusBadge palette semantics: suspended = danger, active = neutral.
-function MemberStatusBadge({ suspended, verified }) {
+// Coarse status badge for a member row (active/suspended/removed). Reuses the
+// report StatusBadge palette semantics: banned/suspended = danger, active =
+// neutral. A permanent ban ('Removed') outranks a suspension in the label.
+function MemberStatusBadge({ suspended, verified, banned }) {
+  const label = banned ? "Removed" : suspended ? "Suspended" : "Active";
+  const enforced = banned || suspended;
   return (
     <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <span
         style={{
           fontSize: 13, fontWeight: 600, borderRadius: 20, padding: "3px 10px",
-          ...(suspended
+          ...(enforced
             ? { background: t.dangerFill, color: "#fff", border: `1px solid ${t.dangerFill}` }
             : { background: t.surfaceAlt, color: t.text, border: `1px solid ${t.border}` }),
         }}
       >
-        {suspended ? "Suspended" : "Active"}
+        {label}
       </span>
       {verified && (
         <span style={{ fontSize: 13, color: t.positiveText, fontWeight: 600 }}>
@@ -2354,7 +2526,7 @@ function MemberDrawer({ id, onClose }) {
             <div style={{ fontSize: 18, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{c.displayName || "Unnamed member"}</div>
             {c.email && <div style={{ fontSize: 14, color: t.textMuted, wordBreak: "break-word", marginTop: 2 }}>{c.email}</div>}
             <div style={{ marginTop: 10 }}>
-              <MemberStatusBadge suspended={data.suspended} verified={data.verified} />
+              <MemberStatusBadge suspended={data.suspended} verified={data.verified} banned={data.banned} />
             </div>
 
             {/* Key facts */}
@@ -2372,6 +2544,21 @@ function MemberDrawer({ id, onClose }) {
               <dt style={{ color: t.textMuted }}>Blocked by</dt>
               <dd style={{ margin: 0, color: t.text }}>{data.distinctBlockers} member{data.distinctBlockers === 1 ? "" : "s"}</dd>
             </dl>
+
+            {/* Needed #7/#11 — enforcement ladder (state + Warn/Suspend/Ban) */}
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, margin: "0 0 4px" }}>Enforcement</h3>
+              <EnforcementActions
+                userId={data.userContext?.userId || id}
+                userName={c.displayName || "this member"}
+                banned={!!data.banned}
+                suspended={!!data.suspended}
+                warnCount={data.warnCount ?? 0}
+                latestNotice={data.latestNotice}
+                includeSuspend={true}
+                onChanged={reload}
+              />
+            </div>
 
             {/* Report history */}
             <div style={{ marginTop: 20 }}>

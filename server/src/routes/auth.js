@@ -115,7 +115,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 
   const { db } = req.ctx;
-  const user = db.prepare('SELECT id, password_hash, token_version, email_verified, suspended, email FROM users WHERE email = ?').get(normalizedEmail);
+  const user = db.prepare('SELECT id, password_hash, token_version, email_verified, suspended, banned, email FROM users WHERE email = ?').get(normalizedEmail);
 
   // Use constant-time comparison even if user not found (timing safety)
   const dummyHash = '$2b$12$invalidhashfortimingprotection000000000000000000000000';
@@ -126,9 +126,27 @@ router.post('/login', authLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
-  // Suspended accounts cannot obtain a token.
-  if (user.suspended) {
-    return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
+  // Needed #11 — due process. A suspended OR banned account can't obtain a token,
+  // but instead of a bare rejection we surface WHY and that they can appeal, so
+  // the actioned user isn't left in the dark (DSA due-process norm). We reveal
+  // ONLY the moderator's own reason note (never anything else about the account).
+  // The frontend renders a calm reason + an appeal affordance from these fields.
+  if (user.banned || user.suspended) {
+    const kind = user.banned ? 'ban' : 'suspend';
+    const notice = db.prepare(
+      'SELECT reason FROM enforcement_notices WHERE user_id = ? AND kind = ? ORDER BY created_at DESC LIMIT 1'
+    ).get(user.id, kind);
+    return res.status(403).json({
+      enforced: true,
+      kind,
+      reason: notice?.reason || '',
+      canAppeal: true,
+      // Keep a plain `error` string too so existing generic error handling still
+      // has something calm to show if it ignores the structured fields.
+      error: user.banned
+        ? 'This account has been permanently removed.'
+        : 'This account has been suspended.',
+    });
   }
 
   const tv = user.token_version ?? 0;

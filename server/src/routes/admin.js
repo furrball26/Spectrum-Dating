@@ -32,6 +32,43 @@ function logMod(db, actorId, action, targetId, detail = '') {
   ).run(newId(), actorId, action, targetId ?? null, detail, Date.now());
 }
 
+// Needed #7/#11: append one due-process record to enforcement_notices. This is
+// the row an actioned user is later SHOWN (reason + appeal path) and that the
+// moderation console reads for the member's enforcement state/history.
+function recordNotice(db, userId, kind, reason = '') {
+  db.prepare(
+    'INSERT INTO enforcement_notices (id, user_id, kind, reason, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(newId(), userId, kind, reason || '', Date.now());
+}
+
+// The most recent enforcement notice for a member (null if none). Powers the
+// "latest reason" surfaced on the report card / member detail / history, and the
+// reason shown to the user on a blocked login.
+function latestNotice(db, userId) {
+  const row = db.prepare(
+    'SELECT kind, reason, created_at FROM enforcement_notices WHERE user_id = ? ORDER BY created_at DESC LIMIT 1'
+  ).get(userId);
+  return row ? { kind: row.kind, reason: row.reason || '', createdAt: row.created_at } : null;
+}
+
+// P1-D / Needed #7: auto-close a member's OPEN sibling reports as 'actioned' when
+// they're suspended or banned — the enforcement IS the action, so leaving those
+// reports "open" would be a false backlog. Only 'open' rows are touched;
+// reviewed/terminal rows (which carry their own notes) are never clobbered.
+// Returns the number of reports closed. Shared by the suspend and ban paths.
+function autoCloseOpenReports(db, targetId, actorId, now, reasonText) {
+  const openReports = db.prepare(
+    "SELECT id FROM reports WHERE reported_id = ? AND status = 'open'"
+  ).all(targetId);
+  for (const rep of openReports) {
+    db.prepare(
+      'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ?, resolved_by = ? WHERE id = ?'
+    ).run('actioned', reasonText, now, actorId, rep.id);
+    logMod(db, actorId, 'resolve_report', rep.id, `actioned: ${reasonText}`);
+  }
+  return openReports.length;
+}
+
 // B-E: destructive actions accept an optional moderator note under either
 // `note` or `reason`. Returns the trimmed string, or '' when absent. Throws a
 // tagged error for a non-string so the caller can 400.
@@ -69,13 +106,17 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
            r.created_at, r.resolved_at, r.resolved_by, r.reported_message,
            ru.email AS reporter_email, rp.display_name AS reporter_display_name,
            du.email AS reported_email, dp.display_name AS reported_display_name,
-           du.suspended AS reported_suspended, du.created_at AS reported_created_at,
+           du.suspended AS reported_suspended, du.banned AS reported_banned, du.created_at AS reported_created_at,
            dp.identity_verified AS reported_verified,
            rbu.email AS resolver_email, rbp.display_name AS resolver_display_name,
            (SELECT COUNT(*) FROM reports r2 WHERE r2.reported_id = r.reported_id) AS reported_report_count,
            (SELECT COUNT(*) FROM reports r3 WHERE r3.reported_id = r.reported_id AND r3.status = 'actioned') AS reported_actioned_count,
            (SELECT COUNT(DISTINCT b.blocker_id) FROM blocks b WHERE b.blocked_id = r.reported_id) AS reported_block_count,
-           (SELECT COUNT(*) FROM chat_safety_signals cs WHERE cs.user_id = r.reported_id) AS reported_chat_signal_count
+           (SELECT COUNT(*) FROM chat_safety_signals cs WHERE cs.user_id = r.reported_id) AS reported_chat_signal_count,
+           (SELECT COUNT(*) FROM enforcement_notices en WHERE en.user_id = r.reported_id AND en.kind = 'warn') AS reported_warn_count,
+           (SELECT en.kind FROM enforcement_notices en WHERE en.user_id = r.reported_id ORDER BY en.created_at DESC LIMIT 1) AS reported_notice_kind,
+           (SELECT en.reason FROM enforcement_notices en WHERE en.user_id = r.reported_id ORDER BY en.created_at DESC LIMIT 1) AS reported_notice_reason,
+           (SELECT en.created_at FROM enforcement_notices en WHERE en.user_id = r.reported_id ORDER BY en.created_at DESC LIMIT 1) AS reported_notice_at
     FROM reports r
     LEFT JOIN users ru ON ru.id = r.reporter_id
     LEFT JOIN profiles rp ON rp.user_id = r.reporter_id
@@ -212,6 +253,8 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
         'UPDATE users SET suspended = 1, token_version = token_version + 1 WHERE id = ?'
       ).run(req.params.id);
       logMod(db, userId, 'suspend', req.params.id, note);
+      // Needed #11: due-process record the suspended user can SEE (reason + appeal).
+      recordNotice(db, req.params.id, 'suspend', note);
 
       // Nuke the suspended user's PENDING outbound message-request intros — a
       // suspended user must not keep a live first-contact channel to non-matches.
@@ -224,16 +267,7 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
         logMod(db, userId, 'nuke_intros', req.params.id, `withdrew ${nukedIntros.changes} pending outbound intro(s) on suspend`);
       }
 
-      const openReports = db.prepare(
-        "SELECT id FROM reports WHERE reported_id = ? AND status = 'open'"
-      ).all(req.params.id);
-      for (const rep of openReports) {
-        db.prepare(
-          'UPDATE reports SET status = ?, moderator_note = ?, resolved_at = ?, resolved_by = ? WHERE id = ?'
-        ).run('actioned', 'auto-closed: user suspended', now, userId, rep.id);
-        logMod(db, userId, 'resolve_report', rep.id, 'actioned: auto-closed: user suspended');
-      }
-      autoClosedReports = openReports.length;
+      autoClosedReports = autoCloseOpenReports(db, req.params.id, userId, now, 'auto-closed: user suspended');
     });
     suspendTxn();
     // Kill any already-open sockets so the suspended user stops live-receiving
@@ -242,9 +276,114 @@ router.post('/users/:id/suspend', requireAuth, requireAdmin, (req, res) => {
   } else {
     db.prepare('UPDATE users SET suspended = 0 WHERE id = ?').run(req.params.id);
     logMod(db, userId, 'unsuspend', req.params.id, note);
+    recordNotice(db, req.params.id, 'unsuspend', note);
   }
 
   res.json({ ok: true, suspended, autoClosedReports });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/users/:id/warn — body { note REQUIRED }  (Needed #7)
+// The lightest rung of the enforcement ladder: record a due-process notice the
+// member can SEE, but do NOT lock them out. A warning is a recorded notice, not
+// a suspension — so it never bumps token_version and never changes
+// suspended/banned. Multiple warns are allowed (no idempotency guard).
+// ---------------------------------------------------------------------------
+router.post('/users/:id/warn', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  if (!note) return res.status(400).json({ error: 'A note is required to warn a user.' });
+
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  recordNotice(db, req.params.id, 'warn', note);
+  logMod(db, userId, 'warn', req.params.id, note);
+
+  res.json({ ok: true, kind: 'warn' });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/users/:id/ban — body { note REQUIRED }  (Needed #7)
+// The top rung: a PERMANENT ban, distinct from the reversible suspend. Sets
+// banned=1, force-logs-out (token_version bump), disconnects live sockets,
+// auto-closes the member's open reports (reuses the suspend path's logic), and
+// records a due-process notice. 409 if already banned. Reversible only via the
+// separate /unban action (a ban is intentionally harder to undo than a suspend).
+// ---------------------------------------------------------------------------
+router.post('/users/:id/ban', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  if (!note) return res.status(400).json({ error: 'A note is required to ban a user.' });
+
+  const user = db.prepare('SELECT id, banned FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  if (user.banned) return res.status(409).json({ error: 'User is already banned.' });
+
+  const now = Date.now();
+  let autoClosedReports = 0;
+  const banTxn = db.transaction(() => {
+    // Ban AND force-logout immediately by bumping token_version.
+    db.prepare(
+      'UPDATE users SET banned = 1, token_version = token_version + 1 WHERE id = ?'
+    ).run(req.params.id);
+    logMod(db, userId, 'ban', req.params.id, note);
+    recordNotice(db, req.params.id, 'ban', note);
+
+    // A banned user must not keep a live first-contact channel to non-matches.
+    const nukedIntros = db.prepare(
+      "UPDATE message_requests SET status = 'withdrawn', decided_at = ? WHERE sender_id = ? AND status = 'pending'"
+    ).run(now, req.params.id);
+    if (nukedIntros.changes > 0) {
+      logMod(db, userId, 'nuke_intros', req.params.id, `withdrew ${nukedIntros.changes} pending outbound intro(s) on ban`);
+    }
+
+    autoClosedReports = autoCloseOpenReports(db, req.params.id, userId, now, 'auto-closed: user banned');
+  });
+  banTxn();
+  // Kill any already-open sockets so the banned user stops live-receiving events.
+  disconnectUser(req.app.locals.io, req.params.id);
+
+  res.json({ ok: true, banned: true, autoClosedReports });
+});
+
+// ---------------------------------------------------------------------------
+// POST /admin/users/:id/unban — body { note REQUIRED }  (Needed #7)
+// Reverses a permanent ban. Kept a DISTINCT action from unsuspend so lifting a
+// ban is a deliberate decision. Clears banned=0 and writes an audit row. 409 if
+// the user is not banned.
+// ---------------------------------------------------------------------------
+router.post('/users/:id/unban', requireAuth, requireAdmin, (req, res) => {
+  const { db, userId } = req.ctx;
+  let note;
+  try {
+    note = readNote(req.body);
+  } catch (e) {
+    if (e.badNote) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  if (!note) return res.status(400).json({ error: 'A note is required to unban a user.' });
+
+  const user = db.prepare('SELECT id, banned FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  if (!user.banned) return res.status(409).json({ error: 'User is not banned.' });
+
+  db.prepare('UPDATE users SET banned = 0 WHERE id = ?').run(req.params.id);
+  logMod(db, userId, 'unban', req.params.id, note);
+
+  res.json({ ok: true, banned: false });
 });
 
 // ---------------------------------------------------------------------------
@@ -743,7 +882,7 @@ router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/users/:id/history', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
-  const user = db.prepare('SELECT id, email, created_at, suspended FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, email, created_at, suspended, banned FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   const reportsAgainst = db.prepare(
@@ -758,11 +897,18 @@ router.get('/users/:id/history', requireAuth, requireAdmin, (req, res) => {
   const chatSignalCount = db.prepare(
     'SELECT COUNT(*) AS c FROM chat_safety_signals WHERE user_id = ?'
   ).get(req.params.id).c;
+  const warnCount = db.prepare(
+    "SELECT COUNT(*) AS c FROM enforcement_notices WHERE user_id = ? AND kind = 'warn'"
+  ).get(req.params.id).c;
 
   res.json({
     userId: user.id,
     email: user.email,
     suspended: !!user.suspended,
+    // Needed #7/#11: full enforcement state + latest reason for the drill-down.
+    banned: !!user.banned,
+    warnCount,
+    latestNotice: latestNotice(db, req.params.id),
     accountCreatedAt: user.created_at,
     reportsAgainst,
     reportsActioned,
@@ -798,6 +944,15 @@ function serializeReport(r) {
       email: r.reported_email,
       displayName: r.reported_display_name || '',
       suspended: !!r.reported_suspended,
+      // Needed #7: PERMANENT ban state (distinct from reversible suspend).
+      banned: !!r.reported_banned,
+      // Needed #7/#11: how many warnings this member has accrued + the latest
+      // enforcement notice (kind + reason + when) so the moderator sees the full
+      // enforcement state and the most recent reason on the card.
+      warnCount: r.reported_warn_count ?? 0,
+      latestNotice: r.reported_notice_kind
+        ? { kind: r.reported_notice_kind, reason: r.reported_notice_reason || '', createdAt: r.reported_notice_at ?? null }
+        : null,
       // B-F: real verification state (the badge previously always lied).
       verified: !!r.reported_verified,
       // P1-B: repeat-offender signal on every card. `reportCount` is the TOTAL
@@ -815,16 +970,23 @@ function serializeReport(r) {
 }
 
 function userContext(db, userId) {
-  const user = db.prepare('SELECT id, email, created_at, suspended FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT id, email, created_at, suspended, banned FROM users WHERE id = ?').get(userId);
   if (!user) return null;
   const profile = db.prepare(
     'SELECT display_name, tagline, bio, comm_note, relationship_goal, dist_city FROM profiles WHERE user_id = ?'
   ).get(userId);
+  const warnCount = db.prepare(
+    "SELECT COUNT(*) AS c FROM enforcement_notices WHERE user_id = ? AND kind = 'warn'"
+  ).get(userId).c;
   return {
     userId: user.id,
     email: user.email,
     createdAt: user.created_at,
     suspended: !!user.suspended,
+    // Needed #7/#11: enforcement state + latest reason on the single-report view.
+    banned: !!user.banned,
+    warnCount,
+    latestNotice: latestNotice(db, userId),
     displayName: profile?.display_name || '',
     tagline: profile?.tagline || '',
     bio: profile?.bio || '',

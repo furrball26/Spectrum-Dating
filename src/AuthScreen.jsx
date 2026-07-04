@@ -31,6 +31,10 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const [error, setError] = useState(""); // form-level only (server / generic)
   const [forgotSent, setForgotSent] = useState(false);
   const [pendingAuth, setPendingAuth] = useState(null); // auth data held while on check-email screen
+  // Needed #11 — due process. When a suspended/banned member tries to sign in,
+  // the backend replies { enforced, kind, reason, canAppeal } instead of a bare
+  // rejection. We hold it here and render a calm reason + appeal screen.
+  const [enforced, setEnforced] = useState(null); // { kind: 'suspend'|'ban', reason }
   const [resendStatus, setResendStatus] = useState("idle"); // 'idle' | 'sending' | 'sent' | 'error'
   const headingRef = useRef(null);
   const errorRef = useRef(null);
@@ -110,6 +114,12 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
       }
       onAuth(data);
     } catch (err) {
+      // Due process: a suspended/banned sign-in gets a calm reason + appeal
+      // screen, not a red error line.
+      if (err?.body?.enforced) {
+        setEnforced({ kind: err.body.kind === "ban" ? "ban" : "suspend", reason: err.body.reason || "" });
+        return;
+      }
       setError(safeErrorMessage(err, "Something went wrong. Please try again."));
     } finally {
       setLoading(false);
@@ -131,6 +141,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     setError("");
     setFieldErrors({});
     setForgotSent(false);
+    setEnforced(null);
     // Never let a stale confirm value block a later login/reset submit.
     setConfirmPassword("");
   }
@@ -239,13 +250,79 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               outline: "none",
             }}
           >
-            {mode === "login" ? "Welcome back"
+            {enforced ? (enforced.kind === "ban" ? "Account removed" : "Account suspended")
+              : mode === "login" ? "Welcome back"
               : mode === "forgot" ? "Reset your password"
               : mode === "check-email" ? "Check your inbox"
               : "Create your account"}
           </h1>
 
-          {mode === "check-email" ? (
+          {enforced ? (
+            <div>
+              {/* Calm, non-shaming due-process notice. Plain language, no
+                  legalese, no alarm-red banner. */}
+              <p style={{ margin: "0 0 14px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
+                {enforced.kind === "ban"
+                  ? "Your account was permanently removed after a review by our safety team."
+                  : "Your account was suspended after a review by our safety team."}
+              </p>
+              {enforced.reason && (
+                <div
+                  style={{
+                    background: t.surfaceAlt,
+                    borderLeft: `3px solid ${t.border}`,
+                    borderRadius: 8,
+                    padding: "12px 14px",
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>
+                    Reason
+                  </div>
+                  <p style={{ margin: 0, fontSize: 15, color: t.text, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                    {enforced.reason}
+                  </p>
+                </div>
+              )}
+              <p style={{ margin: "0 0 16px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+                If you think this was a mistake, you can ask us to take another look.
+                We read every message.
+              </p>
+              {/* Appeal routes to the existing feedback channel (no separate
+                  appeal system). A blocked member can't sign in to use the in-app
+                  form, so we hand off to the same inbox by email. */}
+              <a
+                href={`mailto:support@spectrum-dating.app?subject=${encodeURIComponent(
+                  enforced.kind === "ban" ? "Account review request (removed)" : "Account review request (suspended)"
+                )}`}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  boxSizing: "border-box",
+                  minHeight: 48,
+                  borderRadius: 12,
+                  background: t.accentFill,
+                  color: "#fff",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "none",
+                  textAlign: "center",
+                  padding: "13px 16px",
+                }}
+              >
+                Request a review
+              </a>
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                style={{ background: "none", border: "none", color: t.accentStrong, fontSize: 16, fontWeight: 600, cursor: "pointer", padding: "4px 2px", minHeight: 44, marginTop: 14, textDecoration: "underline" }}
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : mode === "check-email" ? (
             <div>
               <p style={{ margin: "0 0 6px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
                 We sent a verification link to{" "}
@@ -508,8 +585,9 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
           )}
         </div>
 
-        {/* Toggle mode — hidden in forgot mode (its own back link is in the card) */}
-        {mode !== "forgot" && (
+        {/* Toggle mode — hidden in forgot mode (its own back link is in the card)
+            and on the enforcement screen (which has its own back link). */}
+        {mode !== "forgot" && !enforced && (
         <p style={{ textAlign: "center", marginTop: 20, fontSize: 16, color: t.textSoft }}>
           {mode === "login" ? "New to Spectrum? " : "Already have an account? "}
           <button

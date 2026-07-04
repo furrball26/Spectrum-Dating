@@ -105,6 +105,10 @@ const SAFE_ERROR_MESSAGES = new Set([
   "We couldn’t create an account with those details. If you already have an account, try signing in or resetting your password.",
   "Invalid email or password.",
   "This account has been suspended. Contact support.",
+  // Needed #11 — enforcement fallbacks (the enforced screen normally handles
+  // these, but keep the plain strings user-safe if the fallback path is hit).
+  "This account has been suspended.",
+  "This account has been permanently removed.",
   "Token and new password are required.",
   "This reset link is invalid or has expired.",
   "Verification link has expired. Please request a new one.",
@@ -433,6 +437,11 @@ export async function getAdminReports(status = 'open') {
     reportedEmail: r.reported?.email || r.reportedEmail || '',
     reportedSuspended: r.reported?.suspended ?? r.reportedSuspended ?? false,
     reportedVerified: r.reported?.verified ?? r.reportedVerified ?? false,
+    // Needed #7 — enforcement ladder state on the report card: PERMANENT ban,
+    // warning tally, and the latest due-process notice (kind + reason + when).
+    reportedBanned: r.reported?.banned ?? r.reportedBanned ?? false,
+    reportedWarnCount: r.reported?.warnCount ?? r.reportedWarnCount ?? 0,
+    reportedLatestNotice: r.reported?.latestNotice ?? r.reportedLatestNotice ?? null,
     // B-C resolute receipt fields — who/when/why a non-open report was resolved.
     resolvedBy: r.resolvedBy || null,
     resolvedAt: r.resolvedAt ?? null,
@@ -459,6 +468,20 @@ export async function suspendUser(userId, suspended, note) {
   const body = { suspended };
   if (note) body.note = note;
   return apiFetch(`/admin/users/${userId}/suspend`, { method: 'POST', body });
+}
+
+// Needed #7 — enforcement ladder. All three require a moderator note (backend
+// 400s without one). Warn records a due-process notice WITHOUT locking the user
+// out; ban is a PERMANENT lockout (force-logout, distinct from suspend); unban
+// reverses it. 409 on re-ban / not-banned no-ops.
+export async function warnUser(userId, note) {
+  return apiFetch(`/admin/users/${userId}/warn`, { method: 'POST', body: { note } });
+}
+export async function banUser(userId, note) {
+  return apiFetch(`/admin/users/${userId}/ban`, { method: 'POST', body: { note } });
+}
+export async function unbanUser(userId, note) {
+  return apiFetch(`/admin/users/${userId}/unban`, { method: 'POST', body: { note } });
 }
 
 // F1 — identity-verification action on a member (from the report context).

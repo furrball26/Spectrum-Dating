@@ -54,10 +54,11 @@ export function verifyPurposeToken(token, purpose) {
 
 export function checkTokenVersion(decoded) {
   const db = getDb();
-  const user = db.prepare('SELECT token_version, suspended FROM users WHERE id = ?').get(decoded.sub);
+  const user = db.prepare('SELECT token_version, suspended, banned FROM users WHERE id = ?').get(decoded.sub);
   if (!user) return false; // user deleted
   if ((decoded.tv ?? -1) !== user.token_version) return false; // token revoked
   if (user.suspended) return false; // suspended — treat as logged out
+  if (user.banned) return false; // permanently banned — treat as logged out
   return true;
 }
 

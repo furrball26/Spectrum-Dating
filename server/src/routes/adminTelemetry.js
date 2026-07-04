@@ -446,7 +446,7 @@ router.get('/members/:id', requireAuth, requireAdmin, (req, res) => {
   const id = req.params.id;
 
   const user = db.prepare(
-    'SELECT id, email, created_at, suspended, last_active_at FROM users WHERE id = ?'
+    'SELECT id, email, created_at, suspended, banned, last_active_at FROM users WHERE id = ?'
   ).get(id);
   if (!user) return res.status(404).json({ error: 'Member not found.' });
 
@@ -473,12 +473,25 @@ router.get('/members/:id', requireAuth, requireAdmin, (req, res) => {
     'SELECT COUNT(DISTINCT blocker_id) AS c FROM blocks WHERE blocked_id = ?'
   ).get(id).c;
 
+  // Needed #7/#11: enforcement state — warn count + the latest due-process notice
+  // (kind + reason + when). Distinct from the reversible `suspended` flag.
+  const warnCount = db.prepare(
+    "SELECT COUNT(*) AS c FROM enforcement_notices WHERE user_id = ? AND kind = 'warn'"
+  ).get(id).c;
+  const noticeRow = db.prepare(
+    'SELECT kind, reason, created_at FROM enforcement_notices WHERE user_id = ? ORDER BY created_at DESC LIMIT 1'
+  ).get(id);
+  const latestNotice = noticeRow
+    ? { kind: noticeRow.kind, reason: noticeRow.reason || '', createdAt: noticeRow.created_at }
+    : null;
+
   res.json({
     userContext: {
       userId: user.id,
       email: user.email,
       createdAt: user.created_at,
       suspended: !!user.suspended,
+      banned: !!user.banned,
       displayName: profile?.display_name || '',
       tagline: profile?.tagline || '',
       bio: profile?.bio || '',
@@ -488,6 +501,9 @@ router.get('/members/:id', requireAuth, requireAdmin, (req, res) => {
     },
     verified: !!profile?.identity_verified,
     suspended: !!user.suspended,
+    banned: !!user.banned,
+    warnCount,
+    latestNotice,
     accountAgeMs: Date.now() - user.created_at,
     accountCreatedAt: user.created_at,
     lastActiveAt: user.last_active_at || '',
