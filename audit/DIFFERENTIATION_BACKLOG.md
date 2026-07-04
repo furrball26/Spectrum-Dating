@@ -143,14 +143,21 @@ additive by construction and *cannot* break the mutual filter.
     (`FeaturedInterest.jsx` + `SectionRule` ramp + serif answer) on the Discover card,
     matched-profile modal, and own profile. De-duped via `splitFeaturedPrompt` (one home,
     D-2 pattern). 47 unit tests, smoke 11/11.
-  - [ ] **Phase 1 — structured `special_interests` field (BACKEND, Railway migration) —
-    SCOPED, awaiting go-ahead.** New JSON-array facet col (F28 pattern), validated
-    display field, SOFT-scored in `score.js` (adds weight + "you could both talk for hours
-    about X" reason) — NEVER a filter. Load-bearing gate: byte-identical-candidates test
-    (deck unchanged with vs without the field), same safety contract as Wave B. Touches
-    matching → needs explicit human OK before deploy.
-  - [ ] **Phase 2 — collection (Vercel).** Onboarding step + profile editor + wire card to
-    the new field.
+  - [x] **Phase 1 — structured `special_interests` field (BACKEND) — SHIPPED TO PROD
+    (master `8005a7a`, Railway `/health 8005a7a`, live-verified).** Migration 042 (JSON-array
+    facet, F28 pattern), validated display field (3×40, slur-screened), SOFT-scored in
+    `score.js` (+3/shared item + "you could both talk for hours about X" reason) — NEVER a
+    filter. Load-bearing gate green: byte-identical-candidates test (deck unchanged with vs
+    without) + cannot-rescue-excluded test. Backend 107/107, coordinator-reviewed the
+    candidates.js/score.js diff before deploy (field only in SELECT + scoreCandidate).
+  - [x] **Phase 2 — collection + display (Vercel) — SHIPPED TO PROD (master `d811faf`,
+    live-verified).** Merged "Could talk for hours about" section: matchable chips lead
+    (shared highlighted, ✦), free-text prose elaborates below (`FeaturedInterest.jsx`);
+    shared `SpecialInterestsInput` collector in the profile editor + onboarding Step 5 (caps
+    3×40 matching backend); `sharedSpecialInterests` pure helper + 10 unit tests. Discover
+    card + matched-modal + own-profile wired. eslint 0, unit 57/57, smoke 11/11; own-profile
+    chip render confirmed (Discover-card visual unverified — recurring empty-deck seed issue,
+    same verified component).
 - [x] **D-18 (S) Make safety a visible identity — SHIPPED TO PROD (master `53d862d`,
   live-verified).** `SafetyProtectionsDisclosure` — a calm, collapsed-by-default
   disclosure inside `NewThreadStart` (first contact only), BELOW the moat so it never
