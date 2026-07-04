@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { newId } from '../utils/ids.js';
 import { signToken, requireAuth, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
 import { isAdminEmail } from '../middleware/admin.js';
+import { getEntitlement } from '../billing/entitlements.js';
 import { disconnectUser } from '../socket/index.js';
 import { emailConfigured, sendVerificationEmail, sendPasswordResetEmail } from '../email/resend.js';
 
@@ -100,6 +101,8 @@ router.post('/register', authLimiter, async (req, res) => {
     emailVerified: false,
     emailVerificationEnabled: emailConfigured(),
     isAdmin: isAdminEmail(normalizedEmail),
+    // Billing tier (a brand-new user has no subscription row → 'free').
+    tier: getEntitlement(db, userId).tier,
   });
 });
 
@@ -157,6 +160,8 @@ router.post('/login', authLimiter, async (req, res) => {
     emailVerified: !!user.email_verified,
     emailVerificationEnabled: emailConfigured(),
     isAdmin: isAdminEmail(user.email),
+    // Billing tier so the app knows free vs Companion on load (no row = free).
+    tier: getEntitlement(db, user.id).tier,
   });
 });
 

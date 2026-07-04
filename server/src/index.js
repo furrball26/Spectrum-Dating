@@ -24,6 +24,7 @@ import adminTelemetryRouter from './routes/adminTelemetry.js';
 import adminPopulationRouter from './routes/adminPopulation.js';
 import telemetryRouter from './routes/telemetry.js';
 import feedbackRouter from './routes/feedback.js';
+import billingRouter, { adminEntitlementsRouter } from './routes/billing.js';
 import healthRouter from './routes/health.js';
 import { lastActiveMiddleware } from './middleware/lastActive.js';
 import { adminApiLimiter } from './middleware/rateLimits.js';
@@ -95,6 +96,10 @@ app.use('/account', accountRouter);
 app.use('/admin', adminApiLimiter, adminRouter);
 app.use('/admin', adminTelemetryRouter);
 app.use('/admin', adminPopulationRouter);
+// Admin entitlement routes mount at '/admin' AFTER adminApiLimiter above, so
+// they inherit the same per-admin rate limiter as every other /admin route.
+app.use('/admin', adminEntitlementsRouter);
+app.use('/billing', billingRouter);
 app.use('/telemetry', telemetryRouter);
 app.use('/feedback', feedbackRouter);
 

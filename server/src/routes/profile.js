@@ -2,6 +2,7 @@
 import { requireAuth } from '../middleware/auth.js';
 import { abuseReportLimiter } from '../middleware/rateLimits.js';
 import { isAdminEmail } from '../middleware/admin.js';
+import { getEntitlement } from '../billing/entitlements.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos, listPublicPhotos } from './photos.js';
 import { ageFromDob } from '../utils/time.js';
@@ -249,6 +250,8 @@ router.get('/me', requireAuth, (req, res) => {
     emailVerified: !!userRow?.email_verified,
     emailVerificationEnabled: emailConfigured(),
     isAdmin: isAdminEmail(userRow?.email),
+    // Billing tier so the app knows free vs Companion on load (no row = free).
+    tier: getEntitlement(db, userId).tier,
   });
 });
 
