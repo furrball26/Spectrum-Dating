@@ -762,15 +762,15 @@ export default function DiscoverFilters({
                   minHeight: 44,
                   padding: "11px 20px",
                   borderRadius: 11,
-                  border: `1px solid ${t.accentFill}`,
-                  background: t.accentFill,
-                  color: "#fff",
+                  border: `1px solid ${t.accentStrong}`,
+                  background: "transparent",
+                  color: t.accentStrong,
                   fontSize: 16,
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
               >
-                See Companion plans
+                See what Companion adds
               </button>
             </div>
           )}

@@ -875,10 +875,12 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   // renders its own "Spectrum" header (was a duplicate landmark) or the dead
   // "#help" link. Just the real "Done for now" action, as a proper button.
   const Header = () => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12 }}>
-      {/* minWidth:0 so this action group can shrink/wrap next to "Done for now"
-          on narrow screens (flex-row truncation invariant). */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+      {/* Filters + Top Picks stay side-by-side (they fit even at 390px); the
+          outer row wraps so "Done for now" drops to a new line rather than
+          folding the pills into an L (D4). minWidth:0 keeps the truncation
+          invariant. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap", minWidth: 0 }}>
         <button
           type="button"
           onClick={() => setFiltersOpen(true)}
@@ -916,6 +918,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           cursor: "pointer",
           padding: "8px 4px",
           minHeight: 44,
+          marginLeft: "auto",
         }}
       >
         {plainLanguage ? "Done" : "Done for now"}

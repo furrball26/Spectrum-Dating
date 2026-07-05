@@ -89,15 +89,33 @@ export default function AudioAnswerCard({ promptText, url, transcript, durationM
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
-        {/* Native controls — accessible + keyboard-operable for free. preload
-            "none" so opening a profile never auto-fetches every clip's bytes. */}
-        <audio
-          preload="none"
-          controls
-          src={url}
-          aria-label={`Voice answer${promptText ? ` to: ${promptText}` : ""}`}
-          style={{ maxWidth: "100%", minWidth: 0 }}
-        />
+        {/* Themed well around the native player so its bright default chrome
+            doesn't read as a jarring white bar on the dark card in dim (D1).
+            `colorScheme` nudges the UA control to match the theme's surface;
+            width is constrained so it never spans the full card. Keeps
+            preload="none", the accessible label, and the visible transcript. */}
+        <div
+          style={{
+            background: t.surface,
+            border: `1px solid ${t.borderLight}`,
+            borderRadius: 10,
+            padding: 6,
+            flex: "1 1 240px",
+            maxWidth: 320,
+            minWidth: 0,
+            colorScheme: "light dark",
+          }}
+        >
+          {/* Native controls — accessible + keyboard-operable for free. preload
+              "none" so opening a profile never auto-fetches every clip's bytes. */}
+          <audio
+            preload="none"
+            controls
+            src={url}
+            aria-label={`Voice answer${promptText ? ` to: ${promptText}` : ""}`}
+            style={{ width: "100%", display: "block", minWidth: 0 }}
+          />
+        </div>
         {durLabel && (
           <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>{durLabel}</span>
         )}

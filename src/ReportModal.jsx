@@ -2,6 +2,15 @@ import { useState, useRef, useEffect } from "react";
 import { reportUser, blockUser } from "./api.js";
 import { t } from "./tokens.js";
 import { SAFETY_REASONS } from "./safetyReasons.js";
+import { useFocusable } from "./useFocusable.js";
+
+// Native control wired to the app's shared focus ring (t.focus) instead of the
+// UA outline, so keyboard focus looks consistent with the rest of the app (A5).
+// Each instance owns its own useFocusable hook — safe inside the reason .map().
+function FocusRingInput({ style, ...props }) {
+  const f = useFocusable();
+  return <input {...props} onFocus={f.onFocus} onBlur={f.onBlur} style={{ ...style, ...f.style }} />;
+}
 
 // Block-or-report modal (shared by Discover and Matches). `candidate` needs
 // { memberId, displayName }; `onBlocked(candidate)` fires only when a block
@@ -25,6 +34,8 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
   const [failMsg, setFailMsg] = useState("");
   const headingRef = useRef(null);
   const dialogRef = useRef(null);
+  const fCancel = useFocusable();
+  const fSubmit = useFocusable();
 
   // Move focus into the dialog on open, restore to the trigger on close. WCAG 2.4.3.
   useEffect(() => {
@@ -216,7 +227,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
                 What would you like to do?
               </legend>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, fontSize: 16, color: t.text, cursor: "pointer" }}>
-                <input
+                <FocusRingInput
                   type="checkbox"
                   checked={doBlock}
                   onChange={() => setDoBlock((v) => !v)}
@@ -230,7 +241,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
                 </span>
               </label>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 16, color: t.text, cursor: "pointer" }}>
-                <input
+                <FocusRingInput
                   type="checkbox"
                   checked={doReport}
                   onChange={() => setDoReport((v) => !v)}
@@ -258,7 +269,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
                   key={r.value}
                   style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 16, color: t.text, cursor: "pointer" }}
                 >
-                  <input
+                  <FocusRingInput
                     type="radio"
                     name="report-reason"
                     value={r.value}
@@ -299,6 +310,8 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
               <button
                 type="button"
                 onClick={onClose}
+                onFocus={fCancel.onFocus}
+                onBlur={fCancel.onBlur}
                 style={{
                   flex: 1,
                   minHeight: 48,
@@ -309,6 +322,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
                   background: t.surface,
                   color: t.text,
                   border: `1px solid ${t.border}`,
+                  ...fCancel.style,
                 }}
               >
                 Cancel
@@ -316,6 +330,8 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
               <button
                 type="submit"
                 disabled={!canSubmit}
+                onFocus={fSubmit.onFocus}
+                onBlur={fSubmit.onBlur}
                 style={{
                   flex: 1,
                   minHeight: 48,
@@ -326,6 +342,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
                   background: canSubmit ? t.dangerFill : t.borderLight,
                   color: canSubmit ? "#fff" : t.textMuted,
                   border: "none",
+                  ...fSubmit.style,
                 }}
               >
                 {submitting

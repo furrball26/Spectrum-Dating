@@ -236,7 +236,25 @@ function LockedPanel({ onUpgrade }) {
         Matching, messaging, safety, and seeing who likes you always stay free.
         Companion only ever adds comfort and capability on top.
       </p>
-      <PrimaryButton onClick={onUpgrade}>See Companion plans</PrimaryButton>
+      {/* One calm outlined door to Companion, one label everywhere (D2). */}
+      <button
+        type="button"
+        onClick={onUpgrade}
+        style={{
+          minHeight: 44,
+          padding: "10px 20px",
+          borderRadius: 10,
+          border: `1px solid ${t.accentStrong}`,
+          background: "transparent",
+          color: t.accentStrong,
+          fontSize: 16,
+          fontWeight: 600,
+          fontFamily: t.sans,
+          cursor: "pointer",
+        }}
+      >
+        See what Companion adds
+      </button>
     </div>
   );
 }

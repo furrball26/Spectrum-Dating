@@ -92,7 +92,9 @@ export default function PhotoCarousel({
       <figure style={{ margin: 0, ...containerStyle }}>
         <img
           src={only.url}
-          alt={altFor(only, 0)}
+          // When a visible <figcaption> repeats the description, the img alt is
+          // positional/empty so a screen reader doesn't read it twice (A3).
+          alt={cap ? "" : altFor(only, 0)}
           decoding="async"
           style={baseImg}
         />
@@ -167,7 +169,8 @@ export default function PhotoCarousel({
         // src simply swaps — no animation.
         key={reducedMotion ? "static" : idx}
         src={photo.url}
-        alt={altFor(photo, idx)}
+        // Empty alt when the visible caption already carries the description (A3).
+        alt={cap ? "" : altFor(photo, idx)}
         decoding="async"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}

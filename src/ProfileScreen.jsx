@@ -1528,6 +1528,49 @@ function StarterButton({ text, onUse }) {
 // HARD GUARDRAIL (product law): this shows the member's OWN pick as self-
 // expression ONLY — never a vote tally, count, "% chose this", or comparison to
 // others. There is no aggregate surface anywhere here, by design.
+// One chip in the choice group. Its own component so useFocusable's hook order
+// stays stable per option, and so the focus ring lands on the whole chip (not
+// the tiny native radio) — a :focus-within equivalent via the input's focus
+// handlers (A4). Selected chips get an accent-tinted fill so the choice reads
+// at a glance in dim, not just from the small radio dot (D3).
+function PromptChoiceChip({ name, opt, selected, onChange }) {
+  const f = useFocusable();
+  return (
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        maxWidth: "100%",
+        minWidth: 0,
+        minHeight: 44,
+        padding: "8px 14px",
+        borderRadius: 999,
+        border: `1.5px solid ${selected ? t.accentFill : t.formBorder}`,
+        background: selected ? t.green50 : t.surface,
+        color: t.text,
+        fontSize: 15,
+        fontWeight: selected ? 600 : 500,
+        lineHeight: 1.4,
+        cursor: "pointer",
+        ...f.style,
+      }}
+    >
+      <input
+        type="radio"
+        name={name}
+        value={opt}
+        checked={selected}
+        onChange={() => onChange(opt)}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
+        style={{ accentColor: t.accentFill, width: 18, height: 18, margin: 0, flexShrink: 0, cursor: "pointer" }}
+      />
+      <span style={{ minWidth: 0 }}>{opt}</span>
+    </label>
+  );
+}
+
 function PromptChoiceGroup({ name, options, value, onChange, labelId }) {
   return (
     <div
@@ -1535,41 +1578,15 @@ function PromptChoiceGroup({ name, options, value, onChange, labelId }) {
       aria-labelledby={labelId}
       style={{ display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0, marginTop: 4 }}
     >
-      {options.map((opt) => {
-        const selected = value === opt;
-        return (
-          <label
-            key={opt}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              maxWidth: "100%",
-              minWidth: 0,
-              minHeight: 44,
-              padding: "8px 14px",
-              borderRadius: 999,
-              border: `1.5px solid ${selected ? t.accentFill : t.formBorder}`,
-              background: selected ? t.surfaceAlt : t.surface,
-              color: t.text,
-              fontSize: 15,
-              fontWeight: selected ? 600 : 500,
-              lineHeight: 1.4,
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="radio"
-              name={name}
-              value={opt}
-              checked={selected}
-              onChange={() => onChange(opt)}
-              style={{ accentColor: t.accentFill, width: 18, height: 18, margin: 0, flexShrink: 0, cursor: "pointer" }}
-            />
-            <span style={{ minWidth: 0 }}>{opt}</span>
-          </label>
-        );
-      })}
+      {options.map((opt) => (
+        <PromptChoiceChip
+          key={opt}
+          name={name}
+          opt={opt}
+          selected={value === opt}
+          onChange={onChange}
+        />
+      ))}
     </div>
   );
 }

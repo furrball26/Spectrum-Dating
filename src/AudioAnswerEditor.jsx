@@ -492,8 +492,12 @@ function AudioRecorderPanel({ availablePrompts, onPosted, onCancel }) {
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span aria-hidden="true" style={{ width: 12, height: 12, borderRadius: "50%", background: t.accentFill, flexShrink: 0 }} />
-            <span role="status" aria-live="polite" style={{ fontSize: 18, fontWeight: 700, color: t.text, fontVariantNumeric: "tabular-nums" }}>
-              Recording · {formatAudioDuration(Math.max(1000, elapsedMs))}
+            <span style={{ fontSize: 18, fontWeight: 700, color: t.text, fontVariantNumeric: "tabular-nums" }}>
+              {/* Announce the STATE once — the live region text is stable
+                  ("Recording"), so a screen reader isn't spammed every second.
+                  The ticking clock is visible but aria-hidden. */}
+              <span role="status" aria-live="polite">Recording</span>
+              <span aria-hidden="true"> · {formatAudioDuration(Math.max(1000, elapsedMs))}</span>
             </span>
           </div>
           <p style={{ margin: 0, fontSize: 14, color: t.textMuted, lineHeight: 1.5 }}>
@@ -570,8 +574,8 @@ function LockedAudioUpsell({ onOpenMembership }) {
         Voice answers are part of Spectrum Companion
       </p>
       <p style={{ margin: 0, fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
-        Answer a prompt in your own voice for the people who read you best. Everyone
-        can still play and read voice answers for free — this just lets you add your own.
+        Answer a prompt in your own voice for the people who read you best —
+        recording your own is the part Companion adds.
       </p>
       <button
         type="button"

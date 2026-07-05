@@ -3231,10 +3231,11 @@ const PHOTO_SOURCE_OPTIONS = [
 // larger and calmer than the old dense strip. Carries a word, never color-only.
 // Roving tabindex (only the active tab is in the tab order). Focus ring via
 // useFocusable.
-function AreaTab({ id, panelId, label, active, onClick }) {
+function AreaTab({ id, panelId, label, active, onClick, btnRef }) {
   const f = useFocusable();
   return (
     <button
+      ref={btnRef}
       type="button"
       role="tab"
       id={id}
@@ -3655,6 +3656,11 @@ export default function AdminScreen() {
   const headingRef = useRef(null);
   const areaHeadingRef = useRef(null);
   const areaMountedRef = useRef(false);
+  // Roving-tabindex tablist plumbing: a ref per area button (for focus
+  // management) and a flag so the area-switch focus effect knows a keyboard
+  // arrow moved us (leave focus on the tab) vs a click (move it to the heading).
+  const areaTabRefs = useRef({});
+  const areaViaKeyboardRef = useRef(false);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -3665,7 +3671,28 @@ export default function AdminScreen() {
   // render (the H1 already takes focus on mount).
   useEffect(() => {
     if (!areaMountedRef.current) { areaMountedRef.current = true; return; }
+    // Keyboard arrow switches keep focus on the tab itself (standard tablist
+    // behaviour); only click/programmatic switches move focus into the panel.
+    if (areaViaKeyboardRef.current) { areaViaKeyboardRef.current = false; return; }
     areaHeadingRef.current?.focus();
+  }, [area]);
+
+  // Arrow-key nav for the area tablist (WCAG 2.1.1 — was keyboard-unreachable).
+  // Mirrors the AudienceToggle radiogroup pattern: move selection AND focus to
+  // the newly selected tab. Roving tabindex is unchanged; this just wires keys.
+  const onAreaTabsKeyDown = useCallback((e) => {
+    const i = CONSOLE_AREAS.findIndex((a) => a.value === area);
+    let nextIdx;
+    if (e.key === "ArrowRight") nextIdx = (i + 1) % CONSOLE_AREAS.length;
+    else if (e.key === "ArrowLeft") nextIdx = (i - 1 + CONSOLE_AREAS.length) % CONSOLE_AREAS.length;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = CONSOLE_AREAS.length - 1;
+    else return;
+    e.preventDefault();
+    const next = CONSOLE_AREAS[nextIdx].value;
+    areaViaKeyboardRef.current = true;
+    setArea(next);
+    areaTabRefs.current[next]?.focus();
   }, [area]);
 
   const focusHeading = useCallback(() => { headingRef.current?.focus(); }, []);
@@ -3848,6 +3875,7 @@ export default function AdminScreen() {
         <div
           role="tablist"
           aria-label="Console areas"
+          onKeyDown={onAreaTabsKeyDown}
           style={{
             display: "flex", gap: 6, background: t.surfaceAlt, border: `1px solid ${t.borderLight}`,
             borderRadius: 14, padding: 5, marginBottom: 20, flexWrap: "wrap",
@@ -3856,6 +3884,7 @@ export default function AdminScreen() {
           {CONSOLE_AREAS.map((a) => (
             <AreaTab
               key={a.value}
+              btnRef={(el) => { areaTabRefs.current[a.value] = el; }}
               id={`area-tab-${a.value}`}
               panelId={`area-panel-${a.value}`}
               label={a.label}

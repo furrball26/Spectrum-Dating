@@ -73,9 +73,11 @@ check("3 dot indicators are labelled buttons", (await page.getByRole("button", {
   `count=${await page.getByRole("button", { name: /^Photo \d of 3$/ }).count()}`);
 check("Left/right tap zones are labelled buttons", (await nextZone.count()) === 1 && (await prevZone.count()) === 1);
 
-// 3. Alt text starts on the primary photo.
+// 3. A11Y (A3): when the description is shown as a visible <figcaption>, the img
+// alt is EMPTY so a screen reader doesn't read the description twice. The visible
+// caption is what carries the description and follows navigation (checked below).
 const alt0 = await heroAlt();
-check("Alt text is the primary photo's description first", alt0 === "Photo QA at the beach", `alt=${alt0}`);
+check("Img alt is empty when a visible caption repeats the description (no double-announce)", alt0 === "", `alt=${alt0}`);
 
 // 3b. Profile redesign Phase 1 — the stored description now ALSO surfaces as a
 // visible caption under the photo (not only as alt text). It reflects the
@@ -83,24 +85,21 @@ check("Alt text is the primary photo's description first", alt0 === "Photo QA at
 const captionText = () => page.locator('[data-photo-caption]').first().innerText().catch(() => "");
 check("Visible caption shows the current photo's description", (await captionText()) === "Photo QA at the beach", `cap=${await captionText()}`);
 
-// 4. Next tap-zone advances the photo (alt follows).
+// 4. Next tap-zone advances the photo (visible caption follows; alt stays empty).
 await nextZone.click();
 await page.waitForTimeout(150);
-const alt1 = await heroAlt();
-check("Next tap-zone advances to photo 2 (alt updates)", alt1 === "Photo QA hiking", `alt=${alt1}`);
-check("Visible caption updates with the photo", (await captionText()) === "Photo QA hiking", `cap=${await captionText()}`);
+check("Next tap-zone advances to photo 2 (caption updates)", (await captionText()) === "Photo QA hiking", `cap=${await captionText()}`);
+check("Img alt stays empty on navigation (caption carries the description)", (await heroAlt()) === "", `alt=${await heroAlt()}`);
 
 // 5. Dot jumps directly to photo 3.
 await dot3.click();
 await page.waitForTimeout(150);
-const alt2 = await heroAlt();
-check("Dot indicator jumps to photo 3 (alt updates)", alt2 === "Photo QA with a cat", `alt=${alt2}`);
+check("Dot indicator jumps to photo 3 (caption updates)", (await captionText()) === "Photo QA with a cat", `cap=${await captionText()}`);
 
 // 6. Prev tap-zone goes back.
 await prevZone.click();
 await page.waitForTimeout(150);
-const alt3 = await heroAlt();
-check("Previous tap-zone goes back to photo 2", alt3 === "Photo QA hiking", `alt=${alt3}`);
+check("Previous tap-zone goes back to photo 2 (caption updates)", (await captionText()) === "Photo QA hiking", `cap=${await captionText()}`);
 
 // 7. Photo nav must NOT advance the deck or record a like/skip.
 check("Photo nav did NOT fire a like/skip swipe", swipeCalls === 0, `swipeCalls=${swipeCalls}`);
