@@ -140,6 +140,45 @@ async function run(theme) {
   });
   check(`[${theme}] Interests render as chips (member's own interests are pills)`, ownChips >= 1, `chips=${ownChips}`);
 
+  // ── Interest library upgrade (feature-gap #4): the suggestion set is now a
+  // larger, lightly-categorized library (labeled groups) with a calm client-side
+  // filter. Assert the categories render, tapping a categorized suggestion adds a
+  // chip, and a filtered suggestion still adds.
+  check(`[${theme}] Suggestion library is categorized (data marker present)`,
+    (await page.locator('[data-interest-library="categorized"]').count()) === 1);
+  const catLabels = await page.evaluate(() => {
+    const box = document.querySelector('[data-interest-library="categorized"]');
+    return box ? [...box.querySelectorAll("h4")].map((h) => h.textContent.trim()) : [];
+  });
+  check(`[${theme}] Suggestion categories render as labeled groups`,
+    catLabels.includes("Creative & making") && catLabels.includes("Music"), catLabels.join(" | "));
+
+  const selBefore = await page.evaluate(() =>
+    document.querySelector('ul[aria-label="Your selected interests"]').querySelectorAll("li").length);
+  await page.getByRole("button", { name: "pottery" }).first().click();
+  await page.waitForTimeout(150);
+  const afterTap = await page.evaluate(() => {
+    const ul = document.querySelector('ul[aria-label="Your selected interests"]');
+    return { count: ul.querySelectorAll("li").length, text: ul.innerText };
+  });
+  check(`[${theme}] Tapping a categorized suggestion adds a chip`,
+    afterTap.count === selBefore + 1 && /pottery/.test(afterTap.text), JSON.stringify(afterTap));
+
+  await page.locator("#interest-filter").fill("astronom");
+  await page.waitForTimeout(150);
+  const filteredChips = await page.evaluate(() => {
+    const box = document.querySelector('[data-interest-library="categorized"]');
+    return [...box.querySelectorAll("button[aria-pressed]")].map((b) => b.textContent.trim());
+  });
+  check(`[${theme}] Filter narrows suggestions to matches only`,
+    filteredChips.length >= 1 && filteredChips.every((c) => /astronom/i.test(c)), filteredChips.join(" | "));
+  await page.getByRole("button", { name: "astronomy" }).first().click();
+  await page.waitForTimeout(150);
+  const afterFilterAdd = await page.evaluate(() =>
+    document.querySelector('ul[aria-label="Your selected interests"]').innerText);
+  check(`[${theme}] Adding a filtered suggestion adds its chip`, /astronomy/.test(afterFilterAdd), afterFilterAdd);
+  await page.locator("#interest-filter").fill("");
+
   check(`[${theme}] Looking for relationship goal present`, (await page.locator("#rel-long-term").count()) === 1);
   check(`[${theme}] Looking for seeking present`, (await page.locator("#seek-woman").count()) === 1);
   check(`[${theme}] Looking for age slider present`, (await page.getByRole("slider", { name: /minimum age/i }).count()) === 1);

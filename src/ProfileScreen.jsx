@@ -313,13 +313,92 @@ const DEFAULT_PROFILE = {
   hardForMe: [],          // string[] (≤5 items, each ≤60)
 };
 
-const SUGGESTED_INTERESTS = [
-  "board games", "hiking", "baking", "reading", "cycling", "music",
-  "cooking", "films", "photography", "gaming", "gardening", "crafts",
-  "nature", "writing", "volunteering", "cats", "dogs", "travel",
-  "history", "science", "art", "spreadsheets", "libraries",
-  "birdwatching", "bookbinding", "quiet evenings",
+// Suggested-interest library — lightly categorized so a large set stays
+// scannable and lowers the blank-box burden (feature-gap #4). Kept concrete and
+// literal (autism-friendly) and inclusive of niche / special-interest options.
+// All lowercase to match how interests are stored (toggleInterest / handleAddTag
+// both lowercase). Groups render as calm labeled chip clusters; a lightweight
+// client-side filter narrows the list without any counters or urgency.
+const SUGGESTED_INTEREST_GROUPS = [
+  {
+    label: "Creative & making",
+    items: [
+      "drawing", "painting", "knitting", "crochet", "sewing", "pottery",
+      "bookbinding", "calligraphy", "crafts", "photography", "jewelry making",
+      "origami",
+    ],
+  },
+  {
+    label: "Games & tabletop",
+    items: [
+      "board games", "tabletop rpgs", "dungeons & dragons", "card games",
+      "chess", "puzzles", "video games", "jigsaw puzzles", "strategy games",
+      "retro gaming",
+    ],
+  },
+  {
+    label: "Outdoors & movement",
+    items: [
+      "hiking", "cycling", "walking", "running", "swimming", "camping",
+      "rock climbing", "yoga", "gardening", "kayaking", "birdwatching",
+    ],
+  },
+  {
+    label: "Media & fandom",
+    items: [
+      "films", "tv series", "anime", "comics", "manga", "science fiction",
+      "fantasy", "documentaries", "podcasts", "cosplay", "collecting",
+    ],
+  },
+  {
+    label: "Food & cooking",
+    items: [
+      "cooking", "baking", "bread making", "tea", "coffee", "vegetarian food",
+      "meal prep", "fermenting", "cake decorating",
+    ],
+  },
+  {
+    label: "Learning & ideas",
+    items: [
+      "reading", "writing", "history", "science", "astronomy", "languages",
+      "philosophy", "mathematics", "geography", "museums", "libraries",
+    ],
+  },
+  {
+    label: "Animals & nature",
+    items: [
+      "cats", "dogs", "birds", "aquariums", "horses", "reptiles", "wildlife",
+      "insects", "marine life", "plants",
+    ],
+  },
+  {
+    label: "Calm & sensory-friendly",
+    items: [
+      "quiet evenings", "stargazing", "journaling", "meditation", "tidying",
+      "candle making", "aromatherapy", "slow mornings", "people-watching",
+      "cloud watching",
+    ],
+  },
+  {
+    label: "Tech & building",
+    items: [
+      "coding", "electronics", "robotics", "3d printing", "model building",
+      "lego", "woodworking", "model trains", "home automation", "spreadsheets",
+      "retro computing",
+    ],
+  },
+  {
+    label: "Music",
+    items: [
+      "playing guitar", "playing piano", "singing", "music production",
+      "vinyl records", "concerts", "drumming", "songwriting",
+      "listening to music", "choir",
+    ],
+  },
 ];
+
+// Flat view of every suggestion (kept for any consumer that wants the full set).
+const SUGGESTED_INTERESTS = SUGGESTED_INTEREST_GROUPS.flatMap((g) => g.items);
 
 // localStorage cache helpers (keep for getViewerInterests in SuggestionScreen compatibility)
 function cacheProfile(profile) {
@@ -2767,6 +2846,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 
   // Custom interest input
   const [customTagInput, setCustomTagInput] = useState("");
+  const [interestFilter, setInterestFilter] = useState("");
 
   // ── Collapsible sections (mobile-overwhelm reduction) ──────────────────────
   // Map of sectionKey -> boolean open. Initialised empty; the real defaults are
@@ -4105,11 +4185,15 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </ul>
             )}
 
-            {/* Suggestion chips (P-15, P-16) */}
+            {/* Suggestion chips (P-15, P-16) — categorized library + calm filter.
+                Groups render as labeled chip clusters so a large set stays
+                scannable; the filter narrows across all groups without any
+                counters or urgency (calm-by-design). */}
             <div
               role="group"
               aria-labelledby="suggestions-heading"
               style={{ marginBottom: 20 }}
+              data-interest-library="categorized"
             >
               <h3
                 id="suggestions-heading"
@@ -4124,22 +4208,79 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               >
                 Suggested interests
               </h3>
-              <div
-                style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
+
+              {/* Client-side filter — purely narrows the local list as you type. */}
+              <label
+                htmlFor="interest-filter"
+                style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}
               >
-                {SUGGESTED_INTERESTS.map((tag) => {
-                  const selected = interests.includes(tag);
+                Search suggested interests
+              </label>
+              <input
+                id="interest-filter"
+                type="search"
+                value={interestFilter}
+                onChange={(e) => setInterestFilter(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={{ ...inputStyle(false), marginBottom: 14 }}
+                placeholder="Search suggestions"
+              />
+
+              {(() => {
+                const q = interestFilter.trim().toLowerCase();
+                const groups = q
+                  ? SUGGESTED_INTEREST_GROUPS
+                      .map((g) => ({ ...g, items: g.items.filter((tag) => tag.includes(q)) }))
+                      .filter((g) => g.items.length > 0)
+                  : SUGGESTED_INTEREST_GROUPS;
+
+                if (groups.length === 0) {
                   return (
-                    <SuggestionChip
-                      key={tag}
-                      tag={tag}
-                      selected={selected}
-                      onToggle={toggleInterest}
-                      prefersReduced={prefersReduced}
-                    />
+                    <p style={{ fontSize: 14, color: t.textSoft, margin: 0, lineHeight: 1.5 }}>
+                      No suggestions match that. You can add your own below.
+                    </p>
                   );
-                })}
-              </div>
+                }
+
+                return groups.map((group) => {
+                  const groupId = `interest-group-${group.label.replace(/[^a-z]+/gi, "-").toLowerCase()}`;
+                  return (
+                    <div key={group.label} style={{ marginBottom: 16 }}>
+                      <h4
+                        id={groupId}
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: t.textSoft,
+                          margin: "0 0 8px",
+                        }}
+                      >
+                        {group.label}
+                      </h4>
+                      <div
+                        role="group"
+                        aria-labelledby={groupId}
+                        style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
+                      >
+                        {group.items.map((tag) => (
+                          <SuggestionChip
+                            key={tag}
+                            tag={tag}
+                            selected={interests.includes(tag)}
+                            onToggle={toggleInterest}
+                            prefersReduced={prefersReduced}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
 
             {/* Free-entry (P-17) */}
