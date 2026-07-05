@@ -49,7 +49,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
   if (tier !== undefined && !TIERS.includes(tier)) {
     return res.status(400).json({ error: 'Unknown tier.' });
   }
-  const result = await getProvider().createCheckoutSession(userId, tier || 'companion');
+  const result = await getProvider().createCheckoutSession({ db: req.ctx.db }, userId, tier || 'companion');
   res.json(result);
 });
 
@@ -58,7 +58,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
 // provider has no external subscription to cancel). Never upgrades anyone.
 router.post('/cancel', requireAuth, async (req, res) => {
   const { db, userId } = req.ctx;
-  const providerResult = await getProvider().cancel(userId);
+  const providerResult = await getProvider().cancel({ db }, userId);
   const current = getEntitlement(db, userId);
   if (current.source === 'admin_demo') {
     // Revert the demo grant back to the free default.
@@ -121,6 +121,30 @@ adminRouter.delete('/entitlements/demo', requireAuth, requireAdmin, (req, res) =
   const { changes } = db.prepare("DELETE FROM subscriptions WHERE source = 'admin_demo'").run();
   res.json({ ok: true, cleared: changes });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider webhook — the ONLY path (once a real provider is wired) that flips a
+// member to a paid tier. Exported as a factory taking `db` because it is mounted
+// in index.js BEFORE the global express.json() / contextMiddleware (it needs the
+// RAW body Buffer for signature verification, and there is no req.ctx yet). It is
+// UNAUTHENTICATED by design — the provider's signature IS the auth, verified
+// inside handleWebhook over req.body (a Buffer, thanks to express.raw()).
+//
+// Ack semantics: a successfully-handled OR knowingly-ignored event returns 200 so
+// the provider stops redelivering. A verification/parse failure returns 400 so
+// the provider retries and its dashboard flags it — we never silently 200 an
+// event we couldn't authenticate. With the stub (no provider) every call returns
+// { ignored: true } → 200; no real webhooks arrive until BILLING_PROVIDER is set.
+export function billingWebhookHandler(db) {
+  return async (req, res) => {
+    try {
+      const result = await getProvider().handleWebhook({ db }, req.body, req.headers);
+      return res.status(200).json(result || { ok: true });
+    } catch {
+      return res.status(400).json({ error: 'webhook_verification_failed' });
+    }
+  };
+}
 
 export default router;
 export { adminRouter as adminEntitlementsRouter };

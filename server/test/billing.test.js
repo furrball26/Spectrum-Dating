@@ -24,9 +24,9 @@ const { getDb } = await import('../src/db.js');
 const { optionalAuth, requireAuth, signToken } = await import('../src/middleware/auth.js');
 const { contextMiddleware } = await import('../src/middleware/context.js');
 const billingRouter = (await import('../src/routes/billing.js')).default;
-const { adminEntitlementsRouter } = await import('../src/routes/billing.js');
+const { adminEntitlementsRouter, billingWebhookHandler } = await import('../src/routes/billing.js');
 const profileRouter = (await import('../src/routes/profile.js')).default;
-const { getEntitlement, setEntitlement, isCompanion, requirePaid } = await import(
+const { getEntitlement, setEntitlement, isCompanion, requirePaid, recordBillingEvent } = await import(
   '../src/billing/entitlements.js'
 );
 const { getProvider, StubProvider } = await import('../src/billing/provider.js');
@@ -67,6 +67,8 @@ const tok = (id) => signToken(id, 0);
 beforeAll(async () => {
   adminId = makeUser({ email: 'admin@t.dev' });
   const app = express();
+  // Mirror index.js: the webhook route needs the RAW body and mounts BEFORE json().
+  app.post('/billing/webhook', express.raw({ type: '*/*', limit: '1mb' }), billingWebhookHandler(db));
   app.use(express.json());
   app.use(optionalAuth);
   app.use(contextMiddleware(db));
@@ -119,8 +121,46 @@ describe('provider (stub default)', () => {
   it('getProvider returns the stub and checkout does not charge', async () => {
     expect(getProvider()).toBe(StubProvider);
     expect(getProvider().name).toBe('stub');
-    expect(await getProvider().createCheckoutSession('u', 'companion')).toEqual({ configured: false });
-    expect(await getProvider().handleWebhook('', {})).toEqual({ ignored: true });
+    // New interface: ctx is the first arg (stub ignores it).
+    expect(await getProvider().createCheckoutSession({ db }, 'u', 'companion')).toEqual({ configured: false });
+    expect(await getProvider().handleWebhook({ db }, Buffer.from(''), {})).toEqual({ ignored: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('webhook idempotency plumbing', () => {
+  it('recordBillingEvent returns true on first sight, false on redelivery', () => {
+    expect(recordBillingEvent(db, 'stripe', 'evt_abc', 'checkout.session.completed')).toBe(true);
+    // Same (provider, event_id) → already processed → false (a no-op for the caller).
+    expect(recordBillingEvent(db, 'stripe', 'evt_abc')).toBe(false);
+    // Same event id under a DIFFERENT provider is a distinct event → true.
+    expect(recordBillingEvent(db, 'paddle', 'evt_abc')).toBe(true);
+  });
+
+  it('recordBillingEvent throws on missing provider/eventId (never a silent skip)', () => {
+    expect(() => recordBillingEvent(db, '', 'evt_x')).toThrow();
+    expect(() => recordBillingEvent(db, 'stripe', '')).toThrow();
+  });
+
+  it('POST /billing/webhook acks 200 { ignored: true } with the stub (no provider wired)', async () => {
+    const res = await fetch(`${baseUrl}/billing/webhook`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'checkout.session.completed', id: 'evt_stub' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ignored: true });
+  });
+
+  it('the webhook is unauthenticated (no token) and never self-grants a tier', async () => {
+    const u = makeUser();
+    await fetch(`${baseUrl}/billing/webhook`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'x', id: 'evt_nograntt', userId: u, tier: 'companion' }),
+    });
+    // The stub ignores webhooks; the member stays free.
+    expect(getEntitlement(db, u)).toEqual({ tier: 'free', status: 'active', source: 'none' });
   });
 });
 

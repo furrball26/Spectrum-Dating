@@ -25,7 +25,7 @@ import adminTelemetryRouter from './routes/adminTelemetry.js';
 import adminPopulationRouter from './routes/adminPopulation.js';
 import telemetryRouter from './routes/telemetry.js';
 import feedbackRouter from './routes/feedback.js';
-import billingRouter, { adminEntitlementsRouter } from './routes/billing.js';
+import billingRouter, { adminEntitlementsRouter, billingWebhookHandler } from './routes/billing.js';
 import healthRouter from './routes/health.js';
 import { lastActiveMiddleware } from './middleware/lastActive.js';
 import { adminApiLimiter } from './middleware/rateLimits.js';
@@ -73,6 +73,13 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173' }));
+// Billing provider webhook — MUST be registered with a RAW body parser BEFORE the
+// global express.json() below. A payment provider signs the exact request bytes;
+// json() would parse-then-discard them and make signature verification
+// impossible. This one route gets req.body as a Buffer; every other route still
+// gets parsed JSON. Runs before optionalAuth/contextMiddleware too (webhooks are
+// unauthenticated — the signature is the auth), so the handler takes db directly.
+app.post('/billing/webhook', express.raw({ type: '*/*', limit: '1mb' }), billingWebhookHandler(db));
 app.use(express.json({ limit: '1mb' })); // cap request bodies
 app.use(optionalAuth);
 app.use(contextMiddleware(db));

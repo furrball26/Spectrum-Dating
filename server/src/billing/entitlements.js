@@ -105,6 +105,33 @@ export function setEntitlement(db, userId, { tier, status = 'active', source, pr
   return getEntitlement(db, userId);
 }
 
+// ── Webhook idempotency ──────────────────────────────────────────────────────
+// Record a provider webhook event exactly once. Returns TRUE if this is the
+// first time we've seen (provider, eventId) — the caller should then apply the
+// event — or FALSE if it's a redelivery already processed, which the caller must
+// treat as a no-op (ack 200, change nothing). Providers redeliver on any non-2xx
+// or timeout, so this is the rail that stops a double grant/revoke. The INSERT is
+// the atomic claim: a UNIQUE/PK violation means "already processed" — we catch
+// exactly that and return false, and re-throw anything else (e.g. a real DB
+// error) so a genuine failure surfaces instead of silently swallowing the event.
+export function recordBillingEvent(db, provider, eventId, eventType = null) {
+  if (!provider || !eventId) {
+    throw new Error('recordBillingEvent requires provider and eventId');
+  }
+  try {
+    db.prepare(
+      'INSERT INTO billing_events (provider, event_id, event_type, received_at) VALUES (?, ?, ?, ?)'
+    ).run(provider, eventId, eventType, new Date().toISOString());
+    return true;
+  } catch (e) {
+    // better-sqlite3 surfaces a UNIQUE/PK collision as SQLITE_CONSTRAINT_PRIMARYKEY.
+    if (e && typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {
+      return false;
+    }
+    throw e;
+  }
+}
+
 // ── Convenience ──────────────────────────────────────────────────────────────
 export function isCompanion(db, userId) {
   const { tier, status } = getEntitlement(db, userId);
