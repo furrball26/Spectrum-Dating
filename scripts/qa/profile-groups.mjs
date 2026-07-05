@@ -198,8 +198,14 @@ async function run(theme) {
   });
   check(`[${theme}] Membership (free) leads with 'free forever' reassurance`,
     /free forever/i.test(memText) && /Spectrum \(Free\)/.test(memText));
+  // The honest door is a <button>See what Companion adds</button> in the free
+  // branch of the same Membership panel. Assert it via the panel text (same
+  // mechanism as the reassurance check above) rather than getByRole — the panel
+  // is collapsed by default, and a hidden panel drops its controls from the a11y
+  // tree, so getByRole would spuriously miss a button that IS rendered. We also
+  // assert the Companion-only "Manage membership" door is NOT shown to a free user.
   check(`[${theme}] Membership (free) has the honest 'See what Companion adds' door`,
-    (await page.getByRole("button", { name: /See what Companion adds/i }).count()) === 1);
+    /See what Companion adds/i.test(memText) && !/Manage membership/i.test(memText));
   check(`[${theme}] Membership (free) uses no 'missing out'/urgency framing`,
     !/missing out|don't miss|hurry|limited time|only \$|\d+% off/i.test(memText), memText.slice(0, 120));
 
