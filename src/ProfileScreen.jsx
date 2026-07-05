@@ -2378,6 +2378,93 @@ function FacetPreviewCard({ occupation, languages, helpsMe, hardForMe, cardStyle
   );
 }
 
+// ─── Audience toggle (feature-gap #6) ────────────────────────────────────────
+// A calm two-option segmented control that lets a member preview BOTH states of
+// their card: "New people" (pre-match — what a stranger sees on Discover) vs
+// "Your matches" (post-match — the full card). It makes the privacy boundary
+// legible: the backend gates contextCard / helpsMe / hardForMe to a live match
+// (server/src/routes/matching.js mapCandidateToCard omits them pre-match), and
+// this simply mirrors which of those the preview includes. Presentation only —
+// it changes NOTHING that's stored and the backend stays the real gate.
+// Implemented as a real radiogroup (role=radiogroup + role=radio) with roving
+// tabindex and arrow-key selection, so it's keyboard- and SR-friendly.
+function AudienceToggle({ value, onChange }) {
+  const fNew = useFocusable();
+  const fMatch = useFocusable();
+  const newRef = useRef(null);
+  const matchRef = useRef(null);
+
+  // Move + select in one step (radiogroup semantics), then keep focus on the
+  // now-selected radio so keyboard focus tracks the selection.
+  function select(next) {
+    if (next !== value) onChange(next);
+    (next === "new" ? newRef : matchRef).current?.focus();
+  }
+  function onKeyDown(e) {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); select("matches"); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); select("new"); }
+  }
+
+  const optStyle = (active, f) => ({
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
+    padding: "8px 14px",
+    borderRadius: 9,
+    border: active ? `1px solid ${t.accentStrong}` : "1px solid transparent",
+    background: active ? t.surface : "transparent",
+    color: active ? t.text : t.textSoft,
+    fontFamily: t.sans,
+    fontSize: 15,
+    fontWeight: active ? 700 : 500,
+    cursor: "pointer",
+    boxShadow: active ? t.shadow.sm : "none",
+    ...f.style,
+  });
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Preview your card as"
+      data-audience-toggle
+      onKeyDown={onKeyDown}
+      style={{
+        display: "flex",
+        gap: 4,
+        padding: 4,
+        background: t.surfaceAlt,
+        border: `1px solid ${t.borderLight}`,
+        borderRadius: 12,
+      }}
+    >
+      <button
+        type="button"
+        role="radio"
+        ref={newRef}
+        aria-checked={value === "new"}
+        tabIndex={value === "new" ? 0 : -1}
+        onClick={() => select("new")}
+        {...fNew}
+        style={optStyle(value === "new", fNew)}
+      >
+        New people
+      </button>
+      <button
+        type="button"
+        role="radio"
+        ref={matchRef}
+        aria-checked={value === "matches"}
+        tabIndex={value === "matches" ? 0 : -1}
+        onClick={() => select("matches")}
+        {...fMatch}
+        style={optStyle(value === "matches", fMatch)}
+      >
+        Your matches
+      </button>
+    </div>
+  );
+}
+
 // ─── Profile preview modal (backlog #8) ──────────────────────────────────────
 // Read-only card view of how the user's profile appears to candidates on
 // Discover. Mirrors the SuggestionScreen card layout without importing it.
@@ -2390,6 +2477,13 @@ function ProfilePreviewModal({
 }) {
   const headingRef = useRef(null);
   const panelRef = useRef(null);
+
+  // feature-gap #6 — which audience the member is previewing as. Defaults to
+  // "new" (pre-match), the more privacy-relevant view to check first: it's the
+  // stranger's-eye view where the gated fields are hidden. "matches" shows the
+  // full post-match card. Presentation only — never changes stored data.
+  const [audience, setAudience] = useState("new");
+  const showGated = audience === "matches";
 
   // Focus the dialog heading on open so screen-reader users hear the context,
   // and restore focus to whatever triggered the modal on close (D26).
@@ -2573,6 +2667,30 @@ function ProfilePreviewModal({
         {/* Card content — mirrors the SuggestionScreen candidate card */}
         <div style={{ width: "100%", maxWidth: t.layout.maxContent }}>
 
+          {/* feature-gap #6 — audience toggle. Lets the member see the pre-match
+              ("New people") and post-match ("Your matches") versions of their
+              card, so the privacy boundary around their sensitive disclosures is
+              legible. */}
+          <div style={{ marginBottom: 12 }}>
+            <p style={{
+              margin: "0 0 8px",
+              fontSize: 13,
+              fontWeight: 600,
+              color: t.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              lineHeight: 1.4,
+            }}>
+              Preview as
+            </p>
+            <AudienceToggle value={audience} onChange={setAudience} />
+            <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+              {showGated
+                ? "This is everything a matched person sees — including the parts new people can't."
+                : "This is what a new person sees before you match. Your “how to talk to me” note and your “helps me” / “hard for me” lists stay private until you match."}
+            </p>
+          </div>
+
           {/* Main profile card */}
           <div style={card}>
 
@@ -2653,11 +2771,14 @@ function ProfilePreviewModal({
 
           {/* About me — F28 facets (calm scannable rows; empty facets render
               nothing, and the whole card is hidden when all four are empty). */}
+          {/* helpsMe/hardForMe are post-match-gated (absent from the Discover
+              card shape in matching.js), so pass empty lists in the "New people"
+              view — occupation/languages stay (they ARE on the Discover card). */}
           <FacetPreviewCard
             occupation={occupation}
             languages={languages}
-            helpsMe={helpsMe}
-            hardForMe={hardForMe}
+            helpsMe={showGated ? helpsMe : []}
+            hardForMe={showGated ? hardForMe : []}
             cardStyle={{ ...card, background: t.surfaceAlt, boxShadow: "none", border: `1px solid ${t.borderLight}` }}
           />
 
@@ -2731,8 +2852,9 @@ function ProfilePreviewModal({
             </div>
           )}
 
-          {/* Context card — only shown post-match; labelled to set expectations */}
-          {contextCard && contextCard.trim() && (
+          {/* Context card — post-match-gated (matching.js never sends it pre-
+              match), so only render it in the "Your matches" view. */}
+          {showGated && contextCard && contextCard.trim() && (
             <div style={card}>
               <p style={{
                 margin: "0 0 10px",
@@ -2845,8 +2967,9 @@ function ProfilePreviewModal({
             textAlign: "center",
             lineHeight: 1.6,
           }}>
-            This is the card other members see on Discover.
-            Your search preferences and private settings are never shared.
+            {showGated
+              ? "This is the card someone you've matched with sees. Your search preferences and private settings are never shared."
+              : "This is the card other members see on Discover. Your search preferences and private settings are never shared."}
           </p>
 
         </div>
