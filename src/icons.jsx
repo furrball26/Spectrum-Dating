@@ -92,6 +92,19 @@ export function GearIcon({ size = 18, ...rest }) {
   );
 }
 
+// Bell — the "Notifications" affordance on the Profile Hub. No badge/urgency
+// dot; calm-by-design keeps this a quiet doorway to the settings, not an alert.
+export function BellIcon({ size = 18, ...rest }) {
+  const d = "M18 16v-5a6 6 0 1 0-12 0v5l-1.8 2.2c-.3.4 0 1 .5 1h14.6c.5 0 .8-.6.5-1L18 16z";
+  return (
+    <Svg size={size} {...rest}>
+      <path d={d} fill="currentColor" fillOpacity={0.12} />
+      <path d={d} />
+      <path d="M9.5 20.5a2.5 2.5 0 0 0 5 0" />
+    </Svg>
+  );
+}
+
 export function HeartIcon({ size = 18, filled = false, strokeWidth = 1.5, ...rest }) {
   // Symmetric: equal-radius lobes, point on the vertical center line.
   const d = "M12 20.6C6.9 17.2 3.2 13.8 3.2 9.9 3.2 7.2 5.3 5.2 7.9 5.2c1.7 0 3.2.9 4.1 2.3.9-1.4 2.4-2.3 4.1-2.3 2.6 0 4.7 2 4.7 4.7 0 3.9-3.7 7.3-8.8 10.7z";

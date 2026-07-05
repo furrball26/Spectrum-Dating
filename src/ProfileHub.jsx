@@ -7,6 +7,7 @@ import { COMPLETENESS_RAMP } from "./completeness.js";
 import {
   SlidersIcon,
   GearIcon,
+  BellIcon,
   PencilIcon,
   ChevronRightIcon,
   EyeIcon,
@@ -227,6 +228,7 @@ export default function ProfileHub({
   onOpenEditField,
   onOpenPreferences,
   onOpenSettings,
+  onOpenNotifications,
   onOpenPreview,
   onOpenMembership,
   onOpenTopPicks,
@@ -265,6 +267,9 @@ export default function ProfileHub({
           </IconButton>
           <IconButton label="Settings" onClick={onOpenSettings}>
             <GearIcon size={22} />
+          </IconButton>
+          <IconButton label="Notifications" onClick={onOpenNotifications}>
+            <BellIcon size={22} />
           </IconButton>
         </div>
 

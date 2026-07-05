@@ -21,6 +21,7 @@ const ProfileHub = lazy(() => import("./ProfileHub.jsx"));
 const SafetyScreen = lazy(() => import("./SafetyScreen.jsx"));
 const SettingsScreen = lazy(() => import("./SettingsScreen.jsx"));
 const AccountSecurityScreen = lazy(() => import("./AccountSecurityScreen.jsx"));
+const NotificationsScreen = lazy(() => import("./NotificationsScreen.jsx"));
 const AdminScreen = lazy(() => import("./AdminScreen.jsx"));
 const MembershipScreen = lazy(() => import("./MembershipScreen.jsx"));
 const BestFits = lazy(() => import("./BestFits.jsx"));
@@ -84,6 +85,7 @@ const SCREEN_NAMES = {
   safety: "Safety Center",
   settings: "Settings",
   account: "Account & security",
+  notifications: "Notifications",
   membership: "Membership",
   bestFits: "Top Picks",
   terms: "Terms & Community Standards",
@@ -835,7 +837,7 @@ export default function App() {
   const initialTab = (() => {
     try {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "membership", "bestFits", "terms"];
+      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "notifications", "membership", "bestFits", "terms"];
       return allowed.includes(tab) ? tab : "suggestions";
     } catch { return "suggestions"; }
   })();
@@ -1625,6 +1627,7 @@ export default function App() {
                 activeTab === "safety" ? "Safety Center" :
                 activeTab === "settings" ? "Accessibility settings" :
                 activeTab === "account" ? "Account & security" :
+                activeTab === "notifications" ? "Notifications" :
                 activeTab === "terms" ? "Terms & Community Standards" : "Profile"
               }
               style={{
@@ -1709,6 +1712,7 @@ export default function App() {
                   onOpenPreferences={() => setProfileView("preferences")}
                   onOpenPreview={() => setProfileView("preview")}
                   onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
+                  onOpenNotifications={() => { setPrevTab("profile"); setActiveTab("notifications"); }}
                   onOpenMembership={() => { setPrevTab("profile"); setActiveTab("membership"); }}
                   onOpenTopPicks={() => { setPrevTab("profile"); setActiveTab("bestFits"); }}
                   onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
@@ -1734,6 +1738,11 @@ export default function App() {
                   onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
                   onOpenMembership={() => { setPrevTab("profile"); setActiveTab("membership"); }}
                   tier={tier}
+                />
+              )}
+              {activeTab === "notifications" && (
+                <NotificationsScreen
+                  onBack={() => setActiveTab(prevTab || "profile")}
                   pushEnabled={pushEnabled}
                   pushSupported={pushSupported}
                   onEnablePush={enablePush}

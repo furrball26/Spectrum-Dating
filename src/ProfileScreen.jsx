@@ -1177,60 +1177,6 @@ function PhotoGallery({ photos, uploading, error, onAdd, onReplace, onSetPrimary
   );
 }
 
-// ─── Push notification toggle ─────────────────────────────────────────────────
-function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
-  const f = useFocusable();
-  if (!supported) return null;
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <div>
-        <p style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
-          Push notifications
-        </p>
-        <p style={{ margin: "2px 0 0", fontSize: 14, color: t.textSoft }}>
-          Get notified about new matches and messages
-        </p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        onClick={enabled ? onDisable : onEnable}
-        {...f}
-        style={{
-          position: "relative",
-          width: 48,
-          height: 28,
-          borderRadius: 14,
-          background: enabled ? t.accentStrong : t.border,
-          border: "none",
-          cursor: "pointer",
-          flexShrink: 0,
-          transition: `background ${t.motion.base} ${t.motion.standard}`,
-          ...f.style,
-        }}
-        aria-label={enabled ? "Disable push notifications" : "Enable push notifications"}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: 3,
-            left: enabled ? 23 : 3,
-            width: 22,
-            height: 22,
-            borderRadius: "50%",
-            background: "#fff",
-            transition: `left ${t.motion.base} ${t.motion.gentle}`,
-            boxShadow: t.shadow.sm,
-          }}
-        />
-      </button>
-    </div>
-  );
-}
-
 // ─── Lifestyle select (calm labelled dropdown) ───────────────────────────────
 function LifestyleSelect({ id, label, helper, value, options, onChange }) {
   const f = useFocusable();
@@ -2979,7 +2925,7 @@ function ProfilePreviewModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", pushEnabled, pushSupported, onEnablePush, onDisablePush, initialOpenSection = null, initialPreview = false, initialJumpField = null }) {
+export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", initialOpenSection = null, initialPreview = false, initialJumpField = null }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -3020,7 +2966,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [seeking, setSeeking]         = useState(DEFAULT_PROFILE.seeking);
   const [prefAgeMin, setPrefAgeMin]   = useState(DEFAULT_PROFILE.prefAgeMin);
   const [prefAgeMax, setPrefAgeMax]   = useState(DEFAULT_PROFILE.prefAgeMax);
-  const [notifTier, setNotifTier]     = useState(DEFAULT_PROFILE.notificationTier);
 
   // Lifestyle attributes (optional)
   const [wantsChildren, setWantsChildren] = useState(DEFAULT_PROFILE.wantsChildren);
@@ -3156,7 +3101,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           seeking: data.seeking || '',
           prefAgeMin: data.prefAgeMin ?? 18,
           prefAgeMax: data.prefAgeMax ?? 99,
-          notificationTier: data.notificationTier || 'in_app',
           wantsChildren: data.wantsChildren || '',
           smoking: data.smoking || '',
           drinking: data.drinking || '',
@@ -3194,7 +3138,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setSeeking(merged.seeking || '');
         setPrefAgeMin(merged.prefAgeMin ?? 18);
         setPrefAgeMax(merged.prefAgeMax ?? 99);
-        setNotifTier(merged.notificationTier);
         setWantsChildren(merged.wantsChildren);
         setSmoking(merged.smoking);
         setDrinking(merged.drinking);
@@ -3245,7 +3188,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       const hasContent =
         displayName || tagline || bio || interests.length > 0 ||
         specialInterests.length > 0 ||
-        commNote || relGoal || distCity || notifTier !== "in_app" ||
+        commNote || relGoal || distCity ||
         wantsChildren || smoking || drinking ||
         dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused ||
         commDirectness || commLiteral || commCadence ||
@@ -3269,7 +3212,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         seeking          !== savedProfile.seeking ||
         prefAgeMin       !== savedProfile.prefAgeMin ||
         prefAgeMax       !== savedProfile.prefAgeMax ||
-        notifTier        !== savedProfile.notificationTier ||
         wantsChildren    !== savedProfile.wantsChildren ||
         smoking          !== savedProfile.smoking ||
         drinking         !== savedProfile.drinking ||
@@ -3295,7 +3237,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, specialInterests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, notifTier, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
+  }, [displayName, tagline, bio, interests, specialInterests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
 
   // ── Initialise collapsible-section open state once the profile has loaded.
   // Persisted manual choices win; otherwise apply the state-aware defaults from
@@ -3731,7 +3673,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       seeking,
       prefAgeMin,
       prefAgeMax,
-      notificationTier: notifTier,
       wantsChildren,
       smoking,
       drinking,
@@ -3771,7 +3712,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         seeking: currentProfile.seeking,
         prefAgeMin: currentProfile.prefAgeMin,
         prefAgeMax: currentProfile.prefAgeMax,
-        notificationTier: currentProfile.notificationTier,
         wantsChildren: currentProfile.wantsChildren,
         smoking: currentProfile.smoking,
         drinking: currentProfile.drinking,
@@ -5418,85 +5358,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 </button>
               </>
             )}
-
-            <SubDivider />
-
-            {/* ── Notifications ── */}
-            <SubHeading>Notifications</SubHeading>
-            <NotificationToggle
-              enabled={pushEnabled}
-              supported={pushSupported}
-              onEnable={onEnablePush}
-              onDisable={onDisablePush}
-            />
-
-            {pushSupported && <div style={{ height: 20 }} />}
-
-            {/* P-18, P-19: fieldset + legend + per-radio describedby */}
-            <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
-              <legend
-                style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
-              >
-                Notification style
-              </legend>
-              <div style={{ clear: "both" }}>
-                {[
-                  {
-                    value: "in_app",
-                    id: "notif-off",
-                    label: "Off",
-                    desc: "You'll see a dot when you have new messages. Nothing will appear on your lock screen.",
-                  },
-                  {
-                    value: "silent_push",
-                    id: "notif-silent",
-                    label: "Silent push",
-                    desc: "Your phone will nudge you, but without showing any text.",
-                  },
-                  {
-                    value: "name_only",
-                    id: "notif-name",
-                    label: "Name only",
-                    desc: "Your phone shows who messaged you, but not what they said.",
-                  },
-                ].map(({ value, id, label, desc }) => (
-                  <div key={value} style={{ marginBottom: 8 }}>
-                    {/* P-20: entire row is touch target */}
-                    <label
-                      htmlFor={id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        minHeight: 44,
-                        cursor: "pointer",
-                        gap: 12,
-                        fontSize: 16,
-                        color: t.text,
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        id={id}
-                        name="notification-tier"
-                        value={value}
-                        checked={notifTier === value}
-                        aria-describedby={`${id}-desc`}
-                        onChange={() => setNotifTier(value)}
-                        style={{ accentColor: t.accentStrong, width: 18, height: 18, flexShrink: 0 }}
-                      />
-                      <span>{label}</span>
-                    </label>
-                    {/* P-19: always in DOM */}
-                    <span
-                      id={`${id}-desc`}
-                      style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
-                    >
-                      {desc}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </fieldset>
           </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
