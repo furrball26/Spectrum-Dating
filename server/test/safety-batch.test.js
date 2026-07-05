@@ -30,9 +30,9 @@ let baseUrl;
 let uid = 0;
 let adminCreated = false;
 
-function makeUser({ admin = false, photoUrl = '', displayName, paused = 0, interests = ['hiking'], dob = '1990-01-01' } = {}) {
+function makeUser({ admin = false, photoUrl = '', displayName, paused = 0, interests = ['hiking'], dob = '1990-01-01', email: emailOverride } = {}) {
   const id = `u${++uid}`;
-  const email = admin ? 'admin@t.dev' : `${id}@t.dev`;
+  const email = emailOverride || (admin ? 'admin@t.dev' : `${id}@t.dev`);
   db.prepare('INSERT INTO users (id, email, password_hash, created_at, token_version, suspended) VALUES (?,?,?,?,0,0)')
     .run(id, email, 'x', Date.now());
   db.prepare(
@@ -189,6 +189,34 @@ describe('SAFETY-2: profile photos require admin approval', () => {
     const r = await api(`/profile/${subject}`, { token: signToken(viewer, 0) });
     expect(r.json.photos.some((p) => p.url === 'https://x/legacy.jpg')).toBe(true);
     expect(getCandidates(db, makeUser(), ['hiking']).map((c) => c.user_id)).toContain(subject);
+  });
+
+  // The moderation photo queue must not fill with QA-harness / demo uploads: a
+  // ~500-item false backlog buried the real photos a moderator needs to see.
+  it('pending photos from test/demo accounts are excluded from the queue + counts, real ones stay', async () => {
+    const admin = db.prepare("SELECT id FROM users WHERE email = 'admin@t.dev'").get().id;
+    const token = signToken(admin, 0);
+
+    const testAcct = makeUser({ photoUrl: '', email: `qa+x${++uid}@spectrum-test.dev` });
+    const demoAcct = makeUser({ photoUrl: '', email: `telemetry-demo-${++uid}@sample.spectrum-dating.app` });
+    const realAcct = makeUser({ photoUrl: '' });
+    const tPid = addPhotoRow(testAcct, { status: 'pending_review', primary: 1, url: 'https://x/qa.jpg' });
+    const dPid = addPhotoRow(demoAcct, { status: 'pending_review', primary: 1, url: 'https://x/demo.jpg' });
+    const rPid = addPhotoRow(realAcct, { status: 'pending_review', primary: 1, url: 'https://x/real.jpg' });
+
+    const q = await api('/admin/profile-photos/pending', { token });
+    expect(q.status).toBe(200);
+    const ids = q.json.photos.map((p) => p.id);
+    expect(ids).toContain(rPid);
+    expect(ids).not.toContain(tPid);
+    expect(ids).not.toContain(dPid);
+
+    // The stats + queue-count depths only count the real one, not test/demo.
+    const priorStats = await api('/admin/stats', { token });
+    const priorCounts = await api('/admin/queue-counts', { token });
+    // At least the real photo is counted; the two excluded ones are not double-counted.
+    expect(priorStats.json.pendingProfilePhotos).toBe(ids.length);
+    expect(priorCounts.json.pendingProfilePhotos).toBe(ids.length);
   });
 });
 

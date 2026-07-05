@@ -29,6 +29,18 @@ const TERMINAL_REPORT_STATUSES = ['actioned', 'dismissed'];
 const TEST_ACCOUNT_LIKE = `%${TEST_EMAIL_DOMAIN}`;
 const DEMO_ACCOUNT_LIKE = `%${DEMO_EMAIL_DOMAIN}`;
 
+// The profile-photo moderation queue (list + counts + oldest-pending age) must
+// exclude test/demo-account uploads the same way the member count does — QA
+// harness accounts (@spectrum-test.dev) and demo personas (@sample.spectrum-
+// dating.app) accumulate pending photos that would otherwise bury the handful of
+// REAL photos a moderator needs to review (this caused a ~500-item false queue).
+// Every query below JOINs `users u ON u.id = pp.user_id`. Orphan rows (no owner)
+// stay visible so a genuine dangling photo still surfaces. Params order:
+// [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE].
+const PENDING_PHOTO_WHERE =
+  "pp.review_status = 'pending_review' AND (u.email IS NULL OR (u.email NOT LIKE ? AND u.email NOT LIKE ?))";
+const PENDING_PHOTO_PARAMS = [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE];
+
 // Append-only moderation audit log.
 function logMod(db, actorId, action, targetId, detail = '') {
   db.prepare(
@@ -770,8 +782,9 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
     "SELECT COUNT(*) AS c FROM message_attachments WHERE upload_status = 'pending_review'"
   ).get().c;
   const pendingProfilePhotos = db.prepare(
-    "SELECT COUNT(*) AS c FROM profile_photos WHERE review_status = 'pending_review'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM profile_photos pp
+     LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
+  ).get(...PENDING_PHOTO_PARAMS).c;
   const pendingVerifications = db.prepare(
     "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
   ).get().c;
@@ -788,8 +801,9 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
     "SELECT MIN(created_at) AS t FROM message_attachments WHERE upload_status = 'pending_review'"
   ).get().t ?? null;
   const oldestPendingProfilePhotoAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM profile_photos WHERE review_status = 'pending_review'"
-  ).get().t ?? null;
+    `SELECT MIN(pp.created_at) AS t FROM profile_photos pp
+     LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
+  ).get(...PENDING_PHOTO_PARAMS).t ?? null;
   const oldestPendingVerificationAt = db.prepare(
     "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
   ).get().t ?? null;
@@ -840,8 +854,9 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
     "SELECT COUNT(*) AS c FROM message_attachments WHERE upload_status = 'pending_review'"
   ).get().c;
   const pendingProfilePhotos = db.prepare(
-    "SELECT COUNT(*) AS c FROM profile_photos WHERE review_status = 'pending_review'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM profile_photos pp
+     LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
+  ).get(...PENDING_PHOTO_PARAMS).c;
   const pendingVerifications = db.prepare(
     "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
   ).get().c;
@@ -856,8 +871,9 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
     "SELECT MIN(created_at) AS t FROM message_attachments WHERE upload_status = 'pending_review'"
   ).get().t ?? null;
   const oldestPendingProfilePhotoAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM profile_photos WHERE review_status = 'pending_review'"
-  ).get().t ?? null;
+    `SELECT MIN(pp.created_at) AS t FROM profile_photos pp
+     LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
+  ).get(...PENDING_PHOTO_PARAMS).t ?? null;
   const oldestPendingVerificationAt = db.prepare(
     "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
   ).get().t ?? null;
@@ -1022,9 +1038,9 @@ router.get('/profile-photos/pending', requireAuth, requireAdmin, (req, res) => {
     FROM profile_photos pp
     LEFT JOIN users u ON u.id = pp.user_id
     LEFT JOIN profiles p ON p.user_id = pp.user_id
-    WHERE pp.review_status = 'pending_review'
+    WHERE ${PENDING_PHOTO_WHERE}
     ORDER BY pp.created_at DESC
-  `).all();
+  `).all(...PENDING_PHOTO_PARAMS);
 
   const photos = rows.map(r => ({
     id: r.id,
