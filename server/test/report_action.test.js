@@ -56,12 +56,12 @@ function makeUser({ email, suspended = 0, banned = 0, createdAt = Date.now() } =
   return { id, email: em };
 }
 
-function makeReport(reportedId, reporterId, { status = 'open' } = {}) {
+function makeReport(reportedId, reporterId, { status = 'open', reason = 'harassment' } = {}) {
   const id = `r${++uid}`;
   db.prepare(`
     INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at)
     VALUES (?,?,?,?,?,?,?,?)
-  `).run(id, reporterId, reportedId, null, 'harassment', 'x', status, Date.now());
+  `).run(id, reporterId, reportedId, null, reason, 'x', status, Date.now());
   return id;
 }
 
@@ -274,9 +274,22 @@ describe('guards & validation', () => {
     expect(report(rep).status).toBe('open');
   });
 
-  it('requires a reason (400 without one)', async () => {
+  it('auto-fills the reason from the TOS clause when none is given (standard-clause warn)', async () => {
     const u = makeUser();
-    const rep = makeReport(u.id, makeUser().id, { status: 'open' });
+    const rep = makeReport(u.id, makeUser().id, { status: 'open' }); // 'harassment' → §4.1
+    const r = await api(`/admin/reports/${rep}/action`, {
+      token: adminToken(), method: 'POST', body: { action: 'warn' },
+    });
+    expect(r.status).toBe(200);
+    expect(report(rep).status).toBe('actioned');
+    expect(noticeCount(u.id, 'warn')).toBe(1);
+    const notice = db.prepare("SELECT reason FROM enforcement_notices WHERE user_id = ? AND kind = 'warn'").get(u.id);
+    expect(notice.reason).toMatch(/Terms §4\.1/); // member-facing notice cites the clause
+  });
+
+  it("still requires a written reason for the catch-all 'other' clause (no standard notice)", async () => {
+    const u = makeUser();
+    const rep = makeReport(u.id, makeUser().id, { status: 'open', reason: 'other' });
     const r = await api(`/admin/reports/${rep}/action`, {
       token: adminToken(), method: 'POST', body: { action: 'warn' },
     });

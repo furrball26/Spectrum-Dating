@@ -6,6 +6,7 @@ import { disconnectUser } from '../socket/index.js';
 import { syncPrimaryPhotoUrl } from './photos.js';
 import { deleteObject } from '../storage/r2.js';
 import { deleteUserRows, purgeStorageObjects } from '../data/deleteUser.js';
+import { standardForReason, buildNotice, suggestionForReport } from '../moderation/communityStandards.js';
 
 // Automated-test and demo account email domains. The purge endpoint targets the
 // TEST domain by default; the DEMO domain is only touched when includeDemo=true.
@@ -286,8 +287,11 @@ router.post('/reports/:id/action', requireAuth, requireAdmin, (req, res) => {
     return res.status(400).json({ error: `action must be one of: ${REPORT_ACTIONS.join(', ')}` });
   }
 
-  // `reason` is the REQUIRED audit justification (shown to the member on warn/ban);
-  // `note` is optional extra context appended to it. Both must be strings.
+  // The justification (and, on warn/ban, the member-facing enforcement notice) is
+  // AUTO-FILLED from the report's TOS clause, so a moderator normally confirms an
+  // action WITHOUT writing anything — rule-based enforcement (ToS §5). A moderator
+  // MAY pass their own `reason` to override the auto-fill (a personal reply), with
+  // an optional `note` appended as extra context. Both must be strings if present.
   const rawReason = req.body?.reason;
   if (rawReason !== undefined && rawReason !== null && typeof rawReason !== 'string') {
     return res.status(400).json({ error: 'reason must be a string.' });
@@ -296,14 +300,10 @@ router.post('/reports/:id/action', requireAuth, requireAdmin, (req, res) => {
   if (rawNote !== undefined && rawNote !== null && typeof rawNote !== 'string') {
     return res.status(400).json({ error: 'note must be a string.' });
   }
-  const reason = (rawReason || '').trim();
+  const adminReason = (rawReason || '').trim();
   const extra = (rawNote || '').trim();
-  if (!reason) {
-    return res.status(400).json({ error: 'A reason is required to action a report.' });
-  }
-  const justification = extra ? `${reason} — ${extra}` : reason;
 
-  const existing = db.prepare('SELECT id, status, reported_id FROM reports WHERE id = ?').get(req.params.id);
+  const existing = db.prepare('SELECT id, status, reported_id, reason FROM reports WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Report not found.' });
 
   // Terminal guard — a report already actioned or dismissed is FINAL; block
@@ -311,6 +311,24 @@ router.post('/reports/:id/action', requireAuth, requireAdmin, (req, res) => {
   if (TERMINAL_REPORT_STATUSES.includes(existing.status)) {
     return res.status(409).json({ error: `Report already ${existing.status} — this decision is final.` });
   }
+
+  // Resolve the justification: moderator's own words if given, else auto-filled
+  // from the clause. Dismiss records an internal note (never shown to the member);
+  // warn/ban record the clause's member-facing notice citing the ToS section. The
+  // catch-all 'other' clause has no standard notice, so a warn/ban there still
+  // needs a written reason.
+  const clause = standardForReason(existing.reason);
+  let baseReason = adminReason;
+  if (!baseReason) {
+    if (action === 'dismiss') {
+      baseReason = `Reviewed — no action needed (Terms §${clause.tosSection}).`;
+    } else if (clause.requiresHumanReason) {
+      return res.status(400).json({ error: 'This report needs a written reason before you can warn or remove.' });
+    } else {
+      baseReason = buildNotice(clause, action);
+    }
+  }
+  const justification = extra ? `${baseReason} — ${extra}` : baseReason;
 
   const reportId = req.params.id;
   const targetId = existing.reported_id;
@@ -1279,6 +1297,11 @@ function serializeReport(r) {
     details: r.details,
     status: r.status,
     moderatorNote: r.moderator_note,
+    // TOS auto-fill: the clause this report maps to + the action/notice the
+    // console pre-selects, so a moderator confirms with one tap instead of
+    // writing a response. Escalates when the member already has a prior warn.
+    // Rule-based, not mood-based (ToS §5); the moderator can still override.
+    suggested: suggestionForReport(r.reason, r.reported_warn_count ?? 0),
     createdAt: r.created_at,
     resolvedAt: r.resolved_at,
     // B-C: who resolved it (null until resolved / if the resolver was deleted).

@@ -41,13 +41,19 @@ function makeUser({ email, suspended = 0, verified = 0, createdAt = Date.now() }
   return id;
 }
 
-function makeReport(reportedId, reporterId, { status = 'open', conversationId = null, reportedMessage = null } = {}) {
+function makeReport(reportedId, reporterId, { status = 'open', conversationId = null, reportedMessage = null, reason = 'harassment' } = {}) {
   const id = `r${++uid}`;
   db.prepare(`
     INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at, reported_message)
     VALUES (?,?,?,?,?,?,?,?,?)
-  `).run(id, reporterId, reportedId, conversationId, 'harassment', 'details here', status, Date.now(), reportedMessage);
+  `).run(id, reporterId, reportedId, conversationId, reason, 'details here', status, Date.now(), reportedMessage);
   return id;
+}
+
+// The latest enforcement notice text recorded for a member (what they're shown).
+function latestNoticeReason(userId) {
+  const row = db.prepare('SELECT reason FROM enforcement_notices WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(userId);
+  return row ? row.reason : null;
 }
 
 function makeConversation(a, b) {
@@ -722,5 +728,73 @@ describe('P1-C human-readable audit log', () => {
     const entry = log.find((e) => e.action === 'verify' && e.targetId === target);
     expect(entry.targetEmail).toBe('audit-target@t.dev');
     expect(entry.targetName).toBe(`Name ${target}`);
+  });
+});
+
+describe('TOS auto-fill (Community Standards)', () => {
+  it('serializes a suggested action + notice per report, citing the ToS section', async () => {
+    const reported = makeUser();
+    makeReport(reported, makeUser(), { reason: 'harassment' });
+    const list = (await api('/admin/reports?status=open', { token: adminToken() })).json.reports;
+    const row = list.find((r) => r.reportedId === reported);
+    expect(row.suggested).toBeTruthy();
+    expect(row.suggested.action).toBe('warn');       // §4.1 default
+    expect(row.suggested.tosSection).toBe('4.1');
+    expect(row.suggested.notice).toMatch(/Terms §4\.1/);
+    expect(row.suggested.notice).toMatch(/warning/i);
+  });
+
+  it('escalates the suggested action to ban when the member already has a warning', async () => {
+    const reported = makeUser();
+    const r1 = makeReport(reported, makeUser(), { reason: 'harassment' });
+    await api(`/admin/reports/${r1}/action`, { token: adminToken(), method: 'POST', body: { action: 'warn' } });
+    makeReport(reported, makeUser(), { reason: 'harassment' });
+    const list = (await api('/admin/reports?status=open', { token: adminToken() })).json.reports;
+    const row = list.find((r) => r.reportedId === reported);
+    expect(row.suggested.action).toBe('ban');
+  });
+
+  it('action with NO reason auto-fills the member notice from the clause', async () => {
+    const reported = makeUser();
+    const id = makeReport(reported, makeUser(), { reason: 'spam' });
+    const res = await api(`/admin/reports/${id}/action`, { token: adminToken(), method: 'POST', body: { action: 'warn' } });
+    expect(res.status).toBe(200);
+    const notice = latestNoticeReason(reported);
+    expect(notice).toMatch(/Terms §4\.4/);           // spam clause
+    expect(notice).toMatch(/spam/i);
+  });
+
+  it('a moderator-supplied reason OVERRIDES the auto-fill (personal reply)', async () => {
+    const reported = makeUser();
+    const id = makeReport(reported, makeUser(), { reason: 'harassment' });
+    await api(`/admin/reports/${id}/action`, { token: adminToken(), method: 'POST', body: { action: 'warn', reason: 'Custom personal note from mod.' } });
+    expect(latestNoticeReason(reported)).toBe('Custom personal note from mod.');
+  });
+
+  it("the catch-all 'other' clause still requires a written reason to warn/ban", async () => {
+    const id = makeReport(makeUser(), makeUser(), { reason: 'other' });
+    const res = await api(`/admin/reports/${id}/action`, { token: adminToken(), method: 'POST', body: { action: 'warn' } });
+    expect(res.status).toBe(400);
+  });
+
+  it('dismiss with no reason records NO member-facing enforcement notice', async () => {
+    const reported = makeUser();
+    const id = makeReport(reported, makeUser(), { reason: 'other' });
+    const res = await api(`/admin/reports/${id}/action`, { token: adminToken(), method: 'POST', body: { action: 'dismiss' } });
+    expect(res.status).toBe(200);
+    expect(latestNoticeReason(reported)).toBeNull();
+  });
+
+  it('a minor_safety report suggests an immediate permanent ban with a final notice', async () => {
+    const reported = makeUser();
+    makeReport(reported, makeUser(), { reason: 'minor_safety' });
+    const list = (await api('/admin/reports?status=open', { token: adminToken() })).json.reports;
+    const row = list.find((r) => r.reportedId === reported);
+    expect(row.suggested.action).toBe('ban');
+    expect(row.suggested.tosSection).toBe('4.5');
+    expect(row.suggested.legalReferral).toBe(true);
+    expect(row.suggested.notice).toMatch(/permanently removed/i);
+    expect(row.suggested.notice).toMatch(/final/i);
+    expect(row.suggested.notice).not.toMatch(/reply to/i);
   });
 });
