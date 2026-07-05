@@ -359,6 +359,23 @@ describe('admin review — approve/reject terminal + note gate', () => {
     const q = await api('/admin/profile-audio/pending', { token: tok(member) });
     expect(q.status).toBe(403);
   });
+
+  it('excludes test/demo-account clips from the pending queue, keeps real ones', async () => {
+    const admin = makeUser({ email: 'mod-excl@t.dev', admin: true });
+    const testAcct = makeUser({ email: `qa+aud${++uid}@spectrum-test.dev` });
+    const demoAcct = makeUser({ email: `telemetry-demo-${++uid}@sample.spectrum-dating.app` });
+    const realAcct = makeUser();
+    addAudio(testAcct, { transcript: 'TEST_CLIP_EXCL', status: 'pending_review' });
+    addAudio(demoAcct, { transcript: 'DEMO_CLIP_EXCL', status: 'pending_review' });
+    addAudio(realAcct, { transcript: 'REAL_CLIP_KEEP', status: 'pending_review' });
+
+    const q = await api('/admin/profile-audio/pending', { token: tok(admin) });
+    expect(q.status).toBe(200);
+    const transcripts = q.json.audio.map((a) => a.transcript);
+    expect(transcripts).toContain('REAL_CLIP_KEEP');
+    expect(transcripts).not.toContain('TEST_CLIP_EXCL');
+    expect(transcripts).not.toContain('DEMO_CLIP_EXCL');
+  });
 });
 
 describe('queue-depth counts', () => {

@@ -47,6 +47,16 @@ const MAX_DURATION_MS = 60_000;        // 60 s — short answer = calm; caps rev
 const MAX_TRANSCRIPT = 2000;           // chars
 const MAX_AUDIO = 3;                    // audio answers per profile (MVP ceiling).
 
+// Test/demo-account exclusion for the admin audio review queue — MUST match the
+// media-queue exclusion in admin.js so the audio LIST agrees with the audio COUNT
+// on the dashboard (the count lives in admin.js /stats + /queue-counts; the list
+// lives here). QA-harness accounts (@spectrum-test.dev) — which record many
+// pending clips — and demo personas (@sample.spectrum-dating.app) must never
+// clutter a real moderator's queue. Orphan rows (no owner) stay visible. The
+// codebase deliberately duplicates these domain constants per route module.
+const TEST_ACCOUNT_LIKE = '%@spectrum-test.dev';
+const DEMO_ACCOUNT_LIKE = '%@sample.spectrum-dating.app';
+
 // Per-user AUDIO upload rate limit (the security flag: the queue can't be
 // flooded). Its OWN bucket, separate from mutationLimiter — a flood here must
 // not rate-starve swipes/photos. Keyed per-user; a generous-but-hard ceiling.
@@ -335,8 +345,9 @@ adminAudioRouter.get('/profile-audio/pending', requireAuth, requireAdmin, (req, 
     LEFT JOIN users u ON u.id = pa.user_id
     LEFT JOIN profiles p ON p.user_id = pa.user_id
     WHERE pa.review_status = 'pending_review'
+      AND (u.email IS NULL OR (u.email NOT LIKE ? AND u.email NOT LIKE ?))
     ORDER BY pa.created_at DESC
-  `).all();
+  `).all(TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE);
 
   const audio = rows.map((r) => ({
     id: r.id,
