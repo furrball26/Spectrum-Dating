@@ -381,6 +381,39 @@ describe('report-an-audio', () => {
     });
     expect(rep.status).toBe(400);
   });
+
+  it('M1: refuses report-an-audio from a user with no live match to the owner (400, no soft-hold)', async () => {
+    const owner = makeUser();
+    const stranger = makeUser(); // deliberately NOT matched
+    const { id } = addAudio(owner, { transcript: 'X', status: 'approved' });
+    const rep = await api('/messaging/report', {
+      token: tok(stranger), method: 'POST',
+      body: { reportedUserId: owner, reason: 'inappropriate', audioId: id },
+    });
+    expect(rep.status).toBe(400);
+    // an unauthorized reporter must NOT be able to soft-hold the clip
+    expect(db.prepare('SELECT review_status FROM profile_audio WHERE id = ?').get(id).review_status).toBe('approved');
+  });
+
+  it('M1 anti-flap: the same reporter cannot report the same clip twice, even after re-approval (400)', async () => {
+    const owner = makeUser();
+    const reporter = makeUser();
+    matchUsers(owner, reporter);
+    const { id } = addAudio(owner, { transcript: 'X', status: 'approved' });
+    const first = await api('/messaging/report', {
+      token: tok(reporter), method: 'POST',
+      body: { reportedUserId: owner, reason: 'inappropriate', audioId: id },
+    });
+    expect(first.status).toBe(201);
+    // Simulate an admin re-approving the soft-held clip.
+    db.prepare("UPDATE profile_audio SET review_status = 'approved' WHERE id = ?").run(id);
+    const second = await api('/messaging/report', {
+      token: tok(reporter), method: 'POST',
+      body: { reportedUserId: owner, reason: 'inappropriate', audioId: id },
+    });
+    expect(second.status).toBe(400); // dedup blocks the re-report
+    expect(db.prepare('SELECT review_status FROM profile_audio WHERE id = ?').get(id).review_status).toBe('approved'); // not re-flapped
+  });
 });
 
 describe('account-deletion cascade + data export', () => {

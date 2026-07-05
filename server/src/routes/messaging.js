@@ -824,6 +824,26 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
     if (!clip || clip.review_status !== 'approved' || clip.user_id !== reportedUserId) {
       return res.status(400).json({ error: "That audio clip can't be reported." });
     }
+    // The reporter must actually be able to SEE the clip — i.e. hold a live match
+    // with its owner (mirrors the profile-visibility gate at profile.js). Without
+    // this, any holder of a clip id could soft-hold a stranger's approved audio.
+    // Uniform error (never reveals whether the clip exists) on failure.
+    const canSee = db.prepare(
+      `SELECT 1 FROM matches
+       WHERE ((user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?))
+         AND ended_at IS NULL`
+    ).get(userId, reportedUserId, reportedUserId, userId);
+    if (!canSee) {
+      return res.status(400).json({ error: "That audio clip can't be reported." });
+    }
+    // Anti-flap: at most one report per reporter per clip. Stops a reporter from
+    // repeatedly soft-holding the same clip across re-approval cycles (griefing).
+    const alreadyReported = db.prepare(
+      'SELECT 1 FROM reports WHERE reporter_id = ? AND reported_audio_id = ?'
+    ).get(userId, audioId);
+    if (alreadyReported) {
+      return res.status(400).json({ error: "You've already reported this voice note." });
+    }
     reportedAudioId = clip.id;
     reportedAudioTranscript = clip.transcript;
     // Soft-hold: stop serving the clip pending re-review (listPublicAudio only
