@@ -19,15 +19,16 @@ import Sparkline from "./Sparkline.jsx";
 import RankedBars from "./RankedBars.jsx";
 import { formatUptimePct } from "./chartMath.js";
 import { useFocusable } from "./useFocusable.js";
-import { waitingLabel, oldestLabel, accountAgeLabel, isPastSla, formatDuration } from "./adminFormat.js";
+import { waitingLabel, oldestLabel, accountAgeLabel, isPastSla, formatDuration, oldestEpoch } from "./adminFormat.js";
 
 // Moderation dashboard — autism-friendly: calm, low-stimulation, clear states.
 // Reds reserved for genuinely destructive actions (suspend). Numbers are static,
 // grounded, and stamped with an "Updated HH:MM" — never a live ticker.
 
+// `reviewed` is retired as an offered outcome (the atomic Dismiss/Warn/Ban
+// actions ARE the resolution). Legacy reviewed rows still surface under "All".
 const STATUS_FILTERS = [
   { value: "open", label: "Open" },
-  { value: "reviewed", label: "Reviewed" },
   { value: "actioned", label: "Actioned" },
   { value: "dismissed", label: "Dismissed" },
   { value: "all", label: "All" },
@@ -1384,7 +1385,8 @@ function AudioReviewCard({ item, onActed, onStatus }) {
           type="button"
           onClick={loadPlayback}
           disabled={loadingSrc}
-          {...fLoad}
+          onFocus={fLoad.onFocus}
+          onBlur={fLoad.onBlur}
           style={{
             alignSelf: "flex-start", minHeight: 44, padding: "8px 14px", borderRadius: 10,
             border: `1px solid ${t.formBorder}`, background: t.surface, color: t.accentStrong,
@@ -1467,17 +1469,46 @@ function AuditLogSkeleton() {
   );
 }
 
+// Client-side filter over the already-fetched audit rows, bucketed by action.
+// No backend change — the log is small and fully loaded, so this is a pure
+// in-memory partition. "other" (e.g. maintenance/purge) only surfaces under All.
+const AUDIT_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "enforcement", label: "Enforcement" },
+  { value: "reports", label: "Reports" },
+  { value: "verification", label: "Verification" },
+  { value: "roles", label: "Roles" },
+];
+function auditActionBucket(action) {
+  const a = String(action || "");
+  if (a === "resolve_report") return "reports";
+  if (a === "grant_admin" || a === "revoke_admin") return "roles";
+  if (a === "verify" || a === "unverify" || a.startsWith("approve_") || a.startsWith("reject_")) return "verification";
+  if (a === "warn" || a === "ban" || a === "unban" || a === "suspend" || a === "unsuspend" || a === "nuke_intros") return "enforcement";
+  return "other";
+}
+
 function AuditLogView({ reloadToken }) {
   const { items: log, loading, error, reload } = useAdminList(() => getAuditLog(), reloadToken);
+  // Hook before any early return (React #310).
+  const [filter, setFilter] = useState("all");
 
   if (loading) return <AuditLogSkeleton />;
   if (error) {
-    return <ErrorState title="Couldn't load the activity log" message="Something went wrong on our end. Please try again." onRetry={reload} />;
+    return <ErrorState title="Couldn't load the audit log" message="Something went wrong on our end. Please try again." onRetry={reload} />;
   }
   if (log.length === 0) return <EmptyCard>No moderation activity yet.</EmptyCard>;
+  const filtered = filter === "all" ? log : log.filter((e) => auditActionBucket(e.action) === filter);
   return (
-    <ul style={{ margin: 0, padding: 0 }}>
-      {log.map((entry) => {
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <Segmented options={AUDIT_FILTERS} value={filter} onChange={setFilter} ariaLabel="Filter the audit log by action" />
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyCard>No matching activity in the audit log.</EmptyCard>
+      ) : (
+      <ul style={{ margin: 0, padding: 0 }}>
+      {filtered.map((entry) => {
         // P1-C: prefer the backend-resolved human name over the raw target id.
         const target = entry.targetName || entry.targetEmail || (entry.targetId != null && entry.targetId !== "" ? `target ${entry.targetId}` : "");
         return (
@@ -1511,7 +1542,9 @@ function AuditLogView({ reloadToken }) {
           </li>
         );
       })}
-    </ul>
+      </ul>
+      )}
+    </div>
   );
 }
 
@@ -2547,6 +2580,7 @@ const MEMBER_STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "active", label: "Active" },
   { value: "suspended", label: "Suspended" },
+  { value: "removed", label: "Removed" },
   { value: "verified", label: "Verified" },
 ];
 const MEMBER_SORT_OPTIONS = [
@@ -2880,7 +2914,13 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
                   <tr
                     key={m.id}
                     onClick={() => setOpenId(m.id)}
-                    style={{ cursor: "pointer" }}
+                    // Subtle calm hover so the whole-row target is discoverable.
+                    // A plain background swap (no motion/transition) mutated on the
+                    // row element itself — no extra state, no table-wide re-render.
+                    // The Name-cell button still owns the keyboard path (no new tab stop).
+                    onMouseEnter={(e) => { e.currentTarget.style.background = t.surfaceAlt; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    style={{ cursor: "pointer", background: "transparent" }}
                   >
                     <td style={cell}>
                       <button
@@ -2897,7 +2937,7 @@ function MembersTab({ initialStatus = "all", initialFilters = {}, includeDemo = 
                         </span>
                       </button>
                     </td>
-                    <td style={cell}><MemberStatusBadge suspended={m.suspended} verified={m.verified} /></td>
+                    <td style={cell}><MemberStatusBadge suspended={m.suspended} verified={m.verified} banned={m.banned} /></td>
                     <td style={cell}><TierBadge tier={m.tier} /></td>
                     <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {m.reportCount}
@@ -3214,7 +3254,7 @@ const INSIGHTS_VIEWS = [
   { value: "overview", label: "Overview" },
   { value: "population", label: "Population" },
   { value: "transparency", label: "Transparency" },
-  { value: "activity", label: "Activity" },
+  { value: "activity", label: "Audit log" },
   { value: "feedback", label: "Feedback" },
   { value: "health", label: "Service health" },
 ];
@@ -3749,10 +3789,12 @@ export default function AdminScreen() {
       reports: { ...prev.reports, open: c.reports?.open ?? prev.reports?.open ?? 0 },
       pendingAttachments: c.pendingAttachments,
       pendingProfilePhotos: c.pendingProfilePhotos,
+      pendingProfileAudio: c.pendingProfileAudio,
       pendingVerifications: c.pendingVerifications,
       oldestOpenReportAt: c.oldestOpenReportAt,
       oldestPendingAttachmentAt: c.oldestPendingAttachmentAt,
       oldestPendingProfilePhotoAt: c.oldestPendingProfilePhotoAt,
+      oldestPendingProfileAudioAt: c.oldestPendingProfileAudioAt,
       oldestPendingVerificationAt: c.oldestPendingVerificationAt,
     } : prev));
   }, []);
@@ -3826,6 +3868,20 @@ export default function AdminScreen() {
   };
   const shell = { maxWidth: t.layout.maxContent, margin: "0 auto" };
   const now = Date.now();
+
+  // The three media queues (message attachments · profile photos · profile
+  // audio) triage as ONE "Media review" card: summed depth + the OLDEST of the
+  // three oldest-pending epochs drives the "oldest N days" subtext and amber SLA
+  // tone. Audio was previously omitted entirely — a whole safety queue with no
+  // triage signal. Clicking the card lands on the merged Media review sub-view.
+  const mediaPending = stats
+    ? (stats.pendingAttachments ?? 0) + (stats.pendingProfilePhotos ?? 0) + (stats.pendingProfileAudio ?? 0)
+    : 0;
+  const mediaOldestAt = oldestEpoch([
+    stats?.oldestPendingAttachmentAt,
+    stats?.oldestPendingProfilePhotoAt,
+    stats?.oldestPendingProfileAudioAt,
+  ]);
 
   const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 };
 
@@ -3928,20 +3984,12 @@ export default function AdminScreen() {
                       ariaLabel={`Open reports: ${stats.reports?.open ?? 0}. View open reports.`}
                     />
                     <StatCard
-                      label="Photos"
-                      value={stats.pendingAttachments ?? 0}
-                      subtext={(stats.pendingAttachments ?? 0) > 0 ? oldestLabel(stats.oldestPendingAttachmentAt, now) : "All clear"}
-                      tone={(stats.pendingAttachments ?? 0) > 0 && isPastSla(stats.oldestPendingAttachmentAt, now) ? "amber" : undefined}
+                      label="Media review"
+                      value={mediaPending}
+                      subtext={mediaPending > 0 ? oldestLabel(mediaOldestAt, now) : "All clear"}
+                      tone={mediaPending > 0 && isPastSla(mediaOldestAt, now) ? "amber" : undefined}
                       onClick={() => jumpToQueue("photos")}
-                      ariaLabel={`Photos awaiting review: ${stats.pendingAttachments ?? 0}. View photo review.`}
-                    />
-                    <StatCard
-                      label="Profile photos"
-                      value={stats.pendingProfilePhotos ?? 0}
-                      subtext={(stats.pendingProfilePhotos ?? 0) > 0 ? oldestLabel(stats.oldestPendingProfilePhotoAt, now) : "All clear"}
-                      tone={(stats.pendingProfilePhotos ?? 0) > 0 && isPastSla(stats.oldestPendingProfilePhotoAt, now) ? "amber" : undefined}
-                      onClick={() => jumpToQueue("photos")}
-                      ariaLabel={`Profile photos awaiting review: ${stats.pendingProfilePhotos ?? 0}. View photo review.`}
+                      ariaLabel={`Media awaiting review (message photos, profile photos, and audio): ${mediaPending}. View media review.`}
                     />
                     <StatCard
                       label="Verification"
@@ -3975,11 +4023,18 @@ export default function AdminScreen() {
                       {statusFilter === "open" ? "No open reports — all clear." : "No reports to show here."}
                     </EmptyCard>
                   ) : (
-                    <ul style={{ margin: 0, padding: 0 }}>
-                      {reports.map((report) => (
-                        <ReportCard key={report.id} report={report} onRefresh={refresh} onStatus={setStatusMsg} onDone={focusHeading} />
-                      ))}
-                    </ul>
+                    <>
+                      {/* Calm, factual count of the currently-rendered filtered
+                          list — no color, no urgency. */}
+                      <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 12 }}>
+                        {reports.length} {statusFilter === "all" ? "" : `${statusFilter} `}report{reports.length === 1 ? "" : "s"}
+                      </div>
+                      <ul style={{ margin: 0, padding: 0 }}>
+                        {reports.map((report) => (
+                          <ReportCard key={report.id} report={report} onRefresh={refresh} onStatus={setStatusMsg} onDone={focusHeading} />
+                        ))}
+                      </ul>
+                    </>
                   )}
                 </>
               ) : queueView === "photos" ? (

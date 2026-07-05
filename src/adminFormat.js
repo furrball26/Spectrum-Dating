@@ -57,3 +57,17 @@ export function isPastSla(epochMs, now = Date.now(), sla = SLA_MS) {
   if (epochMs == null) return false;
   return now - epochMs > sla;
 }
+
+// The oldest (smallest) of several pending-epoch values — used when several
+// sub-queues merge into one triage card (e.g. Media review = message photos +
+// profile photos + profile audio) and need a single oldest-pending timestamp
+// for their "oldest N days" subtext and amber SLA tone. Null/undefined entries
+// (empty sub-queues) are ignored; all-empty → null so the card reads "All clear".
+export function oldestEpoch(epochs) {
+  let oldest = null;
+  for (const e of epochs) {
+    if (e == null) continue;
+    if (oldest == null || e < oldest) oldest = e;
+  }
+  return oldest;
+}
