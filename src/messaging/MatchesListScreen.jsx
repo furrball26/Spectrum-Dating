@@ -40,31 +40,14 @@ function MatchesListSkeleton() {
 // "Yesterday", "Tue"); past a week they stop meaning anything, so switch to a
 // real date ("Jun 24", with the year when it isn't this year). Falls back to
 // the server's group label when no timestamp came through.
-function formatRowDate(iso, fallback) {
-  if (!iso) return fallback || null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return fallback || null;
-  const now = new Date();
-  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const days = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return d.toLocaleDateString(undefined, { weekday: "short" });
-  const opts = { month: "short", day: "numeric" };
-  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
-  return d.toLocaleDateString(undefined, opts);
-}
-
 // MatchRow: archiving lives in the per-row ⋯ menu (rowMenuProps.onArchive);
 // archived rows keep their visible Restore button (showUnarchive/onUnarchive).
-// No message preview — the row is just who + when (calm, glanceable), with the
-// full name always shown whole (wrapping instead of truncating).
+// The row is intentionally minimal — just the profile photo + name (no message
+// preview, no pronouns, no timestamp) so it reads clean and never wraps awkwardly.
 function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, selected, onStartConversation, startingMatchId, rowMenuProps, first, last }) {
   const f = useFocusable();
   const fRestore = useFocusable(); // for the unarchive / "Restore" button
-  const { otherUser, lastMessageLabel, lastMessageAt, unread, started, ended } = match;
-
-  const dateLabel = ended ? null : formatRowDate(lastMessageAt, lastMessageLabel);
+  const { otherUser, unread, started, ended } = match;
 
   const ariaLabel = [
     `${otherUser.displayName}.`,
@@ -72,7 +55,6 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
     otherUser.verified ? "Reviewed profile." : "",
     // F21 — an ended (read-only) thread never carries an unread nudge.
     ended ? "This conversation has ended." : (unread ? "Unread: New messages." : ""),
-    ended ? "" : `Last message: ${dateLabel || "Not started"}.`,
   ].filter(Boolean).join(" ");
 
   return (
@@ -133,9 +115,9 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
             size={AVATAR_SIZE}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* Who + when, nothing else. The full name always shows whole —
-                it wraps onto a second line rather than truncating; the date
-                sits right-aligned and never shrinks. */}
+            {/* Just the name (+ a small Reviewed check). No pronouns, no
+                timestamp — the row stays clean and the name gets the full width,
+                so it never wraps into an awkward stack. */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -148,36 +130,13 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
                 lineHeight: 1.35,
                 color: t.text,
                 minWidth: 0,
-                overflowWrap: "break-word",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}>
                 {otherUser.displayName}
               </span>
               {otherUser.verified && <VerifiedBadge compact />}
-              {/* D-15 — quiet pronoun line next to the name. */}
-              {otherUser.pronouns && (
-                <span style={{
-                  fontSize: 13,
-                  fontWeight: 400,
-                  color: t.textMuted,
-                  flexShrink: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}>
-                  {otherUser.pronouns}
-                </span>
-              )}
-              {dateLabel && (
-                <span style={{
-                  marginLeft: "auto",
-                  paddingLeft: 8,
-                  fontSize: 13,
-                  color: t.textMuted,
-                  flexShrink: 0,
-                }}>
-                  {dateLabel}
-                </span>
-              )}
             </div>
             {ended && (
               <div style={{ fontSize: 14, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
@@ -199,13 +158,11 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
           )}
         </button>
 
-        {/* Per-row ⋯ menu (view profile / note / archive / block / unmatch) */}
+        {/* Per-row ⋯ menu (view profile / archive / block / unmatch) */}
         {rowMenuProps && match.matchId && (
           <RowMenu
             row={{ matchId: match.matchId, conversationId: match.conversationId || null, otherUser: match.otherUser, started }}
-            note={rowMenuProps.matchNotes ? rowMenuProps.matchNotes[match.matchId] : null}
             onViewProfile={rowMenuProps.onViewProfile}
-            onNote={rowMenuProps.onNote}
             onArchive={showUnarchive ? null : rowMenuProps.onArchive}
             onReport={rowMenuProps.onReport}
             onUnmatch={rowMenuProps.onUnmatch}
@@ -248,7 +205,7 @@ function MatchRow({ match, onSelectConversation, showUnarchive, onUnarchive, sel
 // whether there's room below the trigger before flipping the menu upward.
 const ROW_MENU_EST_HEIGHT = 264;
 
-function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnmatch }) {
+function RowMenu({ row, onViewProfile, onArchive, onReport, onUnmatch }) {
   const [open, setOpen] = useState(false);
   // DT-2: flip the menu UPWARD for bottom rows. In the short desktop rail the
   // downward-only popover pushed Block/report + Unmatch past the viewport, where
@@ -315,11 +272,8 @@ function RowMenu({ row, note, onViewProfile, onNote, onArchive, onReport, onUnma
           to-trigger (FE-2, via runItem) are preserved below. */}
       {open && (
         <div role="group" aria-label={`Options for ${name}`} style={{ position: "absolute", right: 0, ...(openUp ? { bottom: "calc(100% + 4px)" } : { top: "calc(100% + 4px)" }), background: t.surface, border: `1px solid ${t.cardBorder}`, borderRadius: 12, boxShadow: t.shadow.md, zIndex: 300, minWidth: 200, overflow: "hidden" }}>
-          <button type="button" style={{ ...itemStyle, color: t.text }} onClick={() => runItem(() => onViewProfile(row.otherUser?.userId))}>
+          <button type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => runItem(() => onViewProfile(row.otherUser?.userId))}>
             View profile
-          </button>
-          <button type="button" style={{ ...itemStyle, color: t.text, ...(onArchive && row.conversationId && row.started ? {} : { borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }) }} onClick={() => runItem(() => onNote(row))}>
-            {note ? "Edit private note" : "Add private note"}
           </button>
           {onArchive && row.conversationId && row.started && (
             <button type="button" style={{ ...itemStyle, color: t.textSoft, borderBottom: `1px solid ${t.borderLight}`, paddingBottom: 14 }} onClick={() => runItem(() => onArchive(row.conversationId))}>
@@ -414,11 +368,9 @@ export default function MatchesListScreen({
   pendingMatches = [],
   onStartConversation,
   startingMatchId = null,
-  matchNotes = {},
   onRowViewProfile,
   onRowReport,
   onRowUnmatch,
-  onRowNote,
   // Quiet entry to the Requests area (intros). A plain count — no badge/urgency.
   onOpenRequests,
   requestCount = 0,
@@ -605,7 +557,7 @@ export default function MatchesListScreen({
   }));
   const newMatches = [...conversations.filter((m) => !m.started), ...pendingRows];
   const rowMenuProps = onRowReport
-    ? { matchNotes, onViewProfile: onRowViewProfile, onNote: onRowNote, onArchive, onReport: onRowReport, onUnmatch: onRowUnmatch }
+    ? { onViewProfile: onRowViewProfile, onArchive, onReport: onRowReport, onUnmatch: onRowUnmatch }
     : null;
   const capReached = active.length >= activeCap;
 

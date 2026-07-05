@@ -3,7 +3,7 @@ import MatchesListScreen from "./MatchesListScreen.jsx";
 import MessageRequestsScreen from "./MessageRequestsScreen.jsx";
 import UnmatchSheet from "./UnmatchSheet.jsx";
 import BlockReportScreen from "./BlockReportScreen.jsx";
-import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation, getActivity, getMatches, createConversation, swipe, saveMatchNote, safeErrorMessage, getMessageRequests, acceptMessageRequest, declineMessageRequest } from "../api.js";
+import { getConversations, archiveConversation, unarchiveConversation, getArchivedConversations, blockUser, reportUser, getUserId, markConversationRead, unmatchConversation, getActivity, getMatches, createConversation, swipe, safeErrorMessage, getMessageRequests, acceptMessageRequest, declineMessageRequest } from "../api.js";
 import LikedYouSection from "../LikedYouSection.jsx";
 import MatchMoment from "../MatchMoment.jsx";
 import ReportModal from "../ReportModal.jsx";
@@ -39,106 +39,6 @@ function ConversationFallback() {
       <Skeleton width="65%" height={48} radius={14} />
       <Skeleton width="72%" height={48} radius={14} />
     </div>
-  );
-}
-
-// Small private-note editor sheet (F13 survives the merge — notes were only
-// editable on the retiring Matches tab). Owner-only; saved via saveMatchNote.
-function NoteSheet({ row, initialNote, onSaved, onClose }) {
-  const [value, setValue] = useState(initialNote || "");
-  const [saving, setSaving] = useState(false);
-  const dialogRef = useRef(null);
-  const textareaRef = useRef(null);
-
-  // Move focus into the dialog on open (the textarea), restore to the trigger on
-  // close. Mirrors ReportModal / UnmatchSheet focus-restore discipline. WCAG 2.4.3.
-  useEffect(() => {
-    const prevFocus = document.activeElement;
-    textareaRef.current?.focus();
-    return () => {
-      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
-    };
-  }, []);
-
-  // Escape to close + Tab/Shift+Tab focus trap. Focusable set (textarea + two
-  // buttons) queried live. WCAG 2.4.3 / 2.1.2.
-  useEffect(() => {
-    function handleKey(e) {
-      if (e.key === "Escape") { onClose(); return; }
-      if (e.key === "Tab") {
-        const root = dialogRef.current;
-        if (!root) return;
-        const focusable = Array.from(
-          root.querySelectorAll(
-            'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey) {
-          if (document.activeElement === first || !root.contains(document.activeElement)) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last || !root.contains(document.activeElement)) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  return (
-    <>
-      <div aria-hidden="true" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)", zIndex: 1100 }} />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Private note about ${row.otherUser?.displayName || "this person"}`}
-        style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: t.surface, borderRadius: 20, padding: "24px 20px", width: "min(90vw, 400px)", maxHeight: "88vh", overflowY: "auto", WebkitOverflowScrolling: "touch", zIndex: 1101, boxShadow: t.shadow.lg, boxSizing: "border-box", fontFamily: t.sans }}
-      >
-        <h2 style={{ fontFamily: t.serif, fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: t.text }}>
-          Private note
-        </h2>
-        <p style={{ fontSize: 14, color: t.textMuted, margin: "0 0 12px" }}>Only you can see this.</p>
-        <textarea
-          ref={textareaRef}
-          value={value}
-          maxLength={500}
-          onChange={(e) => setValue(e.target.value)}
-          rows={3}
-          placeholder="e.g. met at the book club; dislikes loud bars"
-          style={{ width: "100%", boxSizing: "border-box", fontFamily: t.sans, fontSize: 16, color: t.text, background: t.surface, border: `1px solid ${t.formBorder}`, borderRadius: 10, padding: "8px 10px", resize: "vertical", lineHeight: 1.5 }}
-        />
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-          <button type="button" onClick={onClose} style={{ minHeight: 44, padding: "8px 16px", borderRadius: 10, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 16, fontWeight: 600, cursor: "pointer", fontFamily: t.sans }}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={async () => {
-              setSaving(true);
-              try {
-                const res = await saveMatchNote(row.matchId, value.trim());
-                onSaved(row.matchId, typeof res?.note === "string" ? res.note : value.trim());
-              } catch { /* keep text; user can retry */ }
-              setSaving(false);
-              onClose();
-            }}
-            style={{ minHeight: 44, padding: "8px 18px", borderRadius: 10, border: "none", background: t.accentFill, color: "#fff", fontSize: 16, fontWeight: 600, cursor: saving ? "wait" : "pointer", fontFamily: t.sans }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -183,16 +83,14 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
   const [likerBusyId, setLikerBusyId] = useState(null);
   const [matchMoment, setMatchMoment] = useState(null);
   const [reportingLiker, setReportingLiker] = useState(null);
-  // Matches that don't have a conversation row yet (join source for notes too).
+  // Matches that don't have a conversation row yet.
   const [pendingMatches, setPendingMatches] = useState([]);
-  const [matchNotes, setMatchNotes] = useState({}); // matchId -> note
   // Seed for a conversation created in place (before the list refetch knows it).
   const [localSeed, setLocalSeed] = useState(null);
   // Row-level safety actions (⋯ menu on every person).
   const [reportingRow, setReportingRow] = useState(null);   // {matchId, conversationId, otherUser}
   const [unmatchingRow, setUnmatchingRow] = useState(null); // same shape
   const [viewingUserId, setViewingUserId] = useState(null);
-  const [noteRow, setNoteRow] = useState(null);             // {matchId, otherUser}
 
   // ── Message requests / intros (sibling of the inbox, NOT the inbox) ──
   const [messageRequests, setMessageRequests] = useState([]); // inbound pending
@@ -268,9 +166,6 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       .then((arr) => {
         if (cancelled) return;
         setPendingMatches(arr.filter(m => !m.hasConversation || !m.conversationId));
-        const notes = {};
-        arr.forEach(m => { if (m.note) notes[m.matchId] = m.note; });
-        setMatchNotes(notes);
       })
       .catch(() => {});
     // Inbound intros — drives the quiet "Requests (N)" entry count and the list.
@@ -631,11 +526,9 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       pendingMatches={pendingMatches}
       onStartConversation={handleStartConversation}
       startingMatchId={startingMatchId}
-      matchNotes={matchNotes}
       onRowViewProfile={setViewingUserId}
       onRowReport={setReportingRow}
       onRowUnmatch={setUnmatchingRow}
-      onRowNote={setNoteRow}
       loading={loadingConvs}
       loadFailed={convsLoadFailed}
       onRetry={retryLoadConversations}
@@ -781,14 +674,6 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       )}
       {viewingUserId && (
         <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
-      )}
-      {noteRow && (
-        <NoteSheet
-          row={noteRow}
-          initialNote={matchNotes[noteRow.matchId] || ""}
-          onSaved={(matchId, note) => setMatchNotes(prev => ({ ...prev, [matchId]: note }))}
-          onClose={() => setNoteRow(null)}
-        />
       )}
     </>
   );
