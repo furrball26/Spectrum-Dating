@@ -53,9 +53,10 @@ function usePrefersReduced() {
 
 // ─── Collapsible sections (mobile-overwhelm reduction) ───────────────────────
 // Independent disclosures — opening one NEVER closes another (no single-open
-// accordion). The always-visible "About you" core (photos/name/tagline/bio/
-// commNote) is NOT collapsible. Persisted open/closed choices live under this
-// localStorage key.
+// accordion). Every section collapses, including the "About you" core
+// (photos/name/tagline/bio); it just defaults OPEN while the required name or a
+// photo is still missing so setup is never hidden. Persisted open/closed choices
+// live under this localStorage key.
 // v2: the 9 legacy per-topic sections (prompts/about/interests/search/lifestyle/
 // communicate/sensory/notifications/verification/membership) were regrouped into
 // top-level groups. The key is bumped so returning users don't inherit a
@@ -71,6 +72,7 @@ const SECTIONS_STORAGE_KEY = "spectrum_profile_sections_v2";
 // there are no nested accordions (double-hiding is the anti-pattern for this
 // audience). This array drives Expand-all / Collapse-all and the default map.
 const COLLAPSIBLE_SECTIONS = [
+  "aboutYou",
   "aboutMe",
   "lookingFor",
   "membership",
@@ -2137,11 +2139,11 @@ function AgeRangeSlider({ low, high, onChange }) {
 // changed: pronouns/commStyle/sensory/prompt all live inside the "aboutMe"
 // group; jumpToField scrolls to the specific field id, so landing deep inside a
 // large group still lands on the right control. The always-visible photo/
-// tagline/bio have no group.
+// photo/tagline/bio live in the collapsible "About you" group.
 const COMPLETENESS_TARGETS = {
-  photo:     { section: null,      focusId: "add-photo-tile" },
-  tagline:   { section: null,      focusId: "tagline" },
-  bio:       { section: null,      focusId: "bio" },
+  photo:     { section: "aboutYou", focusId: "add-photo-tile" },
+  tagline:   { section: "aboutYou", focusId: "tagline" },
+  bio:       { section: "aboutYou", focusId: "bio" },
   pronouns:  { section: "aboutMe", focusId: "pronouns" },
   commStyle: { section: "aboutMe", focusId: "comm-directness" },
   sensory:   { section: "aboutMe", focusId: "sensory-environment" },
@@ -3258,13 +3260,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     const missingKeys = new Set(missing.map((m) => m.key));
 
     if (!hasEverSaved) {
-      // First-run: don't make setup a scavenger hunt — open the content group so
-      // new users see the prompts/interests/facets. Looking-for + Account stay
-      // collapsed (the required fields all live in the always-visible core).
+      // First-run: don't make setup a scavenger hunt — open the core ("About
+      // you": photos + the required name + bio) AND the content group so new
+      // users see everything they need to fill. Looking-for + Account stay
+      // collapsed.
+      defaults.aboutYou = true;
       defaults.aboutMe = true;
     } else {
       // Returning user: auto-open the group that holds an incomplete field so
-      // nothing is buried. Interests, prompts, comms-style and sensory all now
+      // nothing is buried. The core "About you" opens when the REQUIRED display
+      // name is missing or there's no photo yet (both gate a usable profile).
+      if (!displayName.trim() || photos.length === 0) defaults.aboutYou = true;
+      // Interests, prompts, comms-style and sensory all now
       // live inside the "About me" group, so any of them being empty opens it.
       if (interests.length === 0) defaults.aboutMe = true;
       if (missingKeys.has("prompt") && prompts.length === 0) defaults.aboutMe = true;
@@ -3634,7 +3641,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       // `hidden` (which would dead-end focus/scroll), then focus + scroll it on
       // the next frame. Generalised: `section` is null for always-open fields.
       const firstInvalid = nameErr
-        ? { ref: displayNameRef, section: null }         // display name — always-open "About you"
+        ? { ref: displayNameRef, section: "aboutYou" }   // display name — inside the "About you" group
         : { ref: interestsErrorRef, section: "aboutMe" }; // interests — inside the "About me" group
 
       if (firstInvalid.section) openSection(firstInvalid.section);
@@ -3881,6 +3888,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     const kept = parts.filter(Boolean);
     return kept.length ? kept.join(" · ") : NOT_SET;
   }
+
+  // ── Group 0: About you — the core (photos + the required name + tagline/bio).
+  //    Collapsible like every other section; opens by default while the required
+  //    name or a photo is still missing (see the default-open effect).
+  const aboutYouHasContent = !!(displayName.trim() || photos.length || tagline.trim() || bio.trim());
+  const aboutYouSummary = joinParts([
+    photos.length ? `${photos.length} photo${photos.length > 1 ? "s" : ""}` : "",
+    tagline.trim() ? "tagline" : "",
+    bio.trim() ? "bio" : "",
+  ]);
 
   // ── Group 1: About me — prompts, interests, F28 facets, identity,
   //    how-I-communicate, sensory & social, lifestyle attributes you display.
@@ -4181,11 +4198,20 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           </div>
 
           {/* ══════════════════════════════════════════════════════
-              CARD 1 — About you
+              GROUP 0 — About you (the core: photos + required name + tagline/
+              bio). Collapsible like the rest; defaults open while the required
+              name or a photo is still missing so setup is never hidden.
           ══════════════════════════════════════════════════════ */}
-          <div style={card}>
-            <h2 style={h2Style}>About you</h2>
-
+          <CollapsibleSection
+            id="aboutYou"
+            title="About you"
+            summary={aboutYouSummary}
+            hasContent={aboutYouHasContent}
+            open={!!sectionOpen.aboutYou}
+            onToggle={() => toggleSection("aboutYou")}
+            headerStyle={h2Style}
+            cardStyle={card}
+          >
             <PhotoGallery
               photos={photos}
               uploading={photoUploading}
@@ -4298,7 +4324,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             {/* Communication style note (commNote) moved into the consolidated
                 "How to connect with me" module inside the About me group, so the
                 whole communication moat reads as one intentional place. */}
-          </div>
+          </CollapsibleSection>
 
           {/* ══════════════════════════════════════════════════════
               GROUP 1 — About me (content others see). Opens to reveal all its
