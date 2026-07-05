@@ -26,7 +26,20 @@ export function deleteUserRows(db, userId) {
     // message_attachments may not exist / be relevant in all deployments.
     attachmentKeys = [];
   }
-  const storageKeys = [...new Set([...photoKeys, ...attachmentKeys])];
+
+  // Profile audio: collect the R2 keys BEFORE the ON DELETE CASCADE FK removes
+  // the rows, else the voice recordings orphan in the bucket on account delete.
+  let audioKeys = [];
+  try {
+    audioKeys = db.prepare(
+      'SELECT storage_key FROM profile_audio WHERE user_id = ? AND storage_key IS NOT NULL AND storage_key != ?'
+    ).all(userId, '').map(r => r.storage_key);
+  } catch {
+    // profile_audio may not exist on a not-yet-migrated deployment.
+    audioKeys = [];
+  }
+
+  const storageKeys = [...new Set([...photoKeys, ...attachmentKeys, ...audioKeys])];
 
   // Foreign keys with ON DELETE CASCADE handle profiles, interests, swipes,
   // matches, conversations, messages, reactions, blocks, push_subscriptions.

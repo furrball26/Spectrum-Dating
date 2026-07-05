@@ -38,6 +38,18 @@ export function getPublicUrl(key) {
   return `${PUBLIC_URL()}/${key}`;
 }
 
+// Presigned, short-lived GET URL for an object. Used to serve PENDING (un-
+// approved) profile audio to its owner/a moderator WITHOUT handing out a stable
+// public URL: voice carries more inherent PII than a photo, so an un-reviewed
+// clip must never sit behind a guessable public link. Throws when R2 isn't
+// configured — callers degrade gracefully (return null, don't crash).
+export async function getPresignedGetUrl(key, expiresInSeconds = 600) {
+  const client = getR2Client();
+  if (!client) throw new Error('R2 not configured');
+  const command = new GetObjectCommand({ Bucket: BUCKET(), Key: key });
+  return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+}
+
 // Fetch an object's raw bytes from the photos bucket as a Buffer. Used by the
 // data export to bundle the user's own photos into the ZIP (the DB only stores
 // the storage_key; the image bytes live in R2). Uses the same S3Client/config as

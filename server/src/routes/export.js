@@ -136,6 +136,15 @@ function photoExt(row) {
   return ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg';
 }
 
+// Same idea for a bundled audio clip — a tiny known-audio allowlist, defaulting
+// to webm (the primary record format).
+function audioExt(row) {
+  const src = row.storage_key || row.url || '';
+  const m = /\.([a-zA-Z0-9]{1,5})(?:\?|#|$)/.exec(src);
+  const ext = m ? m[1].toLowerCase() : 'webm';
+  return ['webm', 'm4a', 'mp3', 'ogg'].includes(ext) ? ext : 'webm';
+}
+
 // ─── HTML rendering (self-contained, offline, escaped) ──────────────────────────
 
 // Escape EVERY user-supplied string before it enters the HTML. This file is
@@ -247,6 +256,19 @@ function renderPhotosHtml(manifest) {
   }).join('\n')}</div>`;
 }
 
+function renderAudioHtml(manifest) {
+  if (!manifest.length) {
+    return '<p class="muted">No voice answers recorded.</p>';
+  }
+  return manifest.map((a) => {
+    const status = a.reviewStatus && a.reviewStatus !== 'approved' ? ` (${esc(a.reviewStatus)})` : '';
+    const player = a.file
+      ? `<audio controls preload="none" src="${esc(a.file)}"></audio>`
+      : '<p class="muted">Audio file not included.</p>';
+    return `<div class="prompt"><p class="prompt-q">${esc(a.promptKey)}${status}</p>${player}<p class="prompt-a">${esc(a.transcript)}</p></div>`;
+  }).join('\n');
+}
+
 function renderConversationsHtml(conversations) {
   if (!conversations.length) return '<p class="muted">No conversations yet.</p>';
   return conversations.map((conv) => {
@@ -264,7 +286,7 @@ function renderConversationsHtml(conversations) {
   }).join('\n');
 }
 
-function renderHtml({ exportedAt, profile, conversations, photoManifest }) {
+function renderHtml({ exportedAt, profile, conversations, photoManifest, audioManifest }) {
   // One <style> block, system font stack, no external assets — opens offline in
   // any browser, reads calmly in the light OR dark of whatever opens it.
   return `<!doctype html>
@@ -337,6 +359,11 @@ ${renderProfileHtml(profile)}
   <h2>Your photos</h2>
   <section class="card">
 ${renderPhotosHtml(photoManifest)}
+  </section>
+
+  <h2>Your voice answers</h2>
+  <section class="card">
+${renderAudioHtml(audioManifest || [])}
   </section>
 
   <h2>Your conversations</h2>
@@ -464,6 +491,39 @@ router.get('/archive', exportLimiter, async (req, res) => {
   // The manifest (with bundled file paths) IS the exported photo record.
   profile.photos = photoManifest;
 
+  // Audio prompt answers — the owner's OWN clips regardless of review_status
+  // (their own data, consistent with the photo manifest). Bytes fetched
+  // best-effort like photos; the transcript is always included (it's text and
+  // free — the a11y floor). A missing audio file never fails the export.
+  const audioRows = db.prepare(
+    'SELECT id, storage_key, url, prompt_key, transcript, duration_ms, review_status FROM profile_audio WHERE user_id = ? ORDER BY position ASC, created_at ASC'
+  ).all(userId);
+  const audioManifest = [];
+  const audioBuffers = [];
+  let aidx = 0;
+  for (const row of audioRows) {
+    aidx += 1;
+    const name = `audio/answer-${String(aidx).padStart(2, '0')}.${audioExt(row)}`;
+    const entry = {
+      file: null,
+      promptKey: row.prompt_key,
+      transcript: row.transcript || '',
+      durationMs: row.duration_ms ?? null,
+      reviewStatus: row.review_status,
+    };
+    if (r2On && row.storage_key) {
+      try {
+        const buf = await getObjectBytes(row.storage_key);
+        audioBuffers.push({ name, buf });
+        entry.file = name;
+      } catch (err) {
+        console.warn(`[export] audio fetch failed for ${row.id}: ${err.message}`);
+      }
+    }
+    audioManifest.push(entry);
+  }
+  profile.audio = audioManifest;
+
   const exportedAt = coarseLabel(Date.now());
   const data = {
     // Coarsened per the no-raw-time product rule. The requester's OWN data is at
@@ -473,9 +533,10 @@ router.get('/archive', exportLimiter, async (req, res) => {
     profile,
     conversations,
     photos: { included: photoBuffers.length, notIncluded: missingPhotos, storageAvailable: r2On },
+    audio: { included: audioBuffers.length, total: audioManifest.length, storageAvailable: r2On },
   };
 
-  const html = renderHtml({ exportedAt, profile, conversations, photoManifest });
+  const html = renderHtml({ exportedAt, profile, conversations, photoManifest, audioManifest });
   const readme = renderReadme({ photoCount: photoBuffers.length, missingPhotos, r2On });
 
   res.setHeader('Content-Type', 'application/zip');
@@ -495,6 +556,7 @@ router.get('/archive', exportLimiter, async (req, res) => {
   archive.append(JSON.stringify(data, null, 2), { name: 'data.json' });
   archive.append(readme, { name: 'README.txt' });
   for (const p of photoBuffers) archive.append(p.buf, { name: p.name });
+  for (const a of audioBuffers) archive.append(a.buf, { name: a.name });
   archive.finalize();
 });
 

@@ -775,6 +775,11 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   const pendingVerifications = db.prepare(
     "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
   ).get().c;
+  // Audio backlog must be visible too — an unreviewed audio queue is otherwise
+  // an invisible moderation-ops gap (a false "all clear").
+  const pendingProfileAudio = db.prepare(
+    "SELECT COUNT(*) AS c FROM profile_audio WHERE review_status = 'pending_review'"
+  ).get().c;
 
   const oldestOpenReportAt = db.prepare(
     "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
@@ -787,6 +792,9 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   ).get().t ?? null;
   const oldestPendingVerificationAt = db.prepare(
     "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
+  ).get().t ?? null;
+  const oldestPendingProfileAudioAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM profile_audio WHERE review_status = 'pending_review'"
   ).get().t ?? null;
 
   res.json({
@@ -802,10 +810,12 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
     reports,
     pendingAttachments,
     pendingProfilePhotos,
+    pendingProfileAudio,
     pendingVerifications,
     oldestOpenReportAt,
     oldestPendingAttachmentAt,
     oldestPendingProfilePhotoAt,
+    oldestPendingProfileAudioAt,
     oldestPendingVerificationAt,
   });
 });
@@ -835,6 +845,9 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
   const pendingVerifications = db.prepare(
     "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
   ).get().c;
+  const pendingProfileAudio = db.prepare(
+    "SELECT COUNT(*) AS c FROM profile_audio WHERE review_status = 'pending_review'"
+  ).get().c;
 
   const oldestOpenReportAt = db.prepare(
     "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
@@ -848,15 +861,20 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
   const oldestPendingVerificationAt = db.prepare(
     "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
   ).get().t ?? null;
+  const oldestPendingProfileAudioAt = db.prepare(
+    "SELECT MIN(created_at) AS t FROM profile_audio WHERE review_status = 'pending_review'"
+  ).get().t ?? null;
 
   res.json({
     reports: { open: openReports },
     pendingAttachments,
     pendingProfilePhotos,
+    pendingProfileAudio,
     pendingVerifications,
     oldestOpenReportAt,
     oldestPendingAttachmentAt,
     oldestPendingProfilePhotoAt,
+    oldestPendingProfileAudioAt,
     oldestPendingVerificationAt,
   });
 });

@@ -5,6 +5,7 @@ import { isAdminUser } from '../middleware/admin.js';
 import { getEntitlement } from '../billing/entitlements.js';
 import { emailConfigured } from '../email/resend.js';
 import { listPhotos, listPublicPhotos } from './photos.js';
+import { listPublicAudio, listOwnAudio } from './audio.js';
 import { ageFromDob } from '../utils/time.js';
 import { coarseCity, isGeocodable } from '../utils/metros.js';
 import { containsSlur } from '../utils/nameScreen.js';
@@ -229,6 +230,11 @@ export function assembleOwnProfile(db, userId) {
     // Owner viewing their OWN profile: include pending photos (each carries a
     // `pending` flag) so they can see photos still awaiting review (SAFETY-2).
     photos: listPhotos(db, userId, { includePending: true }),
+    // Owner viewing their OWN profile: include pending/rejected audio (each
+    // carries a `pending` + `reviewStatus` flag) so they can manage clips still
+    // awaiting review. A pending clip exposes no public URL (play via
+    // /audio/:id/playback-url).
+    audio: listOwnAudio(db, userId),
     // G4: honest signal for the radius/distance UI. True iff metros.js can place
     // this user's city on the map (one of the supported metros). When false, the
     // radius filter can't apply, so the frontend shows a calm note instead of
@@ -817,6 +823,10 @@ router.get('/:userId', requireAuth, (req, res) => {
     photoUrl: profile.photo_url || '',
     // PROD-6: approved-only gallery, primary-first (SAFETY-2 approved default).
     photos: listPublicPhotos(db, targetId),
+    // Approved-only audio prompt answers (FREE to view + read the transcript;
+    // recording is Companion-gated, being seen never is). Same approved-only
+    // discipline as photos — pending/rejected clips never surface here.
+    audio: listPublicAudio(db, targetId),
     interests,
     relationshipGoal: profile.relationship_goal || '',
     relationshipStructure: profile.relationship_structure || '',

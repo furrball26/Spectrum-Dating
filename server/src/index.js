@@ -15,6 +15,7 @@ import messagingRouter from './routes/messaging.js';
 import messageRequestsRouter from './routes/messageRequests.js';
 import reactionsRouter from './routes/reactions.js';
 import photosRouter from './routes/photos.js';
+import audioRouter, { adminAudioRouter } from './routes/audio.js';
 import exportRouter from './routes/export.js';
 import startersRouter from './routes/starters.js';
 import pushRouter from './routes/push.js';
@@ -85,6 +86,7 @@ app.use('/messaging', messagingRouter);
 app.use('/messaging/requests', messageRequestsRouter);
 app.use('/reactions', reactionsRouter);
 app.use('/photos', photosRouter);
+app.use('/audio', audioRouter);
 app.use('/export', exportRouter);
 app.use('/starters', startersRouter);
 app.use('/push', pushRouter);
@@ -99,6 +101,9 @@ app.use('/admin', adminPopulationRouter);
 // Admin entitlement routes mount at '/admin' AFTER adminApiLimiter above, so
 // they inherit the same per-admin rate limiter as every other /admin route.
 app.use('/admin', adminEntitlementsRouter);
+// Audio review queue (GET /admin/profile-audio/pending, POST .../:id/review) —
+// mounts at '/admin' AFTER adminApiLimiter above, inheriting the per-admin limiter.
+app.use('/admin', adminAudioRouter);
 app.use('/billing', billingRouter);
 app.use('/telemetry', telemetryRouter);
 app.use('/feedback', feedbackRouter);

@@ -710,7 +710,7 @@ const REPORT_REASONS = ['harassment', 'inappropriate', 'spam', 'fake_profile', '
 
 router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
-  const { reportedUserId, reason, details, conversationId, requestId, messageId } = req.body ?? {};
+  const { reportedUserId, reason, details, conversationId, requestId, messageId, audioId } = req.body ?? {};
 
   if (!reportedUserId || typeof reportedUserId !== 'string') {
     return res.status(400).json({ error: 'reportedUserId is required' });
@@ -743,6 +743,9 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   }
   if (messageId !== undefined && messageId !== null && typeof messageId !== 'string') {
     return res.status(400).json({ error: 'messageId must be a string' });
+  }
+  if (audioId !== undefined && audioId !== null && typeof audioId !== 'string') {
+    return res.status(400).json({ error: 'audioId must be a string' });
   }
 
   // P1-A: snapshot the reported user's most recent message(s) in the reported
@@ -804,10 +807,36 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
     }
   }
 
+  // Report-an-audio: a viewer reports a specific APPROVED audio clip on a
+  // profile they can see. Authorization (mirrors the pin-message ownership
+  // check): the clip must exist, be APPROVED (i.e. actually visible), and belong
+  // to the reported user. We snapshot the transcript onto the report so the
+  // evidence SURVIVES even if the uploader later deletes the clip or their whole
+  // account (mirrors reported_message + the 030 ON DELETE SET NULL guarantee),
+  // and we SOFT-HOLD the clip — flip it back to 'pending_review' so it stops
+  // serving and re-enters the moderation queue for a re-listen.
+  let reportedAudioId = null;
+  let reportedAudioTranscript = null;
+  if (audioId) {
+    const clip = db.prepare(
+      'SELECT id, user_id, transcript, review_status FROM profile_audio WHERE id = ?'
+    ).get(audioId);
+    if (!clip || clip.review_status !== 'approved' || clip.user_id !== reportedUserId) {
+      return res.status(400).json({ error: "That audio clip can't be reported." });
+    }
+    reportedAudioId = clip.id;
+    reportedAudioTranscript = clip.transcript;
+    // Soft-hold: stop serving the clip pending re-review (listPublicAudio only
+    // serves 'approved'). Re-enters the pending queue as fresh evidence.
+    db.prepare(
+      "UPDATE profile_audio SET review_status = 'pending_review', reviewed_at = NULL, reviewed_by = NULL WHERE id = ?"
+    ).run(clip.id);
+  }
+
   db.prepare(`
-    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at, reported_message, reported_message_id, pinned_message)
-    VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
-  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now(), reportedMessage, pinnedMessageId, pinnedMessageText);
+    INSERT INTO reports (id, reporter_id, reported_id, conversation_id, reason, details, status, created_at, reported_message, reported_message_id, pinned_message, reported_audio_id, reported_audio_transcript)
+    VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)
+  `).run(newId(), userId, reportedUserId, conversationId || null, reason.trim(), details || null, Date.now(), reportedMessage, pinnedMessageId, pinnedMessageText, reportedAudioId, reportedAudioTranscript);
 
   res.status(201).json({ reported: true });
 });
