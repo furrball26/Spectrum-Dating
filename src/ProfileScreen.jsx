@@ -1219,8 +1219,8 @@ const PROMPT_ANSWER_MAX = 200;
 // their own words — never auto-filled, never content-aware. Scaffolding beats a
 // blank box, especially for autistic users. This stays free (Tier 1) forever;
 // the paid Companion is only the future LLM/content-aware version. Keyed by the
-// 12 stable catalog keys (server/src/data/prompts.js); GENERIC_STARTERS covers
-// any future key not yet mapped.
+// stable catalog keys (server/src/data/prompts.js — ~40 after the richer-prompts
+// pass); GENERIC_STARTERS covers any key not yet mapped.
 const PROMPT_STARTERS = {
   a_perfect_day: [
     "A slow morning with coffee and no plans, then…",
@@ -1269,6 +1269,120 @@ const PROMPT_STARTERS = {
   understand_me: [
     "I mean exactly what I say, so…",
     "It helps to know I need a little time to…",
+  ],
+  // ── Richer-prompts pass — gentle starters for the new catalog keys. Voice
+  //    mirrors the 12 above: calm, concrete, first-person, editable drafts.
+  routine_i_love: [
+    "Every morning I…",
+    "The same walk, the same coffee, and…",
+  ],
+  learning_now: [
+    "Lately I've been slowly getting into…",
+    "I'm teaching myself…",
+  ],
+  message_lights_me_up: [
+    "A clear \"here's the plan\" message…",
+    "When someone remembers a small thing I mentioned…",
+  ],
+  feel_myself_place: [
+    "At home with the lights low and…",
+    "In a quiet corner of the library, where…",
+  ],
+  partner_understand: [
+    "I need a little time to process before I reply, and…",
+    "When I go quiet it usually means…",
+  ],
+  low_key_evening: [
+    "Dinner at home, a familiar film, and…",
+    "No plans, comfy clothes, and…",
+  ],
+  comfort_meal: [
+    "The same simple dinner I never get tired of…",
+    "Something warm and easy, like…",
+  ],
+  calming_sound: [
+    "Rain on the window while I…",
+    "The low hum of…",
+  ],
+  happily_return_to: [
+    "I've read/watched it more times than I can count…",
+    "I go back to it whenever I need something familiar…",
+  ],
+  makes_me_laugh: [
+    "A gentle, silly thing that always gets me…",
+    "I can't help laughing at…",
+  ],
+  quietly_good_at: [
+    "I'm quietly good at…",
+    "People are sometimes surprised that I can…",
+  ],
+  calm_sunday: [
+    "A slow start, then…",
+    "No alarm, tea, and a little bit of…",
+  ],
+  easiest_to_start: [
+    "Ask me a clear, specific question about…",
+    "Just say hello and tell me one true thing about your day…",
+  ],
+  proud_of: [
+    "I once made…",
+    "It took me a while, but I finished…",
+  ],
+  cozy_setup: [
+    "Soft blanket, warm light, and…",
+    "My favourite chair, a hot drink, and…",
+  ],
+  care_about: [
+    "I care a lot about…",
+    "I could gently talk for a while about…",
+  ],
+  dating_pace: [
+    "Slow and steady suits me — I like to…",
+    "No rush; I do best when we…",
+  ],
+  like_knowing_plan: [
+    "Knowing the plan helps me relax, so…",
+    "A clear time and place, and I'm at ease…",
+  ],
+  animal_i_adore: [
+    "I completely melt for…",
+    "I could watch them all day…",
+  ],
+  collect_or_organise: [
+    "I quietly collect…",
+    "I love sorting and arranging my…",
+  ],
+  on_repeat: [
+    "I've had this on repeat lately…",
+    "The song I keep coming back to is…",
+  ],
+  hands_busy: [
+    "It keeps my hands busy and my mind calm…",
+    "I like the steady rhythm of…",
+  ],
+  favourite_season: [
+    "I feel most at home when it's…",
+    "Everything feels right in…",
+  ],
+  simple_pleasure: [
+    "A small thing that never gets old…",
+    "I never get tired of…",
+  ],
+  show_i_care: [
+    "I show I care by…",
+    "I remember the little things and…",
+  ],
+  good_date_feels: [
+    "Calm, unhurried, and easy to be myself…",
+    "Somewhere quiet where we can actually hear each other…",
+  ],
+  ask_me_about: [
+    "Ask me about…",
+    "Get me started on…",
+  ],
+  safe_and_settled: [
+    "A familiar routine and a bit of quiet…",
+    "Knowing what to expect helps me feel settled…",
   ],
 };
 
@@ -1363,6 +1477,7 @@ function PromptSlot({ index, promptKey, promptText, answer, onChangeAnswer, onRe
   }
   return (
     <div
+      data-prompt-card
       style={{
         border: `1px solid ${t.borderLight}`,
         borderRadius: 12,
@@ -1372,7 +1487,18 @@ function PromptSlot({ index, promptKey, promptText, answer, onChangeAnswer, onRe
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-        <p style={{ margin: 0, fontFamily: t.serif, fontSize: 16, fontWeight: 700, color: t.text, lineHeight: 1.4 }}>
+        {/* Prompt text as a quiet eyebrow label; the answer below is the prominent
+            content — mirrors the card-per-idea layout in the preview. */}
+        <p style={{
+          margin: 0,
+          minWidth: 0,
+          fontSize: 13,
+          fontWeight: 600,
+          color: t.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          lineHeight: 1.4,
+        }}>
           {promptText}
         </p>
         <RemovePromptButton onRemove={onRemove} promptText={promptText} />
@@ -2476,37 +2602,37 @@ function ProfilePreviewModal({
             </div>
           )}
 
-          {/* Hinge-style prompt answers */}
+          {/* Hinge-style prompt answers — one calm card per idea: the prompt is
+              a quiet eyebrow label, the answer is the prominent content. */}
           {validPrompts.length > 0 && (
-            <div style={card}>
-              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 20 }}>
-                {validPrompts.map((p, i) => (
-                  <li key={p.promptKey || i}>
-                    <p style={{
-                      margin: "0 0 6px",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: t.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      lineHeight: 1.4,
-                    }}>
-                      {promptTextFor(p.promptKey)}
-                    </p>
-                    <p style={{
-                      margin: 0,
-                      fontFamily: t.serif,
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: t.text,
-                      lineHeight: 1.4,
-                    }}>
-                      {p.answer}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {validPrompts.map((p, i) => (
+                <li key={p.promptKey || i} data-prompt-card style={card}>
+                  <p style={{
+                    margin: "0 0 8px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: t.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    lineHeight: 1.4,
+                  }}>
+                    {promptTextFor(p.promptKey)}
+                  </p>
+                  <p style={{
+                    margin: 0,
+                    fontFamily: t.serif,
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: t.text,
+                    lineHeight: 1.4,
+                    letterSpacing: "-0.01em",
+                  }}>
+                    {p.answer}
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
 
           {/* Footer note */}

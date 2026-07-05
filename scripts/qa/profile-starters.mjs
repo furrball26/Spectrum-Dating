@@ -1,16 +1,33 @@
-// QA driver — static profile-writing assist ("ways to start" starters).
-// Proves the free, client-side scaffolding in ProfileScreen's prompt UI:
+// QA driver — static profile-writing assist ("ways to start" starters) + the
+// richer-prompts pass (expanded catalog + prompts-as-cards).
+// Proves:
 //   1. On an empty answer box the calm "Need a starting point?" affordance +
 //      tappable example starters render.
 //   2. Tapping a starter drops it into the answer textarea as an editable draft.
 //   3. Once the box has the user's own text, the starters disappear — so a tap
 //      can never clobber what they wrote (the calm no-clobber guarantee).
+//   4. A prompt from the EXPANDED catalog (routine_i_love) is selectable in the
+//      chooser and yields a gentle starter (catalog + starter map are wired).
+//   5. Answered prompts render as calm cards ([data-prompt-card]) both in the
+//      editor and in the "How others see you" preview.
 // Run: build + preview on :4173, then `node scripts/qa/profile-starters.mjs`.
 import { mkdirSync } from "node:fs";
-import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, OUT } from "./harness.mjs";
+import { makeAccount, launch, login, check, finish, cleanupAccounts, openProfileEdit, api, APP, OUT } from "./harness.mjs";
 
 mkdirSync(OUT, { recursive: true });
 const acct = await makeAccount("starters", { displayName: "Sam QA", gender: "nonbinary", pronouns: "they/them", seeking: "woman" });
+
+// Seed ONE answered prompt using a NEW catalog key from the richer-prompts pass.
+// This both (a) proves the new key round-trips through the backend and (b) gives
+// the editor + preview an answered prompt to render as a card. talk_for_hours is
+// left unanswered so it stays available for the chooser/starter flow below.
+const SEED_ANSWER = "Every morning I make tea and read for a bit.";
+const seed = await api(
+  "/profile/prompts",
+  { method: "PUT", body: { prompts: [{ promptKey: "routine_i_love", answer: SEED_ANSWER }] } },
+  acct.token
+);
+check("Backend accepts a NEW catalog key (routine_i_love) prompt answer", seed.status === 200, `status=${seed.status}`);
 
 const { browser, page, errors } = await launch();
 await login(page, acct);
@@ -29,9 +46,27 @@ if ((await addBtn.count()) === 0) {
   await page.waitForTimeout(600);
 }
 
+// 5a — the seeded answer renders as a card in the EDITOR (data-prompt-card).
+const editorCards = await page.locator("[data-prompt-card]").count();
+check("Answered prompt renders as a card in the editor", editorCards >= 1, `cards=${editorCards}`);
+check("Editor card shows the answer text", (await page.getByText(/Every morning I make tea/i).count()) > 0);
+await page.screenshot({ path: `${OUT}/prompt_cards_editor.png` });
+
 // Open the prompt chooser.
 await addBtn.first().click();
 await page.waitForTimeout(400);
+
+// 4 — a prompt from the EXPANDED catalog is selectable + yields a starter. Assert
+// the option exists first, then select it and confirm the calm starter affordance.
+const newOptCount = await page.locator('#prompt-chooser-select option[value="low_key_evening"]').count();
+check("Expanded catalog exposes a new prompt (low_key_evening) as selectable", newOptCount === 1, `optCount=${newOptCount}`);
+if (newOptCount === 1) {
+  await page.locator("#prompt-chooser-select").selectOption("low_key_evening");
+  await page.waitForTimeout(400);
+  const nf = await page.getByText(/just a starting point you can change/i).count();
+  const ns = await page.getByRole("button", { name: /Use this starting point/i }).count();
+  check("New catalog prompt shows a gentle starter", nf > 0 && ns >= 1, `framing=${nf} starters=${ns}`);
+}
 
 // Pick a prompt whose starters we know ("Something I could talk about for hours…").
 await page.locator("#prompt-chooser-select").selectOption("talk_for_hours");
@@ -72,9 +107,20 @@ const typed = await page.locator("#prompt-chooser-answer").inputValue();
 check("User's own typed text is preserved", typed === "My own words about steam trains.");
 check("No starters offered while user text present", (await page.getByRole("button", { name: /Use this starting point/i }).count()) === 0);
 
-// Fallback map coverage: every catalog key must yield 1–2 starters client-side.
-// (Static assertion via the page's bundled constant is not exported, so we just
-// confirm the golden path had no console errors.)
+// 5b — the answered prompt renders as a card in the "How others see you" preview.
+// Reload to drop the chooser's unsaved draft (avoids the unsaved-changes dialog),
+// then open the preview from the hub.
+await page.goto(APP, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2200);
+await page.getByRole("button", { name: /^profile$/i }).first().click();
+await page.waitForTimeout(1000);
+await page.getByRole("button", { name: /How others see you/i }).first().click();
+await page.waitForTimeout(1200);
+const previewCards = await page.locator("[data-prompt-card]").count();
+check("Answered prompt renders as a card in the preview", previewCards >= 1, `cards=${previewCards}`);
+check("Preview card shows the answer text", (await page.getByText(/Every morning I make tea/i).count()) > 0);
+await page.screenshot({ path: `${OUT}/prompt_cards_preview.png` });
+
 check("No console pageerrors during the flow", errors.length === 0, errors.slice(0, 3).join(" | "));
 
 await browser.close();
