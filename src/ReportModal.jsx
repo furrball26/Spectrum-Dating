@@ -7,14 +7,17 @@ import { SAFETY_REASONS } from "./safetyReasons.js";
 // { memberId, displayName }; `onBlocked(candidate)` fires only when a block
 // actually landed (E27). Extracted from SuggestionScreen so the Matches page
 // can offer the same calm block/report flow on people who liked you.
-export default function ReportModal({ candidate, onClose, onBlocked }) {
+export default function ReportModal({ candidate, onClose, onBlocked, audioId }) {
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   // Block and report are independent choices. Default: report on (this is the
   // "Report" entry point), block on too since it's pre-match — but each is
   // optional and can be turned off. At least one is required.
+  // Report-an-audio (audioId present): the intent is to flag a specific voice
+  // note, not to cut off the whole (matched) person — so block defaults OFF while
+  // staying available if they want it.
   const [doReport, setDoReport] = useState(true);
-  const [doBlock, setDoBlock] = useState(true);
+  const [doBlock, setDoBlock] = useState(!audioId);
   const [submitted, setSubmitted] = useState(false);
   const [confirmMsg, setConfirmMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -77,7 +80,9 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
     let reported = false;
     if (doReport) {
       try {
-        await reportUser(candidate.memberId, reason, details || undefined);
+        // Thread audioId through when reporting a specific voice note; the
+        // backend snapshots its transcript as durable evidence and soft-holds it.
+        await reportUser(candidate.memberId, reason, details || undefined, undefined, undefined, audioId || undefined);
         reported = true;
       } catch (err) {
         console.warn("Report failed", err);
@@ -182,10 +187,12 @@ export default function ReportModal({ candidate, onClose, onBlocked }) {
                 outline: "none",
               }}
             >
-              Block or report {candidate.displayName}
+              {audioId ? `Report ${candidate.displayName}'s voice note` : `Block or report ${candidate.displayName}`}
             </h2>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.55 }}>
-              Choose what you'd like to do — you can block, report, or both. Neither is required.
+              {audioId
+                ? "Flag this voice note for our team to re-listen to. You can also block them if you'd like — neither is required."
+                : "Choose what you'd like to do — you can block, report, or both. Neither is required."}
             </p>
             {failed && (
               <div

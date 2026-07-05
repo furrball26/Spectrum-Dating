@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { t } from "./tokens.js";
-import { getUserProfile } from "./api.js";
+import { getUserProfile, getPromptCatalog } from "./api.js";
 import { commChips } from "./commChips.js";
 import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
@@ -8,6 +8,8 @@ import PhotoCarousel from "./PhotoCarousel.jsx";
 import { genderLabel, orientationLabels, relationshipStructureLabel } from "./IdentityFields.jsx";
 import { splitFeaturedPrompt } from "./featuredPrompt.js";
 import FeaturedInterest from "./FeaturedInterest.jsx";
+import AudioAnswerCard from "./AudioAnswer.jsx";
+import ReportModal from "./ReportModal.jsx";
 
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
@@ -16,6 +18,11 @@ export default function MatchProfileModal({ userId, onClose }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Prompt catalog → resolve an audio answer's promptKey to readable copy (the
+  // approved-audio payload carries only the key).
+  const [promptCatalog, setPromptCatalog] = useState([]);
+  // The audio clip the viewer is reporting (null = report modal closed).
+  const [reportAudioId, setReportAudioId] = useState(null);
   const closeRef = useRef(null);
   const headingRef = useRef(null);
   const dialogRef = useRef(null);
@@ -29,6 +36,16 @@ export default function MatchProfileModal({ userId, onClose }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [userId]);
+
+  useEffect(() => {
+    let active = true;
+    getPromptCatalog()
+      .then((cat) => { if (active) setPromptCatalog(Array.isArray(cat) ? cat : []); })
+      .catch(() => { /* best-effort — audio cards fall back to the raw prompt */ });
+    return () => { active = false; };
+  }, []);
+
+  const promptTextFor = (key) => promptCatalog.find((c) => c.key === key)?.text || key;
 
   // Move focus into the dialog on open, and restore focus to whatever triggered
   // it (the tapped avatar) on close. Mirrors UnmatchSheet's focus discipline. WCAG 2.4.3.
@@ -246,10 +263,39 @@ export default function MatchProfileModal({ userId, onClose }) {
                   </>
                 );
               })()}
+
+              {/* Approved voice answers — FREE playback + transcript to every
+                  viewer. Only approved clips are in the payload; each carries a
+                  quiet "Report this voice note" affordance. */}
+              {Array.isArray(profile.audio) && profile.audio.filter((a) => a && a.url).length > 0 && (
+                <div style={{ margin: "14px 0" }}>
+                  <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>In their voice</h2>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {profile.audio.filter((a) => a && a.url).map((a) => (
+                      <AudioAnswerCard
+                        key={a.id || a.promptKey}
+                        promptText={promptTextFor(a.promptKey)}
+                        url={a.url}
+                        transcript={a.transcript}
+                        durationMs={a.durationMs}
+                        onReport={a.id ? () => setReportAudioId(a.id) : undefined}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : null}
         </div>
       </div>
+
+      {reportAudioId && profile && (
+        <ReportModal
+          candidate={{ memberId: profile.userId, displayName: profile.displayName }}
+          audioId={reportAudioId}
+          onClose={() => setReportAudioId(null)}
+        />
+      )}
     </>
   );
 }

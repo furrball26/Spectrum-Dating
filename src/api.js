@@ -683,8 +683,12 @@ export async function getQueueCounts() {
 // flagged (Needed #10). The server validates it belongs to the reported
 // conversation AND was sent by the reported user, ignoring it otherwise — so a
 // report from the profile/header (no messageId) is unchanged.
-export async function reportUser(reportedUserId, reason, details, conversationId, messageId) {
-  return apiFetch('/messaging/report', { method: 'POST', body: { reportedUserId, reason, details, conversationId, messageId } });
+// `audioId` (optional) reports a SPECIFIC approved audio prompt answer on a
+// profile the reporter can see (the report-an-audio path). The backend snapshots
+// the clip's transcript onto the report as durable evidence and soft-holds the
+// clip (stops serving it) pending re-review. Omitted for every non-audio report.
+export async function reportUser(reportedUserId, reason, details, conversationId, messageId, audioId) {
+  return apiFetch('/messaging/report', { method: 'POST', body: { reportedUserId, reason, details, conversationId, messageId, audioId } });
 }
 
 // Reports the current user has filed — for the "Your reports" status view.
@@ -1053,6 +1057,72 @@ export async function updatePhotoDescription(id, description) {
   return apiFetch(`/photos/profile-photos/${id}/description`, { method: 'PUT', body: { description } });
 }
 
+// ─── Audio prompt answers (Companion to record; FREE to play + read transcript) ─
+// Mirrors the photo pipeline: presigned R2 PUT → confirm (REQUIRES a non-empty
+// transcript, else 400) → the clip enters the review queue as pending_review and
+// is invisible to others until a moderator approves it. RECORD/upload/confirm are
+// Companion-gated on the BACKEND (402 upgrade_required); the UI lock is UX only.
+// DELETE is ungated so a downgraded member can always remove their own content.
+// getMyAudio/getAudioPlaybackUrl/deleteAudioAnswer are requireAuth-only.
+
+// POST /audio/profile-upload-url → { uploadUrl, key }. A free caller hits the
+// backend 402 → we translate to a distinct { upgradeRequired: true } (like
+// saveAdvancedFilters/getBestFits) so the recorder can surface the calm upgrade
+// door rather than a generic error. Any other error still throws.
+export async function getAudioUploadUrl({ mimeType, fileSizeBytes, durationMs }) {
+  try {
+    const d = await apiFetch("/audio/profile-upload-url", {
+      method: "POST",
+      body: { mimeType, fileSizeBytes, durationMs },
+    });
+    return { upgradeRequired: false, uploadUrl: d?.uploadUrl || "", key: d?.key || "" };
+  } catch (err) {
+    if (err && err.status === 402) return { upgradeRequired: true, uploadUrl: "", key: "" };
+    throw err;
+  }
+}
+
+// POST /audio/profile-confirm → creates the pending_review row. Empty transcript
+// → the backend 400s (the a11y-floor keystone). A free caller 402s → distinct
+// { upgradeRequired: true }. On success returns { id, status, audio } where
+// `audio` is the refreshed listOwnAudio array.
+export async function confirmAudioAnswer({ key, promptKey, transcript, durationMs }) {
+  try {
+    const d = await apiFetch("/audio/profile-confirm", {
+      method: "POST",
+      body: { key, promptKey, transcript, durationMs },
+    });
+    return {
+      upgradeRequired: false,
+      id: d?.id || null,
+      status: d?.status || "pending_review",
+      audio: Array.isArray(d?.audio) ? d.audio : [],
+    };
+  } catch (err) {
+    if (err && err.status === 402) return { upgradeRequired: true, id: null, status: null, audio: [] };
+    throw err;
+  }
+}
+
+// GET /audio/mine → the owner's own clips incl. pending (pending have url:'').
+export async function getMyAudio() {
+  const d = await apiFetch("/audio/mine");
+  return Array.isArray(d?.audio) ? d.audio : [];
+}
+
+// GET /audio/:id/playback-url → a short-lived presigned GET so the owner can play
+// back a PENDING clip (which has no stable public URL). Owner-or-admin only.
+export async function getAudioPlaybackUrl(id) {
+  const d = await apiFetch(`/audio/${encodeURIComponent(id)}/playback-url`);
+  return d?.url || "";
+}
+
+// DELETE /audio/:id (ungated, owner) → removes it; returns the refreshed list.
+export async function deleteAudioAnswer(id) {
+  const d = await apiFetch(`/audio/${encodeURIComponent(id)}`, { method: "DELETE" });
+  return Array.isArray(d?.audio) ? d.audio : [];
+}
+
 // Message attachment upload flow (backlog #9 / Error Log E2).
 // upload-intent → { attachmentId, storageKey, uploadUrl, publicUrl } (status pending).
 export async function uploadAttachmentIntent({ mimeType, fileSizeBytes }) {
@@ -1101,6 +1171,24 @@ export async function reviewProfilePhoto(id, decision, note) {
   const body = { decision };
   if (note) body.note = note;
   return apiFetch(`/admin/profile-photos/${id}/review`, { method: 'POST', body });
+}
+
+// ─── Admin: profile-audio review (audio prompt answers) ──────────────────────────
+// GET /admin/profile-audio/pending → { audio: [{ id, userId, ownerEmail,
+//   ownerDisplayName, url, transcript, durationMs, promptKey, createdAt }] } newest
+// first. The `url` is the clip's stored URL; a card plays it via a native <audio>.
+export async function getPendingProfileAudio() {
+  const d = await apiFetch('/admin/profile-audio/pending');
+  return Array.isArray(d?.audio) ? d.audio : [];
+}
+
+// POST /admin/profile-audio/:id/review { decision: 'approve'|'reject', note? }
+// A rejection requires a moderator note (backend 400s without one); approve does
+// not. 409 when the clip is no longer pending (terminal guard).
+export async function reviewProfileAudio(id, decision, note) {
+  const body = { decision };
+  if (note) body.note = note;
+  return apiFetch(`/admin/profile-audio/${id}/review`, { method: 'POST', body });
 }
 
 // ─── Account ───────────────────────────────────────────────────────────────────

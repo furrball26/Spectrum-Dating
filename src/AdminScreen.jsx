@@ -8,8 +8,10 @@ import {
   getServerHealth, getPopulation, getTransparency, getQaSample, submitQaReview,
   getMyEntitlement, adminSetEntitlement, adminSetSelfEntitlement, adminClearDemoEntitlements,
   adminSetUserRole, getUserId,
+  getPendingProfileAudio, reviewProfileAudio, getAudioPlaybackUrl,
 } from "./api.js";
 import { t } from "./tokens.js";
+import { formatAudioDuration } from "./AudioAnswer.jsx";
 import Skeleton from "./Skeleton.jsx";
 import ErrorState from "./ErrorState.jsx";
 import SectionRule from "./SectionRule.jsx";
@@ -1284,6 +1286,162 @@ function ProfilePhotoReviewQueue({ onStatus, reloadToken, onAfterAction }) {
     <ul style={{ margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 14 }}>
       {items.map((item) => (
         <ProfilePhotoReviewCard key={item.id} item={item} onActed={handleActed} onStatus={onStatus} />
+      ))}
+    </ul>
+  );
+}
+
+// --- Profile-audio review queue (audio prompt answers) ---
+// The photo card rhythm, with an <audio> player and the member-typed transcript
+// shown PROMINENTLY. The transcript speeds triage but is member-provided and
+// UNTRUSTED — the moderator must listen to confirm it matches (caption says so).
+// preload="none" + load-on-demand so opening the queue never autoloads every clip
+// and a pending clip is played via a short-lived presigned URL (admin-allowed),
+// never a stable public link. Never autoplay; one clip plays at a time (native).
+function AudioReviewCard({ item, onActed, onStatus }) {
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState("");
+  const [src, setSrc] = useState("");
+  const [loadingSrc, setLoadingSrc] = useState(false);
+  const fLoad = useFocusable();
+  const owner = item.ownerDisplayName || item.ownerEmail || "a member";
+  const durLabel = formatAudioDuration(item.durationMs);
+
+  async function loadPlayback() {
+    setLoadingSrc(true);
+    setLocalError("");
+    try {
+      const url = await getAudioPlaybackUrl(item.id);
+      if (url) setSrc(url);
+      else setLocalError("Couldn't load this clip. Please try again.");
+    } catch (err) {
+      setLocalError(actionErrorMessage(err, "Couldn't load this clip. Please try again."));
+    } finally {
+      setLoadingSrc(false);
+    }
+  }
+
+  async function approve() {
+    setBusy(true);
+    setLocalError("");
+    try {
+      await reviewProfileAudio(item.id, "approve");
+      onStatus("Audio answer approved.");
+      onActed();
+    } catch (err) {
+      setLocalError(actionErrorMessage(err, "Couldn't update this clip. Please try again."));
+      if (err && err.status === 409) onActed();
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    if (!note.trim()) return;
+    setBusy(true);
+    setLocalError("");
+    try {
+      await reviewProfileAudio(item.id, "reject", note.trim());
+      onStatus("Audio answer rejected.");
+      onActed();
+    } catch (err) {
+      setLocalError(actionErrorMessage(err, "Couldn't update this clip. Please try again."));
+      if (err && err.status === 409) onActed();
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li
+      style={{
+        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: 14, width: 320,
+        maxWidth: "100%", listStyle: "none", display: "flex", flexDirection: "column", gap: 10, boxShadow: t.shadow.sm,
+      }}
+    >
+      <div style={{ fontSize: 14, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>{owner}</div>
+      {item.ownerDisplayName && item.ownerEmail && (
+        <div style={{ fontSize: 13, color: t.textMuted, wordBreak: "break-word" }}>{item.ownerEmail}</div>
+      )}
+      {item.promptKey && (
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Prompt: {item.promptKey}
+        </div>
+      )}
+      <div style={{ fontSize: 13, color: t.textMuted }}>{formatTimestamp(item.createdAt)}</div>
+      {waitingLabel(item.createdAt) && (
+        <div style={{ fontSize: 13, color: t.textMuted }}>{waitingLabel(item.createdAt)}</div>
+      )}
+
+      {/* Player — loaded on demand via a presigned URL (admin-allowed). */}
+      {src ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
+          <audio preload="none" controls src={src} aria-label={`Voice answer from ${owner}, awaiting review`} style={{ maxWidth: "100%", minWidth: 0 }} />
+          {durLabel && <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>{durLabel}</span>}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={loadPlayback}
+          disabled={loadingSrc}
+          {...fLoad}
+          style={{
+            alignSelf: "flex-start", minHeight: 44, padding: "8px 14px", borderRadius: 10,
+            border: `1px solid ${t.formBorder}`, background: t.surface, color: t.accentStrong,
+            fontSize: 15, fontWeight: 600, cursor: loadingSrc ? "wait" : "pointer", ...fLoad.style,
+          }}
+        >
+          {loadingSrc ? "Loading…" : "Load audio to review"}
+        </button>
+      )}
+
+      {/* Transcript — prominent, with the honesty caption. */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.textSoft, marginBottom: 4 }}>Transcript</div>
+        <p style={{ margin: 0, fontSize: 15, color: t.text, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+          {item.transcript}
+        </p>
+        <p style={{ margin: "6px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+          Member-provided — listen to confirm it matches.
+        </p>
+      </div>
+
+      {localError && (
+        <p role="alert" style={{ color: t.danger, fontSize: 14, margin: 0 }}>{localError}</p>
+      )}
+
+      {rejecting ? (
+        <RejectPanel
+          label={`Why reject this voice answer from ${owner}?`}
+          note={note}
+          setNote={setNote}
+          onConfirm={reject}
+          onCancel={() => { setRejecting(false); setNote(""); }}
+          busy={busy}
+        />
+      ) : (
+        <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+          <PlainButton kind="accent" onClick={approve} disabled={busy} ariaLabel={`Approve voice answer from ${owner}`}>Approve</PlainButton>
+          <PlainButton kind="quiet" onClick={() => setRejecting(true)} disabled={busy} ariaLabel={`Reject voice answer from ${owner}`}>Reject</PlainButton>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function AudioReviewQueue({ onStatus, reloadToken, onAfterAction }) {
+  const { items, loading, error, reload } = useAdminList(() => getPendingProfileAudio(), reloadToken);
+  const handleActed = useCallback(() => { reload(); onAfterAction?.(); }, [reload, onAfterAction]);
+
+  if (loading) return <PhotoReviewSkeleton />;
+  if (error) {
+    return <ErrorState title="Couldn't load audio answers" message="Something went wrong on our end. Please try again." onRetry={reload} />;
+  }
+  if (items.length === 0) return <EmptyCard>No voice answers awaiting review.</EmptyCard>;
+  return (
+    <ul style={{ margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 14 }}>
+      {items.map((item) => (
+        <AudioReviewCard key={item.id} item={item} onActed={handleActed} onStatus={onStatus} />
       ))}
     </ul>
   );
@@ -3047,7 +3205,7 @@ const CONSOLE_AREAS = [
 // Queue sub-views (the daily casework). Reports is default.
 const QUEUE_VIEWS = [
   { value: "reports", label: "Reports" },
-  { value: "photos", label: "Photo review" },
+  { value: "photos", label: "Media review" },
   { value: "verification", label: "Verification" },
 ];
 
@@ -3066,6 +3224,7 @@ const PHOTO_SOURCE_OPTIONS = [
   { value: "all", label: "All" },
   { value: "messages", label: "Message photos" },
   { value: "profiles", label: "Profile photos" },
+  { value: "audio", label: "Audio" },
 ];
 
 // Top-level AREA tab — a real tab (role="tab" + aria-selected + aria-controls),
@@ -3106,10 +3265,11 @@ function MergedPhotoQueue({ onStatus, reloadToken, onAfterAction }) {
   const [source, setSource] = useState("all");
   const showMessages = source === "all" || source === "messages";
   const showProfiles = source === "all" || source === "profiles";
+  const showAudio = source === "all" || source === "audio";
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Segmented options={PHOTO_SOURCE_OPTIONS} value={source} onChange={setSource} ariaLabel="Filter photo review by source" />
+        <Segmented options={PHOTO_SOURCE_OPTIONS} value={source} onChange={setSource} ariaLabel="Filter media review by source" />
       </div>
       {showMessages && (
         <section aria-label="Message photos" style={{ marginBottom: source === "all" ? 24 : 0 }}>
@@ -3118,9 +3278,15 @@ function MergedPhotoQueue({ onStatus, reloadToken, onAfterAction }) {
         </section>
       )}
       {showProfiles && (
-        <section aria-label="Profile photos">
+        <section aria-label="Profile photos" style={{ marginBottom: source === "all" ? 24 : 0 }}>
           {source === "all" && <h3 style={photoGroupHeading}>Profile photos</h3>}
           <ProfilePhotoReviewQueue onStatus={onStatus} reloadToken={reloadToken} onAfterAction={onAfterAction} />
+        </section>
+      )}
+      {showAudio && (
+        <section aria-label="Audio answers">
+          {source === "all" && <h3 style={photoGroupHeading}>Audio answers</h3>}
+          <AudioReviewQueue onStatus={onStatus} reloadToken={reloadToken} onAfterAction={onAfterAction} />
         </section>
       )}
     </div>

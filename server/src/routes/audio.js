@@ -67,12 +67,17 @@ const audioUploadLimiter = rateLimit({
 // viewer shape { promptKey, url, transcript, durationMs }.
 export function listPublicAudio(db, userId) {
   const rows = db.prepare(
-    `SELECT prompt_key, url, transcript, duration_ms
+    `SELECT id, prompt_key, url, transcript, duration_ms
      FROM profile_audio
      WHERE user_id = ? AND review_status = 'approved'
      ORDER BY position ASC, created_at ASC`
   ).all(userId);
   return rows.map((r) => ({
+    // The clip id is exposed to viewers so a viewer can report THIS specific clip
+    // (POST /report { audioId }). It is not a secret: playback-url is owner/admin
+    // only (404 otherwise) and the report path independently authorizes that the
+    // reporter can see an approved clip — so surfacing the id here leaks nothing.
+    id: r.id,
     promptKey: r.prompt_key,
     url: r.url,
     transcript: r.transcript,

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription, safeErrorMessage } from "./api.js";
+import AudioAnswerEditor from "./AudioAnswerEditor.jsx";
+import AudioAnswerCard from "./AudioAnswer.jsx";
 import { t } from "./tokens.js";
 import { ShieldIcon, GearIcon, LockIcon } from "./icons.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
@@ -2384,7 +2386,7 @@ function ProfilePreviewModal({
   commDirectness, commLiteral, commCadence,
   sensoryEnvironment, sensoryLighting, socialDuration,
   contextCard, occupation, languages, helpsMe, hardForMe,
-  photos, prompts, promptTextFor, verified, onClose,
+  photos, prompts, audio, promptTextFor, verified, onClose,
 }) {
   const headingRef = useRef(null);
   const panelRef = useRef(null);
@@ -2812,6 +2814,29 @@ function ProfilePreviewModal({
             </ul>
           )}
 
+          {/* Approved voice answers — the FREE playback + transcript cards viewers
+              see. Only approved clips appear here (pending/rejected are invisible
+              to others), mirroring the approved-photos-only rule above. */}
+          {(() => {
+            const approvedAudio = (audio || []).filter(
+              (a) => a && a.url && (a.reviewStatus === "approved" || (!a.reviewStatus && !a.pending))
+            );
+            if (approvedAudio.length === 0) return null;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {approvedAudio.map((a) => (
+                  <AudioAnswerCard
+                    key={a.id || a.promptKey}
+                    promptText={promptTextFor(a.promptKey)}
+                    url={a.url}
+                    transcript={a.transcript}
+                    durationMs={a.durationMs}
+                  />
+                ))}
+              </div>
+            );
+          })()}
+
           {/* Footer note */}
           <p style={{
             margin: "8px 0 0",
@@ -2913,6 +2938,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [prompts, setPrompts]               = useState([]);
   const [promptCatalog, setPromptCatalog]   = useState([]);
   const [showPromptChooser, setShowPromptChooser] = useState(false);
+
+  // Audio prompt answers (approved own clips) — snapshot from the profile load,
+  // used to render the FREE playback + transcript cards in the "How others see
+  // you" preview. Recording/managing lives in AudioAnswerEditor (its own state).
+  const [audio, setAudio] = useState([]);
 
   // savedProfile mirrors the last-known server state, used for isDirty comparison
   const [savedProfile, setSavedProfile] = useState(null);
@@ -3079,6 +3109,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         }
         cacheProfile(merged);
         if (Array.isArray(data.photos)) setPhotos(data.photos);
+        if (Array.isArray(data.audio)) setAudio(data.audio);
       })
       .catch(() => setLoadError('Could not load your profile. Check your connection.'))
       .finally(() => setLoading(false));
@@ -3869,6 +3900,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           hardForMe={hardForMe}
           photos={photos}
           prompts={prompts}
+          audio={audio}
           promptTextFor={promptTextFor}
           verified={verified}
           onClose={closePreview}
@@ -4236,6 +4268,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 />
               )
             )}
+
+            {/* ── Voice answers (record = Companion; play + transcript = free) ── */}
+            <div style={{ marginTop: 18 }}>
+              <AudioAnswerEditor
+                tier={tier}
+                promptCatalog={promptCatalog}
+                promptTextFor={promptTextFor}
+                onOpenMembership={onOpenMembership}
+              />
+            </div>
 
             <SubDivider />
 
