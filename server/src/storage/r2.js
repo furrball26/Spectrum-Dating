@@ -39,10 +39,12 @@ export function getPublicUrl(key) {
 }
 
 // Presigned, short-lived GET URL for an object. Used to serve PENDING (un-
-// approved) profile audio to its owner/a moderator WITHOUT handing out a stable
-// public URL: voice carries more inherent PII than a photo, so an un-reviewed
-// clip must never sit behind a guessable public link. Throws when R2 isn't
-// configured — callers degrade gracefully (return null, don't crash).
+// approved) profile audio to its owner/a moderator so the APP never returns the
+// object's own location for an un-reviewed clip. NOTE: the object still lives in
+// the shared media bucket behind an unguessable key (same posture as pending
+// photos), NOT a private bucket — a private bucket for voice (higher PII) is a
+// tracked follow-up. Throws when R2 isn't configured — callers degrade
+// gracefully (return null, don't crash).
 export async function getPresignedGetUrl(key, expiresInSeconds = 600) {
   const client = getR2Client();
   if (!client) throw new Error('R2 not configured');

@@ -187,6 +187,37 @@ describe('record/confirm gating (Companion) + transcript keystone', () => {
     expect(conf.status).toBe(403);
   });
 
+  it('L3: rejects a malformed key (traversal / extra segment / bad ext) even under the owner prefix (403)', async () => {
+    const me = makeUser(); grantCompanion(me);
+    for (const key of [
+      `profile-audio/${me}/../x.webm`,      // traversal segment
+      `profile-audio/${me}/sub/x.webm`,     // extra path segment
+      `profile-audio/${me}/x.exe`,          // disallowed extension
+      `profile-audio/${me}/x`,              // no extension
+    ]) {
+      const conf = await api('/audio/profile-confirm', {
+        token: tok(me), method: 'POST',
+        body: { key, promptKey: 'talk_for_hours', transcript: 'hello there' },
+      });
+      expect(conf.status).toBe(403);
+    }
+  });
+
+  it('L3: rejects re-confirming a storage key that already backs a row (409)', async () => {
+    const me = makeUser(); grantCompanion(me);
+    const key = `profile-audio/${me}/dup.webm`;
+    const first = await api('/audio/profile-confirm', {
+      token: tok(me), method: 'POST',
+      body: { key, promptKey: 'talk_for_hours', transcript: 'first answer' },
+    });
+    expect(first.status).toBe(201);
+    const second = await api('/audio/profile-confirm', {
+      token: tok(me), method: 'POST',
+      body: { key, promptKey: 'a_perfect_day', transcript: 'second answer, same key' },
+    });
+    expect(second.status).toBe(409); // one object → one row
+  });
+
   it('logs an off-platform safety signal when the transcript trips the detector', async () => {
     const me = makeUser(); grantCompanion(me);
     const conf = await api('/audio/profile-confirm', {

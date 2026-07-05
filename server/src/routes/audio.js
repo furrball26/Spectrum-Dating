@@ -12,8 +12,11 @@
 //     be able to remove their own content.
 //   • The transcript runs through classifySafetySignal() at submit, logging an
 //     observe-only offender signal (never blocks — calm-by-design).
-//   • Pending audio is served only to owner/admin via a short-lived presigned
-//     GET (voice = more PII than a photo), never a stable public URL.
+//   • Pending audio's URL is never returned by any member-facing API; owner/admin
+//     play it via a short-lived presigned GET. NOTE: like pending photos, the
+//     object still resides in the shared media bucket behind an unguessable key
+//     (not a private bucket) — a dedicated private bucket for voice (higher PII)
+//     is a tracked follow-up, not enforced by the storage layer today.
 import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth.js';
@@ -173,13 +176,24 @@ router.post('/profile-confirm', requireAuth, requirePaid, mutationLimiter, (req,
   if (!key || typeof key !== 'string') {
     return res.status(400).json({ error: 'key is required.' });
   }
-  if (!key.startsWith(`profile-audio/${userId}/`)) {
+  // Strict key shape (L3 hardening): ownership prefix + a single path segment of
+  // safe chars and a known audio extension — nothing more. The suffix regex has
+  // no '/' or '.', so a crafted key (e.g. a `..` segment or an extra path part)
+  // that would pass a bare startsWith is rejected here. userId is a server value
+  // from the token; it's checked via the literal prefix, never interpolated into
+  // the regex.
+  const ownerPrefix = `profile-audio/${userId}/`;
+  const SUFFIX_RE = /^[A-Za-z0-9_-]+\.(webm|m4a|mp3|ogg)$/;
+  if (!key.startsWith(ownerPrefix) || !SUFFIX_RE.test(key.slice(ownerPrefix.length))) {
     return res.status(403).json({ error: 'Forbidden.' });
   }
-  const ext = (key.split('.').pop() || '').toLowerCase();
+  const ext = key.split('.').pop().toLowerCase();
   const mimeType = EXT_TO_MIME[ext];
-  if (!mimeType) {
-    return res.status(400).json({ error: 'Unsupported audio type.' });
+  // A storage key is one object → one row. Reject a re-confirm of a key that
+  // already backs a row (e.g. the same key claimed under a second prompt), which
+  // would let one DELETE remove an object still referenced by another row.
+  if (db.prepare('SELECT 1 FROM profile_audio WHERE storage_key = ?').get(key)) {
+    return res.status(409).json({ error: 'That audio has already been submitted.' });
   }
 
   if (!promptKey || typeof promptKey !== 'string' || !promptKey.trim()) {
