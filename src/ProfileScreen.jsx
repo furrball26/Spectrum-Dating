@@ -1517,6 +1517,61 @@ function StarterButton({ text, onUse }) {
   );
 }
 
+// ─── Typed low-pressure "choice" prompts (profile redesign §3b) ────────────────
+// A non-writing way to self-express: the member picks ONE of a small fixed set of
+// calm options. Rendered as an accessible single-select radiogroup of chips
+// (native <input type="radio"> for full keyboard + screen-reader support, styled
+// as calm chips). The chosen option becomes the prompt's `answer`.
+//
+// HARD GUARDRAIL (product law): this shows the member's OWN pick as self-
+// expression ONLY — never a vote tally, count, "% chose this", or comparison to
+// others. There is no aggregate surface anywhere here, by design.
+function PromptChoiceGroup({ name, options, value, onChange, labelId }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelId}
+      style={{ display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0, marginTop: 4 }}
+    >
+      {options.map((opt) => {
+        const selected = value === opt;
+        return (
+          <label
+            key={opt}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              maxWidth: "100%",
+              minWidth: 0,
+              minHeight: 44,
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: `1.5px solid ${selected ? t.accentFill : t.formBorder}`,
+              background: selected ? t.surfaceAlt : t.surface,
+              color: t.text,
+              fontSize: 15,
+              fontWeight: selected ? 600 : 500,
+              lineHeight: 1.4,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={opt}
+              checked={selected}
+              onChange={() => onChange(opt)}
+              style={{ accentColor: t.accentFill, width: 18, height: 18, margin: 0, flexShrink: 0, cursor: "pointer" }}
+            />
+            <span style={{ minWidth: 0 }}>{opt}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 // The calm affordance shown under an EMPTY answer box: a soft label + framing +
 // 1–2 tappable example starters. Purely a writing aid — no counters, no urgency,
 // opt-in, and it never blocks typing your own answer.
@@ -1537,13 +1592,17 @@ function PromptStarters({ promptKey, onUse }) {
   );
 }
 
-// Editor for a single filled prompt slot: shows the prompt text, an editable
-// answer textarea (≤200, live counter), and a Remove control.
-function PromptSlot({ index, promptKey, promptText, answer, onChangeAnswer, onRemove }) {
+// Editor for a single filled prompt slot. For a TEXT prompt: the prompt text, an
+// editable answer textarea (≤200, live counter) + starters. For a CHOICE prompt:
+// the prompt text + an accessible single-select radiogroup of its options (no
+// textarea, no counter, no starters — you pick, you don't write).
+function PromptSlot({ index, promptKey, promptText, answer, promptType, options, onChangeAnswer, onRemove }) {
   const taId = `prompt-answer-${index}`;
   const counterId = `prompt-answer-${index}-counter`;
+  const labelId = `prompt-label-${index}`;
   const [touched, setTouched] = useState(false);
   const answerRef = useRef(null);
+  const isChoice = promptType === "choice";
 
   function insertStarter(text) {
     onChangeAnswer(withStarter(answer, text));
@@ -1568,7 +1627,7 @@ function PromptSlot({ index, promptKey, promptText, answer, onChangeAnswer, onRe
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
         {/* Prompt text as a quiet eyebrow label; the answer below is the prominent
             content — mirrors the card-per-idea layout in the preview. */}
-        <p style={{
+        <p id={labelId} style={{
           margin: 0,
           minWidth: 0,
           fontSize: 13,
@@ -1582,32 +1641,46 @@ function PromptSlot({ index, promptKey, promptText, answer, onChangeAnswer, onRe
         </p>
         <RemovePromptButton onRemove={onRemove} promptText={promptText} />
       </div>
-      <label htmlFor={taId} style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}>
-        Your answer to: {promptText}
-      </label>
-      <textarea
-        id={taId}
-        ref={answerRef}
-        maxLength={PROMPT_ANSWER_MAX}
-        rows={3}
-        aria-describedby={counterId}
-        value={answer}
-        onChange={(e) => { onChangeAnswer(e.target.value); setTouched(true); }}
-        onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
-        onBlur={(e) => { e.target.style.outline = "none"; }}
-        style={{ ...inputStyle(false), resize: "vertical", minHeight: 72, lineHeight: 1.55 }}
-        placeholder="Your answer"
-      />
-      <div
-        role="status"
-        aria-live="polite"
-        id={counterId}
-        style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
-      >
-        {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
-      </div>
-      {answer.trim() === "" && (
-        <PromptStarters promptKey={promptKey} onUse={insertStarter} />
+      {isChoice ? (
+        // CHOICE prompt: a single-select radiogroup of the fixed options. The
+        // chosen option IS the answer — no free text, no counter, no starters.
+        <PromptChoiceGroup
+          name={`prompt-choice-${index}`}
+          options={options}
+          value={answer}
+          onChange={onChangeAnswer}
+          labelId={labelId}
+        />
+      ) : (
+        <>
+          <label htmlFor={taId} style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}>
+            Your answer to: {promptText}
+          </label>
+          <textarea
+            id={taId}
+            ref={answerRef}
+            maxLength={PROMPT_ANSWER_MAX}
+            rows={3}
+            aria-describedby={counterId}
+            value={answer}
+            onChange={(e) => { onChangeAnswer(e.target.value); setTouched(true); }}
+            onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+            onBlur={(e) => { e.target.style.outline = "none"; }}
+            style={{ ...inputStyle(false), resize: "vertical", minHeight: 72, lineHeight: 1.55 }}
+            placeholder="Your answer"
+          />
+          <div
+            role="status"
+            aria-live="polite"
+            id={counterId}
+            style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}
+          >
+            {touched ? `${PROMPT_ANSWER_MAX - answer.length} remaining` : ""}
+          </div>
+          {answer.trim() === "" && (
+            <PromptStarters promptKey={promptKey} onUse={insertStarter} />
+          )}
+        </>
       )}
     </div>
   );
@@ -1747,7 +1820,16 @@ function PromptChooser({ available, onAdd, onCancel }) {
   const fAdd = useFocusable();
   const fCancel = useFocusable();
   const selected = available.find((p) => p.key === key);
+  const isChoice = selected?.type === "choice";
   const canAdd = !!key && answer.trim() !== "";
+
+  // Switching the chosen prompt clears any in-progress answer — a stale text draft
+  // or a pick that isn't valid for the newly selected prompt must not carry over.
+  function selectPrompt(nextKey) {
+    setKey(nextKey);
+    setAnswer("");
+    setTouched(false);
+  }
 
   function insertStarter(text) {
     setAnswer((prev) => withStarter(prev, text));
@@ -1774,7 +1856,7 @@ function PromptChooser({ available, onAdd, onCancel }) {
         <select
           id="prompt-chooser-select"
           value={key}
-          onChange={(e) => setKey(e.target.value)}
+          onChange={(e) => selectPrompt(e.target.value)}
           {...fSelect}
           style={{ ...inputStyle(false), minHeight: 44, appearance: "auto", cursor: "pointer", ...fSelect.style }}
         >
@@ -1785,7 +1867,23 @@ function PromptChooser({ available, onAdd, onCancel }) {
         </select>
       </div>
 
-      {selected && (
+      {selected && isChoice && (
+        // CHOICE prompt: pick one of the fixed options (single-select radiogroup).
+        <div style={{ marginBottom: 14 }}>
+          <div id="prompt-chooser-choice-label">
+            <FieldLabel>Your pick</FieldLabel>
+          </div>
+          <PromptChoiceGroup
+            name="prompt-chooser-choice"
+            options={selected.options || []}
+            value={answer}
+            onChange={setAnswer}
+            labelId="prompt-chooser-choice-label"
+          />
+        </div>
+      )}
+
+      {selected && !isChoice && (
         <div style={{ marginBottom: 14 }}>
           <FieldLabel htmlFor="prompt-chooser-answer">Your answer</FieldLabel>
           <textarea
@@ -3579,6 +3677,14 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   function promptTextFor(promptKey) {
     return promptCatalog.find((c) => c.key === promptKey)?.text || promptKey;
   }
+  // Prompt TYPE ('text' | 'choice') and, for choice prompts, the fixed options —
+  // both from the catalog by key. Default 'text' if the catalog hasn't loaded yet.
+  function promptTypeFor(promptKey) {
+    return promptCatalog.find((c) => c.key === promptKey)?.type || "text";
+  }
+  function promptOptionsFor(promptKey) {
+    return promptCatalog.find((c) => c.key === promptKey)?.options || [];
+  }
 
   // ── Unsaved-changes guard
   function handleDone() {
@@ -4108,6 +4214,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 index={idx}
                 promptKey={p.promptKey}
                 promptText={promptTextFor(p.promptKey)}
+                promptType={promptTypeFor(p.promptKey)}
+                options={promptOptionsFor(p.promptKey)}
                 answer={p.answer}
                 onChangeAnswer={(val) => handleChangePromptAnswer(idx, val)}
                 onRemove={() => handleRemovePrompt(idx)}

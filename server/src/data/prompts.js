@@ -53,8 +53,60 @@ export const PROMPTS = [
   { key: 'safe_and_settled',    text: 'Something that helps me feel safe and settled…' },
 ];
 
-// Fast membership check for validation and catalog-text lookups.
+// ── Typed low-pressure "choice" prompts (profile redesign § feature #3b) ───────
+// A non-writing way to self-express: the member picks ONE of a small, fixed set
+// of calm options. The chosen option is stored (in profile_prompts.answer) and
+// shown exactly like a text prompt answer — "here's my pick", full stop.
+//
+// HARD PRODUCT-LAW GUARDRAIL: a choice prompt shows the member's OWN pick as
+// self-expression ONLY. It is NEVER a poll — there is no vote tally, no "X%
+// chose this", no counts, no "most popular", no comparison to others. If any
+// aggregate/vote surface ever creeps in, that's gamification (a product-law
+// violation). Keep it a calm, personal disclosure.
+//
+// STABLE-KEY contract (same as PROMPTS above): keys are append-only — never
+// rename, reuse, or remove a key. Options are a small fixed array of 2–4 calm,
+// concrete, literal strings; the stored answer must be an EXACT match of one of
+// them (see PUT /profile/prompts validation). An "either/depends" option is
+// included wherever it lowers the pressure to pick a side.
+export const CHOICE_PROMPTS = [
+  { key: 'ch_time_of_day',     text: 'Mornings or evenings?',                          type: 'choice', options: ['Mornings', 'Evenings', 'Depends on the day'] },
+  { key: 'ch_night_in_or_out', text: 'Quiet night in or out and about?',               type: 'choice', options: ['Quiet night in', 'Out and about', 'A bit of both'] },
+  { key: 'ch_text_or_call',    text: 'Texting or calling?',                            type: 'choice', options: ['Texting', 'Calling', 'Either is fine'] },
+  { key: 'ch_plan_or_spontan', text: 'Plans or spontaneity?',                          type: 'choice', options: ['I like a plan', 'Happy to be spontaneous', 'Depends'] },
+  { key: 'ch_group_size',      text: 'Small groups or big gatherings?',                type: 'choice', options: ['Small and quiet', 'Big and lively', 'Depends on my mood'] },
+  { key: 'ch_early_or_late',   text: 'Early bird or night owl?',                       type: 'choice', options: ['Early bird', 'Night owl', 'Somewhere in between'] },
+  { key: 'ch_coffee_or_tea',   text: 'Coffee or tea?',                                 type: 'choice', options: ['Coffee', 'Tea', 'Neither, really'] },
+  { key: 'ch_sweet_or_savoury', text: 'Sweet or savoury?',                             type: 'choice', options: ['Sweet', 'Savoury', 'Both, honestly'] },
+  { key: 'ch_books_or_screens', text: 'Books or screens to unwind?',                   type: 'choice', options: ['A good book', 'Something on a screen', 'A bit of both'] },
+  { key: 'ch_indoors_outdoors', text: 'Cosy indoors or fresh outdoors?',               type: 'choice', options: ['Cosy indoors', 'Fresh outdoors', 'Depends on the weather'] },
+  { key: 'ch_reply_pace',      text: 'Slow, thoughtful replies or quick back-and-forth?', type: 'choice', options: ['Slow and thoughtful', 'Quick back-and-forth', 'Whatever feels right'] },
+  { key: 'ch_week_planning',   text: 'Plan the week ahead or take each day as it comes?', type: 'choice', options: ['Plan the week ahead', 'Take each day as it comes', 'A little of both'] },
+];
+
+// Fast membership check for validation and catalog-text lookups. TEXT-ONLY (the
+// original stable contract) — the combined set below covers text + choice.
 export const PROMPT_KEYS = new Set(PROMPTS.map((p) => p.key));
 
-// key -> text lookup, used when serializing stored answers.
-export const PROMPT_TEXT_BY_KEY = new Map(PROMPTS.map((p) => [p.key, p.text]));
+// The full catalog the frontend + validation use: text prompts carry an explicit
+// type: 'text' so every entry is uniformly shaped ({ key, text, type, options? }).
+export const ALL_PROMPTS = [
+  ...PROMPTS.map((p) => ({ ...p, type: 'text' })),
+  ...CHOICE_PROMPTS,
+];
+
+// Combined membership set (text + choice) — the authority for "is this a valid
+// prompt key?" in PUT /profile/prompts.
+export const ALL_PROMPT_KEYS = new Set(ALL_PROMPTS.map((p) => p.key));
+
+// key -> text lookup, used when serializing stored answers. Covers BOTH text and
+// choice prompts (a stored choice answer still needs its prompt text to render).
+export const PROMPT_TEXT_BY_KEY = new Map(ALL_PROMPTS.map((p) => [p.key, p.text]));
+
+// key -> 'text' | 'choice'. Authoritative prompt type (derived from the catalog,
+// not the stored row) so display always matches the current catalog shape.
+export const PROMPT_TYPE_BY_KEY = new Map(ALL_PROMPTS.map((p) => [p.key, p.type || 'text']));
+
+// key -> options[] for choice prompts (used to validate a submitted pick and to
+// render the selectable controls). Text keys are absent (→ undefined).
+export const PROMPT_OPTIONS_BY_KEY = new Map(CHOICE_PROMPTS.map((p) => [p.key, p.options]));

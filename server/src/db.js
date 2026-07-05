@@ -74,6 +74,7 @@ const MIGRATIONS = [
   '054_discover_advanced_filters.sql',
   '055_user_admin_role.sql',
   '056_demo_verifications_preapproved.sql',
+  '057_typed_prompts.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't

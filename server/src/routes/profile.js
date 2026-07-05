@@ -9,7 +9,13 @@ import { ageFromDob } from '../utils/time.js';
 import { coarseCity, isGeocodable } from '../utils/metros.js';
 import { containsSlur } from '../utils/nameScreen.js';
 import { newId } from '../utils/ids.js';
-import { PROMPTS, PROMPT_KEYS, PROMPT_TEXT_BY_KEY } from '../data/prompts.js';
+import {
+  ALL_PROMPTS,
+  ALL_PROMPT_KEYS,
+  PROMPT_TEXT_BY_KEY,
+  PROMPT_TYPE_BY_KEY,
+  PROMPT_OPTIONS_BY_KEY,
+} from '../data/prompts.js';
 import { lookupGeo } from '../telemetry/geo.js';
 import { isHostileRegion } from '../data/hostileRegions.js';
 
@@ -29,7 +35,16 @@ export function listPrompts(db, userId) {
   for (const r of rows) {
     const promptText = PROMPT_TEXT_BY_KEY.get(r.prompt_key);
     if (!promptText) continue; // key retired from catalog — skip silently
-    out.push({ promptKey: r.prompt_key, promptText, answer: r.answer });
+    // Type + options are derived from the CATALOG (authoritative), not the stored
+    // row, so display always matches the current catalog shape. A choice prompt's
+    // `answer` is the chosen option string — rendered exactly like a text answer
+    // ("here's my pick"); we NEVER attach vote counts or any aggregate signal.
+    const promptType = PROMPT_TYPE_BY_KEY.get(r.prompt_key) || 'text';
+    const entry = { promptKey: r.prompt_key, promptText, answer: r.answer, promptType };
+    if (promptType === 'choice') {
+      entry.options = PROMPT_OPTIONS_BY_KEY.get(r.prompt_key) || [];
+    }
+    out.push(entry);
   }
   return out;
 }
@@ -699,7 +714,10 @@ router.put('/me', requireAuth, (req, res) => {
 // GET /profile/prompt-catalog — the fixed catalog of prompts the frontend offers
 // as options. Auth not required: the catalog is public scaffolding, not user data.
 router.get('/prompt-catalog', (req, res) => {
-  return res.json({ prompts: PROMPTS });
+  // ALL_PROMPTS = text prompts (type: 'text') + choice prompts (type: 'choice',
+  // with their fixed `options`). The frontend renders a textarea for text prompts
+  // and a single-select choice control for choice prompts.
+  return res.json({ prompts: ALL_PROMPTS });
 });
 
 // PUT /profile/prompts — replace the user's chosen prompt answers (max 3).
@@ -721,13 +739,23 @@ router.put('/prompts', requireAuth, (req, res) => {
     if (!entry || typeof entry !== 'object') {
       return res.status(400).json({ error: 'Each prompt must be an object with promptKey and answer.' });
     }
-    if (typeof entry.promptKey !== 'string' || !PROMPT_KEYS.has(entry.promptKey)) {
+    if (typeof entry.promptKey !== 'string' || !ALL_PROMPT_KEYS.has(entry.promptKey)) {
       return res.status(400).json({ error: 'Each promptKey must be a valid prompt from the catalog.' });
     }
     if (typeof entry.answer !== 'string' || entry.answer.trim() === '') {
       return res.status(400).json({ error: 'Each answer must be a non-empty string.' });
     }
-    if (entry.answer.length > MAX_PROMPT_ANSWER) {
+    const promptType = PROMPT_TYPE_BY_KEY.get(entry.promptKey) || 'text';
+    if (promptType === 'choice') {
+      // A CHOICE answer must be an EXACT match of one of the prompt's defined
+      // options — reject anything else. This is what keeps a choice prompt a
+      // constrained, calm self-disclosure (not free text, not a fabricated value).
+      const options = PROMPT_OPTIONS_BY_KEY.get(entry.promptKey) || [];
+      if (!options.includes(entry.answer)) {
+        return res.status(400).json({ error: 'Your choice must be one of the options for this prompt.' });
+      }
+    } else if (entry.answer.length > MAX_PROMPT_ANSWER) {
+      // Text answers keep the existing ≤200-char cap.
       return res.status(400).json({ error: `Each answer must be ${MAX_PROMPT_ANSWER} characters or fewer.` });
     }
   }
@@ -736,10 +764,11 @@ router.put('/prompts', requireAuth, (req, res) => {
   db.transaction(() => {
     db.prepare('DELETE FROM profile_prompts WHERE user_id = ?').run(userId);
     const insert = db.prepare(
-      'INSERT INTO profile_prompts (id, user_id, prompt_key, answer, position, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO profile_prompts (id, user_id, prompt_key, answer, prompt_type, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     body.prompts.forEach((entry, i) => {
-      insert.run(newId(), userId, entry.promptKey, entry.answer, i, now);
+      const promptType = PROMPT_TYPE_BY_KEY.get(entry.promptKey) || 'text';
+      insert.run(newId(), userId, entry.promptKey, entry.answer, promptType, i, now);
     });
   })();
 

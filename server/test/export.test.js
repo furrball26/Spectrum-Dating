@@ -178,6 +178,31 @@ describe('GET /export/archive — ZIP structure', () => {
     expect(data.conversations[0].messages[1].from).toBe('them');
   });
 
+  it('serializes a typed CHOICE prompt as the chosen pick (type + options, no counts)', async () => {
+    h.r2Ready = false;
+    const me = makeUser({ profile: { displayName: 'Ari', prompts: [{ key: 'ch_time_of_day', answer: 'Mornings' }] } });
+
+    const { buf } = await fetchArchive('/export/archive', { header: signToken(me) });
+    const zip = unzip(buf);
+    const data = JSON.parse(zip.text('data.json'));
+
+    // The choice prompt flows through the shared profile assembly as a plain pick.
+    expect(data.profile.prompts[0]).toMatchObject({
+      promptKey: 'ch_time_of_day', answer: 'Mornings', promptType: 'choice',
+    });
+    expect(data.profile.prompts[0].options).toEqual(['Mornings', 'Evenings', 'Depends on the day']);
+
+    // The human-readable HTML shows the prompt + the chosen option, and NEVER any
+    // vote/count/"most popular" surface (calm-by-design guardrail). (We only scan
+    // the <body> content, not the <style> block, whose CSS legitimately uses % and
+    // pixel widths that a naive "\d+%" scan would false-positive on.)
+    const html = zip.text('index.html');
+    const bodyHtml = html.slice(html.indexOf('<body>'));
+    expect(bodyHtml).toContain('Mornings');
+    expect(bodyHtml).toContain('Mornings or evenings?');
+    expect(bodyHtml).not.toMatch(/votes?|most popular|chose this|% chose|out of \d+/i);
+  });
+
   it('HTML-escapes all user-supplied strings (bio + message body)', async () => {
     h.r2Ready = true;
     const me = makeUser({ profile: { displayName: 'Robert"><b>', bio: '<script>alert(1)</script>' } });

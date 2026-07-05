@@ -1,0 +1,18 @@
+-- 057 — typed (choice) profile prompts (profile redesign § feature #3b).
+--
+-- Adds a `prompt_type` discriminator to profile_prompts so a stored prompt answer
+-- can be a TEXT answer (as today) or a CHOICE pick (one of a small fixed option
+-- set defined in server/src/data/prompts.js CHOICE_PROMPTS). The chosen option's
+-- text is stored in the EXISTING `answer` column — no new value column needed; a
+-- choice answer is just the option string, and renders exactly like a text answer.
+--
+-- SCOPE — additive, idempotent, no table rebuild:
+--   • One ADD COLUMN with a DEFAULT, so every EXISTING row (all text prompts)
+--     defaults to 'text' and is completely unchanged.
+--   • Re-running is safe: the per-statement migration runner (db.js) swallows the
+--     "duplicate column name" error a second boot would raise.
+--
+-- The prompt's TYPE is ultimately authoritative from the catalog (keyed by
+-- prompt_key), so this column is belt-and-suspenders — it records the type the row
+-- was written as, but display/validation derive from the catalog by key.
+ALTER TABLE profile_prompts ADD COLUMN prompt_type TEXT NOT NULL DEFAULT 'text';
