@@ -686,8 +686,18 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
   // reason box is open (null = the three-button chooser). dismiss/warn/ban close
   // the report atomically (POST /reports/:id/action); suspend (under "More") uses
   // the reversible enforcement endpoint. All hooks run before any early return.
-  const [panel, setPanel] = useState(null); // null | 'dismiss' | 'warn' | 'ban' | 'suspend'
-  const [reason, setReason] = useState("");
+  // TOS-driven moderation auto-fill. The backend maps the report's reason to a
+  // Community Standard and returns a `suggested` packet (default action + a
+  // prepared, editable notice). We PRE-SELECT that action and PRE-FILL its notice
+  // so the common case is one confirming tap — the moderator can still edit the
+  // reply or pick a different action. Only the three atomic actions pre-open, and
+  // only for an OPEN report. requiresHumanReason (§4.7 / "other") ships notice ""
+  // so Warn/Ban/Dismiss stay disabled until a reason is typed (mirrors the
+  // backend 400). Reports without a packet keep the plain three-button chooser.
+  const suggested = report.suggested || null;
+  const suggestedAction = suggested && ["dismiss", "warn", "ban"].includes(suggested.action) ? suggested.action : null;
+  const [panel, setPanel] = useState(() => (report.status === "open" ? suggestedAction : null)); // null | 'dismiss' | 'warn' | 'ban' | 'suspend'
+  const [reason, setReason] = useState(() => (suggested ? suggested.notice || "" : ""));
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -704,10 +714,21 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
   const name = report.reportedName || "this member";
   const isDanger = panel === "ban";
 
-  // Move focus into the reason box when a decision panel opens (a11y).
-  useEffect(() => { if (panel) reasonRef.current?.focus(); }, [panel]);
+  // Move focus into the reason box when a decision panel is OPENED by the
+  // moderator (a11y). Guarded on autoFocusPanel so the auto-fill pre-open on mount
+  // doesn't steal focus/scroll across a list of cards — only an explicit openPanel
+  // focuses.
+  const autoFocusPanel = useRef(false);
+  useEffect(() => { if (panel && autoFocusPanel.current) reasonRef.current?.focus(); }, [panel]);
 
-  function openPanel(which) { setReason(""); setLocalError(""); setPanel(which); }
+  function openPanel(which) {
+    setLocalError("");
+    // Re-prefill from the auto-fill packet when (re)opening the suggested action;
+    // any other action starts empty so the moderator writes a bespoke reason.
+    setReason(suggested && which === suggested.action ? (suggested.notice || "") : "");
+    autoFocusPanel.current = true;
+    setPanel(which);
+  }
   function closePanel() { setPanel(null); setReason(""); }
 
   // Shared runner: on success the card refetches and unmounts, so busy is only
@@ -938,6 +959,31 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
               }}
             >
               <p style={{ margin: "0 0 10px", fontSize: 14, color: t.text, lineHeight: 1.5 }}>{consequence}</p>
+              {/* TOS auto-fill provenance — cite the standard the prepared notice
+                  came from, so the moderator can see (and trust) the baseline. */}
+              {suggested && panel === suggested.action && (suggested.tosSection || suggested.title) && (
+                <p style={{ margin: "0 0 10px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+                  Auto-filled from Terms {suggested.tosSection}
+                  {suggested.title ? ` — ${suggested.title}` : ""}
+                </p>
+              )}
+              {/* §4.5 legal-referral escalation — calm high-severity note (warm
+                  amber surface, not alarm-red), matching the pinned-evidence style. */}
+              {suggested && panel === suggested.action && suggested.legalReferral && (
+                <div
+                  style={{
+                    background: t.warningSurface,
+                    border: `2px solid ${t.dangerFill}`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    marginBottom: 12,
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: 14, color: t.warningSurfaceText, fontWeight: 600, lineHeight: 1.5 }}>
+                    <span aria-hidden="true">⚠ </span>This standard requires a legal referral (CSAM/NCMEC) — escalate per runbook.
+                  </p>
+                </div>
+              )}
               <label
                 htmlFor={`decision-reason-${report.id}`}
                 style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}

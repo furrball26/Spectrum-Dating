@@ -12,5 +12,10 @@ export const SAFETY_REASONS = [
   { value: "inappropriate", label: "Inappropriate content" },
   { value: "spam", label: "Spam" },
   { value: "fake_profile", label: "Fake or suspicious profile" },
+  // Severe safety concern (Community Standard §4.5/§4.6 — a minor, a threat, or
+  // something illegal). Placed just before "Something else": present and easy to
+  // reach, but not alarmingly first. The backend maps this to §4.5 (immediate
+  // removal + legal referral).
+  { value: "minor_safety", label: "A safety concern (a minor, a threat, or something illegal)" },
   { value: "other", label: "Something else" },
 ];

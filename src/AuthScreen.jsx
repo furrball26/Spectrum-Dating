@@ -1,8 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { register, login, forgotPassword, resendVerification, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import SpectrumMark from "./SpectrumMark.jsx";
 import { useFocusable } from "./useFocusable.js";
+
+// The Terms & Community Standards screen, shown as a logged-out overlay when the
+// sign-up "Terms and Community Standards" link is tapped. Lazy so it stays out of
+// the auth critical path (same chunk App.jsx loads it from once authed).
+const TermsScreen = lazy(() => import("./TermsScreen.jsx"));
 
 
 function inputStyle(hasError) {
@@ -36,6 +41,8 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   // rejection. We hold it here and render a calm reason + appeal screen.
   const [enforced, setEnforced] = useState(null); // { kind: 'suspend'|'ban', reason }
   const [resendStatus, setResendStatus] = useState("idle"); // 'idle' | 'sending' | 'sent' | 'error'
+  // Logged-out Terms overlay (opened from the sign-up agreement line).
+  const [showTerms, setShowTerms] = useState(false);
   const headingRef = useRef(null);
   const errorRef = useRef(null);
   const emailRef = useRef(null);
@@ -151,6 +158,16 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   // The submit-time check writes fieldErrors.confirmPassword (empty / mismatch).
   const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
   const confirmErr = fieldErrors.confirmPassword || (confirmMismatch ? "Passwords don't match." : null);
+
+  // Terms overlay — reachable pre-auth from the sign-up agreement line. All hooks
+  // above have already run, so this early return is React #310-safe.
+  if (showTerms) {
+    return (
+      <Suspense fallback={null}>
+        <TermsScreen onBack={() => setShowTerms(false)} />
+      </Suspense>
+    );
+  }
 
   return (
     <div
@@ -581,6 +598,32 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
             >
               {loading ? "Please wait…" : mode === "login" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Create account"}
             </button>
+
+            {/* Sign-up agreement line — calm, factual, no hard checkbox this pass.
+                The underlined portion opens the in-app Terms overlay. */}
+            {mode === "register" && (
+              <p style={{ margin: "14px 2px 0", fontSize: 14, color: t.textMuted, lineHeight: 1.6, textAlign: "center" }}>
+                By creating an account you agree to our{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowTerms(true)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: t.accentStrong,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  Terms and Community Standards
+                </button>
+                .
+              </p>
+            )}
           </form>
           )}
         </div>

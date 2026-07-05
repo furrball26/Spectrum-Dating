@@ -486,7 +486,7 @@ function CompanionMarker() {
   );
 }
 
-export default function SettingsScreen({ onBack, onChange, onOpenAccount, tier }) {
+export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) {
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
 
@@ -602,21 +602,11 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount, tier }
         </p>
 
         {/* Membership now lives in its own section on the Profile screen (its
-            home), so it isn't duplicated here. The calm Companion marker beside
-            the Settings heading still reflects the current tier. */}
-
-        {onOpenAccount && (
-          <>
-            <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
-              Account
-            </h2>
-            <LinkRow
-              title="Account & security"
-              description="Change your password or email, or delete your account."
-              onClick={onOpenAccount}
-            />
-          </>
-        )}
+            home), so it isn't duplicated here. Account & Security is now a
+            first-class destination on the Profile hub (not buried under
+            Appearance here), so it no longer lives in Settings. The calm
+            Companion marker beside the Settings heading still reflects the
+            current tier. */}
 
         <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
           Email
@@ -635,7 +625,17 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount, tier }
         <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "32px 2px 12px", color: t.text }}>
           About &amp; legal
         </h2>
-        <nav aria-label="Legal" style={{ margin: "0 2px" }}>
+        {/* Terms now open the calm, in-app Terms & Community Standards screen
+            (src/TermsScreen.jsx) — richer and more readable than the static page.
+            Privacy stays a static page (no in-app screen for it yet). */}
+        {onOpenTerms && (
+          <LinkRow
+            title="Terms & Community Standards"
+            description="The rules that keep Spectrum calm and safe, in plain language."
+            onClick={onOpenTerms}
+          />
+        )}
+        <nav aria-label="Legal" style={{ margin: "16px 2px 0" }}>
           <p style={{ margin: 0, fontSize: 15, color: t.textSoft, lineHeight: 1.7 }}>
             <a
               href="/privacy.html"
@@ -643,14 +643,6 @@ export default function SettingsScreen({ onBack, onChange, onOpenAccount, tier }
               style={{ color: t.accentStrong, fontWeight: 600, textUnderlineOffset: 3 }}
             >
               Privacy Policy
-            </a>
-            <span aria-hidden="true" style={{ color: t.textMuted, margin: "0 10px" }}>·</span>
-            <a
-              href="/terms.html"
-              rel="noopener"
-              style={{ color: t.accentStrong, fontWeight: 600, textUnderlineOffset: 3 }}
-            >
-              Terms of Service
             </a>
           </p>
         </nav>

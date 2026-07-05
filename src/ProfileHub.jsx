@@ -13,6 +13,7 @@ import {
   SparkleIcon,
   StarIcon,
   ShieldIcon,
+  LockIcon,
 } from "./icons.jsx";
 
 // ── Profile Hub (Hinge-pattern) ──────────────────────────────────────────────
@@ -230,6 +231,7 @@ export default function ProfileHub({
   onOpenMembership,
   onOpenTopPicks,
   onOpenSafety,
+  onOpenAccount,
 }) {
   const isCompanion = tier === "companion";
   const name = displayName || "Your profile";
@@ -341,6 +343,12 @@ export default function ProfileHub({
               : "Part of Companion — preview what it adds."}
             tag={isCompanion ? undefined : "Companion"}
             onClick={onOpenTopPicks}
+          />
+          <HubRow
+            icon={<LockIcon size={22} />}
+            title="Account & Security"
+            subtitle="Password, email, and account controls."
+            onClick={onOpenAccount}
           />
           <HubRow
             icon={<ShieldIcon size={22} />}

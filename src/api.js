@@ -521,6 +521,21 @@ export async function getAdminReports(status = 'open') {
     reportedBlockedByCount: r.reported?.blockedByCount ?? 0,
     reportedChatSignalCount: r.reported?.chatSignalCount ?? 0,
     reportedCreatedAt: r.reported?.createdAt ?? null,
+    // TOS-driven moderation auto-fill. The backend maps each report's reason to
+    // the Community Standard it concerns and returns a `suggested` packet: the
+    // default action + a prepared, editable notice for the moderator to confirm
+    // with one tap (see AdminScreen ReportCard). Normalised to a defaulted shape
+    // here so the card never has to null-check the packet's fields. requiresHuman
+    // → the notice is empty and the moderator must write the reason (§4.7 / the
+    // "other" clause); legalReferral → a §4.5 CSAM/NCMEC escalation note.
+    suggested: r.suggested && typeof r.suggested === 'object' ? {
+      tosSection: r.suggested.tosSection || '',
+      title: r.suggested.title || '',
+      action: r.suggested.action || null, // 'dismiss' | 'warn' | 'ban'
+      requiresHumanReason: !!r.suggested.requiresHumanReason,
+      legalReferral: !!r.suggested.legalReferral,
+      notice: typeof r.suggested.notice === 'string' ? r.suggested.notice : '',
+    } : null,
   }));
 }
 

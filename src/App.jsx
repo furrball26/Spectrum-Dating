@@ -27,6 +27,7 @@ const BestFits = lazy(() => import("./BestFits.jsx"));
 const LandingScreen = lazy(() => import("./LandingScreen.jsx"));
 const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
 const RequireCityScreen = lazy(() => import("./RequireCityScreen.jsx"));
+const TermsScreen = lazy(() => import("./TermsScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview, getRegionSafety, updateProfile } from "./api.js";
 import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY } from "./regionSafety.js";
 import { connectSocket, disconnectSocket, onSocket } from "./socketClient.js";
@@ -85,6 +86,7 @@ const SCREEN_NAMES = {
   account: "Account & security",
   membership: "Membership",
   bestFits: "Top Picks",
+  terms: "Terms & Community Standards",
 };
 
 // Skip-to-content link — the first focusable element. Visibility is handled by
@@ -833,7 +835,7 @@ export default function App() {
   const initialTab = (() => {
     try {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "membership", "bestFits"];
+      const allowed = ["suggestions", "matches", "messages", "profile", "safety", "settings", "account", "membership", "bestFits", "terms"];
       return allowed.includes(tab) ? tab : "suggestions";
     } catch { return "suggestions"; }
   })();
@@ -1622,7 +1624,8 @@ export default function App() {
                 activeTab === "admin" ? "Moderation" :
                 activeTab === "safety" ? "Safety Center" :
                 activeTab === "settings" ? "Accessibility settings" :
-                activeTab === "account" ? "Account & security" : "Profile"
+                activeTab === "account" ? "Account & security" :
+                activeTab === "terms" ? "Terms & Community Standards" : "Profile"
               }
               style={{
                 flex: 1,
@@ -1709,6 +1712,7 @@ export default function App() {
                   onOpenMembership={() => { setPrevTab("profile"); setActiveTab("membership"); }}
                   onOpenTopPicks={() => { setPrevTab("profile"); setActiveTab("bestFits"); }}
                   onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
+                  onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
                 />
               )}
               {activeTab === "profile" && profileView !== "hub" && (
@@ -1761,9 +1765,12 @@ export default function App() {
                 <SettingsScreen
                   onBack={() => setActiveTab(prevTab || "suggestions")}
                   onChange={applyA11y}
-                  onOpenAccount={() => { setPrevTab("settings"); setActiveTab("account"); }}
+                  onOpenTerms={() => { setPrevTab("settings"); setActiveTab("terms"); }}
                   tier={tier}
                 />
+              )}
+              {activeTab === "terms" && (
+                <TermsScreen onBack={() => setActiveTab(prevTab || "settings")} />
               )}
               {activeTab === "membership" && (
                 <MembershipScreen
