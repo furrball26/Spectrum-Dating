@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { t } from "./tokens.js";
+import Avatar from "./Avatar.jsx";
 
 // PROD-6 — viewer-side photo gallery. Renders a member's approved photos[]
 // (each { url, description, isPrimary }, already ordered primary-first by the
@@ -48,6 +49,13 @@ export default function PhotoCarousel({
   const [current, setCurrent] = useState(0);
   const reducedMotion = usePrefersReducedMotion();
   const touchStartX = useRef(null);
+  // Per-photo load-failure tracking. A dead URL would otherwise show the
+  // browser's broken-image glyph + the alt text as raw visible text; instead we
+  // swap in the calm monogram fallback. Tracked per index (a Set) so navigating
+  // to a still-good photo renders it normally.
+  const [errored, setErrored] = useState(() => new Set());
+  const markErrored = (i) =>
+    setErrored((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
 
   // Clamp the index if the photo set shrinks/changes (e.g. a modal reloads a
   // different profile into the same mounted carousel).
@@ -81,6 +89,16 @@ export default function PhotoCarousel({
     lineHeight: 1.5,
   };
 
+  // Calm monogram fallback for a photo that failed to load — the same Avatar
+  // monogram shown when a person has no photos at all, sized to the hero slot and
+  // centered in a rounded surface so the layout doesn't jump.
+  const fallbackSize = Math.min(Math.round(height * 0.42), 132);
+  const renderFallback = () => (
+    <div style={{ ...baseImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Avatar name={name} size={fallbackSize} />
+    </div>
+  );
+
   if (total === 0) return null;
 
   // Single photo — identical to the previous plain hero image (no controls),
@@ -88,17 +106,25 @@ export default function PhotoCarousel({
   if (total === 1) {
     const only = list[0];
     const cap = captionFor(only);
+    const failed = errored.has(0);
     return (
       <figure style={{ margin: 0, ...containerStyle }}>
-        <img
-          src={only.url}
-          // When a visible <figcaption> repeats the description, the img alt is
-          // positional/empty so a screen reader doesn't read it twice (A3).
-          alt={cap ? "" : altFor(only, 0)}
-          decoding="async"
-          style={baseImg}
-        />
-        {cap && (
+        {failed ? (
+          renderFallback()
+        ) : (
+          <img
+            src={only.url}
+            // When a visible <figcaption> repeats the description, the img alt is
+            // positional/empty so a screen reader doesn't read it twice (A3).
+            alt={cap ? "" : altFor(only, 0)}
+            decoding="async"
+            onError={() => markErrored(0)}
+            style={baseImg}
+          />
+        )}
+        {/* Hide the description caption when the photo it describes failed —
+            a caption under a monogram would imply a photo that isn't there. */}
+        {cap && !failed && (
           <figcaption data-photo-caption="true" style={captionStyle}>{cap}</figcaption>
         )}
       </figure>
@@ -163,22 +189,35 @@ export default function PhotoCarousel({
       onKeyDown={onKeyDown}
       style={{ position: "relative" }}
     >
-      <img
-        // Re-mount on navigation ONLY when motion is allowed, so the gentle
-        // opacity fade plays. Under reduced motion the element is stable and the
-        // src simply swaps — no animation.
-        key={reducedMotion ? "static" : idx}
-        src={photo.url}
-        // Empty alt when the visible caption already carries the description (A3).
-        alt={cap ? "" : altFor(photo, idx)}
-        decoding="async"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        style={{
-          ...baseImg,
-          ...(reducedMotion ? null : { animation: "spectrumPhotoFade 220ms ease" }),
-        }}
-      />
+      {errored.has(idx) ? (
+        // This photo failed to load — show the calm monogram in its place, but
+        // keep the dots/zones so a still-good photo is one tap away.
+        <div
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          style={{ ...baseImg, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <Avatar name={name} size={fallbackSize} />
+        </div>
+      ) : (
+        <img
+          // Re-mount on navigation ONLY when motion is allowed, so the gentle
+          // opacity fade plays. Under reduced motion the element is stable and the
+          // src simply swaps — no animation.
+          key={reducedMotion ? "static" : idx}
+          src={photo.url}
+          // Empty alt when the visible caption already carries the description (A3).
+          alt={cap ? "" : altFor(photo, idx)}
+          decoding="async"
+          onError={() => markErrored(idx)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          style={{
+            ...baseImg,
+            ...(reducedMotion ? null : { animation: "spectrumPhotoFade 220ms ease" }),
+          }}
+        />
+      )}
 
       {/* Tap zones — left/right thirds. Never a horizontal swipe on the deck. */}
       <button
@@ -246,7 +285,7 @@ export default function PhotoCarousel({
         })}
       </div>
     </div>
-      {cap && (
+      {cap && !errored.has(idx) && (
         <figcaption data-photo-caption="true" style={captionStyle}>{cap}</figcaption>
       )}
     </figure>

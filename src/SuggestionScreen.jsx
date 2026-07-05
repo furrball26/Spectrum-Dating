@@ -64,14 +64,25 @@ function getViewerSpecialInterests() {
 
 
 
+// Join a short list of shared interests into calm prose ("board games, hiking,
+// and quiet evenings"), capping at 3 so the above-the-fold "You both like…" hook
+// stays brief. Data-only helper (no React) so it's trivially testable.
+function formatSharedInterests(list) {
+  const items = (Array.isArray(list) ? list : []).slice(0, 3);
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items[0]}, ${items[1]}, and ${items[2]}`;
+}
+
 function ActionButton({ label, kind, onClick, icon, ariaLabel, disabled }) {
   const f = useFocusable();
   const base = {
-    minHeight: kind === "skip" ? 44 : 52,
+    minHeight: 52,
     minWidth: 44,
-    padding: kind === "skip" ? "10px 24px" : "14px 24px",
+    padding: "14px 24px",
     borderRadius: 14,
-    fontSize: kind === "skip" ? 15 : 17,
+    fontSize: 17,
     fontWeight: 600,
     cursor: "pointer",
     width: "100%",
@@ -82,10 +93,14 @@ function ActionButton({ label, kind, onClick, icon, ariaLabel, disabled }) {
     gap: 8,
     letterSpacing: "0.01em",
   };
+  // `notnow` uses t.cardBorder (not t.border): on white the old hairline read at
+  // ~1.3:1 and effectively vanished (WCAG 1.4.11). `intro` is the outlined-ACCENT
+  // tier — a positive first-contact action that must NOT read as a decline — and
+  // mirrors the "See what Companion adds" treatment (transparent + accentStrong).
   const kinds = {
-    interested: { background: t.accentFill, color: "#fff", border: `1px solid ${t.accentFill}` },
-    notnow:     { background: t.surface,   color: t.text, border: `1px solid ${t.border}` },
-    skip:       { background: "transparent", color: t.textSoft, border: "none", textDecoration: "underline" },
+    interested: { background: t.accentFill,   color: "#fff",         border: `1px solid ${t.accentFill}` },
+    intro:      { background: "transparent",  color: t.accentStrong, border: `1px solid ${t.accentStrong}` },
+    notnow:     { background: t.surface,      color: t.text,         border: `1px solid ${t.cardBorder}` },
   };
   return (
     <button
@@ -622,6 +637,17 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
   const topWhy = sortedWhy.slice(0, 2);
   const restWhy = sortedWhy.slice(2);
   const commChips = person ? commStyleChips(person) : [];
+  // Shared interests between the viewer and this candidate. Drives (a) the ✦
+  // legend on the Interests card — shown ONLY when there's at least one shared
+  // interest, so the key never dangles with no referent (D-legend) — and (b) the
+  // above-the-fold "You both like…" hook (D-9): when the backend sent no
+  // structured whyReasons yet, we surface this real mutual signal from data
+  // already present rather than falling straight back to one-sided comm chips.
+  const viewerInterestSet = new Set(viewerInterests);
+  const sharedInterests = person
+    ? (person.interests || []).filter((i) => viewerInterestSet.has(i))
+    : [];
+  const showSharedHook = topWhy.length === 0 && sharedInterests.length > 0;
   // D-17 Phase 0 — pull the talk_for_hours answer out of the generic prompt
   // list so it can headline as the "Could talk for hours about" hero, with the
   // remaining prompts rendering normally (and no duplicate answer).
@@ -1212,7 +1238,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                   sensory chip row, directly under the name and BEFORE the bio, so
                   the first thing seen answers "why is this a good match for how I
                   connect?" All data is already fetched; this is a render order. */}
-              {(topWhy.length > 0 || commChips.length > 0) && (
+              {(topWhy.length > 0 || showSharedHook || commChips.length > 0) && (
                 <div style={{ marginTop: 4 }}>
                   {topWhy.length > 0 && (
                     <div style={{ marginBottom: commChips.length > 0 ? 16 : 0 }}>
@@ -1224,6 +1250,19 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                         {topWhy.map((r, i) => (
                           <WhyReason key={i} reason={r} />
                         ))}
+                      </ul>
+                    </div>
+                  )}
+                  {/* D-9 — no structured whyReasons, but the viewer and candidate
+                      share interests: surface that real "You both…" signal above
+                      the fold instead of dropping straight to one-sided comm
+                      chips. WhyReason detects the "You both" phrasing and gives it
+                      the green ✓ (a genuine mutual signal). No fabricated data. */}
+                  {showSharedHook && (
+                    <div style={{ marginBottom: commChips.length > 0 ? 16 : 0 }}>
+                      <p style={eyebrowStyle}>Why you fit</p>
+                      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                        <WhyReason reason={`You both like ${formatSharedInterests(sharedInterests)}`} />
                       </ul>
                     </div>
                   )}
@@ -1265,9 +1304,13 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
                 <h2 style={{ fontFamily: t.serif, fontSize: 17, margin: 0, fontWeight: 700 }}>Interests</h2>
-                <span style={{ fontSize: 13, color: t.textMuted }}>
-                  <span aria-hidden="true">✦</span> = shared
-                </span>
+                {/* The ✦ legend only earns its place when at least one interest is
+                    actually shared — otherwise it's a key with no referent. */}
+                {sharedInterests.length > 0 && (
+                  <span style={{ fontSize: 13, color: t.textMuted }}>
+                    <span aria-hidden="true">✦</span> = shared
+                  </span>
+                )}
               </div>
               <InterestPills interests={person.interests} viewerInterests={viewerInterests} />
 
@@ -1311,21 +1354,33 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               </div>
             )}
 
-            {/* Three actions: fixed order, fixed labels (3.2.4). */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* Fixed order, fixed labels (3.2.4). Positives lead and sit
+                together (interested → intro), then the two passes. Each pass now
+                carries its consequence in the LABEL: "Not right now" is
+                temporary; "Don't show again" is the permanent hide (was the
+                near-synonymous "Skip", whose permanence only showed AFTER acting).
+                Off-mobile the column is capped + centered so three+ full-width
+                slabs don't feel heavy across the 640px content column. */}
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              ...(isMobile ? null : { maxWidth: 420, marginLeft: "auto", marginRight: "auto" }),
+            }}>
               <ActionButton label={plainLanguage ? "Yes"      : "I'm interested"} kind="interested" onClick={handleInterested} icon="♡" />
-              <ActionButton label={plainLanguage ? "Not now" : "Not right now"}  kind="notnow"    onClick={handleNotNow} />
               {/* Calm opt-in first-contact — a screened intro that only becomes a
                   conversation if they accept. A quiet, deliberate alternative to
-                  a like; never urgent, never a delivery/read signal. */}
+                  a like; never urgent, never a delivery/read signal. Its own
+                  outlined-accent tier so a positive action never reads as a pass. */}
               <ActionButton
                 label={plainLanguage ? "Send a hello" : "Send an intro"}
-                kind="notnow"
+                kind="intro"
                 onClick={() => setIntroPerson(person)}
                 icon="✉"
                 ariaLabel={`Send an intro to ${person.displayName}`}
               />
-              <ActionButton label="Skip"                                          kind="skip"      onClick={handleSkip} />
+              <ActionButton label={plainLanguage ? "Not now"          : "Not right now"}   kind="notnow" onClick={handleNotNow} />
+              <ActionButton label={plainLanguage ? "Hide this person" : "Don't show again"} kind="notnow" onClick={handleSkip} />
             </div>
 
             <p style={{ marginTop: 20, textAlign: "center" }}>

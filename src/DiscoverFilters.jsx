@@ -501,20 +501,41 @@ export default function DiscoverFilters({
               </label>
             );
           })}
-          {/* D-16 — explicit "open to everyone" (empty-seeking) affordance. */}
-          <label
-            htmlFor="filter-seek-everyone"
-            style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
-          >
-            <input
-              id="filter-seek-everyone"
-              type="checkbox"
-              checked={seekingSet.length === 0}
-              onChange={() => { if (seekingSet.length > 0) setSeeking(""); }}
-              style={{ width: 18, height: 18, accentColor: t.accentStrong, flexShrink: 0 }}
-            />
-            <span style={{ fontSize: 16, color: t.text }}>Open to everyone</span>
-          </label>
+          {/* D-16 — "open to everyone" is the empty-seeking STATE, not a 4th
+              co-equal option. Pulled out of the checkbox column (it used to sit
+              as a peer checkbox whose "checked" inverted the set, which read as a
+              contradictory option) into a plain-language helper line plus a quiet
+              text button that simply clears the picks. Behaviour is unchanged:
+              leaving all unticked == open to everyone. */}
+          <div style={{ marginTop: 6, paddingTop: 10, borderTop: `1px solid ${t.borderLight}` }}>
+            <span style={{ ...helper, marginTop: 0 }}>
+              Leaving all unticked means you're open to everyone.
+            </span>
+            {seekingSet.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSeeking("")}
+                onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+                onBlur={(e) => { e.target.style.outline = "none"; }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  marginTop: 6,
+                  minHeight: 44,
+                  padding: "6px 2px",
+                  background: "none",
+                  border: "none",
+                  color: t.accentStrong,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  fontFamily: t.sans,
+                  cursor: "pointer",
+                }}
+              >
+                Clear — open to everyone
+              </button>
+            )}
+          </div>
         </fieldset>
 
         {/* Preferred age range */}
@@ -580,7 +601,9 @@ export default function DiscoverFilters({
               minHeight: 44,
               padding: "10px 24px",
               borderRadius: 14,
-              border: `1px solid ${t.border}`,
+              // t.cardBorder (not t.border): on white the hairline read ~1.3:1
+              // and effectively vanished (WCAG 1.4.11 non-text contrast).
+              border: `1px solid ${t.cardBorder}`,
               background: t.surface,
               color: t.text,
               fontSize: 16,
@@ -722,7 +745,8 @@ export default function DiscoverFilters({
                     minHeight: 44,
                     padding: "10px 24px",
                     borderRadius: 14,
-                    border: `1px solid ${t.border}`,
+                    // t.cardBorder for the same WCAG 1.4.11 reason as Reset above.
+                    border: `1px solid ${t.cardBorder}`,
                     background: t.surface,
                     color: t.text,
                     fontSize: 16,
