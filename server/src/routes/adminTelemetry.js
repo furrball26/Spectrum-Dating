@@ -584,9 +584,12 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
     params.push(`%${q}%`, `%${q}%`);
   }
 
-  // Status filter.
+  // Status filter. 'active' must exclude BOTH suspended and banned members — a
+  // permanently-removed (banned) account is not active, and reading as "Active"
+  // in the directory is a silent contradiction. 'removed' surfaces banned accounts.
   if (req.query.status === 'suspended') where.push('u.suspended = 1');
-  else if (req.query.status === 'active') where.push('u.suspended = 0');
+  else if (req.query.status === 'active') where.push('u.suspended = 0 AND u.banned = 0');
+  else if (req.query.status === 'removed') where.push('u.banned = 1');
   else if (req.query.status === 'verified') where.push('COALESCE(p.identity_verified, 0) = 1');
 
   // ── Population (demographic) filters ──────────────────────────────────────
@@ -689,7 +692,7 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
     : 'ORDER BY u.created_at DESC';
 
   const rows = db.prepare(
-    `SELECT u.id, u.email, u.created_at AS createdAt, u.suspended,
+    `SELECT u.id, u.email, u.created_at AS createdAt, u.suspended, u.banned,
             u.last_active_at AS lastActiveAt,
             COALESCE(p.display_name, '') AS displayName,
             COALESCE(p.dist_city, '')    AS distCity,
@@ -721,6 +724,7 @@ router.get('/members', requireAuth, requireAdmin, (req, res) => {
       createdAt: r.createdAt,
       lastActiveAt: r.lastActiveAt || '',
       suspended: !!r.suspended,
+      banned: !!r.banned,
       verified: !!r.verified,
       // Membership tier (free | companion) — 'free' when no subscriptions row.
       tier: r.tier === 'companion' ? 'companion' : 'free',

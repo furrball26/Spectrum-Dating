@@ -29,11 +29,11 @@ let baseUrl;
 let uid = 0;
 let adminId;
 
-function makeUser({ email, suspended = 0, verified = 0, distCity = '', lastActive = '', createdAt = Date.now(), displayName } = {}) {
+function makeUser({ email, suspended = 0, banned = 0, verified = 0, distCity = '', lastActive = '', createdAt = Date.now(), displayName } = {}) {
   const id = `u${++uid}`;
   const em = email || `${id}@t.dev`;
-  db.prepare('INSERT INTO users (id, email, password_hash, created_at, token_version, suspended, last_active_at) VALUES (?,?,?,?,0,?,?)')
-    .run(id, em, 'x', createdAt, suspended, lastActive);
+  db.prepare('INSERT INTO users (id, email, password_hash, created_at, token_version, suspended, banned, last_active_at) VALUES (?,?,?,?,0,?,?,?)')
+    .run(id, em, 'x', createdAt, suspended, banned, lastActive);
   db.prepare('INSERT INTO profiles (user_id, display_name, identity_verified, dist_city, updated_at) VALUES (?,?,?,?,?)')
     .run(id, displayName || `Name ${id}`, verified, distCity, Date.now());
   return id;
@@ -133,6 +133,21 @@ describe('GET /admin/members — listing', () => {
     const activeList = (await api('/admin/members?pageSize=100&status=active', { token: adminToken() })).json;
     expect(activeList.members.every((m) => m.suspended === false)).toBe(true);
     expect(activeList.members.map((m) => m.id)).not.toContain(susp);
+  });
+
+  it('a banned member is excluded from "active", surfaced by "removed", and flagged in the row', async () => {
+    const removed = makeUser({ email: 'banned@example.com', banned: 1 });
+
+    // Banned account must NOT read as active (the silent-contradiction bug).
+    const activeList = (await api('/admin/members?pageSize=100&status=active', { token: adminToken() })).json;
+    expect(activeList.members.map((m) => m.id)).not.toContain(removed);
+
+    // 'removed' filter surfaces it, and the row carries banned:true for the badge.
+    const removedList = (await api('/admin/members?pageSize=100&status=removed', { token: adminToken() })).json;
+    const row = removedList.members.find((m) => m.id === removed);
+    expect(row).toBeTruthy();
+    expect(row.banned).toBe(true);
+    expect(removedList.members.every((m) => m.banned === true)).toBe(true);
   });
 
   it('paginates: total is the full match count, page slices are disjoint and sized', async () => {

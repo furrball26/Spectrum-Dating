@@ -164,11 +164,17 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
   `;
 
   // Exclude QA test-account reporters (harness noise); keep demo + real reports.
+  // OPEN reports are ordered OLDEST-first so working the list top-to-bottom equals
+  // work order — the most-overdue case (the one the amber past-SLA card warns
+  // about) sits at the top, matching the oldest-first / SLA casework model the
+  // rest of the console preaches. Resolved/all views stay newest-first (recent
+  // receipts first).
   let rows;
   if (status === 'all') {
     rows = db.prepare(`${base} WHERE ${REAL_REPORTER} ORDER BY r.created_at DESC`).all(TEST_ACCOUNT_LIKE);
   } else {
-    rows = db.prepare(`${base} WHERE r.status = ? AND ${REAL_REPORTER} ORDER BY r.created_at DESC`).all(status, TEST_ACCOUNT_LIKE);
+    const order = status === 'open' ? 'ASC' : 'DESC';
+    rows = db.prepare(`${base} WHERE r.status = ? AND ${REAL_REPORTER} ORDER BY r.created_at ${order}`).all(status, TEST_ACCOUNT_LIKE);
   }
 
   res.json({ reports: rows.map(serializeReport) });

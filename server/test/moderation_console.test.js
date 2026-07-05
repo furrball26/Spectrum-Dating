@@ -263,6 +263,25 @@ describe('B-C resolute reports', () => {
     expect(afterOpen - beforeOpen).toBe(2);
   });
 
+  it('open reports come back OLDEST-first (work order); resolved views stay newest-first', async () => {
+    const reported = makeUser();
+    const older = `r${++uid}`;
+    const newer = `r${++uid}`;
+    const now = Date.now();
+    const ins = (id, ts) => db.prepare(
+      'INSERT INTO reports (id, reporter_id, reported_id, reason, details, status, created_at) VALUES (?,?,?,?,?,?,?)'
+    ).run(id, makeUser(), reported, 'harassment', 'd', 'open', ts);
+    ins(older, now - 60_000); // filed a minute earlier
+    ins(newer, now);
+
+    const open = (await api('/admin/reports?status=open', { token: adminToken() })).json.reports;
+    const iOlder = open.findIndex((r) => r.id === older);
+    const iNewer = open.findIndex((r) => r.id === newer);
+    expect(iOlder).toBeGreaterThanOrEqual(0);
+    expect(iNewer).toBeGreaterThanOrEqual(0);
+    expect(iOlder).toBeLessThan(iNewer); // oldest-first
+  });
+
   it('GET /admin/feedback excludes QA test-account feedback, keeps demo + real', async () => {
     const testU = makeUser({ email: `qa+fb${++uid}@spectrum-test.dev` });
     const demoU = makeUser({ email: `telemetry-demo-${++uid}@sample.spectrum-dating.app` });
