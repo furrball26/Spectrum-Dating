@@ -240,6 +240,45 @@ describe('B-C resolute reports', () => {
     const open = await api('/admin/reports?status=open', { token: adminToken() });
     expect(open.json.reports.some((x) => x.id === id)).toBe(false);
   });
+
+  it('excludes QA test-account reporters but KEEPS demo + real reporters (list + stats)', async () => {
+    const beforeOpen = (await api('/admin/stats', { token: adminToken() })).json.reports.open;
+
+    const reported = makeUser();
+    const testReporter = makeUser({ email: `qa+rep${++uid}@spectrum-test.dev` });
+    const demoReporter = makeUser({ email: `telemetry-demo-${++uid}@sample.spectrum-dating.app` });
+    const realReporter = makeUser();
+    const testRid = makeReport(reported, testReporter);
+    const demoRid = makeReport(reported, demoReporter);
+    const realRid = makeReport(reported, realReporter);
+
+    const list = await api('/admin/reports?status=open', { token: adminToken() });
+    const ids = list.json.reports.map((x) => x.id);
+    expect(ids).toContain(realRid);
+    expect(ids).toContain(demoRid); // demo reports stay (populate the demo console)
+    expect(ids).not.toContain(testRid); // QA harness noise excluded
+
+    // Stats open-report depth grew by exactly 2 (demo + real), not 3.
+    const afterOpen = (await api('/admin/stats', { token: adminToken() })).json.reports.open;
+    expect(afterOpen - beforeOpen).toBe(2);
+  });
+
+  it('GET /admin/feedback excludes QA test-account feedback, keeps demo + real', async () => {
+    const testU = makeUser({ email: `qa+fb${++uid}@spectrum-test.dev` });
+    const demoU = makeUser({ email: `telemetry-demo-${++uid}@sample.spectrum-dating.app` });
+    const realU = makeUser();
+    const mkFb = (u, msg) =>
+      db.prepare('INSERT INTO feedback (id, user_id, message, created_at) VALUES (?, ?, ?, ?)')
+        .run(`fb${++uid}`, u, msg, Date.now());
+    mkFb(testU, 'TEST_FB_EXCL');
+    mkFb(demoU, 'DEMO_FB_KEEP');
+    mkFb(realU, 'REAL_FB_KEEP');
+
+    const msgs = (await api('/admin/feedback', { token: adminToken() })).json.feedback.map((f) => f.message);
+    expect(msgs).toContain('REAL_FB_KEEP');
+    expect(msgs).toContain('DEMO_FB_KEEP');
+    expect(msgs).not.toContain('TEST_FB_EXCL');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -50,6 +50,15 @@ const PENDING_PHOTO_PARAMS = EXCLUDE_ACCOUNT_PARAMS;
 const PENDING_AUDIO_WHERE = `pa.review_status = 'pending_review' AND ${notTestDemo('u.email')}`;
 const PENDING_ATTACHMENT_WHERE = `a.upload_status = 'pending_review' AND ${notTestDemo('u.email')}`;
 const PENDING_VERIFICATION_WHERE = `vr.status = 'pending' AND ${notTestDemo('u.email')}`;
+// Reports are the ONE queue where we exclude only QA TEST reporters, NOT demo:
+// demoSeed intentionally files demo reports so the moderation console is
+// populated when the app is demoed, and a real user's report about a demo
+// persona is a legitimate report. So we filter on the REPORTER being a
+// @spectrum-test.dev harness account (pure noise) and keep everything else.
+// `ru` is the reporter-users alias every report query below joins. Bind
+// TEST_ACCOUNT_LIKE once per use. Orphan reporter (deleted account → NULL) stays.
+const REAL_REPORTER = '(ru.email IS NULL OR ru.email NOT LIKE ?)';
+const REPORTS_JOIN = 'FROM reports r LEFT JOIN users ru ON ru.id = r.reporter_id';
 
 // Append-only moderation audit log.
 function logMod(db, actorId, action, targetId, detail = '') {
@@ -154,11 +163,12 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
     LEFT JOIN profiles rbp ON rbp.user_id = r.resolved_by
   `;
 
+  // Exclude QA test-account reporters (harness noise); keep demo + real reports.
   let rows;
   if (status === 'all') {
-    rows = db.prepare(`${base} ORDER BY r.created_at DESC`).all();
+    rows = db.prepare(`${base} WHERE ${REAL_REPORTER} ORDER BY r.created_at DESC`).all(TEST_ACCOUNT_LIKE);
   } else {
-    rows = db.prepare(`${base} WHERE r.status = ? ORDER BY r.created_at DESC`).all(status);
+    rows = db.prepare(`${base} WHERE r.status = ? AND ${REAL_REPORTER} ORDER BY r.created_at DESC`).all(status, TEST_ACCOUNT_LIKE);
   }
 
   res.json({ reports: rows.map(serializeReport) });
@@ -780,7 +790,9 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   const totalConversations = db.prepare('SELECT COUNT(*) AS c FROM conversations').get().c;
   const totalMessages = db.prepare('SELECT COUNT(*) AS c FROM messages').get().c;
 
-  const reportRows = db.prepare('SELECT status, COUNT(*) AS c FROM reports GROUP BY status').all();
+  const reportRows = db.prepare(
+    `SELECT r.status AS status, COUNT(*) AS c ${REPORTS_JOIN} WHERE ${REAL_REPORTER} GROUP BY r.status`
+  ).all(TEST_ACCOUNT_LIKE);
   const reports = { open: 0, reviewed: 0, actioned: 0, dismissed: 0 };
   for (const row of reportRows) {
     if (row.status in reports) reports[row.status] = row.c;
@@ -808,8 +820,8 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
 
   const oldestOpenReportAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
-  ).get().t ?? null;
+    `SELECT MIN(r.created_at) AS t ${REPORTS_JOIN} WHERE r.status = 'open' AND ${REAL_REPORTER}`
+  ).get(TEST_ACCOUNT_LIKE).t ?? null;
   const oldestPendingAttachmentAt = db.prepare(
     `SELECT MIN(a.created_at) AS t FROM message_attachments a
      LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
@@ -865,8 +877,8 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
 
   const openReports = db.prepare(
-    "SELECT COUNT(*) AS c FROM reports WHERE status = 'open'"
-  ).get().c;
+    `SELECT COUNT(*) AS c ${REPORTS_JOIN} WHERE r.status = 'open' AND ${REAL_REPORTER}`
+  ).get(TEST_ACCOUNT_LIKE).c;
   const pendingAttachments = db.prepare(
     `SELECT COUNT(*) AS c FROM message_attachments a
      LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
@@ -885,8 +897,8 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
   ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
 
   const oldestOpenReportAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
-  ).get().t ?? null;
+    `SELECT MIN(r.created_at) AS t ${REPORTS_JOIN} WHERE r.status = 'open' AND ${REAL_REPORTER}`
+  ).get(TEST_ACCOUNT_LIKE).t ?? null;
   const oldestPendingAttachmentAt = db.prepare(
     `SELECT MIN(a.created_at) AS t FROM message_attachments a
      LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
@@ -962,12 +974,14 @@ router.post('/purge-test-accounts', requireAuth, requireAdmin, (req, res) => {
 router.get('/feedback', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
 
+  // Exclude QA test-account feedback (harness noise); keep demo + real feedback.
   const rows = db.prepare(`
     SELECT f.id, f.message, f.created_at, u.email AS user_email
     FROM feedback f
     LEFT JOIN users u ON u.id = f.user_id
+    WHERE u.email IS NULL OR u.email NOT LIKE ?
     ORDER BY f.created_at DESC
-  `).all();
+  `).all(TEST_ACCOUNT_LIKE);
 
   const feedback = rows.map(r => ({
     id: r.id,
