@@ -110,6 +110,36 @@ describe('SAFETY-2: profile photos require admin approval', () => {
     expect(photoUrlOf(u)).toBe('');
   });
 
+  it('rejects a crafted key with a bad shape (path traversal / extra segment / bad ext)', async () => {
+    const u = makeUser({ photoUrl: '' });
+    const bad = [
+      `profile-photos/${u}/../${u}/evil.jpg`, // traversal out of the segment
+      `profile-photos/${u}/sub/dir.jpg`,      // extra path part
+      `profile-photos/${u}/file.exe`,         // disallowed extension
+      `profile-photos/${u}/nodotjpg`,         // no extension
+    ];
+    for (const key of bad) {
+      const r = await api('/photos/profile-add', { token: signToken(u, 0), method: 'POST', body: { key } });
+      expect(r.status).toBe(403);
+    }
+    // A well-formed key still works.
+    const ok = await api('/photos/profile-add', {
+      token: signToken(u, 0), method: 'POST', body: { key: `profile-photos/${u}/ok_1.jpg` },
+    });
+    expect(ok.status).toBe(200);
+  });
+
+  it('rejects re-confirming a key that already backs a photo row (reused-key guard)', async () => {
+    const u = makeUser({ photoUrl: '' });
+    const key = `profile-photos/${u}/dup.jpg`;
+    const first = await api('/photos/profile-add', { token: signToken(u, 0), method: 'POST', body: { key } });
+    expect(first.status).toBe(200);
+    const again = await api('/photos/profile-add', { token: signToken(u, 0), method: 'POST', body: { key } });
+    expect(again.status).toBe(409);
+    // Still only one row for that key.
+    expect(db.prepare('SELECT COUNT(*) AS n FROM profile_photos WHERE storage_key = ?').get(key).n).toBe(1);
+  });
+
   it('a pending-only user is NOT in another viewer’s candidates', () => {
     const viewer = makeUser();
     const subject = makeUser({ photoUrl: '' });

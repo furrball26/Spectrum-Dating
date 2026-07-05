@@ -73,8 +73,22 @@ function addGalleryPhoto(db, userId, key) {
   if (!key || typeof key !== 'string') {
     return { ok: false, status: 400, error: 'key is required.' };
   }
-  if (!key.startsWith(`profile-photos/${userId}/`)) {
+  // Strict key shape (parity with audio.js L3 hardening): ownership prefix + a
+  // single path segment of safe chars and a known image extension — nothing more.
+  // The suffix regex has no '/' or '.', so a crafted key (a `..` segment or an
+  // extra path part) that would slip past a bare startsWith is rejected here.
+  // userId is a server value from the token, checked via the literal prefix and
+  // never interpolated into the regex.
+  const ownerPrefix = `profile-photos/${userId}/`;
+  const SUFFIX_RE = /^[A-Za-z0-9_-]+\.(jpg|png|webp|gif)$/;
+  if (!key.startsWith(ownerPrefix) || !SUFFIX_RE.test(key.slice(ownerPrefix.length))) {
     return { ok: false, status: 403, error: 'Forbidden.' };
+  }
+  // One object → one row. Reject a re-confirm of a key that already backs a row,
+  // which would let one DELETE remove an object still referenced by another row
+  // (orphaning that row's image). Mirrors the profile_audio reused-key guard.
+  if (db.prepare('SELECT 1 FROM profile_photos WHERE storage_key = ?').get(key)) {
+    return { ok: false, status: 409, error: 'That photo has already been added.' };
   }
 
   const count = db.prepare('SELECT COUNT(*) AS n FROM profile_photos WHERE user_id = ?').get(userId).n;
