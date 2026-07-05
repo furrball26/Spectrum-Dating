@@ -631,8 +631,9 @@ export default function AudioAnswerEditor({ tier = "free", promptCatalog = [], p
     <div style={{ marginTop: 4, marginBottom: 8 }}>
       <div style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4 }}>Answer with your voice</div>
       <p style={{ margin: "0 0 14px", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
-        Some people come across better out loud. Record a short voice answer to a
-        prompt — everyone can play it and read the transcript for free.
+        Some people come across better out loud. Anyone can play a voice answer
+        and read its transcript for free. Recording your own is part of Spectrum
+        Companion.
       </p>
 
       {!loading && ownAudio.length > 0 && (

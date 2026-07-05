@@ -3,6 +3,7 @@ import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { getUserId } from "./api.js";
+import { COMPLETENESS_RAMP } from "./completeness.js";
 import {
   SlidersIcon,
   GearIcon,
@@ -149,12 +150,80 @@ function HubRow({ icon, title, subtitle, tag, onClick }) {
   );
 }
 
+// Calm completeness cue for the Hub. A first-timer landing on the calm hub
+// otherwise gets NO signal their profile is thin; this quietly shows how many of
+// the 7 differentiator fields are filled and offers the next one — tapping jumps
+// the editor straight to that field. Calm-by-design: a gentle "here's what still
+// helps", never a score to chase — no "%", no urgency, no nagging. Renders
+// nothing before the first load (null) or once every field is filled. Own
+// component so useFocusable stays one-hook-per-instance, above the early return.
+function CompletenessCue({ completeness, onOpenEditField }) {
+  const f = useFocusable();
+  if (!completeness || completeness.score >= completeness.total) return null;
+  const { score, total, missing } = completeness;
+  const next = missing[0];
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenEditField(next.key)}
+      onFocus={f.onFocus}
+      onBlur={f.onBlur}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        width: "100%",
+        textAlign: "left",
+        background: t.surface,
+        border: `1px solid ${t.cardBorder}`,
+        borderRadius: t.radius.lg,
+        padding: "14px 18px",
+        cursor: "pointer",
+        fontFamily: t.sans,
+        color: t.text,
+        boxShadow: t.shadow.sm,
+        ...f.style,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0 }}>
+        {/* Slim meter — `score` tiles painted with the brand ramp filling
+            left→right, the rest a quiet track. Decorative (the text states the
+            count), so aria-hidden. */}
+        <span aria-hidden="true" style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {Array.from({ length: total }, (_, i) => (
+            <span
+              key={i}
+              style={{
+                flex: 1,
+                height: 6,
+                borderRadius: 3,
+                background: i < score ? COMPLETENESS_RAMP[Math.min(i, COMPLETENESS_RAMP.length - 1)] : t.border,
+              }}
+            />
+          ))}
+        </span>
+        <span style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
+          {score} of {total} filled in
+        </span>
+        <span style={{ display: "block", marginTop: 2, fontSize: 14, color: t.textSoft, lineHeight: 1.4 }}>
+          Next: {next.label.toLowerCase()} — it helps matches picture you.
+        </span>
+      </span>
+      <span aria-hidden="true" style={{ color: t.textMuted, flexShrink: 0, display: "inline-flex" }}>
+        <ChevronRightIcon size={20} />
+      </span>
+    </button>
+  );
+}
+
 export default function ProfileHub({
   displayName,
   photoUrl,
   verified = false,
   tier = "free",
+  completeness = null,
   onEditProfile,
+  onOpenEditField,
   onOpenPreferences,
   onOpenSettings,
   onOpenPreview,
@@ -244,8 +313,10 @@ export default function ProfileHub({
           </p>
         </div>
 
-        {/* Calm hub rows — destinations, in a single quiet scroll. */}
+        {/* Calm hub rows — destinations, in a single quiet scroll. The
+            completeness cue leads (only when there's something still to add). */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 28 }}>
+          <CompletenessCue completeness={completeness} onOpenEditField={onOpenEditField} />
           <HubRow
             icon={<EyeIcon size={22} />}
             title="How others see you"
@@ -262,7 +333,12 @@ export default function ProfileHub({
           <HubRow
             icon={<StarIcon size={22} />}
             title="Top Picks"
-            subtitle="A calm, curated set of people who may fit well."
+            // Free tier: make the locked state legible on the row so the tap is a
+            // known, chosen action (preview what Companion adds) rather than an
+            // inviting row that dead-ends at a gate.
+            subtitle={isCompanion
+              ? "A calm, curated set of people who may fit well."
+              : "Part of Companion — preview what it adds."}
             tag={isCompanion ? undefined : "Companion"}
             onClick={onOpenTopPicks}
           />

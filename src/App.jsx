@@ -9,6 +9,7 @@ import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
+import { computeCompleteness } from "./completeness.js";
 
 // ── Code-split screens ──────────────────────────────────────────────────────
 // Screens that are never the first paint are lazy-loaded so they ship in their
@@ -994,6 +995,12 @@ export default function App() {
   //   'preferences' → <ProfileScreen> opened at the "Looking for" group
   //   'preview'     → <ProfileScreen> with the "How others see you" preview open
   const [profileView, setProfileView] = useState("hub");
+  // Profile completeness for the Hub's calm "here's what still helps" cue,
+  // computed from /profile/me in applyMyProfile. null until the first load; the
+  // Hub renders nothing while null. When the cue is tapped, profileJumpField
+  // carries the first-missing field key into the editor so it lands right there.
+  const [myCompleteness, setMyCompleteness] = useState(null);
+  const [profileJumpField, setProfileJumpField] = useState(null);
   // Billing tier — drives the calm "Companion" marker on Settings + the
   // Membership screen. Seeded from /profile/me (which now returns `tier`) and
   // updated by the Membership screen after an upgrade/cancel. "no tier = free".
@@ -1012,6 +1019,26 @@ export default function App() {
       const primary = p.photos.find((ph) => ph && ph.isPrimary) || p.photos[0] || null;
       setMyPhotoUrl(primary?.url || null);
     }
+    // Completeness for the Hub cue. Same 7-field logic the in-form nudge uses
+    // (shared computeCompleteness). Prompts are counted only when actually
+    // answered (non-empty), matching how the editor treats an answered prompt.
+    setMyCompleteness(
+      computeCompleteness({
+        photos: p.photos,
+        tagline: p.tagline,
+        bio: p.bio,
+        gender: p.gender,
+        pronouns: p.pronouns,
+        commDirectness: p.commDirectness,
+        commLiteral: p.commLiteral,
+        commCadence: p.commCadence,
+        sensoryEnvironment: p.sensoryEnvironment,
+        sensoryLighting: p.sensoryLighting,
+        prompts: Array.isArray(p.prompts)
+          ? p.prompts.filter((x) => x && x.promptKey && (x.answer || "").trim())
+          : [],
+      })
+    );
   }, []);
 
   // Refresh the nav avatar when returning from the Profile screen, where the
@@ -1671,7 +1698,11 @@ export default function App() {
                   photoUrl={myPhotoUrl}
                   verified={myVerified}
                   tier={tier}
-                  onEditProfile={() => setProfileView("edit")}
+                  completeness={myCompleteness}
+                  // Tapping the completeness cue opens the editor landed on the
+                  // first still-empty field; the pencil opens it fresh (no jump).
+                  onOpenEditField={(key) => { setProfileJumpField(key); setProfileView("edit"); }}
+                  onEditProfile={() => { setProfileJumpField(null); setProfileView("edit"); }}
                   onOpenPreferences={() => setProfileView("preferences")}
                   onOpenPreview={() => setProfileView("preview")}
                   onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
@@ -1690,6 +1721,9 @@ export default function App() {
                   // "How others see you" drill-in opens the preview modal on mount;
                   // closing it returns to the Hub (it reads as a hub sub-view).
                   initialPreview={profileView === "preview"}
+                  // Completeness drill-in: land on the first still-empty field
+                  // (only when the editor was opened via the Hub cue).
+                  initialJumpField={profileView === "edit" ? profileJumpField : null}
                   onSignOut={handleSignOut}
                   onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
                   onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}

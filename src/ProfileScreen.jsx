@@ -14,6 +14,7 @@ import { splitFeaturedPrompt } from "./featuredPrompt.js";
 import FeaturedInterest from "./FeaturedInterest.jsx";
 import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
 import { normalizeSpecialInterests } from "./specialInterests.js";
+import { COMPLETENESS_FIELDS, COMPLETENESS_RAMP, computeCompleteness } from "./completeness.js";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -927,7 +928,7 @@ function PhotoEditorPanel({
 }
 
 // Add-photo tile (button that opens hidden file input)
-function AddPhotoTile({ onAdd, uploading, disabled, addBtnRef }) {
+function AddPhotoTile({ onAdd, uploading, disabled, addBtnRef, tileStyle }) {
   const fileRef = useRef(null);
   const f = useFocusable();
 
@@ -946,6 +947,7 @@ function AddPhotoTile({ onAdd, uploading, disabled, addBtnRef }) {
           width: "100%",
           aspectRatio: "1 / 1",
           borderRadius: 12,
+          ...tileStyle,
           border: `2px dashed ${t.accentStrong}`,
           background: t.surfaceAlt,
           color: t.accentStrong,
@@ -1102,32 +1104,48 @@ function PhotoGallery({ photos, uploading, error, onAdd, onReplace, onSetPrimary
           </div>
         )}
 
-        {/* Tier B — secondary photos + Add tile */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 10,
-          }}
-        >
-          {secondary.map((e) => (
-            <div role="listitem" key={e.photo.id}>
-              <PhotoCell
-                photo={e.photo}
-                index={e.index}
-                selected={selectedId === e.photo.id}
-                onSelect={setSelectedId}
-                cellRef={setTileRef(e.photo.id)}
-                tileStyle={{ aspectRatio: "1 / 1", borderRadius: 12 }}
-              />
-            </div>
-          ))}
-          {!atMax && (
-            <div role="listitem">
-              <AddPhotoTile onAdd={onAdd} uploading={uploading} disabled={atMax} addBtnRef={addBtnRef} />
-            </div>
-          )}
-        </div>
+        {/* No photos yet — the Add tile is the highest-leverage action (a photo
+            is required to appear in Discover), so it takes the full-width Tier-A
+            portrait slot the primary photo will occupy, not a 1/3 square with
+            dead space beside it. */}
+        {isEmpty ? (
+          <div role="listitem">
+            <AddPhotoTile
+              onAdd={onAdd}
+              uploading={uploading}
+              disabled={atMax}
+              addBtnRef={addBtnRef}
+              tileStyle={{ aspectRatio: "4 / 5", borderRadius: 16 }}
+            />
+          </div>
+        ) : (
+          /* Tier B — secondary photos + Add tile */
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 10,
+            }}
+          >
+            {secondary.map((e) => (
+              <div role="listitem" key={e.photo.id}>
+                <PhotoCell
+                  photo={e.photo}
+                  index={e.index}
+                  selected={selectedId === e.photo.id}
+                  onSelect={setSelectedId}
+                  cellRef={setTileRef(e.photo.id)}
+                  tileStyle={{ aspectRatio: "1 / 1", borderRadius: 12 }}
+                />
+              </div>
+            ))}
+            {!atMax && (
+              <div role="listitem">
+                <AddPhotoTile onAdd={onAdd} uploading={uploading} disabled={atMax} addBtnRef={addBtnRef} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Per-photo editor panel — one at a time, below the grid. */}
@@ -1222,7 +1240,7 @@ function LifestyleSelect({ id, label, helper, value, options, onChange }) {
       <select
         id={id}
         value={value}
-        aria-describedby={`${id}-hint`}
+        aria-describedby={helper ? `${id}-hint` : undefined}
         onChange={(e) => onChange(e.target.value)}
         {...f}
         style={{
@@ -1237,7 +1255,9 @@ function LifestyleSelect({ id, label, helper, value, options, onChange }) {
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      <HelperText id={`${id}-hint`}>{helper}</HelperText>
+      {/* Helper is optional: when a module states "all optional" once at its top
+          (e.g. "How to connect with me"), the per-field repeat is dropped. */}
+      {helper && <HelperText id={`${id}-hint`}>{helper}</HelperText>}
     </div>
   );
 }
@@ -2155,49 +2175,12 @@ function AgeRangeSlider({ low, high, onChange }) {
 }
 
 // ─── Profile-completeness nudge (backlog #4) ─────────────────────────────────
-// Tracks the 8 autism-specific "differentiator" fields that enrich a Spectrum
+// Tracks the 7 autism-specific "differentiator" fields that enrich a Spectrum
 // profile beyond the required name + interests. Renders a calm tile-based
-// progress bar + a chip list of what's still empty. Hidden once all 8 are done.
-
-// Brand spectrum ramp (literal hex — theme-constant, never flag colours) used
-// to paint the completeness meter as the ramp filling left→right (D-8).
-// A-2 nit #2: luminance now rises MONOTONICALLY green→sand so the meter reads as
-// steadily "filling" and never dips mid-run — the old deep-teal #3E6660 (relative
-// luminance ~0.11) sat darker than its lit neighbours; it's lifted toward the
-// soft-teal, and the teal is nudged up a hair, so each tile is lighter than the
-// last (~0.24 → 0.25 → 0.28 → 0.32 → 0.42 → 0.71).
-const COMPLETENESS_RAMP = ["#5E9459", "#539490", "#5E9C93", "#6FA39A", "#C9A875", "#E7D9C4"];
-
-// NOTE: `seeking` is deliberately NOT a completeness field. The seeking control
-// always presents a valid chosen state — specific genders OR an explicit "Open
-// to everyone" (which maps to seeking === "", the default). Empty is therefore a
-// complete, valid preference, so `!!seeking` would falsely flag every
-// open-to-everyone user as incomplete with a chip they can never clear. Removing
-// it is the calm, correct fix (it can't false-positive).
-const COMPLETENESS_FIELDS = [
-  { key: "photo",     label: "Add a photo" },
-  { key: "tagline",   label: "Add a tagline" },
-  { key: "bio",       label: "Write your bio" },
-  { key: "pronouns",  label: "Add pronouns / gender" },
-  { key: "commStyle", label: "Fill in comms style" },
-  { key: "sensory",   label: "Add sensory preferences" },
-  { key: "prompt",    label: "Answer a prompt" },
-];
-
-function computeCompleteness({ photos, tagline, bio, gender, pronouns,
-    commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, prompts }) {
-  const filled = {
-    photo:     photos.length > 0,
-    tagline:   tagline.trim().length > 0,
-    bio:       bio.trim().length > 0,
-    pronouns:  !!(gender || pronouns),
-    commStyle: !!(commDirectness || commLiteral || commCadence),
-    sensory:   !!(sensoryEnvironment || sensoryLighting),
-    prompt:    prompts.length > 0,
-  };
-  const missing = COMPLETENESS_FIELDS.filter((f) => !filled[f.key]);
-  return { score: COMPLETENESS_FIELDS.length - missing.length, total: COMPLETENESS_FIELDS.length, missing };
-}
+// progress bar + a chip list of what's still empty. Hidden once all 7 are done.
+// COMPLETENESS_FIELDS / COMPLETENESS_RAMP / computeCompleteness now live in the
+// shared ./completeness.js module (imported above) so the Profile Hub can show
+// the same signal without pulling in this code-split editor chunk.
 
 // Where each completeness field is edited, so a missing-field chip can jump the
 // user straight there. `section` is the COLLAPSIBLE_SECTIONS group id to
@@ -2996,7 +2979,7 @@ function ProfilePreviewModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", pushEnabled, pushSupported, onEnablePush, onDisablePush, initialOpenSection = null, initialPreview = false }) {
+export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", pushEnabled, pushSupported, onEnablePush, onDisablePush, initialOpenSection = null, initialPreview = false, initialJumpField = null }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -3395,6 +3378,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     if (!initialPreview) return;
     previewOpenedRef.current = true;
     setShowPreview(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Completeness drill-in from the Hub: land the editor on the first still-empty
+  // differentiator field. Reuses jumpToField (opens the field's group if any,
+  // scrolls it in, moves focus) — the same path the in-form nudge chips use.
+  const jumpedToFieldRef = useRef(false);
+  useEffect(() => {
+    if (loading || jumpedToFieldRef.current) return;
+    if (!initialJumpField) return;
+    jumpedToFieldRef.current = true;
+    requestAnimationFrame(() => jumpToField(initialJumpField));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
@@ -3993,18 +3988,19 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const membershipSummary = isCompanion ? "Spectrum Companion" : "Spectrum (Free)";
 
   // ── Group: Account — profile review (verification) + notifications. Membership
-  //    left this group, so the summary reflects only the review state (empty =
-  //    "Not set yet"); the ✓ is reserved for a reviewed profile.
+  //    left this group, so the summary reflects only the review state; the ✓ is
+  //    reserved for a reviewed profile. The default unverified state gets a
+  //    NEUTRAL, always-true "Not reviewed yet" — never the shared "Not set yet"
+  //    fallback, which read as an alarming broken-account state (nothing is
+  //    unset here; review just hasn't happened).
   const accountHasContent = verified;
-  const accountSummary = joinParts([
-    verified
-      ? "Reviewed"
-      : verificationRequested === "pending"
-        ? "Review pending"
-        : verificationRequested === "rejected"
-          ? "Review not approved"
-          : "",
-  ]);
+  const accountSummary = verified
+    ? "Reviewed"
+    : verificationRequested === "pending"
+      ? "Review pending"
+      : verificationRequested === "rejected"
+        ? "Review not approved"
+        : "Not reviewed yet";
 
   // ── Header
   return (
@@ -4139,7 +4135,8 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               {verified && <VerifiedBadge />}
             </div>
 
-            {/* Preview my card — backlog #8 */}
+            {/* "How others see you" — opens the read-only card preview. Same
+                dialog the Hub links to under the same name (one name everywhere). */}
             <button
               type="button"
               onClick={() => setShowPreview(true)}
@@ -4158,7 +4155,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 flexShrink: 0,
               }}
             >
-              Preview my card
+              How others see you
             </button>
           </div>
           <SectionRule style={{ marginTop: 8, marginBottom: 18 }} />
@@ -4193,10 +4190,14 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               gap: 12,
               flexWrap: "wrap",
               background: paused ? t.green50 : t.surfaceAlt,
-              border: `1px solid ${paused ? t.accentStrong : t.border}`,
+              // Unpaused: cardBorder (a deeper card edge) + a soft shadow so the
+              // card reads as a discrete surface even in LIGHT, where surfaceAlt
+              // sits ~1 step off the page bg and a plain t.border dissolved.
+              border: `1px solid ${paused ? t.accentStrong : t.cardBorder}`,
               borderRadius: 14,
               padding: "14px 16px",
               marginBottom: 12,
+              boxShadow: t.shadow.sm,
             }}
           >
             <div style={{ minWidth: 200, flex: 1 }}>
@@ -4660,13 +4661,14 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <SubHeading>How to connect with me</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.6 }}>
               The heart of your profile — a calm, one-stop place to tell people how
-              to reach you well. All optional; share as much or as little as you like.
+              to reach you well. All optional, and shown on your profile — share as
+              much or as little as you like.
             </p>
 
             {/* commNote — the short free-text "about talking" line (was in the
                 always-visible About-you card; now lives with the rest of the moat). */}
             <div style={{ ...fieldGroup }}>
-              <FieldLabel htmlFor="communication-style">Communication style</FieldLabel>
+              <FieldLabel htmlFor="communication-style">About talking</FieldLabel>
               <input
                 id="communication-style"
                 type="text"
@@ -4684,12 +4686,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </HelperText>
             </div>
 
-            {/* Communication preferences (comm directness / style / cadence) */}
-            <ModuleLabel>How I communicate</ModuleLabel>
+            {/* Communication preferences (comm directness / style / cadence).
+                Per-field "Optional — shown on your profile" helpers dropped: the
+                module intro states it once for the whole group. */}
+            <ModuleLabel>How I communicate (quick picks)</ModuleLabel>
             <LifestyleSelect
               id="comm-directness"
               label="Directness"
-              helper="Optional — shown on your profile."
               value={commDirectness}
               onChange={setCommDirectness}
               options={[
@@ -4702,7 +4705,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <LifestyleSelect
               id="comm-literal"
               label="Style"
-              helper="Optional — shown on your profile."
               value={commLiteral}
               onChange={setCommLiteral}
               options={[
@@ -4715,7 +4717,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <LifestyleSelect
               id="comm-cadence"
               label="Reply pace"
-              helper="Optional — shown on your profile."
               value={commCadence}
               onChange={setCommCadence}
               options={[
@@ -4728,7 +4729,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 
             {/* "How to talk to me" context card */}
             <div style={{ marginTop: 8, paddingTop: 20, borderTop: `1px solid ${t.borderLight}` }}>
-              <FieldLabel htmlFor="context-card">How to talk to me</FieldLabel>
+              <FieldLabel htmlFor="context-card">How to talk to me (a note)</FieldLabel>
               <textarea
                 id="context-card"
                 maxLength={300}
@@ -4768,7 +4769,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <LifestyleSelect
                 id="sensory-environment"
                 label="Preferred setting"
-                helper="Optional — shown on your profile."
                 value={sensoryEnvironment}
                 onChange={setSensoryEnvironment}
                 options={[
@@ -4782,7 +4782,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <LifestyleSelect
                 id="sensory-lighting"
                 label="Lighting"
-                helper="Optional — shown on your profile."
                 value={sensoryLighting}
                 onChange={setSensoryLighting}
                 options={[
@@ -4796,7 +4795,6 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <LifestyleSelect
                 id="social-duration"
                 label="Social energy"
-                helper="Optional — shown on your profile."
                 value={socialDuration}
                 onChange={setSocialDuration}
                 options={[
@@ -5267,11 +5265,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               </>
             ) : (
               <>
-                {/* LEAD with reassurance — never "missing out". */}
+                {/* LEAD with reassurance — never "missing out". The tier name is
+                    already the section's collapsed summary, so the body doesn't
+                    restate "Spectrum (Free)" — it goes straight to the promise. */}
                 <p style={{ margin: "0 0 16px", fontSize: 16, color: t.text, lineHeight: 1.7 }}>
-                  You're on <strong>Spectrum (Free)</strong>. Everything you use
-                  every day is free forever — matching, messaging, safety, and
-                  seeing who likes you.
+                  Everything you use every day is free forever — matching,
+                  messaging, safety, and seeing who likes you.
                 </p>
 
                 {/* Calm "what Companion adds" card — framed as ADDITIONS, no lock
