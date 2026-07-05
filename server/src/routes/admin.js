@@ -29,17 +29,27 @@ const TERMINAL_REPORT_STATUSES = ['actioned', 'dismissed'];
 const TEST_ACCOUNT_LIKE = `%${TEST_EMAIL_DOMAIN}`;
 const DEMO_ACCOUNT_LIKE = `%${DEMO_EMAIL_DOMAIN}`;
 
-// The profile-photo moderation queue (list + counts + oldest-pending age) must
-// exclude test/demo-account uploads the same way the member count does — QA
-// harness accounts (@spectrum-test.dev) and demo personas (@sample.spectrum-
-// dating.app) accumulate pending photos that would otherwise bury the handful of
-// REAL photos a moderator needs to review (this caused a ~500-item false queue).
-// Every query below JOINs `users u ON u.id = pp.user_id`. Orphan rows (no owner)
-// stay visible so a genuine dangling photo still surfaces. Params order:
-// [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE].
-const PENDING_PHOTO_WHERE =
-  "pp.review_status = 'pending_review' AND (u.email IS NULL OR (u.email NOT LIKE ? AND u.email NOT LIKE ?))";
-const PENDING_PHOTO_PARAMS = [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE];
+// Every moderation queue (photo / audio / attachment / verification — list,
+// count, AND oldest-pending age) must exclude test/demo-account activity the same
+// way the member count does. QA harness accounts (@spectrum-test.dev) and demo
+// personas (@sample.spectrum-dating.app) accumulate pending items that otherwise
+// bury the handful of REAL items a moderator needs to review — the profile-photo
+// queue reached a ~500-item false backlog this way. Each query JOINs `users u`
+// on the queue row's owner column; orphan rows (no owner → NULL email) stay
+// visible so a genuine dangling item still surfaces. `notTestDemo(col)` returns
+// the clause; bind EXCLUDE_ACCOUNT_PARAMS (order: [TEST, DEMO]) once per use.
+const EXCLUDE_ACCOUNT_PARAMS = [TEST_ACCOUNT_LIKE, DEMO_ACCOUNT_LIKE];
+function notTestDemo(col) {
+  return `(${col} IS NULL OR (${col} NOT LIKE ? AND ${col} NOT LIKE ?))`;
+}
+const PENDING_PHOTO_WHERE = `pp.review_status = 'pending_review' AND ${notTestDemo('u.email')}`;
+const PENDING_PHOTO_PARAMS = EXCLUDE_ACCOUNT_PARAMS;
+// Sibling queues, same exclusion (owner columns: audio/verification = user_id,
+// attachment = uploader_id). The QA audio driver in particular records many
+// pending clips under pooled @spectrum-test.dev accounts.
+const PENDING_AUDIO_WHERE = `pa.review_status = 'pending_review' AND ${notTestDemo('u.email')}`;
+const PENDING_ATTACHMENT_WHERE = `a.upload_status = 'pending_review' AND ${notTestDemo('u.email')}`;
+const PENDING_VERIFICATION_WHERE = `vr.status = 'pending' AND ${notTestDemo('u.email')}`;
 
 // Append-only moderation audit log.
 function logMod(db, actorId, action, targetId, detail = '') {
@@ -692,9 +702,9 @@ router.get('/verification-requests', requireAuth, requireAdmin, (req, res) => {
     FROM verification_requests vr
     LEFT JOIN users u ON u.id = vr.user_id
     LEFT JOIN profiles p ON p.user_id = vr.user_id
-    WHERE vr.status = ?
+    WHERE vr.status = ? AND ${notTestDemo('u.email')}
     ORDER BY vr.requested_at DESC
-  `).all(status);
+  `).all(status, ...EXCLUDE_ACCOUNT_PARAMS);
 
   const requests = rows.map(r => ({
     userId: r.user_id,
@@ -779,37 +789,43 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
   // B-B: per-queue depth + oldest-pending age so the dashboard can flag backlog
   // and past-SLA items. All hit existing indexes / small pending sets.
   const pendingAttachments = db.prepare(
-    "SELECT COUNT(*) AS c FROM message_attachments WHERE upload_status = 'pending_review'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM message_attachments a
+     LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
   const pendingProfilePhotos = db.prepare(
     `SELECT COUNT(*) AS c FROM profile_photos pp
      LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
   ).get(...PENDING_PHOTO_PARAMS).c;
   const pendingVerifications = db.prepare(
-    "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM verification_requests vr
+     LEFT JOIN users u ON u.id = vr.user_id WHERE ${PENDING_VERIFICATION_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
   // Audio backlog must be visible too — an unreviewed audio queue is otherwise
   // an invisible moderation-ops gap (a false "all clear").
   const pendingProfileAudio = db.prepare(
-    "SELECT COUNT(*) AS c FROM profile_audio WHERE review_status = 'pending_review'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM profile_audio pa
+     LEFT JOIN users u ON u.id = pa.user_id WHERE ${PENDING_AUDIO_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
 
   const oldestOpenReportAt = db.prepare(
     "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
   ).get().t ?? null;
   const oldestPendingAttachmentAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM message_attachments WHERE upload_status = 'pending_review'"
-  ).get().t ?? null;
+    `SELECT MIN(a.created_at) AS t FROM message_attachments a
+     LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).t ?? null;
   const oldestPendingProfilePhotoAt = db.prepare(
     `SELECT MIN(pp.created_at) AS t FROM profile_photos pp
      LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
   ).get(...PENDING_PHOTO_PARAMS).t ?? null;
   const oldestPendingVerificationAt = db.prepare(
-    "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
-  ).get().t ?? null;
+    `SELECT MIN(vr.requested_at) AS t FROM verification_requests vr
+     LEFT JOIN users u ON u.id = vr.user_id WHERE ${PENDING_VERIFICATION_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).t ?? null;
   const oldestPendingProfileAudioAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM profile_audio WHERE review_status = 'pending_review'"
-  ).get().t ?? null;
+    `SELECT MIN(pa.created_at) AS t FROM profile_audio pa
+     LEFT JOIN users u ON u.id = pa.user_id WHERE ${PENDING_AUDIO_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).t ?? null;
 
   res.json({
     // Real members (test/demo excluded). `totalUsers` kept as an alias for
@@ -839,9 +855,10 @@ router.get('/stats', requireAuth, requireAdmin, (req, res) => {
 // A deliberately-tiny sibling of /admin/stats: just the four "Needs attention"
 // integers + their oldest-pending timestamps (for the age subtext / past-SLA
 // amber tone). It runs NO member/matches/messages COUNT(*) full-table scans, so
-// the frontend's optional 60s "Live counts" background poll is cheap. These
-// depths are demo-INDEPENDENT (the queues aren't filtered by member type), so
-// there's no ?demo param. Admin-gated + rate-limited by the shared adminApiLimiter
+// the frontend's optional 60s "Live counts" background poll is cheap. There's no
+// ?demo param: these are real-member moderation depths — test AND demo-account
+// activity is ALWAYS excluded (they must never generate moderation work), unlike
+// the member count where demo is toggleable. Admin-gated + rate-limited by the shared adminApiLimiter
 // mounted at /admin. Numbers only — never a live push; the client polls calmly.
 // ---------------------------------------------------------------------------
 router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
@@ -851,35 +868,41 @@ router.get('/queue-counts', requireAuth, requireAdmin, (req, res) => {
     "SELECT COUNT(*) AS c FROM reports WHERE status = 'open'"
   ).get().c;
   const pendingAttachments = db.prepare(
-    "SELECT COUNT(*) AS c FROM message_attachments WHERE upload_status = 'pending_review'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM message_attachments a
+     LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
   const pendingProfilePhotos = db.prepare(
     `SELECT COUNT(*) AS c FROM profile_photos pp
      LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
   ).get(...PENDING_PHOTO_PARAMS).c;
   const pendingVerifications = db.prepare(
-    "SELECT COUNT(*) AS c FROM verification_requests WHERE status = 'pending'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM verification_requests vr
+     LEFT JOIN users u ON u.id = vr.user_id WHERE ${PENDING_VERIFICATION_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
   const pendingProfileAudio = db.prepare(
-    "SELECT COUNT(*) AS c FROM profile_audio WHERE review_status = 'pending_review'"
-  ).get().c;
+    `SELECT COUNT(*) AS c FROM profile_audio pa
+     LEFT JOIN users u ON u.id = pa.user_id WHERE ${PENDING_AUDIO_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).c;
 
   const oldestOpenReportAt = db.prepare(
     "SELECT MIN(created_at) AS t FROM reports WHERE status = 'open'"
   ).get().t ?? null;
   const oldestPendingAttachmentAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM message_attachments WHERE upload_status = 'pending_review'"
-  ).get().t ?? null;
+    `SELECT MIN(a.created_at) AS t FROM message_attachments a
+     LEFT JOIN users u ON u.id = a.uploader_id WHERE ${PENDING_ATTACHMENT_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).t ?? null;
   const oldestPendingProfilePhotoAt = db.prepare(
     `SELECT MIN(pp.created_at) AS t FROM profile_photos pp
      LEFT JOIN users u ON u.id = pp.user_id WHERE ${PENDING_PHOTO_WHERE}`
   ).get(...PENDING_PHOTO_PARAMS).t ?? null;
   const oldestPendingVerificationAt = db.prepare(
-    "SELECT MIN(requested_at) AS t FROM verification_requests WHERE status = 'pending'"
-  ).get().t ?? null;
+    `SELECT MIN(vr.requested_at) AS t FROM verification_requests vr
+     LEFT JOIN users u ON u.id = vr.user_id WHERE ${PENDING_VERIFICATION_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).t ?? null;
   const oldestPendingProfileAudioAt = db.prepare(
-    "SELECT MIN(created_at) AS t FROM profile_audio WHERE review_status = 'pending_review'"
-  ).get().t ?? null;
+    `SELECT MIN(pa.created_at) AS t FROM profile_audio pa
+     LEFT JOIN users u ON u.id = pa.user_id WHERE ${PENDING_AUDIO_WHERE}`
+  ).get(...EXCLUDE_ACCOUNT_PARAMS).t ?? null;
 
   res.json({
     reports: { open: openReports },
@@ -969,9 +992,9 @@ router.get('/attachments', requireAuth, requireAdmin, (req, res) => {
            u.email AS uploader_email
     FROM message_attachments a
     LEFT JOIN users u ON u.id = a.uploader_id
-    WHERE a.upload_status = ?
+    WHERE a.upload_status = ? AND ${notTestDemo('u.email')}
     ORDER BY a.created_at DESC
-  `).all(status);
+  `).all(status, ...EXCLUDE_ACCOUNT_PARAMS);
 
   const attachments = rows.map(r => ({
     id: r.id,

@@ -191,8 +191,9 @@ describe('SAFETY-2: profile photos require admin approval', () => {
     expect(getCandidates(db, makeUser(), ['hiking']).map((c) => c.user_id)).toContain(subject);
   });
 
-  // The moderation photo queue must not fill with QA-harness / demo uploads: a
-  // ~500-item false backlog buried the real photos a moderator needs to see.
+  // The moderation queues must not fill with QA-harness / demo activity: a
+  // ~500-item false photo backlog buried the real items a moderator needs to see.
+  // Same exclusion now covers photo / audio / attachment / verification.
   it('pending photos from test/demo accounts are excluded from the queue + counts, real ones stay', async () => {
     const admin = db.prepare("SELECT id FROM users WHERE email = 'admin@t.dev'").get().id;
     const token = signToken(admin, 0);
@@ -217,6 +218,49 @@ describe('SAFETY-2: profile photos require admin approval', () => {
     // At least the real photo is counted; the two excluded ones are not double-counted.
     expect(priorStats.json.pendingProfilePhotos).toBe(ids.length);
     expect(priorCounts.json.pendingProfilePhotos).toBe(ids.length);
+  });
+
+  it('audio / attachment / verification queues also exclude test/demo (count delta = real only)', async () => {
+    const admin = db.prepare("SELECT id FROM users WHERE email = 'admin@t.dev'").get().id;
+    const token = signToken(admin, 0);
+
+    const before = (await api('/admin/stats', { token })).json;
+
+    const t = makeUser({ email: `qa+y${++uid}@spectrum-test.dev` });
+    const d = makeUser({ email: `telemetry-demo-${++uid}@sample.spectrum-dating.app` });
+    const r = makeUser();
+
+    // One pending row per queue, per account.
+    for (const u of [t, d, r]) {
+      db.prepare(
+        `INSERT INTO profile_audio (id, user_id, prompt_key, storage_key, url, transcript, duration_ms, mime_type, review_status, position, created_at)
+         VALUES (?, ?, 'q1', ?, ?, 'hi', 5000, 'audio/webm', 'pending_review', 0, ?)`
+      ).run(`au${++uid}`, u, `profile-audio/${u}/a.webm`, `https://cdn/a-${u}.webm`, Date.now());
+      db.prepare(
+        `INSERT INTO message_attachments (id, uploader_id, storage_key, public_url, mime_type, file_size_bytes, upload_status, created_at)
+         VALUES (?, ?, ?, ?, 'image/jpeg', 1000, 'pending_review', ?)`
+      ).run(`at${++uid}`, u, `att/${u}/x.jpg`, `https://cdn/att-${u}.jpg`, Date.now());
+      db.prepare(
+        "INSERT INTO verification_requests (id, user_id, status, requested_at) VALUES (?, ?, 'pending', ?)"
+      ).run(`vr${++uid}`, u, Date.now());
+    }
+
+    const after = (await api('/admin/stats', { token })).json;
+    // Exactly one new real item per queue; the test+demo rows are excluded.
+    expect(after.pendingProfileAudio - before.pendingProfileAudio).toBe(1);
+    expect(after.pendingAttachments - before.pendingAttachments).toBe(1);
+    expect(after.pendingVerifications - before.pendingVerifications).toBe(1);
+
+    // List endpoints: real owner present, test/demo absent.
+    const vlist = (await api('/admin/verification-requests', { token })).json.requests.map((x) => x.userId);
+    expect(vlist).toContain(r);
+    expect(vlist).not.toContain(t);
+    expect(vlist).not.toContain(d);
+
+    const alist = (await api('/admin/attachments', { token })).json.attachments.map((x) => x.uploaderId);
+    expect(alist).toContain(r);
+    expect(alist).not.toContain(t);
+    expect(alist).not.toContain(d);
   });
 });
 
