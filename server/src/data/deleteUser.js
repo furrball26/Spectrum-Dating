@@ -19,9 +19,20 @@ export function deleteUserRows(db, userId) {
 
   let attachmentKeys = [];
   try {
+    // T6: collect attachment keys for EVERY attachment in this user's
+    // conversations, not just the ones THEY uploaded. When the account is
+    // deleted its conversations are destroyed (for both parties), and the
+    // attachment rows cascade away via message_id — so the OTHER party's
+    // attachment R2 objects in those threads would orphan in the bucket if we
+    // only collected uploader_id = self. Keyed by conversation membership.
     attachmentKeys = db.prepare(
-      'SELECT storage_key FROM message_attachments WHERE uploader_id = ? AND storage_key IS NOT NULL AND storage_key != ?'
-    ).all(userId, '').map(r => r.storage_key);
+      `SELECT ma.storage_key
+       FROM message_attachments ma
+       JOIN messages m ON m.id = ma.message_id
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE (c.user_a_id = ? OR c.user_b_id = ?)
+         AND ma.storage_key IS NOT NULL AND ma.storage_key != ''`
+    ).all(userId, userId).map(r => r.storage_key);
   } catch {
     // message_attachments may not exist / be relevant in all deployments.
     attachmentKeys = [];

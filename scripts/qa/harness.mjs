@@ -145,7 +145,10 @@ export async function cleanupAccounts(tokens = []) {
     const token = typeof entry === "string" ? entry : entry?.token;
     if (!token) continue;
     try {
-      await api("/account/me", { method: "DELETE" }, token);
+      // DELETE /account/me now re-verifies the password (T5). Every QA account
+      // (makeAccount / getPooledAccount) uses this same fixed password, so send
+      // it so teardown still works. cleanupAccounts only ever receives QA tokens.
+      await api("/account/me", { method: "DELETE", body: { password: "TestPass12345!" } }, token);
     } catch { /* best-effort — ignore */ }
   }
 }

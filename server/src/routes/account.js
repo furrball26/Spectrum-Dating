@@ -73,8 +73,20 @@ router.post('/change-email', requireAuth, accountSecurityLimiter, async (req, re
 
 // DELETE /account/me — permanently delete the user and all their data via the
 // shared cascade (DB rows in a transaction, then best-effort R2 object cleanup).
-router.delete('/me', requireAuth, (req, res) => {
+// T5: this is irreversible, so it re-verifies the password — exactly like
+// change-password / change-email above. Without it a hijacked (but not
+// password-knowing) session could nuke the whole account. The admin bulk purge
+// calls deleteUserCascade directly and is unaffected.
+router.delete('/me', requireAuth, accountSecurityLimiter, async (req, res) => {
   const { db, userId } = req.ctx;
+  const { password } = req.body ?? {};
+  if (!password) {
+    return res.status(400).json({ error: 'Please enter your password to confirm.' });
+  }
+  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    return res.status(403).json({ error: "That password doesn't match. Please check it and try again." });
+  }
   try {
     deleteUserCascade(db, userId);
   } catch (e) {
