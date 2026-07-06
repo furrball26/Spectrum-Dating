@@ -34,8 +34,16 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
   const [failMsg, setFailMsg] = useState("");
   const headingRef = useRef(null);
   const dialogRef = useRef(null);
+  const statusRef = useRef(null);
   const fCancel = useFocusable();
   const fSubmit = useFocusable();
+
+  // B27 — after submit the labelled heading unmounts; move focus to the success
+  // status line (rather than letting it fall to <body>) so a screen-reader user
+  // isn't dumped to the top. WCAG 2.4.3.
+  useEffect(() => {
+    if (submitted) statusRef.current?.focus();
+  }, [submitted]);
 
   // Move focus into the dialog on open, restore to the trigger on close. WCAG 2.4.3.
   useEffect(() => {
@@ -179,7 +187,9 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
         {submitted ? (
           <p
             role="status"
-            style={{ color: t.textSoft, textAlign: "center", margin: 0, lineHeight: 1.6 }}
+            ref={statusRef}
+            tabIndex={-1}
+            style={{ color: t.textSoft, textAlign: "center", margin: 0, lineHeight: 1.6, outline: "none" }}
           >
             {confirmMsg}
           </p>

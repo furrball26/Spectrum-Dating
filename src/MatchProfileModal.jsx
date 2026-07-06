@@ -59,8 +59,12 @@ export default function MatchProfileModal({ userId, onClose }) {
 
   // Escape to close + Tab/Shift+Tab focus trap. The dialog's focusable set is
   // dynamic (varies with loaded content), so query it live on each Tab. WCAG 2.4.3 / 2.1.2.
+  // B7 — while the child ReportModal is open (reportAudioId set) it owns the
+  // keyboard: this parent goes fully inert so one Escape closes only the report
+  // modal (not both) and the two focus traps don't fight.
   useEffect(() => {
     const onKey = (e) => {
+      if (reportAudioId) return;
       if (e.key === "Escape") { onClose?.(); return; }
       if (e.key === "Tab") {
         const root = dialogRef.current;
@@ -88,7 +92,7 @@ export default function MatchProfileModal({ userId, onClose }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, reportAudioId]);
 
   const chips = profile ? commChips(profile) : [];
 

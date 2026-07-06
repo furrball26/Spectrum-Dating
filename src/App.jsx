@@ -465,6 +465,10 @@ const srOnly = {
 // no identity-theme trust&safety invariant (logout reset, double-tap, client-only)
 // changes here.
 function LogoRevertShell({ active, onRevert, style, children }) {
+  // B8 — hook before any early return (React #310). The panic-revert button is a
+  // safety-critical control, so it must carry the app's visible keyboard focus
+  // ring like every other interactive control.
+  const f = useFocusable();
   if (active) {
     return (
       <button
@@ -472,6 +476,8 @@ function LogoRevertShell({ active, onRevert, style, children }) {
         aria-label="Switch back to Warm dim"
         onClick={onRevert}
         onDoubleClick={onRevert}
+        onFocus={f.onFocus}
+        onBlur={f.onBlur}
         style={{
           display: "flex",
           alignItems: "center",
@@ -484,6 +490,7 @@ function LogoRevertShell({ active, onRevert, style, children }) {
           cursor: "pointer",
           textAlign: "left",
           ...style,
+          ...f.style,
         }}
       >
         {children}

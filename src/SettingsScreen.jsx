@@ -57,11 +57,11 @@ function SecondaryButton({ children, onClick }) {
 // still applies instantly (predictable), and dim stays the default.
 const THEME_CARDS = [
   { key: "dim",       label: "Warm dim",   note: "The calm default", bg: "#181F1D", surface: "#26312D", border: "#3E4D47", accent: "#356962", text: "#E4EAE6" },
-  { key: "light",     label: "Light",      note: "",                 bg: "#F5F3EE", surface: "#FFFFFF", border: "#C7D2CA", accent: "#3E6660", text: "#24332D" },
-  { key: "navy",      label: "Navy",       note: "",                 bg: "#121A2B", surface: "#1C2740", border: "#3A4B6B", accent: "#33518A", text: "#E5EAF3" },
-  { key: "lightblue", label: "Light blue", note: "",                 bg: "#F2F5F9", surface: "#FFFFFF", border: "#BFCEDC", accent: "#2F5675", text: "#22303F" },
+  { key: "light",     label: "Light",      note: "Bright and airy",  bg: "#F5F3EE", surface: "#FFFFFF", border: "#C7D2CA", accent: "#3E6660", text: "#24332D" },
+  { key: "navy",      label: "Navy",       note: "Deep and restful", bg: "#121A2B", surface: "#1C2740", border: "#3A4B6B", accent: "#33518A", text: "#E5EAF3" },
+  { key: "lightblue", label: "Light blue", note: "Cool and quiet",   bg: "#F2F5F9", surface: "#FFFFFF", border: "#BFCEDC", accent: "#2F5675", text: "#22303F" },
   { key: "pastel",    label: "Pastel",     note: "Soft yellow, lavender, and pastels", bg: "#FCF8E6", surface: "#FFFFFF", border: "#DED6BE", accent: "#5A4B92", text: "#2F2C22", stripes: ["#F4D06A", "#B7DCA6", "#A7C7E7", "#B9A7DE", "#F4B6C2"] },
-  { key: "pink",      label: "Pink",       note: "",                 bg: "#FCE9F0", surface: "#FFFFFF", border: "#E7BDCE", accent: "#97285A", text: "#3A2430" },
+  { key: "pink",      label: "Pink",       note: "Soft and warm",    bg: "#FCE9F0", surface: "#FFFFFF", border: "#E7BDCE", accent: "#97285A", text: "#3A2430" },
   // Identity themes — named honestly (the rendered colors are what an onlooker
   // recognizes, not the menu label; euphemisms only patronize). The flag shows
   // in the swatch stripe; the UI itself stays a calm single-accent theme.
@@ -496,6 +496,9 @@ function CompanionMarker() {
 export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) {
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
+  // B26 — remembers the user's reduceMotion value from BEFORE Low-Stim forced it
+  // on, so turning Low-Stim off restores it instead of leaving reduceMotion stuck.
+  const priorReduceMotion = useRef(null);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -506,8 +509,18 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
       setPrefs((prev) => {
         const next = { ...prev, [key]: value };
         // Low Stimulation implies reduce-motion (it absorbed Calm mode). Keep them
-        // coherent so the switches reflect what's actually applied.
-        if (key === "reducedSensory" && value) next.reduceMotion = true;
+        // coherent so the switches reflect what's actually applied. B26 — remember
+        // the pre-Low-Stim reduceMotion when turning it ON, and restore that prior
+        // value when turning it OFF (falling back to off) so it isn't stuck on.
+        if (key === "reducedSensory") {
+          if (value) {
+            priorReduceMotion.current = prev.reduceMotion;
+            next.reduceMotion = true;
+          } else {
+            next.reduceMotion = priorReduceMotion.current ?? false;
+            priorReduceMotion.current = null;
+          }
+        }
         try {
           localStorage.setItem(A11Y_KEY, JSON.stringify(next));
         } catch {

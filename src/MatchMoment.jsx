@@ -75,9 +75,15 @@ export default function MatchMoment({ you, them, onContinue, onOpenChat, plainLa
     return () => cancelAnimationFrame(raf);
   }, [prefersReduced]);
 
-  // Focus the heading on open (announced via aria-labelledby on the dialog).
+  // Focus the heading on open (announced via aria-labelledby on the dialog), and
+  // restore focus to whatever was focused before the overlay opened when it
+  // closes — otherwise focus drops to <body>. B15 / WCAG 2.4.3.
   useEffect(() => {
+    const prevFocus = document.activeElement;
     headingRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
   }, []);
 
   // Escape → onContinue. Focus trap between the two buttons.
