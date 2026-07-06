@@ -277,6 +277,7 @@
   <table>
     <tr><th style="width:26%;">Area</th><th>Fix</th></tr>
     <tr><td><strong>Privacy hardening</strong></td><td>The "download my data" export no longer puts a full session token in the URL — it mints a short-lived, purpose-scoped token instead (a session token in a URL leaks via logs/Referer/history). Legacy path removed and locked with a test.</td></tr>
+    <tr><td><strong>Account security</strong></td><td>Deleting an account now re-verifies the password (like change-password/change-email), so a hijacked session can't nuke the account; and deletion now garbage-collects the counterpart's message-attachment objects too, instead of orphaning them in storage.</td></tr>
     <tr><td><strong>Validation</strong></td><td>Age-range preferences are now validated on single-field updates too, so a Discover-filter change can't silently persist an inverted range that empties the deck.</td></tr>
     <tr><td><strong>Admin calm</strong></td><td>Report cards no longer all expand their decision form at once (the suggested action is pre-selected and the panel opens on tap); the Ban button is hidden for already-banned members; "skip for now" persists for the session so a refresh doesn't resurface it.</td></tr>
     <tr><td><strong>Accessibility</strong></td><td>Screen-reader label on the profile modal; reduced-sensory fallbacks for decorative illustrations in the messaging surfaces; visible labels on the profile-hub icon buttons.</td></tr>
@@ -418,7 +419,7 @@
       <h4>Back end</h4>
       <p class="small" style="margin-bottom:0;">Node ≥20 · Express · socket.io · JWT
       (<code>jsonwebtoken</code>) · bcrypt · <strong>better-sqlite3</strong> (embedded,
-      synchronous) · helmet · cors · express-rate-limit · Vitest (433 tests).</p>
+      synchronous) · helmet · cors · express-rate-limit · Vitest (436 tests).</p>
     </div>
   </div>
 
@@ -526,7 +527,6 @@
 
   <h3>Robustness &amp; safety (needs a decision or a vendor)</h3>
   <ul>
-    <li>Password re-entry on account deletion (a hijacked session can currently delete an account).</li>
     <li>Ban-evasion ledger (salted email/device hash checked at registration) — pairs with the SMS vendor (5E).</li>
     <li>Quarantine-on-reject for media instead of immediate delete (preserves CSAM evidence) — pairs with the CSAM vendor (5E).</li>
     <li>Name/pronoun screening extension (some troll input passes today) — pairs with the test-data purge (5F).</li>
@@ -546,8 +546,9 @@
   </ul>
   <p class="note">Closed in the Section 4 passes (no longer outstanding): the export-token leak,
   age-range validation, dead-code cull, admin report/queue polish, all the accessibility-AA and
-  reduced-sensory work, the calm-copy reframes, orientation opt-out, the "Top Picks" rename, and
-  the stale QA drivers/status doc.</p>
+  reduced-sensory work, the calm-copy reframes, orientation opt-out, the "Top Picks" rename, the
+  stale QA drivers/status doc, <strong>password re-entry on account deletion</strong>, and
+  <strong>garbage-collecting the counterpart's message attachments on deletion</strong>.</p>
 
   <div class="card">
     <p style="margin-bottom:0;" class="small"><strong>Companion source documents</strong> (in
