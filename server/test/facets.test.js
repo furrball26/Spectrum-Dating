@@ -230,3 +230,30 @@ describe('F28: payload shape across surfaces', () => {
     expect(m.otherUser.hardForMe).toEqual(['Phone calls']);
   });
 });
+
+// B24: age-range cross-check must catch an inverted range even when only ONE
+// bound is sent (a single-field Discover-filter update). Before the fix the
+// check ran only when BOTH bounds were in the same request, so a lone update
+// could persist min>max and silently empty the deck.
+describe('B24: prefAge single-bound update is validated against the stored bound', () => {
+  it('rejects a lone prefAgeMin above the stored max, and a lone prefAgeMax below the stored min', async () => {
+    const u = makeUser();
+    const t = signToken(u, 0);
+
+    // Lower the stored max to 40 (default min is 18) — valid on its own.
+    const setMax = await api('/profile/me', { token: t, method: 'PUT', body: { prefAgeMax: 40 } });
+    expect(setMax.status).toBe(200);
+
+    // A lone prefAgeMin above the stored max (40) must 400, not silently invert.
+    const badMin = await api('/profile/me', { token: t, method: 'PUT', body: { prefAgeMin: 60 } });
+    expect(badMin.status).toBe(400);
+
+    // A valid lone prefAgeMin (≤ stored max) still passes.
+    const okMin = await api('/profile/me', { token: t, method: 'PUT', body: { prefAgeMin: 30 } });
+    expect(okMin.status).toBe(200);
+
+    // Now stored range is 30–40. A lone prefAgeMax below the stored min (30) 400s.
+    const badMax = await api('/profile/me', { token: t, method: 'PUT', body: { prefAgeMax: 20 } });
+    expect(badMax.status).toBe(400);
+  });
+});

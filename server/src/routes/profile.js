@@ -418,8 +418,25 @@ router.put('/me', requireAuth, (req, res) => {
   if (body.prefAgeMax !== undefined && !validAge(body.prefAgeMax)) {
     errors.push('prefAgeMax must be an integer between 18 and 99.');
   }
-  if (body.prefAgeMin !== undefined && body.prefAgeMax !== undefined && body.prefAgeMin > body.prefAgeMax) {
-    errors.push('prefAgeMin cannot be greater than prefAgeMax.');
+  // Cross-field range check. When BOTH bounds are sent, compare them directly.
+  // When only ONE is sent, compare it against the STORED opposite bound — else a
+  // single-field update (e.g. from Discover filters) can silently persist an
+  // inverted range (min > max) that empties the deck with no error. Guarded by
+  // validAge so we never double-report an already-invalid value.
+  if (body.prefAgeMin !== undefined && body.prefAgeMax !== undefined) {
+    if (validAge(body.prefAgeMin) && validAge(body.prefAgeMax) && body.prefAgeMin > body.prefAgeMax) {
+      errors.push('prefAgeMin cannot be greater than prefAgeMax.');
+    }
+  } else if (body.prefAgeMin !== undefined && validAge(body.prefAgeMin)) {
+    const storedMax = db.prepare('SELECT pref_age_max FROM profiles WHERE user_id = ?').get(userId)?.pref_age_max ?? 99;
+    if (body.prefAgeMin > storedMax) {
+      errors.push('prefAgeMin cannot be greater than your current maximum age.');
+    }
+  } else if (body.prefAgeMax !== undefined && validAge(body.prefAgeMax)) {
+    const storedMin = db.prepare('SELECT pref_age_min FROM profiles WHERE user_id = ?').get(userId)?.pref_age_min ?? 18;
+    if (body.prefAgeMax < storedMin) {
+      errors.push('prefAgeMax cannot be less than your current minimum age.');
+    }
   }
   if (body.pronouns !== undefined) {
     if (typeof body.pronouns !== 'string') errors.push('pronouns must be a string.');

@@ -1,5 +1,13 @@
 # Status
 
+> ⚠️ **SUPERSEDED — read `CLAUDE.md` first.** `CLAUDE.md` is the authoritative
+> project brain and ship pipeline; this file is historical agent shared-memory
+> and parts are stale. In particular the **backend deploy** is now done with
+> `RAILWAY_TOKEN=… node server/scripts/deploy.mjs` (runs `railway up` from the
+> repo root, then blocks on `/health` until the new commit SHA is live) — the
+> old "never `railway up`, push-to-master only" guidance below is obsolete.
+> Frontend still ships via Vercel Git integration on push to `master`.
+
 ---
 ## ⭐ CURRENT STATE — READ THIS FIRST (living shared-memory for all agents) · updated 2026-07-03
 
