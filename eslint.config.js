@@ -12,6 +12,12 @@ export default [
   {
     ignores: [
       "dist/**",
+      // Any nested build output, not just the root dist/. Agent worktrees live
+      // under .claude/worktrees/<id>/ and carry their own dist/ — without this
+      // the root `npx eslint .` ship gate lints thousands of built lines that
+      // aren't ours and fails. Covers .claude/** and any stray nested dist/.
+      ".claude/**",
+      "**/dist/**",
       "node_modules/**",
       "public/**",
       "scripts/**",
