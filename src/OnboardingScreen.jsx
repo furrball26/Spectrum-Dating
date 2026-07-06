@@ -211,22 +211,38 @@ function AgeRangeSlider({ low, high, onChange }) {
     }
   }
 
-  const THUMB = 26;
+  const THUMB = 26; // visible knob — kept small for a calm look
+  const HIT = 44;   // WCAG 2.5.5 — actionable area is a ≥44×44 transparent wrapper
   function thumbStyle(which) {
     return {
       position: "absolute",
       top: "50%",
       left: `${pct(which === "low" ? low : high)}%`,
       transform: "translate(-50%, -50%)",
+      width: HIT,
+      height: HIT,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "50%",
+      background: "transparent",
+      cursor: dragging === which ? "grabbing" : "grab",
+      touchAction: "none",
+      zIndex: which === dragging ? 3 : 2,
+    };
+  }
+  // The visible knob sits inside the 44px hit area; the focus ring hugs it (not
+  // the larger transparent target) so the indicator stays tight and calm.
+  function knobStyle(focused) {
+    return {
       width: THUMB,
       height: THUMB,
       borderRadius: "50%",
       background: t.accentFill,
       border: "3px solid #fff",
       boxShadow: t.shadow.sm,
-      cursor: dragging === which ? "grabbing" : "grab",
-      touchAction: "none",
-      zIndex: which === dragging ? 3 : 2,
+      pointerEvents: "none",
+      ...(focused ? focusRing : {}),
     };
   }
 
@@ -289,8 +305,10 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "low")}
           onFocus={() => setFocusedThumb("low")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRing : {}) }}
-        />
+          style={thumbStyle("low")}
+        >
+          <span aria-hidden="true" style={knobStyle(focusedThumb === "low")} />
+        </div>
 
         <div
           role="slider"
@@ -304,8 +322,10 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "high")}
           onFocus={() => setFocusedThumb("high")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRing : {}) }}
-        />
+          style={thumbStyle("high")}
+        >
+          <span aria-hidden="true" style={knobStyle(focusedThumb === "high")} />
+        </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: t.textMuted, marginTop: 2 }}>
@@ -618,7 +638,10 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
           aria-labelledby="ob-suggestions-heading"
           style={{ marginBottom: 16 }}
         >
-          <h3
+          {/* h2 (not h3): the step title is the page's h1, so the interests
+              subsection heading must be h2 — an h3 here skips a level (WCAG
+              1.3.1 / heading order). Visual size unchanged via inline styling. */}
+          <h2
             id="ob-suggestions-heading"
             style={{
               fontSize: 14,
@@ -630,7 +653,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
             }}
           >
             Suggested
-          </h3>
+          </h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {SUGGESTED_INTERESTS.map((tag) => (
               <SuggestionChip
@@ -1070,10 +1093,15 @@ function Step4({
         <HelperText id="ob-pronouns-hint">Shown on your profile so people address you correctly.</HelperText>
       </div>
 
-      <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+      <fieldset aria-required="true" style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
         <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 6, float: "left", width: "100%" }}>
           Who do you want to meet?
+          {/* Visual asterisk stays aria-hidden; the "(required)" text is real,
+              non-aria-hidden, so it's part of the group's accessible name and
+              assistive tech is actually told the field is required (WCAG 3.3.2).
+              aria-required on the fieldset reinforces it. */}
           <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>
+          <span style={{ fontWeight: 400, fontSize: 14, color: t.textSoft, marginLeft: 6 }}>(required)</span>
         </legend>
         <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
           Choose who you'd like to meet, or stay open to everyone.
@@ -1085,7 +1113,7 @@ function Step4({
         ].map(({ value, label }) => {
           const checked = seekingSet.includes(value);
           return (
-            <label key={value} htmlFor={`ob-seek-${value}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer" }}>
+            <label key={value} htmlFor={`ob-seek-${value}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer" }}>
               <input
                 id={`ob-seek-${value}`}
                 type="checkbox"
@@ -1108,7 +1136,7 @@ function Step4({
             required selection rather than the untouched default. */}
         <label
           htmlFor="ob-seek-everyone"
-          style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
+          style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", marginTop: 4, paddingTop: 8, borderTop: `1px solid ${t.borderLight}` }}
         >
           <input
             id="ob-seek-everyone"

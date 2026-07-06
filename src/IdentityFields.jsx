@@ -154,13 +154,16 @@ export function GenderField({ gender, setGender, genderCustom, setGenderCustom, 
   }
 
   return (
-    <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+    <fieldset aria-required={required || undefined} style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
       <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4, float: "left", width: "100%" }}>
         Your gender
+        {/* Asterisk stays aria-hidden; the "(required)" text is real so it's in
+            the group's accessible name and AT is told it's required (WCAG 3.3.2). */}
         {required && <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>}
+        {required && <span style={{ fontWeight: 400, fontSize: 14, color: t.textSoft, marginLeft: 6 }}>(required)</span>}
       </legend>
       <span style={{ display: "block", fontSize: 14, color: t.textSoft, margin: "0 0 10px", clear: "both" }}>
-        {required ? "Required. Shown on your profile." : "Optional. Shown on your profile."}
+        {required ? "Shown on your profile." : "Optional. Shown on your profile."}
       </span>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -255,10 +258,13 @@ export function OrientationField({ orientation, setOrientation, required = false
   }
 
   return (
-    <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
+    <fieldset aria-required={required || undefined} style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
       <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 4, float: "left", width: "100%" }}>
         Sexuality
+        {/* Asterisk stays aria-hidden; the "(required)" text is real so it's in
+            the group's accessible name and AT is told it's required (WCAG 3.3.2). */}
         {required && <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>}
+        {required && <span style={{ fontWeight: 400, fontSize: 14, color: t.textSoft, marginLeft: 6 }}>(required)</span>}
       </legend>
       <span style={{ display: "block", fontSize: 14, color: t.textSoft, margin: "0 0 10px", clear: "both" }}>
         {required

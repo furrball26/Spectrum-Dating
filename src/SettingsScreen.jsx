@@ -215,7 +215,7 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
         <p id={`${id}-label`} style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text }}>
           {label}
         </p>
-        <p style={{ margin: "3px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
+        <p id={`${id}-desc`} style={{ margin: "3px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
           {description}
         </p>
       </div>
@@ -224,6 +224,9 @@ function ToggleRow({ id, label, description, checked, onChange, first }) {
         role="switch"
         aria-checked={checked}
         aria-labelledby={`${id}-label`}
+        // Associate the row's description with the switch so a screen reader
+        // announces it alongside the control (WCAG 1.3.1 / 4.1.2).
+        aria-describedby={description ? `${id}-desc` : undefined}
         onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
         {...f}
         style={{

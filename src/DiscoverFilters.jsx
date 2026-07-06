@@ -64,25 +64,41 @@ function AgeRangeSlider({ low, high, onChange }) {
     }
   }
 
-  const THUMB = 26;
+  const THUMB = 26; // visible knob — kept small for a calm look
+  const HIT = 44;   // WCAG 2.5.5 — actionable area is a ≥44×44 transparent wrapper
   function thumbStyle(which) {
     return {
       position: "absolute",
       top: "50%",
       left: `${pct(which === "low" ? low : high)}%`,
       transform: "translate(-50%, -50%)",
-      width: THUMB,
-      height: THUMB,
+      width: HIT,
+      height: HIT,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius: "50%",
-      background: t.accentFill,
-      border: "3px solid #fff",
-      boxShadow: t.shadow.sm,
+      background: "transparent",
       cursor: dragging === which ? "grabbing" : "grab",
       touchAction: "none",
       zIndex: which === dragging ? 3 : 2,
     };
   }
   const focusRingStyle = { outline: `2px solid ${t.focus}`, outlineOffset: "2px" };
+  // The visible knob sits inside the 44px hit area; the focus ring hugs it (not
+  // the larger transparent target) so the indicator stays tight and calm.
+  function knobStyle(focused) {
+    return {
+      width: THUMB,
+      height: THUMB,
+      borderRadius: "50%",
+      background: t.accentFill,
+      border: "3px solid #fff",
+      boxShadow: t.shadow.sm,
+      pointerEvents: "none",
+      ...(focused ? focusRingStyle : {}),
+    };
+  }
 
   return (
     <div style={{ padding: "4px 0 2px" }}>
@@ -141,8 +157,10 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "low")}
           onFocus={() => setFocusedThumb("low")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("low"), ...(focusedThumb === "low" ? focusRingStyle : {}) }}
-        />
+          style={thumbStyle("low")}
+        >
+          <span aria-hidden="true" style={knobStyle(focusedThumb === "low")} />
+        </div>
         <div
           role="slider"
           aria-label="Maximum age"
@@ -155,8 +173,10 @@ function AgeRangeSlider({ low, high, onChange }) {
           onKeyDown={(e) => handleKeyDown(e, "high")}
           onFocus={() => setFocusedThumb("high")}
           onBlur={() => setFocusedThumb(null)}
-          style={{ ...thumbStyle("high"), ...(focusedThumb === "high" ? focusRingStyle : {}) }}
-        />
+          style={thumbStyle("high")}
+        >
+          <span aria-hidden="true" style={knobStyle(focusedThumb === "high")} />
+        </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: t.textMuted, marginTop: 2 }}>
