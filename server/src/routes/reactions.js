@@ -36,6 +36,22 @@ function isConversationMember(db, convId, userId) {
   return conv;
 }
 
+// Mirror of the send-path gates in messaging.js (kept local so reactions.js has
+// no cross-route import). An ended match makes the thread read-only for both;
+// a block in either direction severs it.
+function isConversationEnded(db, convId) {
+  const row = db.prepare(
+    'SELECT m.ended_at FROM conversations c JOIN matches m ON m.id = c.match_id WHERE c.id = ?'
+  ).get(convId);
+  return !!(row && row.ended_at);
+}
+
+function isBlocked(db, userA, userB) {
+  return !!db.prepare(
+    'SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)'
+  ).get(userA, userB, userB, userA);
+}
+
 // ---------------------------------------------------------------------------
 // POST /reactions/messages/:messageId/reactions  — toggle reaction
 // ---------------------------------------------------------------------------
@@ -58,6 +74,18 @@ router.post('/messages/:messageId/reactions', requireAuth, (req, res) => {
   const conv = isConversationMember(db, message.conversation_id, userId);
   if (!conv) return res.status(404).json({ error: 'Message not found' });
 
+  // Reacting is a write into a conversation — it must obey the SAME gates the
+  // send path does. Without these, an ended (unmatched) or blocked thread could
+  // still be "poked" via a reaction (emitReactionUpdate reaches the other
+  // socket). An ended match is read-only for both; a block severs the thread.
+  if (isConversationEnded(db, message.conversation_id)) {
+    return res.status(403).json({ error: 'This conversation has ended.' });
+  }
+  const otherId = conv.user_a_id === userId ? conv.user_b_id : conv.user_a_id;
+  if (isBlocked(db, userId, otherId)) {
+    return res.status(404).json({ error: 'Message not found' });
+  }
+
   // Toggle: check if reaction already exists
   const existing = db.prepare(
     'SELECT id FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?'
@@ -68,8 +96,12 @@ router.post('/messages/:messageId/reactions', requireAuth, (req, res) => {
     db.prepare('DELETE FROM message_reactions WHERE id = ?').run(existing.id);
     action = 'removed';
   } else {
+    // ON CONFLICT DO NOTHING: two concurrent taps of the same emoji both miss
+    // the SELECT above and race to INSERT; the unique (message_id,user_id,emoji)
+    // index would make the second throw a 500. Swallow it — the reaction exists
+    // either way, which is the intended idempotent outcome.
     db.prepare(
-      'INSERT INTO message_reactions (id, message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO message_reactions (id, message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING'
     ).run(newId(), req.params.messageId, userId, emoji, Date.now());
     action = 'added';
   }

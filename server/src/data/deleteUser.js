@@ -46,6 +46,13 @@ export function deleteUserRows(db, userId) {
   // We still delete the two-column-referencing tables explicitly (defensive —
   // matches/conversations/swipes/blocks reference the user via two columns).
   db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
+  // Billing subscription row (053) has NO FK to users, so the CASCADE above
+  // never reaches it. Left behind it's a GDPR erasure gap — and once a real
+  // provider is wired, provider_ref holds an external customer id. Delete it
+  // explicitly. try/catch: the table may not exist on a not-yet-migrated env.
+  try {
+    db.prepare('DELETE FROM subscriptions WHERE user_id = ?').run(userId);
+  } catch { /* subscriptions table absent on older deployments */ }
   db.prepare('DELETE FROM user_interests WHERE user_id = ?').run(userId);
   db.prepare('DELETE FROM matches WHERE user_a_id = ? OR user_b_id = ?').run(userId, userId);
   db.prepare('DELETE FROM conversations WHERE user_a_id = ? OR user_b_id = ?').run(userId, userId);

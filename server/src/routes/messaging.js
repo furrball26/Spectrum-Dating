@@ -833,7 +833,10 @@ router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
        WHERE ((user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?))
          AND ended_at IS NULL`
     ).get(userId, reportedUserId, reportedUserId, userId);
-    if (!canSee) {
+    if (!canSee || isBlocked(db, userId, reportedUserId)) {
+      // A block severs visibility both ways (mirrors GET /profile/:userId): a
+      // blocked/blocking user can no longer see — and therefore can't report —
+      // the other person's clip. Uniform error (never reveals the clip exists).
       return res.status(400).json({ error: "That audio clip can't be reported." });
     }
     // Anti-flap: at most one report per reporter per clip. Stops a reporter from

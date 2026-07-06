@@ -806,6 +806,16 @@ router.get('/:userId', requireAuth, (req, res) => {
     if (!matched) {
       return res.status(403).json({ error: 'You can only view the profile of someone you have matched with.' });
     }
+    // A block does not end the match row, but it MUST end profile visibility in
+    // both directions. Without this a blocked (or blocking) user could still
+    // fetch the other person's full profile — photos, audio, coarse city —
+    // straight around the block. Uniform 403 (never reveals the block exists).
+    const blocked = db.prepare(
+      'SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)'
+    ).get(userId, targetId, targetId, userId);
+    if (blocked) {
+      return res.status(403).json({ error: 'You can only view the profile of someone you have matched with.' });
+    }
   }
 
   const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(targetId);

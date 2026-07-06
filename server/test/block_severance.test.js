@@ -28,6 +28,7 @@ const { optionalAuth, signToken } = await import('../src/middleware/auth.js');
 const { contextMiddleware } = await import('../src/middleware/context.js');
 const messagingRouter = (await import('../src/routes/messaging.js')).default;
 const matchingRouter = (await import('../src/routes/matching.js')).default;
+const profileRouter = (await import('../src/routes/profile.js')).default;
 
 const db = getDb();
 
@@ -89,6 +90,7 @@ beforeAll(async () => {
   app.use(contextMiddleware(db));
   app.use('/messaging', messagingRouter);
   app.use('/matching', matchingRouter);
+  app.use('/profile', profileRouter);
   server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -230,5 +232,51 @@ describe('Bug 2: activity feed excludes blocked users (both directions)', () => 
     expect(r.status).toBe(200);
     expect(r.json.incomingLikes.map(x => x.userId)).toContain(L);
     expect(r.json.recentMatches.map(x => x.userId)).toContain(MV);
+  });
+});
+
+// Bug 3: a block must sever GET /profile/:userId visibility in BOTH directions.
+// Prior bug: profile visibility was gated only on a live match, and a block does
+// NOT end the match row — so a blocked (or blocking) user could still fetch the
+// other person's full profile (photos, audio, coarse city) straight around the
+// block. The 403 is uniform (same as "not matched") so it never reveals a block.
+describe('Bug 3: block severs GET /profile/:userId (both directions)', () => {
+  let G, H;    // G & H matched; then G blocks H.
+  let P, Q;    // control matched pair, never blocked.
+
+  beforeAll(async () => {
+    G = makeUser();
+    H = makeUser();
+    makeMatch(G, H);
+    // Both can see each other BEFORE the block (proves the setup is real).
+    const pre = await api(`/profile/${H}`, { token: tok(G) });
+    expect(pre.status).toBe(200);
+    await api('/messaging/block', { token: tok(G), method: 'POST', body: { blockedUserId: H, reason: 'harassment' } });
+
+    P = makeUser();
+    Q = makeUser();
+    makeMatch(P, Q);
+  });
+
+  it('the blocker (G) can no longer fetch the blocked person (H) profile', async () => {
+    const r = await api(`/profile/${H}`, { token: tok(G) });
+    expect(r.status).toBe(403);
+  });
+
+  it('the blocked person (H) can no longer fetch the blocker (G) profile', async () => {
+    const r = await api(`/profile/${G}`, { token: tok(H) });
+    expect(r.status).toBe(403);
+  });
+
+  it('a NORMAL matched pair can still fetch each other', async () => {
+    const rp = await api(`/profile/${Q}`, { token: tok(P) });
+    const rq = await api(`/profile/${P}`, { token: tok(Q) });
+    expect(rp.status).toBe(200);
+    expect(rq.status).toBe(200);
+  });
+
+  it('self-fetch is always allowed, block or not', async () => {
+    const r = await api(`/profile/${G}`, { token: tok(G) });
+    expect(r.status).toBe(200);
   });
 });
