@@ -132,10 +132,10 @@ export default function AnimatedSpectrumMark({
             rx={radius}
             ry={radius}
             fill={c}
-            // Hairline edge (matches static SpectrumMark) so a white flag tile
-            // reads on a white header surface; near-invisible on colored tiles.
-            stroke="rgba(0,0,0,0.10)"
-            strokeWidth={Math.max(0.5, height * 0.045)}
+            // Edge (matches static SpectrumMark) so a WHITE flag tile reads on
+            // the white header at real device DPI — a 10% hairline vanished.
+            stroke="rgba(0,0,0,0.20)"
+            strokeWidth={Math.max(0.75, height * 0.055)}
             style={{
               // transform-box: fill-box makes transform-origin relative to the
               // tile's own bounding box, so it scales in place rather than drifting.
