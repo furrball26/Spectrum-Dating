@@ -67,9 +67,14 @@ const THEME_CARDS = [
   // in the swatch stripe; the UI itself stays a calm single-accent theme.
   { key: "pride",     label: "Pride",      note: "Calm violet, rainbow in the logo", bg: "#F7F5F2", surface: "#FFFFFF", border: "#CCC5D4", accent: "#5A3E8C", text: "#2B2833", stripes: ["#B5544C", "#C08A45", "#B29A45", "#5E9459", "#4F7DA6", "#7B5EA7"] },
   { key: "trans",     label: "Trans pride", note: "Soft blue, pink message bubbles",  bg: "#E4F2FB", surface: "#FFFFFF", border: "#A9CFE4", accent: "#21607C", text: "#23323B", stripes: ["#4BB8EE", "#F49CB0", "#FFFFFF", "#F49CB0", "#4BB8EE"] },
+  { key: "bisexual",  label: "Bisexual",   note: "Calm violet, bi flag in the logo", bg: "#F7EFF6", surface: "#FFFFFF", border: "#D9C4DA", accent: "#7A3E86", text: "#2D2431", stripes: ["#D60270", "#9B4F96", "#0038A8"] },
+  { key: "lesbian",   label: "Lesbian",    note: "Warm rose, lesbian flag in the logo", bg: "#FBF1EB", surface: "#FFFFFF", border: "#E4C8BC", accent: "#A32A5A", text: "#3A2228", stripes: ["#D52D00", "#FF9A56", "#FFFFFF", "#E85C90", "#A30262"] },
+  { key: "pansexual", label: "Pansexual",  note: "Warm magenta, pan flag in the logo", bg: "#FCF0F3", surface: "#FFFFFF", border: "#E6C4D2", accent: "#A81A62", text: "#3A2230", stripes: ["#FF1B8D", "#FFDA00", "#1BB3FF"] },
+  { key: "nonbinary", label: "Non-binary", note: "Soft yellow + violet, NB flag in the logo", bg: "#FCFAEC", surface: "#FFFFFF", border: "#DAD4C0", accent: "#5C4691", text: "#2C2A20", stripes: ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"] },
+  { key: "asexual",   label: "Asexual",    note: "Calm violet, ace flag in the logo", bg: "#F5F4F7", surface: "#FFFFFF", border: "#D3CFD8", accent: "#67337A", text: "#2B2830", stripes: ["#2C2C2C", "#A3A3A3", "#FFFFFF", "#800080"] },
 ];
 
-const IDENTITY_KEYS = ["pride", "trans"];
+const IDENTITY_KEYS = ["pride", "trans", "bisexual", "lesbian", "pansexual", "nonbinary", "asexual"];
 
 function ThemeSegmented({ value, onChange }) {
   // FE-6: the identity disclosure paragraph (rendered only while pride/trans is

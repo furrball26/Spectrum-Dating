@@ -382,6 +382,11 @@ const THEME_META_COLOR = {
   pink: "#8A4560",
   pride: "#5A3E8C",
   trans: "#21607C",
+  bisexual: "#7A3E86",
+  lesbian: "#A32A5A",
+  pansexual: "#A81A62",
+  nonbinary: "#5C4691",
+  asexual: "#67337A",
 };
 
 // The one sanctioned multi-color surface outside the brand mark: a 3px flag
@@ -1091,9 +1096,9 @@ export default function App() {
   const revertIdentityTheme = useCallback(() => {
     // Guard on the live theme so a stray double-tap/click on the plain (non-
     // identity) logo neither reverts nor announces anything.
-    if (themeRef.current !== "pride" && themeRef.current !== "trans") return;
+    if (!IDENTITY_THEMES.includes(themeRef.current)) return;
     setA11y((prev) => {
-      if (prev.theme !== "pride" && prev.theme !== "trans") return prev;
+      if (!IDENTITY_THEMES.includes(prev.theme)) return prev;
       const next = { ...prev, theme: "dim" };
       try { localStorage.setItem("spectrum_a11y", JSON.stringify(next)); } catch { /* state still applies */ }
       return next;
@@ -1545,7 +1550,7 @@ export default function App() {
                   }}
                 >
                   <LogoRevertShell
-                    active={a11y.theme === "pride" || a11y.theme === "trans"}
+                    active={IDENTITY_THEMES.includes(a11y.theme)}
                     onRevert={revertIdentityTheme}
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
@@ -1843,7 +1848,7 @@ export default function App() {
           >
             {viewport === "desktop" && (
               <LogoRevertShell
-                active={a11y.theme === "pride" || a11y.theme === "trans"}
+                active={IDENTITY_THEMES.includes(a11y.theme)}
                 onRevert={revertIdentityTheme}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 18px" }}
               >

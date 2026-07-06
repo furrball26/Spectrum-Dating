@@ -98,7 +98,7 @@
         try {
           var p = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
           var v = p && typeof p.theme === "string" ? p.theme : "dim";
-          th = ["dim", "navy", "lightblue", "pastel", "pink", "pride", "trans"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
+          th = ["dim", "navy", "lightblue", "pastel", "pink", "pride", "trans", "bisexual", "lesbian", "pansexual", "nonbinary", "asexual"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
         } catch (e) { /* fall through to dim */ }
         document.documentElement.dataset.theme = th;
       })();
@@ -538,6 +538,311 @@
         --c-bubbleOther: #FFFFFF;
         --c-tombstone: #596A75;
         --c-scrimRgb: 30, 45, 56;
+      }
+      /* ── Bisexual — calm violet on a soft mauve field. The bi flag (magenta /
+         purple / blue) lives only in the mark tiles + picker stripe; the UI
+         itself stays a quiet single-accent light theme. AA-passing violet accent. */
+      :root[data-theme="bisexual"] {
+        --c-bg: #F7EFF6;
+        --c-bg-gradient: linear-gradient(150deg, #F8F0F7 0%, #F0E2EF 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F0E4EE;
+        --c-cardBorder: #D9C4DA;
+        --sh-sm: 0 1px 2px rgba(45,36,49,0.06), 0 3px 10px rgba(45,36,49,0.08);
+        --sh-md: 0 2px 4px rgba(45,36,49,0.07), 0 12px 28px rgba(45,36,49,0.11);
+        --sh-lg: 0 4px 12px rgba(45,36,49,0.10), 0 24px 48px rgba(45,36,49,0.15);
+        --c-clayText: #946985;
+        /* bi flag across the six tiles: magenta / magenta / purple / purple / blue / blue */
+        --mark-1: #D60270;
+        --mark-2: #D60270;
+        --mark-3: #9B4F96;
+        --mark-4: #9B4F96;
+        --mark-5: #0038A8;
+        --mark-6: #0038A8;
+        --c-text: #2D2431;
+        --c-textSoft: #574C5C;
+        --c-textMuted: #6A5F70;
+        --c-accent: #8C4799;
+        --c-accentStrong: #7A3E86;
+        --c-accentFill: #7A3E86;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #E6D6E5;
+        --c-borderLight: #F2E8F1;
+        --c-focus: #2D2431;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #54666F;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #F5EDF6;
+        --c-green100: #EDDFEF;
+        --c-green200: #DDC6E1;
+        --c-green300: #C29CC8;
+        --c-green400: #A468AC;
+        --c-green500: #8C4799;
+        --c-green600: #7C3D89;
+        --c-green700: #6E3679;
+        --c-green800: #58305F;
+        --c-green900: #2D2431;
+        --c-formBorder: #71858F;
+        --c-bubbleOwn: #EFDDF0;
+        --c-bubbleOwnBorder: #DBC0DE;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #596A75;
+        --c-scrimRgb: 45, 36, 49;
+      }
+      /* ── Lesbian — warm rose on a peach field. The lesbian flag (orange shades
+         / white / pink shades) lives only in the mark tiles + picker stripe; the
+         white tile reads via the mark's tile edges. AA-passing rose accent. */
+      :root[data-theme="lesbian"] {
+        --c-bg: #FBF1EB;
+        --c-bg-gradient: linear-gradient(150deg, #FCF2EC 0%, #F6E4DA 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F7E6DC;
+        --c-cardBorder: #E4C8BC;
+        --sh-sm: 0 1px 2px rgba(58,34,40,0.06), 0 3px 10px rgba(58,34,40,0.08);
+        --sh-md: 0 2px 4px rgba(58,34,40,0.07), 0 12px 28px rgba(58,34,40,0.11);
+        --sh-lg: 0 4px 12px rgba(58,34,40,0.10), 0 24px 48px rgba(58,34,40,0.15);
+        --c-clayText: #946985;
+        /* lesbian flag across the six tiles: red-orange / orange / light-orange / white / pink / magenta */
+        --mark-1: #D52D00;
+        --mark-2: #F06E35;
+        --mark-3: #FF9A56;
+        --mark-4: #FFFFFF;
+        --mark-5: #E85C90;
+        --mark-6: #A30262;
+        --c-text: #3A2228;
+        --c-textSoft: #6B4A52;
+        --c-textMuted: #7E5C64;
+        --c-accent: #C63F73;
+        --c-accentStrong: #A32A5A;
+        --c-accentFill: #A32A5A;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #EFD9CD;
+        --c-borderLight: #F7E9E1;
+        --c-focus: #3A2228;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #54666F;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #FBE9EF;
+        --c-green100: #F7D6E0;
+        --c-green200: #F0BACC;
+        --c-green300: #E495B0;
+        --c-green400: #D06389;
+        --c-green500: #C63F73;
+        --c-green600: #B23363;
+        --c-green700: #A32A5A;
+        --c-green800: #83234A;
+        --c-green900: #3A2228;
+        --c-formBorder: #71858F;
+        --c-bubbleOwn: #FADCE4;
+        --c-bubbleOwnBorder: #EFB8C8;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #596A75;
+        --c-scrimRgb: 58, 34, 40;
+      }
+      /* ── Pansexual — warm magenta on a soft pink field. The pan flag (magenta /
+         yellow / cyan) lives only in the mark tiles + picker stripe; the UI stays
+         a quiet single-accent light theme. AA-passing magenta accent. */
+      :root[data-theme="pansexual"] {
+        --c-bg: #FCF0F3;
+        --c-bg-gradient: linear-gradient(150deg, #FCF1F4 0%, #F7E2EA 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F8E4EA;
+        --c-cardBorder: #E6C4D2;
+        --sh-sm: 0 1px 2px rgba(58,34,48,0.06), 0 3px 10px rgba(58,34,48,0.08);
+        --sh-md: 0 2px 4px rgba(58,34,48,0.07), 0 12px 28px rgba(58,34,48,0.11);
+        --sh-lg: 0 4px 12px rgba(58,34,48,0.10), 0 24px 48px rgba(58,34,48,0.15);
+        --c-clayText: #946985;
+        /* pan flag across the six tiles: magenta / magenta / yellow / yellow / cyan / cyan */
+        --mark-1: #FF1B8D;
+        --mark-2: #FF1B8D;
+        --mark-3: #FFDA00;
+        --mark-4: #FFDA00;
+        --mark-5: #1BB3FF;
+        --mark-6: #1BB3FF;
+        --c-text: #3A2230;
+        --c-textSoft: #6B4A57;
+        --c-textMuted: #7E5C69;
+        --c-accent: #CE2079;
+        --c-accentStrong: #A81A62;
+        --c-accentFill: #A81A62;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #F0D6E0;
+        --c-borderLight: #F8E8EE;
+        --c-focus: #3A2230;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #54666F;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #FCE7F0;
+        --c-green100: #F9D2E2;
+        --c-green200: #F3B0CD;
+        --c-green300: #E983AE;
+        --c-green400: #D94C89;
+        --c-green500: #CE2079;
+        --c-green600: #B81A6C;
+        --c-green700: #A81A62;
+        --c-green800: #861850;
+        --c-green900: #3A2230;
+        --c-formBorder: #71858F;
+        --c-bubbleOwn: #FBD8E6;
+        --c-bubbleOwnBorder: #F0B4CC;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #596A75;
+        --c-scrimRgb: 58, 34, 48;
+      }
+      /* ── Non-binary — soft violet on a warm cream field. The NB flag (yellow /
+         white / purple / black) lives only in the mark tiles + picker stripe; the
+         white tile reads via the mark's tile edges. AA-passing violet accent. */
+      :root[data-theme="nonbinary"] {
+        --c-bg: #FCFAEC;
+        --c-bg-gradient: linear-gradient(150deg, #FDFBEE 0%, #F5F1DD 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F4F0DC;
+        --c-cardBorder: #DAD4C0;
+        --sh-sm: 0 1px 2px rgba(44,42,32,0.06), 0 3px 10px rgba(44,42,32,0.08);
+        --sh-md: 0 2px 4px rgba(44,42,32,0.07), 0 12px 28px rgba(44,42,32,0.11);
+        --sh-lg: 0 4px 12px rgba(44,42,32,0.10), 0 24px 48px rgba(44,42,32,0.15);
+        --c-clayText: #946985;
+        /* NB flag across the six tiles: yellow / yellow / white / purple / purple / black */
+        --mark-1: #FCF434;
+        --mark-2: #FCF434;
+        --mark-3: #FFFFFF;
+        --mark-4: #9C59D1;
+        --mark-5: #9C59D1;
+        --mark-6: #2C2C2C;
+        --c-text: #2C2A20;
+        --c-textSoft: #59543F;
+        --c-textMuted: #6D6752;
+        --c-accent: #7156AE;
+        --c-accentStrong: #5C4691;
+        --c-accentFill: #5C4691;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #E4DDC6;
+        --c-borderLight: #F0EAD7;
+        --c-focus: #2C2A20;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #54666F;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #F1EDF8;
+        --c-green100: #E5DEF1;
+        --c-green200: #D2C6E6;
+        --c-green300: #B6A3D7;
+        --c-green400: #8C6DBF;
+        --c-green500: #7156AE;
+        --c-green600: #634A9C;
+        --c-green700: #5C4691;
+        --c-green800: #483873;
+        --c-green900: #2C2A20;
+        --c-formBorder: #71858F;
+        --c-bubbleOwn: #E9E1F5;
+        --c-bubbleOwnBorder: #D2C6EA;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #596A75;
+        --c-scrimRgb: 44, 42, 32;
+      }
+      /* ── Asexual — calm violet on a cool grey field. The ace flag (black / grey
+         / white / purple) lives only in the mark tiles + picker stripe; the white
+         tile reads via the mark's tile edges. AA-passing violet accent. */
+      :root[data-theme="asexual"] {
+        --c-bg: #F5F4F7;
+        --c-bg-gradient: linear-gradient(150deg, #F6F5F8 0%, #ECEAF0 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #ECEAF0;
+        --c-cardBorder: #D3CFD8;
+        --sh-sm: 0 1px 2px rgba(43,40,48,0.06), 0 3px 10px rgba(43,40,48,0.08);
+        --sh-md: 0 2px 4px rgba(43,40,48,0.07), 0 12px 28px rgba(43,40,48,0.11);
+        --sh-lg: 0 4px 12px rgba(43,40,48,0.10), 0 24px 48px rgba(43,40,48,0.15);
+        --c-clayText: #946985;
+        /* ace flag across the six tiles: black / grey / white / purple / grey / black */
+        --mark-1: #2C2C2C;
+        --mark-2: #A3A3A3;
+        --mark-3: #FFFFFF;
+        --mark-4: #800080;
+        --mark-5: #A3A3A3;
+        --mark-6: #2C2C2C;
+        --c-text: #2B2830;
+        --c-textSoft: #565064;
+        --c-textMuted: #6A6577;
+        --c-accent: #7A3E8C;
+        --c-accentStrong: #67337A;
+        --c-accentFill: #67337A;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #E1DDE6;
+        --c-borderLight: #EEEBF1;
+        --c-focus: #2B2830;
+        --c-danger: #B44343;
+        --c-dangerFill: #B44343;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #54666F;
+        --c-dangerSurface: #FAF0F0;
+        --c-warningSurface: #FBF6E9;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #F1ECF3;
+        --c-green100: #E5DCEA;
+        --c-green200: #D3C4DB;
+        --c-green300: #B79FC6;
+        --c-green400: #9268A6;
+        --c-green500: #7A3E8C;
+        --c-green600: #6D3780;
+        --c-green700: #67337A;
+        --c-green800: #522863;
+        --c-green900: #2B2830;
+        --c-formBorder: #71858F;
+        --c-bubbleOwn: #EAE0F0;
+        --c-bubbleOwnBorder: #D5C6E2;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #596A75;
+        --c-scrimRgb: 43, 40, 48;
       }
       /* ── Pastel — a soft, low-saturation daylight theme: light-yellow paper,
          a calm lavender accent, and a full pastel spectrum in the mark tiles

@@ -2,6 +2,10 @@
 // All calls to the backend go through this module.
 // Token is read from localStorage on every call — no global state.
 
+// IDENTITY_THEMES drives the on-logout reset below. a11yPrefs is a tiny
+// constants/helpers module (no heavy deps), safe to import on this path.
+import { IDENTITY_THEMES } from "./a11yPrefs.js";
+
 const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 // ─── Token helpers ─────────────────────────────────────────────────────────────
@@ -31,7 +35,7 @@ export function clearAuth() {
   // size, light/dim) rightly keep persisting.
   try {
     const a = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
-    if (a && (a.theme === "pride" || a.theme === "trans")) {
+    if (a && IDENTITY_THEMES.includes(a.theme)) {
       a.theme = "dim";
       localStorage.setItem("spectrum_a11y", JSON.stringify(a));
       if (typeof document !== "undefined") document.documentElement.dataset.theme = "dim";
