@@ -16,6 +16,13 @@ const BLOCKLIST = [
   'nigger', 'nigga', 'faggot', 'fag', 'retard', 'retarded', 'tranny',
   'kike', 'spic', 'chink', 'wetback', 'coon', 'gook', 'dyke',
   'cunt', 'whore', 'slut', 'rapist', 'pedophile', 'pedo', 'molester',
+  // JRN-1 follow-up: a tight set of hard profanity that is NEVER a legitimate
+  // display name or pronoun. Deliberately excludes terms that collide with real
+  // names (e.g. "Dick"/Richard) so the whole-word match stays false-positive
+  // safe. This is what catches the reported troll accounts ("Dipshit", pronouns
+  // "Shit/shat/shart").
+  'shit', 'shart', 'dipshit', 'bullshit', 'asshole', 'dumbass', 'jackass',
+  'bitch', 'twat', 'wanker',
 ];
 
 // Normalize a candidate token: lowercase, undo leetspeak, drop non-letters.

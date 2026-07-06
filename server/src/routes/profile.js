@@ -441,6 +441,12 @@ router.put('/me', requireAuth, (req, res) => {
   if (body.pronouns !== undefined) {
     if (typeof body.pronouns !== 'string') errors.push('pronouns must be a string.');
     else if (body.pronouns.length > 40) errors.push('pronouns must be 40 characters or fewer.');
+    // JRN-1: pronouns were the one identity field with NO abuse screen, so a slur
+    // or hard profanity as a "pronoun" ("Shit/shat/shart") sailed straight onto a
+    // profile. Screen it with the same whole-word gate as displayName/genderCustom.
+    else if (containsSlur(body.pronouns)) {
+      errors.push('Please choose pronouns without offensive language.');
+    }
   }
   if (body.seeking !== undefined) {
     if (typeof body.seeking !== 'string') {

@@ -257,3 +257,15 @@ describe('B24: prefAge single-bound update is validated against the stored bound
     expect(badMax.status).toBe(400);
   });
 });
+
+// JRN-1: pronouns are now screened for slurs/hard profanity at save time
+// (previously the one identity field with no abuse screen).
+describe('JRN-1: PUT /profile/me screens pronouns', () => {
+  it('rejects profane pronouns (400) but accepts normal ones', async () => {
+    const u = makeUser();
+    const bad = await api('/profile/me', { token: signToken(u, 0), method: 'PUT', body: { pronouns: 'Shit/shat/shart' } });
+    expect(bad.status).toBe(400);
+    const ok = await api('/profile/me', { token: signToken(u, 0), method: 'PUT', body: { pronouns: 'they/them' } });
+    expect(ok.status).toBe(200);
+  });
+});

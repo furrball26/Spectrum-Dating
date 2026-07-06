@@ -135,10 +135,12 @@ export function getCandidates(db, viewerId, viewerInterests, opts = {}) {
       const age = ageFromDob(profile.date_of_birth);
       return age !== null && age >= 18;
     })
-    // JRN-1 (defense in depth): never surface a candidate whose display name is
-    // an unambiguous slur/profanity, even if the row predates name screening at
-    // save time. The PUT /profile/me gate is the primary block; this is a backstop.
-    .filter(profile => !containsSlur(profile.display_name))
+    // JRN-1 (defense in depth): never surface a candidate whose display name OR
+    // pronouns are an unambiguous slur/profanity, even if the row predates the
+    // save-time screen (so already-live troll cards drop out of Discover with no
+    // data migration). The PUT /profile/me gate is the primary block; this backs
+    // it up and retroactively hides legacy offenders.
+    .filter(profile => !containsSlur(profile.display_name) && !containsSlur(profile.pronouns))
     // Hard deal-breaker filters: apply the viewer's ACTIVE flags as exclusions,
     // but only on a KNOWN conflict. Empty/unknown candidate values always pass
     // (most profiles haven't set these yet — excluding unknowns would empty out

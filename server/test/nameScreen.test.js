@@ -15,8 +15,18 @@ describe('nameScreen.containsSlur (JRN-1)', () => {
     expect(containsSlur('f.a.g')).toBe(true);
   });
 
+  it('flags hard profanity that is never a real name/pronoun (troll cases)', () => {
+    expect(containsSlur('Dipshit')).toBe(true);
+    expect(containsSlur('bitch')).toBe(true);
+    // The reported troll pronoun string — the first token trips it.
+    expect(containsSlur('Shit/shat/shart')).toBe(true);
+    expect(isNameAllowed('Dipshit')).toBe(false);
+  });
+
   it('does NOT false-positive on legitimate names/words', () => {
-    for (const name of ['Alex', 'Sam', 'María', 'Anna', 'Scunthorpe', 'Cassandra', 'Assata', 'Jordan']) {
+    // Dick (Richard), Bishop, Twain etc. must stay allowed — the added profanity
+    // terms were chosen to have no real-name collision under whole-word matching.
+    for (const name of ['Alex', 'Sam', 'María', 'Anna', 'Scunthorpe', 'Cassandra', 'Assata', 'Jordan', 'Dick', 'Bishop', 'Twain', 'they/them', 'she/her', 'ze/zir']) {
       expect(containsSlur(name)).toBe(false);
       expect(isNameAllowed(name)).toBe(true);
     }
