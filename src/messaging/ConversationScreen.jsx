@@ -1833,7 +1833,6 @@ export default function ConversationScreen({
   const composeRef = useRef(null);
   const logRef = useRef(null);
   const overflowButtonRef = useRef(null);
-  const sendStatusRef = useRef(null);
   const logHintId = `log-hint-${conversationId}`;
 
   const [messages, setMessages] = useState([]);
@@ -1952,7 +1951,6 @@ export default function ConversationScreen({
 
   // Security Fix 4 — rate-limit state
   const [rateLimited, setRateLimited] = useState(false);
-  const [rateLimitStatus, setRateLimitStatus] = useState("");
   const rateLimitTimerRef = useRef(null);
 
   // --- Message pagination state ---
@@ -3372,7 +3370,7 @@ export default function ConversationScreen({
           >
             {consentGateFailed
               ? "Unable to send. This conversation is no longer available."
-              : rateLimitStatus || sendStatus}
+              : sendStatus}
           </div>
 
           {/* Security Fix 4 — rate-limit visible status (not hidden) */}

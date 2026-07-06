@@ -1036,15 +1036,6 @@ export async function getMemberDetail(id) {
   return apiFetch(`/admin/members/${encodeURIComponent(id)}`);
 }
 
-// ─── Reactions ────────────────────────────────────────────────────────────────
-
-export async function toggleReaction(messageId, emoji) {
-  return apiFetch(`/reactions/messages/${messageId}/reactions`, {
-    method: "POST",
-    body: { emoji },
-  });
-}
-
 // ─── Starters ─────────────────────────────────────────────────────────────────
 
 export async function getStarters(conversationId) {
@@ -1337,10 +1328,17 @@ export async function removePushSubscription(endpoint) {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export function getExportUrl() {
-  const token = getToken();
-  // Streams a ZIP: a readable index.html + machine-readable data.json + your
-  // photos + a README. Free (GDPR right) — never gated.
-  const base = `${BASE_URL}/export/archive`;
-  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+// Mint a short-lived, purpose-scoped export token. The session JWT must NOT go
+// in the download URL (log/referer exposure), so the download flow calls this
+// first (with the normal Authorization header) and puts THIS token in the query.
+export async function createExportToken() {
+  const { token } = await apiFetch("/export/token", { method: "POST" });
+  return token;
+}
+
+// Build the archive download URL for a purpose-scoped export token (from
+// createExportToken) — NOT the session JWT. Streams a ZIP: a readable index.html
+// + machine-readable data.json + your photos + a README. Free (GDPR right).
+export function getExportArchiveUrl(exportToken) {
+  return `${BASE_URL}/export/archive?token=${encodeURIComponent(exportToken)}`;
 }

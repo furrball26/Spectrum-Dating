@@ -293,7 +293,7 @@ function SegmentButton({ label, active, onClick }) {
   );
 }
 
-function PlainButton({ children, onClick, kind = "neutral", disabled, buttonRef, ariaLabel }) {
+function PlainButton({ children, onClick, kind = "neutral", disabled, buttonRef, ariaLabel, emphasis }) {
   const f = useFocusable();
   const kinds = {
     neutral: { background: t.surface, color: t.text, border: `1px solid ${t.border}` },
@@ -311,6 +311,9 @@ function PlainButton({ children, onClick, kind = "neutral", disabled, buttonRef,
       style={{
         minHeight: 44, padding: "9px 16px", borderRadius: 11, fontSize: 14, fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1,
+        // `emphasis` marks a pre-selected (suggested) action with a calm ring —
+        // boxShadow, not outline, so it never fights the focus outline above.
+        ...(emphasis ? { boxShadow: `0 0 0 2px ${t.accentFill}` } : {}),
         ...kinds[kind], ...f.style,
       }}
       onFocus={f.onFocus}
@@ -681,6 +684,37 @@ function EnforcementActions({
   );
 }
 
+// P8(b) — session-scoped "Skip for now" dismissals. Skipping a report is a
+// client-only triage gesture (no server state); without persistence a Refresh
+// re-fetches the report and resurfaces it as a full card. We remember skipped
+// report ids in sessionStorage so they stay collapsed to the compact "Skipped"
+// strip for the rest of the browser session (cleared on tab close). A real
+// server-side skip is out of scope; this just stops the immediate resurface.
+const SKIPPED_REPORTS_KEY = "spectrum_admin_skipped_reports";
+
+function readSkippedReports() {
+  try {
+    const raw = sessionStorage.getItem(SKIPPED_REPORTS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch { return new Set(); }
+}
+
+function isReportSkipped(id) {
+  return readSkippedReports().has(id);
+}
+
+function setReportSkipped(id, skipped) {
+  try {
+    const set = readSkippedReports();
+    if (skipped) set.add(id); else set.delete(id);
+    sessionStorage.setItem(SKIPPED_REPORTS_KEY, JSON.stringify([...set]));
+  } catch { /* storage unavailable — the card's own state still hides it this render */ }
+}
+
+// Suggested-action → button label, for the compact "Suggested: …" summary.
+const REPORT_ACTION_LABEL = { dismiss: "Dismiss", warn: "Warn", ban: "Ban" };
+
 function ReportCard({ report, onRefresh, onStatus, onDone }) {
   // Moderation redesign v1 — one calm decision. `panel` is which atomic action's
   // reason box is open (null = the three-button chooser). dismiss/warn/ban close
@@ -688,20 +722,25 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
   // the reversible enforcement endpoint. All hooks run before any early return.
   // TOS-driven moderation auto-fill. The backend maps the report's reason to a
   // Community Standard and returns a `suggested` packet (default action + a
-  // prepared, editable notice). We PRE-SELECT that action and PRE-FILL its notice
-  // so the common case is one confirming tap — the moderator can still edit the
-  // reply or pick a different action. Only the three atomic actions pre-open, and
-  // only for an OPEN report. requiresHumanReason (§4.7 / "other") ships notice ""
-  // so Warn/Ban/Dismiss stay disabled until a reason is typed (mirrors the
-  // backend 400). Reports without a packet keep the plain three-button chooser.
+  // prepared, editable notice). We keep that action PRE-SELECTED (a compact
+  // "Suggested: …" summary + a ring on its button) and PRE-FILL its notice, but
+  // P7 — we no longer auto-EXPAND the decision panel on mount. A page of open
+  // reports each rendering its full reason form read as a wall of alarm-styled
+  // forms; instead each card is a calm summary and its panel opens on tap
+  // (accordion). openPanel(suggested.action) re-fills the prepared notice, so the
+  // common case is still one tap → review → confirm. requiresHumanReason
+  // (§4.7 / "other") ships notice "" so Warn/Ban/Dismiss stay disabled until a
+  // reason is typed. Reports without a packet keep the plain three-button chooser.
   const suggested = report.suggested || null;
   const suggestedAction = suggested && ["dismiss", "warn", "ban"].includes(suggested.action) ? suggested.action : null;
-  const [panel, setPanel] = useState(() => (report.status === "open" ? suggestedAction : null)); // null | 'dismiss' | 'warn' | 'ban' | 'suspend'
+  const [panel, setPanel] = useState(null); // null | 'dismiss' | 'warn' | 'ban' | 'suspend' — opens on tap, never on mount
   const [reason, setReason] = useState(() => (suggested ? suggested.notice || "" : ""));
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
-  const [skipped, setSkipped] = useState(false); // client-side only — no state change
+  // Client-side skip — no server state — but persisted for the session (P8b) so a
+  // Refresh doesn't immediately resurface a skipped card as a full form again.
+  const [skipped, setSkipped] = useState(() => isReportSkipped(report.id));
   const [verified, setVerified] = useState(!!report.reportedVerified);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const fReason = useFocusable();
@@ -835,7 +874,7 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
         <span style={{ fontSize: 14, color: t.textMuted, minWidth: 0 }}>
           Skipped for now — {report.reporterName || "Someone"} <span aria-hidden="true">→</span> {name}
         </span>
-        <PlainButton kind="quiet" onClick={() => setSkipped(false)}>Show again</PlainButton>
+        <PlainButton kind="quiet" onClick={() => { setReportSkipped(report.id, false); setSkipped(false); }}>Show again</PlainButton>
       </li>
     );
   }
@@ -1014,18 +1053,37 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
               </div>
             </div>
           ) : (
-            /* The three atomic actions — one vocabulary, one decision. */
-            <>
-              <div style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 10 }}>Decision</div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <PlainButton kind="neutral" onClick={() => openPanel("dismiss")} disabled={busy}>Dismiss</PlainButton>
-                <PlainButton kind="accent" onClick={() => openPanel("warn")} disabled={busy}>Warn</PlainButton>
-                <PlainButton kind="danger" onClick={() => openPanel("ban")} disabled={busy}>Ban</PlainButton>
-                <PlainButton kind="quiet" onClick={() => setSkipped(true)} disabled={busy}>Skip for now</PlainButton>
-              </div>
-              <p style={{ margin: "8px 0 0", fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
-                Dismiss = no action · Warn = keeps access, on notice · Ban = permanent removal
-              </p>
+            /* The atomic actions — one vocabulary, one decision. The suggested
+               action stays PRE-SELECTED (summary line + ring) but its panel only
+               opens on tap (P7 — no wall of expanded forms). */
+            (() => {
+              // Don't suggest (or offer) Ban for a member who is already removed.
+              const showBan = !banned;
+              const chooserSuggested = suggestedAction === "ban" && banned ? null : suggestedAction;
+              return (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: t.textSoft, marginBottom: 10 }}>Decision</div>
+                  {chooserSuggested && (
+                    <p style={{ margin: "0 0 10px", fontSize: 13, color: t.textSoft, lineHeight: 1.5 }}>
+                      Suggested: <strong style={{ color: t.text }}>{REPORT_ACTION_LABEL[chooserSuggested]}</strong>
+                      {suggested && suggested.notice ? " — a reply is prepared. Tap to review before it's sent." : " — tap to review."}
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <PlainButton kind="neutral" emphasis={chooserSuggested === "dismiss"} onClick={() => openPanel("dismiss")} disabled={busy}>Dismiss</PlainButton>
+                    <PlainButton kind="accent" emphasis={chooserSuggested === "warn"} onClick={() => openPanel("warn")} disabled={busy}>Warn</PlainButton>
+                    {showBan ? (
+                      <PlainButton kind="danger" emphasis={chooserSuggested === "ban"} onClick={() => openPanel("ban")} disabled={busy}>Ban</PlainButton>
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 4px", fontSize: 13, color: t.danger, fontWeight: 600 }}>
+                        Already permanently removed
+                      </span>
+                    )}
+                    <PlainButton kind="quiet" onClick={() => { setReportSkipped(report.id, true); setSkipped(true); }} disabled={busy}>Skip for now</PlainButton>
+                  </div>
+                  <p style={{ margin: "8px 0 0", fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+                    Dismiss = no action · Warn = keeps access, on notice{showBan ? " · Ban = permanent removal" : ""}
+                  </p>
 
               {/* Advanced, tucked away: Suspend (reversible) + Verify. */}
               <div style={{ marginTop: 14 }}>
@@ -1065,7 +1123,9 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
                   </div>
                 )}
               </div>
-            </>
+                </>
+              );
+            })()
           )}
         </div>
       )}

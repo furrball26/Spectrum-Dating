@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription, safeErrorMessage, uploadProfilePhoto, validateProfilePhotoFile } from "./api.js";
+import { getProfile, updateProfile, clearAuth, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, createExportToken, getExportArchiveUrl, requestVerification, updatePhotoDescription, safeErrorMessage, uploadProfilePhoto, validateProfilePhotoFile } from "./api.js";
 import AudioAnswerEditor from "./AudioAnswerEditor.jsx";
 import AudioAnswerCard from "./AudioAnswer.jsx";
 import { t } from "./tokens.js";
@@ -5455,37 +5455,78 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           )}
 
           {/* ── Download my data ── */}
-          <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
-            <a
-              href={getExportUrl()}
-              download="spectrum-dating-export.zip"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "transparent",
-                border: `1px solid ${t.border}`,
-                borderRadius: 10,
-                color: t.textSoft,
-                fontSize: 16,
-                fontWeight: 500,
-                textDecoration: "none",
-                padding: "10px 24px",
-                minHeight: 44,
-                boxSizing: "border-box",
-              }}
-            >
-              Download my data
-            </a>
-            <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted }}>
-              A ZIP with a readable page of your profile and conversations, plus
-              your photos and a machine-readable copy.
-            </p>
-          </div>
+          <DownloadDataSection />
 
         </div>
       </div>
     </>
+  );
+}
+
+// ── Download my data ──────────────────────────────────────────────────────────
+// T8 — the archive download must NOT carry the session JWT in its URL (log /
+// referer exposure). Instead we mint a short-lived, purpose-scoped export token
+// (POST /export/token, normal Authorization header) at click time and put THAT
+// token in the query. A real <button> (keyboard-operable) with a calm
+// disabled/loading state while minting; a calm role="alert" on failure. The
+// archive is streamed with Content-Disposition: attachment, so clicking a
+// temporary anchor triggers the browser's own save without leaving this page.
+function DownloadDataSection() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleDownload() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const token = await createExportToken();
+      const a = document.createElement("a");
+      a.href = getExportArchiveUrl(token);
+      a.download = "spectrum-dating-export.zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      setError(safeErrorMessage(e, "Couldn’t prepare your download. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={busy}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "transparent",
+          border: `1px solid ${t.border}`,
+          borderRadius: 10,
+          color: t.textSoft,
+          fontSize: 16,
+          fontWeight: 500,
+          padding: "10px 24px",
+          minHeight: 44,
+          boxSizing: "border-box",
+          cursor: busy ? "default" : "pointer",
+          opacity: busy ? 0.6 : 1,
+        }}
+      >
+        {busy ? "Preparing…" : "Download my data"}
+      </button>
+      {error && (
+        <p role="alert" style={{ margin: "10px 0 0", fontSize: 14, color: t.danger }}>{error}</p>
+      )}
+      <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted }}>
+        A ZIP with a readable page of your profile and conversations, plus
+        your photos and a machine-readable copy.
+      </p>
+    </div>
   );
 }
 

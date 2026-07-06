@@ -27,7 +27,6 @@ const BRIDGED_EVENTS = [
   "new_message",
   "new_match",
   "message_deleted",
-  "reaction_update",
   "conversation_archived",
 ];
 
