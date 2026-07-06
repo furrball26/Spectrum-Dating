@@ -280,6 +280,7 @@
     <tr><td><strong>Account security</strong></td><td>Deleting an account now re-verifies the password (like change-password/change-email), so a hijacked session can't nuke the account; and deletion now garbage-collects the counterpart's message-attachment objects too, instead of orphaning them in storage.</td></tr>
     <tr><td><strong>Safety reporting</strong></td><td>Fixed a real gap where the most serious report reason ("a minor, a threat, or something illegal") was rejected at submission — the moderation console could handle it, but the report could never actually be filed. It (and off-platform harm) now file correctly and route to the severe-clause auto-fill.</td></tr>
     <tr><td><strong>Honest pricing</strong></td><td>The Companion paid-tier catalog was trimmed to the three features that actually ship, removing four advertised-but-unbuilt items — so the app never charges for something it can't deliver.</td></tr>
+    <tr><td><strong>Abuse screening</strong></td><td>Pronouns are now screened for slurs/hard-profanity like display names already were (they were the one unscreened identity field — "Shit/shat/shart" passed), the blocklist was tightened to catch the reported troll names ("Dipshit"), and the Discover backstop now hides existing offending cards without a data migration.</td></tr>
     <tr><td><strong>Validation</strong></td><td>Age-range preferences are now validated on single-field updates too, so a Discover-filter change can't silently persist an inverted range that empties the deck.</td></tr>
     <tr><td><strong>Admin calm</strong></td><td>Report cards no longer all expand their decision form at once (the suggested action is pre-selected and the panel opens on tap); the Ban button is hidden for already-banned members; "skip for now" persists for the session so a refresh doesn't resurface it.</td></tr>
     <tr><td><strong>Accessibility</strong></td><td>Screen-reader label on the profile modal; reduced-sensory fallbacks for decorative illustrations in the messaging surfaces; visible labels on the profile-hub icon buttons.</td></tr>
@@ -359,9 +360,12 @@
       bottleneck; plan a moderator rotation, or buy the auto-moderation vendor (5E) to
       auto-clear the safe majority.</li>
     <li><strong>Demo/test data in production.</strong> ~500 demo profiles are intentionally
-      live to cushion cold-start, and some founder test accounts with troll names are live.
-      Before real users: purge test/troll accounts (we can run the admin wipe) and decide
-      whether the demo personas stay.</li>
+      live to cushion cold-start, and some founder test accounts with troll names exist.
+      Name/pronoun abuse screening now blocks new offenders and the Discover backstop already
+      hides the existing troll cards from real users, so this is no longer user-facing — but
+      before launch you should still purge the test/troll rows for a clean database (we can
+      run the admin wipe once <code>ADMIN_EMAILS</code> is set) and decide whether the demo
+      personas stay.</li>
     <li><strong>Appeal channel.</strong> Due-process copy points to
       <code>support@spectrum-dating.app</code> — confirm that inbox exists and is monitored,
       or ask us to wire an in-app appeal form instead.</li>
@@ -533,7 +537,6 @@
   <ul>
     <li>Ban-evasion ledger (salted email/device hash checked at registration) — pairs with the SMS vendor (5E).</li>
     <li>Quarantine-on-reject for media instead of immediate delete (preserves CSAM evidence) — pairs with the CSAM vendor (5E).</li>
-    <li>Name/pronoun screening extension (some troll input passes today) — pairs with the test-data purge (5F).</li>
     <li>Add pagination to the admin reports/audit-log endpoints (fine at launch scale).</li>
   </ul>
 
@@ -551,8 +554,10 @@
   <p class="note">Closed in the Section 4 passes (no longer outstanding): the export-token leak,
   age-range validation, dead-code cull, admin report/queue polish, all the accessibility-AA and
   reduced-sensory work, the calm-copy reframes, orientation opt-out, the "Top Picks" rename, the
-  stale QA drivers/status doc, <strong>password re-entry on account deletion</strong>, and
-  <strong>garbage-collecting the counterpart's message attachments on deletion</strong>.</p>
+  stale QA drivers/status doc, <strong>password re-entry on account deletion</strong>,
+  <strong>garbage-collecting the counterpart's message attachments on deletion</strong>,
+  <strong>accepting the severe safety-report reasons</strong>, the <strong>honest Companion
+  catalog trim</strong>, and <strong>pronoun/name abuse screening</strong>.</p>
 
   <div class="card">
     <p style="margin-bottom:0;" class="small"><strong>Companion source documents</strong> (in
