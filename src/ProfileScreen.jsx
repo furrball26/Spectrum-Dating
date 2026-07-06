@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, getProfileUploadUrl, addProfilePhoto, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription, safeErrorMessage } from "./api.js";
+import { getProfile, updateProfile, clearAuth, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, getExportUrl, requestVerification, updatePhotoDescription, safeErrorMessage, uploadProfilePhoto, validateProfilePhotoFile } from "./api.js";
 import AudioAnswerEditor from "./AudioAnswerEditor.jsx";
 import AudioAnswerCard from "./AudioAnswer.jsx";
 import { t } from "./tokens.js";
@@ -3474,28 +3474,13 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   }
 
   // ── Validate a chosen image file; returns an error string or "" if OK.
-  function validatePhotoFile(file) {
-    const MAX = 10 * 1024 * 1024;
-    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!ALLOWED.includes(file.type)) return "Please choose a JPEG, PNG, WebP, or GIF.";
-    if (file.size > MAX) return "Photo must be under 10 MB.";
-    return "";
-  }
+  //    Delegates to the shared api.js util so onboarding + the editor share one
+  //    mime allowlist / size cap.
+  const validatePhotoFile = validateProfilePhotoFile;
 
   // ── Upload a file to R2 and register it; returns the new gallery list.
-  async function uploadAndAddPhoto(file) {
-    // 1. Get presigned URL
-    const { uploadUrl, key } = await getProfileUploadUrl(file.type);
-    // 2. Upload directly to R2
-    const upload = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": file.type },
-      body: file,
-    });
-    if (!upload.ok) throw new Error("Upload failed");
-    // 3. Register the photo with the backend; returns the full ordered list
-    return addProfilePhoto(key);
-  }
+  //    Shared presign → PUT → add pipeline lives in api.js (uploadProfilePhoto).
+  const uploadAndAddPhoto = uploadProfilePhoto;
 
   // ── Add a photo to the gallery
   const handleAddPhoto = useCallback(async (file) => {

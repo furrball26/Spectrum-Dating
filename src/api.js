@@ -1058,6 +1058,33 @@ export async function addProfilePhoto(key) {
   return Array.isArray(d?.photos) ? d.photos : [];
 }
 
+// Shared profile-photo constraints + upload flow. Single source of truth so the
+// profile editor AND onboarding go through the exact same presign → PUT → add
+// pipeline (no duplicated upload logic). A new upload lands in pending_review and
+// is invisible to others until a moderator approves it.
+export const PROFILE_PHOTO_MIME_ALLOWLIST = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+export const PROFILE_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+
+// Validate a chosen image file; returns an error string, or "" if OK.
+export function validateProfilePhotoFile(file) {
+  if (!file) return "Please choose a photo.";
+  if (!PROFILE_PHOTO_MIME_ALLOWLIST.includes(file.type)) return "Please choose a JPEG, PNG, WebP, or GIF.";
+  if (file.size > PROFILE_PHOTO_MAX_BYTES) return "Photo must be under 10 MB.";
+  return "";
+}
+
+// presigned R2 PUT → register with the backend; returns the full ordered photo list.
+export async function uploadProfilePhoto(file) {
+  const { uploadUrl, key } = await getProfileUploadUrl(file.type);
+  const upload = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!upload.ok) throw new Error("Upload failed");
+  return addProfilePhoto(key);
+}
+
 export async function setPrimaryPhoto(id) {
   const d = await apiFetch(`/photos/profile-photos/${id}/primary`, { method: 'PUT' });
   return Array.isArray(d?.photos) ? d.photos : [];

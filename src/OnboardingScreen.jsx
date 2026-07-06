@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { updateProfile, safeErrorMessage } from "./api.js";
+import { updateProfile, safeErrorMessage, uploadProfilePhoto, validateProfilePhotoFile, PROFILE_PHOTO_MIME_ALLOWLIST } from "./api.js";
 import { t } from "./tokens.js";
 import Spectrum from "./Spectrum.jsx";
 import { useFocusable, focusRing } from "./useFocusable.js";
@@ -701,6 +701,183 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
   );
 }
 
+// ─── Photo step: at least one photo required to finish onboarding ──────────────
+
+const ONBOARDING_MAX_PHOTOS = 6;
+const PHOTO_ACCEPT = PROFILE_PHOTO_MIME_ALLOWLIST.join(",");
+
+// Keyboard-accessible add-photo control. Mirrors ProfileScreen's AddPhotoTile
+// (hidden file input driven by a real <button>, focus ring via useFocusable).
+function OnboardAddPhotoTile({ onAdd, uploading, disabled, invalid, tileRef }) {
+  const fileRef = useRef(null);
+  const f = useFocusable();
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <button
+        type="button"
+        id="ob-add-photo-tile"
+        ref={tileRef}
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading || disabled}
+        aria-label="Add photo"
+        aria-busy={uploading}
+        aria-invalid={invalid ? "true" : undefined}
+        {...f}
+        style={{
+          width: "100%",
+          aspectRatio: "1 / 1",
+          borderRadius: 12,
+          border: `2px dashed ${invalid ? t.danger : t.accentStrong}`,
+          background: t.surfaceAlt,
+          color: t.accentStrong,
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: uploading || disabled ? "wait" : "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          opacity: uploading || disabled ? 0.7 : 1,
+          ...f.style,
+        }}
+      >
+        {uploading ? (
+          "Uploading…"
+        ) : (
+          <>
+            <span aria-hidden="true" style={{ fontSize: 28, lineHeight: 1 }}>+</span>
+            <span>Add photo</span>
+          </>
+        )}
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={PHOTO_ACCEPT}
+        aria-hidden="true"
+        tabIndex={-1}
+        style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onAdd(file);
+          e.target.value = ""; // reset so the same file can be re-selected
+        }}
+      />
+    </div>
+  );
+}
+
+function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, attempted }) {
+  const atMax = photos.length >= ONBOARDING_MAX_PHOTOS;
+  const gateError = attempted ? errors.photos : "";
+  return (
+    <>
+      <p style={{ margin: "0 0 8px", fontSize: 16, color: t.text, lineHeight: 1.55, fontWeight: 600 }}>
+        Add at least one photo <span aria-hidden="true" style={{ color: t.danger }}>*</span>
+      </p>
+      <p style={{ margin: "0 0 16px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+        A photo helps people feel they&apos;re connecting with a real person. You can
+        add up to {ONBOARDING_MAX_PHOTOS}, and change them anytime in your profile.
+      </p>
+
+      {/* Calm review note — mirrors the SAFETY-2 pending-review copy so it reads
+          reassuring, not alarming. */}
+      <div
+        role="note"
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          background: t.surfaceAlt,
+          border: `1px solid ${t.borderLight}`,
+          borderRadius: 12,
+          padding: "12px 14px",
+          marginBottom: 18,
+          fontSize: 14,
+          color: t.textSoft,
+          lineHeight: 1.55,
+        }}
+      >
+        <span aria-hidden="true">🔒</span>
+        <span>
+          A member of our team takes a look at each photo before others can see it.
+          There&apos;s no rush — you can add more later.
+        </span>
+      </div>
+
+      {/* Uploaded photos + add tile */}
+      <div
+        role="list"
+        aria-label="Your photos"
+        style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}
+      >
+        {photos.map((p, i) => (
+          <div
+            key={p.id ?? p.url ?? i}
+            role="listitem"
+            style={{
+              position: "relative",
+              aspectRatio: "1 / 1",
+              borderRadius: 12,
+              overflow: "hidden",
+              background: t.surfaceAlt,
+              border: `1px solid ${t.border}`,
+            }}
+          >
+            {p.url ? (
+              <img
+                src={p.url}
+                alt={`Your photo ${i + 1}`}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", fontSize: 12, color: t.textMuted }}>
+                Photo {i + 1}
+              </span>
+            )}
+            {(p.pending || p.reviewStatus === "pending_review") && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: 6,
+                  bottom: 6,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: t.warningSurface,
+                  color: t.warningSurfaceText,
+                  border: `1px solid ${t.warningBorder}`,
+                }}
+              >
+                In review
+              </span>
+            )}
+          </div>
+        ))}
+        {!atMax && (
+          <OnboardAddPhotoTile
+            onAdd={onAdd}
+            uploading={uploading}
+            invalid={!!gateError}
+            tileRef={tileRef}
+          />
+        )}
+      </div>
+
+      {/* Upload failure — calm, retry is simply tapping Add photo again. */}
+      {uploadError && (
+        <p role="alert" style={{ margin: "8px 0 0", fontSize: 14, color: t.danger, fontWeight: 500, lineHeight: 1.5 }}>
+          {uploadError} You can try adding it again.
+        </p>
+      )}
+
+      <InlineError id="ob-photos-error">{gateError}</InlineError>
+    </>
+  );
+}
+
 // ─── Step 3: Communication ─────────────────────────────────────────────────────
 
 function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, errors, attempted }) {
@@ -1042,6 +1219,14 @@ export default function OnboardingScreen({ onComplete }) {
   const [bio, setBio] = useState("");
   const [interests, setInterests] = useState([]);
 
+  // Photo step — at least one uploaded photo is required to finish onboarding.
+  // The onboarding user is already authenticated, so this reuses the exact same
+  // presign → PUT → add pipeline the profile editor uses (api.js). Uploads land
+  // in pending_review; the gate is photos.length >= 1 (pending counts).
+  const [photos, setPhotos] = useState([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState("");
+
   // Step 3 fields
   const [commNote, setCommNote] = useState("");
   const [relationshipGoal, setRelationshipGoal] = useState("");
@@ -1073,6 +1258,7 @@ export default function OnboardingScreen({ onComplete }) {
 
   // Focus management
   const headingRef = useRef(null);
+  const photoTileRef = useRef(null);
   const prefersReduced = usePrefersReduced();
   const viewport = useViewport();
   const isMobile = viewport === "mobile";
@@ -1118,10 +1304,43 @@ export default function OnboardingScreen({ onComplete }) {
     return errs;
   }
 
+  // Photo step gate — at least ONE uploaded photo (pending review counts).
+  function validatePhotoStep() {
+    const errs = {};
+    if (photos.length === 0) errs.photos = "Add at least one photo to continue.";
+    return errs;
+  }
+
+  // Upload a chosen image through the shared profile-photo pipeline. Reuses the
+  // same validation + presign → PUT → add flow as the profile editor; a failed
+  // upload surfaces a calm retry (never a dead-end).
+  async function handleAddPhoto(file) {
+    if (!file) return;
+    if (photos.length >= ONBOARDING_MAX_PHOTOS) {
+      setPhotoUploadError(`You can add up to ${ONBOARDING_MAX_PHOTOS} photos.`);
+      return;
+    }
+    const invalid = validateProfilePhotoFile(file);
+    if (invalid) {
+      setPhotoUploadError(invalid);
+      return;
+    }
+    setPhotoUploadError("");
+    setPhotoUploading(true);
+    try {
+      const list = await uploadProfilePhoto(file);
+      setPhotos(list);
+    } catch (e) {
+      setPhotoUploadError(safeErrorMessage(e, "Photo upload failed."));
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   // Gender, sexual orientation, and seeking are required at sign-up (owner).
   // Client-side gate only — like the required city field, the shared
   // PUT /profile/me can't globally require these without breaking partial edits.
-  function validateStep4() {
+  function validateMeetStep() {
     const errs = {};
     if (!gender) {
       errs.gender = "Choose your gender to continue.";
@@ -1142,11 +1361,16 @@ export default function OnboardingScreen({ onComplete }) {
   // ── Navigation ───────────────────────────────────────────────────────────────
 
   function handleContinue() {
-    const errs = step === 1 ? validateStep1() : step === 2 ? validateStep2() : step === 4 ? validateStep4() : {};
+    const errs =
+      step === 1 ? validateStep1() :
+      step === 2 ? validateStep2() :
+      step === 3 ? validatePhotoStep() :
+      step === 5 ? validateMeetStep() : {};
     if (Object.keys(errs).length > 0) {
       setAttempted(true);
       // Move focus to the first invalid field so keyboard/SR users are taken to
-      // the problem instead of being left on the Continue button (M1).
+      // the problem instead of being left on the Continue button (M1). The
+      // photo step's Add-photo tile carries aria-invalid when the gate fails.
       setTimeout(() => {
         const el = document.querySelector('[aria-invalid="true"]');
         if (el && typeof el.focus === "function") el.focus();
@@ -1166,6 +1390,15 @@ export default function OnboardingScreen({ onComplete }) {
   // ── Save ─────────────────────────────────────────────────────────────────────
 
   async function handleSave() {
+    // Belt-and-suspenders: onboarding cannot complete without at least one
+    // uploaded photo. The photo step's gate already blocks progress, but guard
+    // the finish handler too so the requirement can't be bypassed.
+    if (photos.length === 0) {
+      setAttempted(true);
+      setError("Add at least one photo before finishing.");
+      setStep(3);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -1213,7 +1446,8 @@ export default function OnboardingScreen({ onComplete }) {
   // ── Step errors (memoised-ish via inline) ────────────────────────────────────
   const step1Errors = attempted && step === 1 ? validateStep1() : {};
   const step2Errors = attempted && step === 2 ? validateStep2() : {};
-  const step4Errors = attempted && step === 4 ? validateStep4() : {};
+  const photoStepErrors = attempted && step === 3 ? validatePhotoStep() : {};
+  const meetStepErrors = attempted && step === 5 ? validateMeetStep() : {};
 
   // ── Styles ───────────────────────────────────────────────────────────────────
 
@@ -1246,6 +1480,7 @@ export default function OnboardingScreen({ onComplete }) {
   const stepHeadings = [
     "Let's start with the basics",
     "Tell people about you",
+    "Add a photo",
     "How you communicate",
     "Who you'd like to meet",
     "How you communicate best",
@@ -1271,9 +1506,10 @@ export default function OnboardingScreen({ onComplete }) {
   }
 
   const isLastStep = step === TOTAL_STEPS;
-  // Step 4 now carries required fields (gender / sexual orientation / seeking),
-  // so it is no longer wholesale-skippable — only Step 5 (the "moat") is.
-  const isOptionalStep = step === 5;
+  // The "who you'd like to meet" step (5) carries required fields (gender /
+  // sexual orientation / seeking) and the photo step (3) is required, so neither
+  // is wholesale-skippable — only the final "moat" step (6) is optional.
+  const isOptionalStep = step === TOTAL_STEPS;
 
   // D33 — "You're all set" arrival beat. Calm, low-stimulation: a soft spectrum
   // mark, a warm line, and a single clear button to enter. No confetti / sound /
@@ -1423,6 +1659,17 @@ export default function OnboardingScreen({ onComplete }) {
           />
         )}
         {step === 3 && (
+          <StepPhotos
+            photos={photos}
+            uploading={photoUploading}
+            uploadError={photoUploadError}
+            onAdd={handleAddPhoto}
+            tileRef={photoTileRef}
+            errors={photoStepErrors}
+            attempted={attempted}
+          />
+        )}
+        {step === 4 && (
           <Step3
             commNote={commNote}
             setCommNote={setCommNote}
@@ -1432,7 +1679,7 @@ export default function OnboardingScreen({ onComplete }) {
             attempted={attempted}
           />
         )}
-        {step === 4 && (
+        {step === 5 && (
           <Step4
             gender={gender}
             setGender={setGender}
@@ -1452,11 +1699,11 @@ export default function OnboardingScreen({ onComplete }) {
             prefAgeMax={prefAgeMax}
             setPrefAgeMin={setPrefAgeMin}
             setPrefAgeMax={setPrefAgeMax}
-            errors={step4Errors}
+            errors={meetStepErrors}
             attempted={attempted}
           />
         )}
-        {step === 5 && (
+        {step === 6 && (
           <Step5
             commDirectness={commDirectness}
             setCommDirectness={setCommDirectness}
