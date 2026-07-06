@@ -181,12 +181,21 @@ export function assembleOwnProfile(db, userId) {
 
   const dobAge = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : null;
 
+  // At least one profile photo is REQUIRED to be onboarded. onboardingComplete is
+  // derived server-side (never a client-set flag), so this is the real, un-
+  // bypassable enforcement of the onboarding photo gate: any status counts
+  // (a freshly uploaded photo sits in pending_review — the requirement is
+  // "uploaded", not "approved"). The app routes a user to onboarding until this
+  // is true, so a client can't skip the photo step by faking the flag.
+  const photoCount = db.prepare('SELECT COUNT(*) AS c FROM profile_photos WHERE user_id = ?').get(userId).c;
+
   const onboardingComplete = !!(
     profile.display_name?.trim() &&
     profile.bio?.trim() &&
     interests.length > 0 &&
     profile.date_of_birth &&
-    dobAge !== null && dobAge >= 18
+    dobAge !== null && dobAge >= 18 &&
+    photoCount > 0
   );
 
   const userRow = db.prepare('SELECT email, email_verified, is_admin FROM users WHERE id = ?').get(userId);

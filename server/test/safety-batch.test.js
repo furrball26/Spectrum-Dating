@@ -386,3 +386,28 @@ describe('G4: locationGeocodable flag on /profile/me', () => {
     expect(r2.json.locationGeocodable).toBe(false);
   });
 });
+
+describe('onboarding photo gate (backend-derived onboardingComplete)', () => {
+  it('onboardingComplete is FALSE until at least one photo exists, then TRUE', async () => {
+    // Full profile (name + bio + interests + valid DOB) but NO photo.
+    const u = makeUser({ photoUrl: '' });
+    let r = await api('/profile/me', { token: signToken(u, 0) });
+    expect(r.status).toBe(200);
+    expect(r.json.onboardingComplete).toBe(false);
+
+    // A single UPLOADED photo (pending_review counts — the rule is uploaded,
+    // not approved) flips it complete.
+    addPhotoRow(u, { status: 'pending_review', primary: 1 });
+    r = await api('/profile/me', { token: signToken(u, 0) });
+    expect(r.json.onboardingComplete).toBe(true);
+  });
+
+  it('a missing required field still blocks completion even WITH a photo', async () => {
+    const u = makeUser({ photoUrl: '' });
+    addPhotoRow(u, { status: 'approved', primary: 1 });
+    // Wipe the bio → incomplete regardless of the photo.
+    db.prepare('UPDATE profiles SET bio = ? WHERE user_id = ?').run('', u);
+    const r = await api('/profile/me', { token: signToken(u, 0) });
+    expect(r.json.onboardingComplete).toBe(false);
+  });
+});

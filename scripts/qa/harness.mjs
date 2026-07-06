@@ -53,6 +53,23 @@ const PROFILE_DEFAULTS = {
   onboardingComplete: true,
 };
 
+// Seed one profile photo so the account is ONBOARDING-COMPLETE. The backend now
+// derives onboardingComplete with a "≥1 photo" requirement (real, un-bypassable
+// gate), so a seeded QA account with no photo would be routed back to onboarding
+// and every driver expecting the main app would break. We add a pending_review
+// row via the real /photos/profile-add endpoint with a fixed key — no R2 bytes
+// needed (the row is what onboardingComplete counts). Idempotent: the endpoint's
+// reused-key guard 409s a second identical key, which we swallow. The photo is
+// unapproved (never enters Discover) and test-account rows are already excluded
+// from the moderation photo queue, so this adds zero product-facing noise.
+async function ensureSeedPhoto(token, userId) {
+  await api(
+    "/photos/profile-add",
+    { method: "POST", body: { key: `profile-photos/${userId}/seed.jpg` } },
+    token
+  ).catch(() => {});
+}
+
 // Register a throwaway QA account (qa+<tag><rand>@spectrum-test.dev) and
 // complete its profile. Returns { token, userId, email }.
 export async function makeAccount(tag, profile = {}) {
@@ -64,6 +81,7 @@ export async function makeAccount(tag, profile = {}) {
   });
   if (!reg.body?.token) throw new Error(`register failed: ${reg.status} ${JSON.stringify(reg.body)}`);
   await api("/profile/me", { method: "PUT", body: { ...PROFILE_DEFAULTS, ...profile } }, reg.body.token);
+  await ensureSeedPhoto(reg.body.token, reg.body.userId);
   return { token: reg.body.token, userId: reg.body.userId, email };
 }
 
@@ -89,6 +107,9 @@ export async function getPooledAccount(idx = 0, profile = {}) {
   } else if (Object.keys(profile).length) {
     await api("/profile/me", { method: "PUT", body: { ...PROFILE_DEFAULTS, ...profile } }, res.body.token);
   }
+  // Idempotent seed photo so the pooled account stays onboarding-complete under
+  // the ≥1-photo rule (also backfills pool accounts created before this rule).
+  await ensureSeedPhoto(res.body.token, res.body.userId);
   return { token: res.body.token, userId: res.body.userId, email };
 }
 
