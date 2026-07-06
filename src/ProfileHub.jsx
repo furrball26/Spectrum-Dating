@@ -351,7 +351,7 @@ export default function ProfileHub({
           />
           <HubRow
             icon={<StarIcon size={22} />}
-            title="Top Picks"
+            title="Best fits"
             // Free tier: make the locked state legible on the row so the tap is a
             // known, chosen action (preview what Companion adds) rather than an
             // inviting row that dead-ends at a gate.

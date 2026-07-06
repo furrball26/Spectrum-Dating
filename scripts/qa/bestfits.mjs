@@ -27,13 +27,13 @@ try {
   await page.goto("http://127.0.0.1:4173/?tab=suggestions", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
 
-  const discoverTopPicks = page.getByRole("button", { name: /^Top Picks$/i }).first();
+  const discoverTopPicks = page.getByRole("button", { name: /^Best fits$/i }).first();
   await discoverTopPicks.waitFor({ state: "visible", timeout: 8000 });
   await discoverTopPicks.click();
   await page.waitForTimeout(1800);
 
   let bodyText = await page.evaluate(() => document.body.innerText);
-  check("Discover Top Picks button opens the Top Picks surface", /Top Picks/i.test(bodyText));
+  check("Discover Best fits button opens the Best fits surface", /Best fits/i.test(bodyText));
   check("locked panel names Spectrum Companion (from Discover)", /part of Spectrum Companion/i.test(bodyText));
 
   // ── Entry 2: Membership → Companion area → "See your best fits" ──────────────
@@ -48,11 +48,11 @@ try {
   await page.waitForTimeout(1800);
 
   bodyText = await page.evaluate(() => document.body.innerText);
-  check("best fits screen heading present", /Top Picks/i.test(bodyText));
+  check("best fits screen heading present", /Best fits/i.test(bodyText));
   check("locked panel names Spectrum Companion", /part of Spectrum Companion/i.test(bodyText));
   check("no Companion cards leaked (no 'I'm interested' action)", !/I'm interested/i.test(bodyText));
 
-  const upgrade = page.getByRole("button", { name: /See Companion plans/i }).first();
+  const upgrade = page.getByRole("button", { name: /See what Companion adds/i }).first();
   check("locked panel offers an Upgrade route back to plans", await upgrade.isVisible().catch(() => false));
 
   await page.screenshot({ path: "qa-artifacts/bestfits-locked.png" }).catch(() => {});

@@ -48,7 +48,7 @@ async function run(theme) {
     (await page.getByRole("button", { name: /^Settings$/ }).count()) === 1);
   check(`[${theme}] avatar pencil (Edit profile) present`,
     (await page.getByRole("button", { name: /^Edit profile$/ }).count()) === 1);
-  for (const row of ["How others see you", "Membership", "Top Picks", "Safety Center"]) {
+  for (const row of ["How others see you", "Membership", "Best fits", "Safety Center"]) {
     check(`[${theme}] hub row "${row}" present`,
       (await page.getByRole("button", { name: new RegExp(row, "i") }).count()) > 0);
   }

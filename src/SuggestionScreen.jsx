@@ -128,7 +128,7 @@ function TopPicksButton({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      aria-label="Top Picks"
+      aria-label="Best fits"
       {...f}
       style={{
         display: "inline-flex",
@@ -154,7 +154,7 @@ function TopPicksButton({ onClick }) {
           strokeLinejoin="round"
         />
       </svg>
-      Top Picks
+      Best fits
     </button>
   );
 }

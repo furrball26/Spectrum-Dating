@@ -89,7 +89,7 @@ const SCREEN_NAMES = {
   account: "Account & security",
   notifications: "Notifications",
   membership: "Membership",
-  bestFits: "Top Picks",
+  bestFits: "Best fits",
   terms: "Terms & Community Standards",
 };
 

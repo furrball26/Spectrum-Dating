@@ -5243,7 +5243,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                       "Conversation help when a message feels hard to start",
                       "Express-yourself media on your profile",
                       "Deeper filters and saved search sets",
-                      "Top Picks — a small, calm set of people we think you'll like",
+                      "Best fits — a small, calm set of people we think you'll like",
                     ].map((add) => (
                       <li key={add} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, lineHeight: 1.5, color: t.textSoft }}>
                         <span aria-hidden="true" style={{ color: t.accentStrong, fontWeight: 700, flexShrink: 0 }}>+</span>
