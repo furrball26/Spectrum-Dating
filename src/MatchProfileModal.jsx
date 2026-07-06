@@ -23,6 +23,12 @@ export default function MatchProfileModal({ userId, onClose }) {
   const [promptCatalog, setPromptCatalog] = useState([]);
   // The audio clip the viewer is reporting (null = report modal closed).
   const [reportAudioId, setReportAudioId] = useState(null);
+  // T2 — person-level block/report (not tied to a voice note). Reuses the shared
+  // ReportModal with no audioId, so "Block them" defaults on. blockedRef records
+  // that a block actually landed, so when the report modal finishes we also close
+  // this profile (the person is now blocked) rather than dropping back onto it.
+  const [reportPersonOpen, setReportPersonOpen] = useState(false);
+  const blockedRef = useRef(false);
   const closeRef = useRef(null);
   const headingRef = useRef(null);
   const dialogRef = useRef(null);
@@ -59,12 +65,12 @@ export default function MatchProfileModal({ userId, onClose }) {
 
   // Escape to close + Tab/Shift+Tab focus trap. The dialog's focusable set is
   // dynamic (varies with loaded content), so query it live on each Tab. WCAG 2.4.3 / 2.1.2.
-  // B7 — while the child ReportModal is open (reportAudioId set) it owns the
+  // B7 — while a child ReportModal is open (audio OR person-level) it owns the
   // keyboard: this parent goes fully inert so one Escape closes only the report
   // modal (not both) and the two focus traps don't fight.
   useEffect(() => {
     const onKey = (e) => {
-      if (reportAudioId) return;
+      if (reportAudioId || reportPersonOpen) return;
       if (e.key === "Escape") { onClose?.(); return; }
       if (e.key === "Tab") {
         const root = dialogRef.current;
@@ -92,7 +98,7 @@ export default function MatchProfileModal({ userId, onClose }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, reportAudioId]);
+  }, [onClose, reportAudioId, reportPersonOpen]);
 
   const chips = profile ? commChips(profile) : [];
 
@@ -288,6 +294,21 @@ export default function MatchProfileModal({ userId, onClose }) {
                   </div>
                 </div>
               )}
+
+              {/* T2 — safety: block or report the PERSON from their full profile,
+                  not just a single voice note. Reuses the shared ReportModal
+                  (no audioId → person-level; "Block them" defaults on). Calm,
+                  underlined text idiom matching Discover's "Report {name}". This
+                  button lives inside dialogRef, so the focus trap includes it. */}
+              <div style={{ marginTop: 22, paddingTop: 16, borderTop: `1px solid ${t.borderLight}`, textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => setReportPersonOpen(true)}
+                  style={{ background: "none", border: "none", color: t.textMuted, fontSize: 14, textDecoration: "underline", cursor: "pointer", padding: "8px 12px", minHeight: 44 }}
+                >
+                  Block or report {profile.displayName}
+                </button>
+              </div>
             </>
           ) : null}
         </div>
@@ -298,6 +319,23 @@ export default function MatchProfileModal({ userId, onClose }) {
           candidate={{ memberId: profile.userId, displayName: profile.displayName }}
           audioId={reportAudioId}
           onClose={() => setReportAudioId(null)}
+        />
+      )}
+
+      {reportPersonOpen && profile && (
+        <ReportModal
+          candidate={{ memberId: profile.userId, displayName: profile.displayName }}
+          onBlocked={() => { blockedRef.current = true; }}
+          onClose={() => {
+            setReportPersonOpen(false);
+            // If a block actually landed, close the whole profile too — the
+            // person is blocked, so returning to their profile would be odd.
+            // A report-only submit (or Cancel/Escape) just returns to the profile.
+            if (blockedRef.current) {
+              blockedRef.current = false;
+              onClose?.();
+            }
+          }}
         />
       )}
     </>

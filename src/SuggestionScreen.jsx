@@ -739,8 +739,10 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     setSubmitting(true);
     setLastChoice("not_now");
     setLastPerson(current);
-    setQueue(q => q.slice(1));
-    setIndex(0);
+    // B18 — advance the deck AFTER the await resolves (mirroring handleInterested):
+    // slicing the queue before the request left the NEXT card rendered under the
+    // still-"viewing" stage for the duration of the in-flight swipe, flashing it
+    // then correcting. Keep `current` in place until the request settles.
     try {
       await swipe(current.memberId, 'skip');
     } catch (e) {
@@ -750,6 +752,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     } finally {
       setSubmitting(false);
     }
+    setQueue(q => q.slice(1));
+    setIndex(0);
     setStage("confirmed");
   }
 
@@ -761,8 +765,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     setSubmitting(true);
     setLastChoice("skip");
     setLastPerson(current);
-    setQueue(q => q.slice(1));
-    setIndex(0);
+    // B18 — advance AFTER the await (see handleNotNow) so the next card doesn't
+    // flash under the viewing stage while the swipe is in flight.
     try {
       await swipe(current.memberId, 'skip');
     } catch (e) {
@@ -771,6 +775,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
     } finally {
       setSubmitting(false);
     }
+    setQueue(q => q.slice(1));
+    setIndex(0);
     setStage("confirmed");
   }
 
@@ -1367,7 +1373,10 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               gap: 10,
               ...(isMobile ? null : { maxWidth: 420, marginLeft: "auto", marginRight: "auto" }),
             }}>
-              <ActionButton label={plainLanguage ? "Yes"      : "I'm interested"} kind="interested" onClick={handleInterested} icon="♡" />
+              {/* B25 — the three swipe actions carry disabled={submitting} so a
+                  double-tap while a swipe is in flight can't fire a second
+                  request (pairs with the in-flight guards in the handlers). */}
+              <ActionButton label={plainLanguage ? "Yes"      : "I'm interested"} kind="interested" onClick={handleInterested} icon="♡" disabled={submitting} />
               {/* Calm opt-in first-contact — a screened intro that only becomes a
                   conversation if they accept. A quiet, deliberate alternative to
                   a like; never urgent, never a delivery/read signal. Its own
@@ -1379,8 +1388,8 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
                 icon="✉"
                 ariaLabel={`Send an intro to ${person.displayName}`}
               />
-              <ActionButton label={plainLanguage ? "Not now"          : "Not right now"}   kind="notnow" onClick={handleNotNow} />
-              <ActionButton label={plainLanguage ? "Hide this person" : "Don't show again"} kind="notnow" onClick={handleSkip} />
+              <ActionButton label={plainLanguage ? "Not now"          : "Not right now"}   kind="notnow" onClick={handleNotNow} disabled={submitting} />
+              <ActionButton label={plainLanguage ? "Hide this person" : "Don't show again"} kind="notnow" onClick={handleSkip} disabled={submitting} />
             </div>
 
             <p style={{ marginTop: 20, textAlign: "center" }}>

@@ -1969,6 +1969,15 @@ export default function ConversationScreen({
   // Enter pressed twice before setComposeValue("") flushes). A ref, not state,
   // so the check is synchronous within one send.
   const sendingRef = useRef(false);
+  // B11 — guards retrySend against a double-tap: a second Retry while the first
+  // is in flight would post the same body twice (two server rows). Mirrors
+  // sendingRef (synchronous ref check, not state).
+  const retryingRef = useRef(false);
+  // B10 — tracks whether the shared socket has been observed connected during
+  // THIS open thread, so we can tell a genuine reconnect (refetch to recover
+  // messages sent while it was down) apart from the initial connect (already
+  // covered by the mount fetch — must not double-fetch). Reset per thread.
+  const wasSocketConnectedRef = useRef(false);
   const [attachment, setAttachment] = useState({
     file: null,
     previewUrl: null,
@@ -2057,6 +2066,10 @@ export default function ConversationScreen({
     const forThisThread = (payload) =>
       !payload?.conversationId || payload.conversationId === conversationId;
 
+    // B10 — start each open thread fresh: the very next connected=true we observe
+    // is the initial connect (covered by the mount fetch), not a reconnect.
+    wasSocketConnectedRef.current = false;
+
     // Join this thread's room on open (and re-assert on every reconnect below).
     joinConversation(conversationId);
 
@@ -2083,7 +2096,19 @@ export default function ConversationScreen({
     // re-emit the room join whenever it (re)connects.
     const offConnection = subscribeConnection((connected) => {
       setSocketConnected(connected);
-      if (connected) joinConversation(conversationId);
+      if (connected) {
+        joinConversation(conversationId);
+        // B10 — on a genuine reconnect (we were connected before, dropped, and
+        // are back), re-fetch the thread: any messages sent while the socket was
+        // down never arrived over the (dead) socket, and the reconnect banner
+        // otherwise implies they'll appear. The FIRST connect of this thread is
+        // the initial connect — the mount fetch already covers it, so skip it to
+        // avoid a double-fetch. reloadKey drives the load effect above.
+        if (wasSocketConnectedRef.current) {
+          setReloadKey((k) => k + 1);
+        }
+        wasSocketConnectedRef.current = true;
+      }
     });
 
     return () => {
@@ -2389,6 +2414,10 @@ export default function ConversationScreen({
   // on the stable conversationId prop; all setters are stable.
   const retrySend = useCallback(async (failedMsg) => {
     if (!failedMsg?.body) return;
+    // B11 — ignore a second Retry tap while the first is still in flight, or the
+    // same body posts twice (two server rows). Released in `finally`.
+    if (retryingRef.current) return;
+    retryingRef.current = true;
     setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: false } : m));
     try {
       const saved = await sendMessage(conversationId, failedMsg.body);
@@ -2403,6 +2432,8 @@ export default function ConversationScreen({
       }
       setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: true } : m));
       setSendStatus("Still couldn't send. Check your connection.");
+    } finally {
+      retryingRef.current = false;
     }
   }, [conversationId]);
 

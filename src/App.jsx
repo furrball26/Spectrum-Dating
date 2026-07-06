@@ -1780,7 +1780,7 @@ export default function App() {
                   }}
                 />
               )}
-              {activeTab === "admin" && isAdmin && <AdminScreen />}
+              {activeTab === "admin" && isAdmin && <AdminScreen onTierChange={setTier} />}
               {activeTab === "safety" && (
                 <SafetyScreen onBack={() => setActiveTab(prevTab || "suggestions")} />
               )}

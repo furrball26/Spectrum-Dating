@@ -3390,7 +3390,7 @@ const TIER_VIEW_OPTIONS = [
   { value: "companion", label: "Companion" },
 ];
 
-function BillingDemoSection() {
+function BillingDemoSection({ onTierChange }) {
   const [tier, setTier] = useState(null); // 'free' | 'companion' | null (loading)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -3401,9 +3401,15 @@ function BillingDemoSection() {
 
   const load = useCallback(() => {
     getMyEntitlement()
-      .then((e) => setTier(e.tier))
+      .then((e) => {
+        setTier(e.tier);
+        // B19 — the calling admin IS the signed-in user, so keep the app-level
+        // tier in sync with their real entitlement (covers mount + after a demo
+        // reset, which clears their admin_demo grant back to free).
+        onTierChange?.(e.tier);
+      })
       .catch(() => setError("Couldn't load your current tier."));
-  }, []);
+  }, [onTierChange]);
   useEffect(() => { load(); }, [load]);
 
   const setSelf = useCallback(async (next) => {
@@ -3412,6 +3418,10 @@ function BillingDemoSection() {
     try {
       const e = await adminSetSelfEntitlement(next);
       setTier(e.tier);
+      // B19 — propagate immediately so the app's tier state (Membership marker,
+      // Discover advanced filters, etc.) reflects the demo tier without a reload
+      // or a trip to Membership. Demo/admin affordance only — same backend grant.
+      onTierChange?.(e.tier);
       setStatus(
         e.tier === "companion"
           ? "You're now viewing as Companion (demo). Open Settings › Membership to walk through the paid experience."
@@ -3422,7 +3432,7 @@ function BillingDemoSection() {
     } finally {
       setBusy(false);
     }
-  }, [busy, tier]);
+  }, [busy, tier, onTierChange]);
 
   const runReset = useCallback(async () => {
     setResetBusy(true); setError(""); setStatus("");
@@ -3703,7 +3713,7 @@ function MemberTierControl({ userId, userName, initialTier = "free" }) {
   );
 }
 
-export default function AdminScreen() {
+export default function AdminScreen({ onTierChange }) {
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(false);
   // Shared "Demo data" view toggle (owned here so Overview's switch also drives
@@ -3843,6 +3853,9 @@ export default function AdminScreen() {
       oldestPendingProfileAudioAt: c.oldestPendingProfileAudioAt,
       oldestPendingVerificationAt: c.oldestPendingVerificationAt,
     } : prev));
+    // B14 — stamp the freshness time so the live poll's counts don't move under a
+    // frozen "Updated HH:MM". Mirrors loadStats's .finally stamp.
+    setLastUpdatedAt(Date.now());
   }, []);
 
   // Persist the "Live counts" choice so the console opens the same way next time.
@@ -4152,7 +4165,7 @@ export default function AdminScreen() {
                   DEMO (never real billing); per-member grants live in the drawer. */}
               <div style={sectionCardStyle}>
                 <h3 style={zoneHeadingStyle}>Billing demo (paid tier)</h3>
-                <BillingDemoSection />
+                <BillingDemoSection onTierChange={onTierChange} />
               </div>
               {/* Maintenance — purge test/demo accounts (low-emphasis, collapsed) */}
               <MaintenanceSection onStatus={setStatusMsg} onRefresh={() => { loadStats(); }} />

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { t } from "./tokens.js";
 
 // Shared default avatar. When there's no photo we render a calm, deterministic
@@ -40,8 +41,16 @@ function luminance(hex) {
 // that richer context instead of the generic "Photo of Name" fallback.
 export default function Avatar({ name, userId, photoUrl, alt, size = 56, style }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  // B21 — a broken/unreachable photo URL must NOT leave the alt text ("Photo of
+  // X") sitting inside the circle; on load error we flip to a failed state and
+  // fall through to the deterministic monogram fallback below. `useState` +
+  // `useEffect` are declared BEFORE any early return (React #310 hooks gate).
+  const [imgFailed, setImgFailed] = useState(false);
+  // Reset the failure flag when the source changes (same Avatar instance reused
+  // for a different person / a corrected URL).
+  useEffect(() => { setImgFailed(false); }, [photoUrl]);
 
-  if (photoUrl) {
+  if (photoUrl && !imgFailed) {
     // A real photo is informative (not decorative) — give it a meaningful alt so
     // screen-reader users know there's a photo and whose it is.
     const imgAlt = alt || (name ? `Photo of ${name}` : "Profile photo");
@@ -62,6 +71,7 @@ export default function Avatar({ name, userId, photoUrl, alt, size = 56, style }
           alt={imgAlt}
           loading="lazy"
           decoding="async"
+          onError={() => setImgFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>
