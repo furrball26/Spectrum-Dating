@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spectrum Dating — Handoff Guide</title>
+<style>
+  @page { size: Letter; margin: 20mm 18mm 18mm 18mm; }
+  :root{
+    --ink:#1e2a26; --ink-soft:#4a5a54; --line:#d8e0dc; --line-soft:#e8eeeb;
+    --surface:#f4f7f5; --accent:#2f6b57; --accent-soft:#e5efeb; --warm:#9a6a2f;
+    --warm-soft:#f6efe4; --danger:#8a3b34; --danger-soft:#f6e7e5;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{
+    font-family:"Helvetica Neue",Arial,sans-serif; color:var(--ink);
+    font-size:10.2pt; line-height:1.5; margin:0;
+  }
+  h1,h2,h3,h4{ font-family:Georgia,"Times New Roman",serif; color:var(--ink); line-height:1.2; }
+  h2{ font-size:17pt; margin:0 0 4px; padding-bottom:6px; border-bottom:2px solid var(--accent); }
+  h3{ font-size:12.5pt; margin:16px 0 4px; color:var(--accent); }
+  h4{ font-size:10.6pt; margin:12px 0 3px; color:var(--ink); font-family:"Helvetica Neue",Arial,sans-serif; font-weight:700; }
+  p{ margin:0 0 7px; }
+  ul,ol{ margin:0 0 8px; padding-left:18px; }
+  li{ margin:0 0 3px; }
+  a{ color:var(--accent); text-decoration:none; }
+  code{ font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.9pt; background:var(--surface); padding:1px 4px; border-radius:3px; color:#33413c; }
+  .section{ page-break-before:always; padding-top:2mm; }
+  .section:first-of-type{ page-break-before:avoid; }
+  .lead{ color:var(--ink-soft); font-size:10.6pt; }
+  .muted{ color:var(--ink-soft); }
+  table{ width:100%; border-collapse:collapse; margin:6px 0 12px; font-size:9.2pt; }
+  th{ text-align:left; background:var(--accent-soft); color:#244a3e; padding:5px 7px; border:1px solid var(--line); font-weight:700; }
+  td{ padding:5px 7px; border:1px solid var(--line); vertical-align:top; }
+  tr{ page-break-inside:avoid; }
+  .card{ border:1px solid var(--line); border-radius:7px; padding:11px 13px; margin:9px 0; background:#fff; page-break-inside:avoid; }
+  .card.warm{ background:var(--warm-soft); border-color:#e8d6ba; }
+  .card.accent{ background:var(--accent-soft); border-color:#c8ded6; }
+  .card.danger{ background:var(--danger-soft); border-color:#e8cfcb; }
+  .tag{ display:inline-block; font-size:7.6pt; font-weight:700; letter-spacing:.4px; text-transform:uppercase; padding:2px 7px; border-radius:10px; vertical-align:middle; }
+  .tag.block{ background:var(--danger); color:#fff; }
+  .tag.decide{ background:var(--warm); color:#fff; }
+  .tag.config{ background:var(--accent); color:#fff; }
+  .tag.done{ background:#2f6b57; color:#fff; }
+  .pill{ display:inline-block; font-size:8.2pt; padding:1px 7px; border-radius:10px; background:var(--surface); border:1px solid var(--line); color:var(--ink-soft); margin:0 3px 3px 0; }
+  .kv{ display:grid; grid-template-columns:150px 1fr; gap:2px 12px; margin:8px 0; }
+  .kv dt{ font-weight:700; color:var(--ink-soft); font-size:9.4pt; }
+  .kv dd{ margin:0; font-size:9.6pt; }
+  .cover{ text-align:left; padding-top:36mm; page-break-after:always; }
+  .cover .brand{ font-family:Georgia,serif; font-size:30pt; color:var(--accent); margin:0; }
+  .cover .sub{ font-size:13pt; color:var(--ink-soft); margin:6px 0 0; }
+  .cover .meta{ margin-top:26mm; font-size:9.6pt; color:var(--ink-soft); border-top:1px solid var(--line); padding-top:10px; }
+  .toc ol{ list-style:none; padding:0; counter-reset:toc; }
+  .toc li{ counter-increment:toc; padding:5px 0; border-bottom:1px solid var(--line-soft); font-size:10.4pt; }
+  .toc li::before{ content:counter(toc) ".  "; color:var(--accent); font-weight:700; }
+  .small{ font-size:8.8pt; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .note{ font-size:8.8pt; color:var(--ink-soft); font-style:italic; }
+  .check{ color:var(--accent); font-weight:700; }
+  hr{ border:none; border-top:1px solid var(--line); margin:14px 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <p class="brand">Spectrum Dating</p>
+  <p class="sub">Product &amp; Engineering Handoff Guide</p>
+  <p class="lead" style="margin-top:18px; max-width:135mm;">
+    A calm-by-design dating platform for autistic adults. This document is the
+    complete package for handing the product to your team — written for both a
+    <strong>Product Manager</strong> (what it is, what it does, what it needs to launch)
+    and a <strong>Senior Developer</strong> (how it is built, hosted, and moved onto
+    your own infrastructure and domain).
+  </p>
+  <div class="meta">
+    <strong>Status at handoff:</strong> Built, deployed, and functionally green
+    (automated smoke suite 11/11, no product-breaking bugs).<br>
+    <strong>Prepared:</strong> July 2026 · Final pre-handoff review<br>
+    <strong>Scope:</strong> Full-stack monorepo (React front end + Node/Express back end),
+    live on Vercel + Railway, ready to migrate to your accounts.
+  </div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="section toc">
+  <h2>Contents</h2>
+  <ol>
+    <li>Executive summary — read this first</li>
+    <li>What Spectrum Dating is (product &amp; principles)</li>
+    <li>As-is functionality &amp; feature inventory</li>
+    <li>Recent hardening pass (what was just fixed)</li>
+    <li>What you must complete before launch (client actions)</li>
+    <li>Senior developer handoff — architecture, hosting &amp; APIs</li>
+    <li>Moving it to your own accounts &amp; domain</li>
+    <li>Remaining backlog (tracked, non-blocking)</li>
+  </ol>
+  <p class="note" style="margin-top:14px;">Sections 1–5 are written for a general/PM
+  audience. Sections 6–7 are the technical handoff for your senior developer. Section 8
+  is the living engineering backlog.</p>
+</div>
+
+<!-- ============ 1. EXEC SUMMARY ============ -->
+<div class="section">
+  <h2>1 · Executive summary</h2>
+  <p class="lead">Spectrum Dating is complete and live in a staging/production
+  environment. It works end-to-end today. What stands between it and a public launch
+  is <strong>not unbuilt software</strong> — it is a short list of accounts, keys, vendor
+  choices, and legal/business decisions that only you, the owner, can make.</p>
+
+  <div class="grid2">
+    <div class="card accent">
+      <h4>Where it stands</h4>
+      <ul style="margin-bottom:0;">
+        <li>Full user journey works: sign-up → onboarding → discovery → matching → messaging.</li>
+        <li>Automated quality gate passing (<strong>11/11</strong> smoke, 431 backend tests).</li>
+        <li>Deployed: front end on Vercel, back end + database on Railway.</li>
+        <li>A recent hardening pass fixed a batch of bugs and a real moderation gap (Section 4).</li>
+      </ul>
+    </div>
+    <div class="card warm">
+      <h4>What it needs from you to launch</h4>
+      <ul style="margin-bottom:0;">
+        <li><strong>Config keys</strong> (email, push, admin) — minutes each, Section 5A.</li>
+        <li><strong>Vendor choices</strong> — payments + trust-&amp;-safety, Section 5D/5E.</li>
+        <li><strong>Content</strong> — the landing "who we are" copy, Section 5C.</li>
+        <li><strong>Legal</strong> — a lawyer's review of the Terms, Section 5G.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>The one-sentence version</h3>
+  <p>The product is built and safe to demo today; to open it to real users you need to
+  plug in your own email/push/storage keys, choose a payment and a child-safety vendor,
+  supply the landing copy, and have counsel review the Terms — all itemized in Section 5.</p>
+
+  <h3>Handoff intent</h3>
+  <p>The entire codebase (a single Git monorepo) is yours to take. It is designed to be
+  re-hosted under your own Vercel + Railway (or equivalent) accounts and pointed at your
+  own domain with no code changes — only environment configuration. Section 7 is the
+  step-by-step migration guide.</p>
+</div>
+
+<!-- ============ 2. WHAT IT IS ============ -->
+<div class="section">
+  <h2>2 · What Spectrum Dating is</h2>
+  <p class="lead">A dating app built specifically for autistic adults, whose guiding
+  principle is <em>calm by design</em>: it deliberately removes the anxiety-inducing,
+  attention-extracting mechanics of mainstream dating apps.</p>
+
+  <h3>Product principles ("product law")</h3>
+  <p>These are hard rules enforced in code and in the automated tests. They are the
+  brand's promise and should not be weakened without deliberate product sign-off:</p>
+  <ul>
+    <li><strong>No pressure mechanics.</strong> No typing indicators, no read receipts,
+      no "online/last seen", no streaks, no countdowns, no urgency, no gamification, no
+      fabricated engagement metrics.</li>
+    <li><strong>Honesty.</strong> Nothing fabricated — no vanity "match %", no "X people
+      viewed you", no scarcity nudges.</li>
+    <li><strong>Sensory calm.</strong> Reduced-sensory fallbacks for all decoration and
+      motion; a low-stimulation mode; 13 selectable themes.</li>
+    <li><strong>Privacy &amp; safety first.</strong> Coarse location only (city-level,
+      never precise). Independent block and report. Identity (pride/trans/etc.) themes
+      that reset on logout and can be reverted with a double-tap — a trust-&amp;-safety
+      feature for people in unsafe rooms.</li>
+    <li><strong>Accessibility.</strong> WCAG AA color contrast across every theme,
+      full keyboard/screen-reader support, calm plain-language copy.</li>
+  </ul>
+
+  <div class="card">
+    <h4>Who runs it</h4>
+    <p style="margin-bottom:0;">The admin/moderation console is itself built to be calm
+    and accessible — the assumption is that moderators may also be autistic. It is not a
+    dense enterprise dashboard.</p>
+  </div>
+</div>
+
+<!-- ============ 3. FEATURE INVENTORY ============ -->
+<div class="section">
+  <h2>3 · As-is functionality &amp; feature inventory</h2>
+  <p class="lead">Everything below is <strong>built and working</strong> in the deployed
+  app today (unless explicitly marked as a scaffold awaiting your vendor choice).</p>
+
+  <h3>Accounts &amp; onboarding</h3>
+  <ul>
+    <li>Email/password registration with bcrypt-hashed passwords and JWT sessions.</li>
+    <li>Email verification &amp; password reset flows (wired; need your email key — 5A).</li>
+    <li>Guided, numbered onboarding: identity, preferences, coarse location, interests,
+      and a <strong>required first profile photo</strong> (enforced server-side).</li>
+    <li>Inclusive identity fields: expanded gender with an opt-out, orientation,
+      pronouns, relationship goal/structure — display values kept separate from the
+      3-value matchable core used by matching.</li>
+  </ul>
+
+  <h3>Discovery &amp; matching</h3>
+  <ul>
+    <li>Scored candidate deck ("Discover") ranked by shared interests and compatibility,
+      with hard filters (age, distance/radius, mutual gender-seeking) and calm swipe
+      controls (interested / not now / skip).</li>
+    <li>Mutual-like creates a match; a calm "match moment" (no confetti-casino energy).</li>
+    <li>"Likes" / activity inbox (who liked you, recent matches) — no manipulative counts.</li>
+    <li>Coarse-location distance only; precise location never leaves the server.</li>
+  </ul>
+
+  <h3>Messaging</h3>
+  <ul>
+    <li>One-to-one conversations with a soft active-conversation cap (calm, not FOMO).</li>
+    <li>Message requests (intro before full thread), attachments, and voice-note answers.</li>
+    <li>Real-time delivery over authenticated WebSockets (socket.io), degrading gracefully.</li>
+    <li>Archive, unmatch, block, and report — all reversible where appropriate.</li>
+    <li>Deliberately no read receipts / typing indicators / "delivered" states.</li>
+  </ul>
+
+  <h3>Profile &amp; personalization</h3>
+  <ul>
+    <li>Rich profile: bio, prompts, structured "about me" facets, special interests,
+      audio answers, photo gallery (approved-only public display).</li>
+    <li>Profile hub with collapsible sections, notifications bell, completeness checklist.</li>
+    <li><strong>13 themes</strong> (dim default, light, navy, lightblue, pastel, pink +
+      7 LGBTQ+ identity flag themes) all meeting WCAG AA contrast; low-stimulation and
+      reduced-motion modes.</li>
+  </ul>
+
+  <h3>Safety, moderation &amp; trust</h3>
+  <ul>
+    <li>Independent block &amp; report from every relevant surface (card, profile, thread).</li>
+    <li>A <strong>Terms-of-Service-driven moderation console</strong>: reports are
+      auto-classified against the community standards and pre-filled with a suggested
+      action, so admins act consistently instead of hand-writing each case (they can
+      still add a personal reply, but the standards mean they rarely need to).</li>
+    <li>Moderation queues for photos, audio, attachments, verification, reports, feedback —
+      with test/demo accounts excluded so real work isn't buried in noise.</li>
+    <li>Enforcement: warn / suspend / ban with due-process notices; banned/suspended
+      members are removed from every discovery surface.</li>
+    <li>In-app Terms of Service and Safety Center; identity-theme reset/revert.</li>
+  </ul>
+
+  <h3>Membership / billing <span class="pill">scaffold — needs a provider</span></h3>
+  <ul>
+    <li>A complete, provider-agnostic billing scaffold: entitlements engine, an admin
+      "manual access" demo toggle, and a signature-verifying, idempotent webhook route.</li>
+    <li>The paid "Companion" tier (advanced filters, a best-fits shortlist, audio answers)
+      is fully demoable today; it needs a payment provider chosen and keyed to take real
+      money (Section 5D).</li>
+  </ul>
+
+  <h3>Admin console</h3>
+  <ul>
+    <li>Moderation queues, member management, enforcement actions, insights/telemetry,
+      and the billing demo toggle — all behind an admin allowlist.</li>
+  </ul>
+</div>
+
+<!-- ============ 4. HARDENING PASS ============ -->
+<div class="section">
+  <h2>4 · Recent hardening pass — what was just fixed</h2>
+  <p class="lead">Before this handoff, a multi-agent audit combed the whole product and a
+  prioritized batch of fixes was shipped and live-verified. Highlights:</p>
+
+  <table>
+    <tr><th style="width:26%;">Area</th><th>Fix (all shipped &amp; verified live)</th></tr>
+    <tr><td><strong>Security / privacy</strong></td><td>A block now fully severs profile visibility (photos, voice, coarse city) in both directions — previously a block didn't end the underlying match, so a blocked person could still fetch the profile. Added a regression test.</td></tr>
+    <tr><td><strong>Moderation effectiveness</strong></td><td>Suspended/banned members are now excluded from Discover <em>and</em> the activity inbox. Previously a ban only blocked login — the person still appeared as a live, swipeable card to everyone.</td></tr>
+    <tr><td><strong>Messaging reliability</strong></td><td>Fixed a desktop bug where a draft could bleed into the wrong conversation; messages now re-fetch on socket reconnect; retry can no longer double-send.</td></tr>
+    <tr><td><strong>Onboarding</strong></td><td>Fixed a dead-end where choosing "Prefer not to say" for gender blocked completion; it is now a real, inclusive, persistable choice.</td></tr>
+    <tr><td><strong>Accessibility</strong></td><td>Brought eyebrow-label contrast to WCAG AA across all themes; added focus rings to the safety-critical theme-revert control; fixed focus restoration and stacked-dialog Escape handling.</td></tr>
+    <tr><td><strong>Admin</strong></td><td>Media-review queue now counts pending audio (a mapper dropped it, showing a false all-clear); live counts now carry a live timestamp; demo-tier toggle reflects immediately.</td></tr>
+    <tr><td><strong>Performance</strong></td><td>Candidate-deck interest lookup went from an N+1 query to a single batched query (~28× on a large deck); logged-out visitors no longer download the whole app.</td></tr>
+    <tr><td><strong>Trust &amp; safety</strong></td><td>You can now block/report the <em>person</em> from their profile (not just a voice note); reaction endpoint hardened; account deletion now erases the billing subscription row (GDPR).</td></tr>
+  </table>
+  <p class="note">One flagged "race condition" was investigated and found to be a false
+  positive (the database layer is synchronous, so the sequence can't interleave) — it was
+  documented rather than "fixed", to avoid adding needless complexity.</p>
+</div>
+
+<!-- ============ 5. CLIENT ACTIONS ============ -->
+<div class="section">
+  <h2>5 · What you must complete before launch</h2>
+  <p class="lead">None of these can be finished from code alone — each needs an account,
+  an API key, a vendor choice, an infra setting, content, or a legal/business decision
+  that only you can make.
+  <span class="tag block">Blocks launch</span>
+  <span class="tag decide">Decide before real users</span>
+  <span class="tag config">Config only</span></p>
+
+  <h3>5A · Config that turns on already-built features <span class="tag config">config</span></h3>
+  <table>
+    <tr><th>Set on Railway</th><th>Why it's yours</th><th>Effect until set</th></tr>
+    <tr><td><code>ADMIN_EMAILS</code> <span class="tag block">block</span></td><td>The root-admin allowlist in your production environment; there's no first-run bootstrap and we can't write your secrets.</td><td><strong>The moderation console is unreachable and no photo can be approved — so no new user ever becomes visible.</strong></td></tr>
+    <tr><td><code>RESEND_API_KEY</code> + <code>EMAIL_FROM</code> <span class="tag block">block</span></td><td>Needs your email-vendor (Resend) account and a verified sending domain (DNS).</td><td>Email verification <em>and</em> password reset are dead — a user who forgets their password is permanently locked out.</td></tr>
+    <tr><td><code>VAPID_PUBLIC_KEY</code> + <code>VAPID_PRIVATE_KEY</code> + <code>VAPID_CONTACT_EMAIL</code> <span class="tag block">block</span></td><td>Web-push keys must live in your production environment (generate a VAPID keypair).</td><td>Push notifications return 503 — users get zero match/message pushes (all the subscribe UI works, silently).</td></tr>
+    <tr><td><code>QA_BYPASS_SECRET</code> <span class="tag config">config</span></td><td>Optional. Lets automated QA skip the auth rate-limiter. Inert until set; never weakens the real limiter. <strong>Never set in a public env.</strong></td><td>QA/automation may trip the auth limiter; no user impact.</td></tr>
+  </table>
+
+  <h3>5B · Reconnect the front-end deploy <span class="tag decide">decide</span></h3>
+  <p>The Vercel↔GitHub webhook can intermittently lag/drop front-end deploys (this is a
+  Vercel-side quirk; the back end is unaffected). Once it's under your Vercel account:
+  clear any stuck builds and reconnect the Git integration in Vercel → Settings → Git.</p>
+
+  <h3>5C · Content you must supply <span class="tag block">block</span></h3>
+  <p>The landing page's "who we are" section is an explicit <strong>placeholder</strong>
+  shown to every first-time visitor. Supply your real team/mission copy (we can drop it in
+  or remove the section) — it's your brand voice, not ours.</p>
+
+  <h3>5D · Payments — decisions before real revenue <span class="tag decide">decide</span></h3>
+  <ol>
+    <li><strong>Choose a provider</strong> (Stripe / Paddle / …). Fees, tax, and
+      merchant-of-record are business calls. The scaffold then needs that provider
+      implemented against the existing interface, plus its API key + webhook signing
+      secret + <code>BILLING_PROVIDER</code> on Railway.</li>
+    <li><strong>Reconcile the Companion feature list with reality.</strong> The published
+      catalog currently advertises some items that aren't built (higher photo cap,
+      short-video answers, AI draft/tone help, relocation matching). Only advanced filters,
+      the best-fits list, and audio answers actually ship. Before charging: trim the copy
+      to what ships, or fund building the rest. Charging for unbuilt features breaks the
+      "honest by design" brand.</li>
+    <li><strong>Finalize pricing.</strong> The <code>$8.99/mo</code> / <code>$54/yr</code>
+      figures are placeholders and there is no annual-plan selector yet — if you keep the
+      annual claim, an annual price must actually exist.</li>
+  </ol>
+
+  <h3>5E · Trust-&amp;-safety vendors <span class="tag decide">decide</span></h3>
+  <p>Each needs an external account (and, for child-safety, legal registration in your
+  name) — we can't sign up or transmit data on your behalf.</p>
+  <table>
+    <tr><th>Need</th><th>Why it's yours</th><th>Priority</th></tr>
+    <tr><td>CSAM hash-match + NCMEC reporting (e.g. Thorn "Safer")</td><td>A legal obligation tied to your legal entity; NCMEC reporting requires your registration. Highest exposure (US law, UK Online Safety Act).</td><td><strong>Critical before public launch</strong></td></tr>
+    <tr><td>Unsolicited-image blur (ML vision)</td><td>Needs a hosted ML endpoint / vendor account.</td><td>High</td></tr>
+    <tr><td>Phone/SMS verification (e.g. Twilio)</td><td>Ban-evasion friction; needs an SMS vendor. (A reported-not-yet-actioned user can currently re-register with the same email.)</td><td>High</td></tr>
+    <tr><td>Selfie/photo verification (FaceTec/Veriff-class)</td><td>The "Verified" badge is a manual toggle today — either wire a privacy-light selfie match, or hide the badge until it exists.</td><td>Medium</td></tr>
+  </table>
+
+  <h3>5F · Operations decisions <span class="tag decide">decide</span></h3>
+  <ul>
+    <li><strong>Photo-approval staffing.</strong> Every new user is invisible until an admin
+      approves their first photo — no auto-approve. At real signup volume this is a human
+      bottleneck; plan a moderator rotation, or buy the auto-moderation vendor (5E) to
+      auto-clear the safe majority.</li>
+    <li><strong>Demo/test data in production.</strong> ~500 demo profiles are intentionally
+      live to cushion cold-start, and some founder test accounts with troll names are live.
+      Before real users: purge test/troll accounts (we can run the admin wipe) and decide
+      whether the demo personas stay.</li>
+    <li><strong>Appeal channel.</strong> Due-process copy points to
+      <code>support@spectrum-dating.app</code> — confirm that inbox exists and is monitored,
+      or ask us to wire an in-app appeal form instead.</li>
+  </ul>
+
+  <h3>5G · Legal <span class="tag block">block</span></h3>
+  <p>We drafted a plain-language, mission-transparent Terms of Service (in the repo and
+  in-app). It is <strong>not legal advice.</strong> Your counsel must review it —
+  especially the minors/NCMEC, liability/arbitration/governing-law, and data-retention
+  clauses — before it's your binding, published Terms.</p>
+
+  <h3>5H · Infra hardening <span class="tag config">config</span></h3>
+  <ul>
+    <li>Set an object-size ceiling on the R2 media bucket (the app caps ≤5 MB pre-sign; the
+      bucket cap is the real backstop).</li>
+    <li>Add an R2 lifecycle rule to expire orphaned uploads.</li>
+    <li>Optional: a dedicated private bucket for voice notes (higher PII).</li>
+  </ul>
+</div>
+
+<!-- ============ 6. SENIOR DEV HANDOFF ============ -->
+<div class="section">
+  <h2>6 · Senior developer handoff</h2>
+  <p class="lead">Architecture, hosting, external services, and configuration — everything
+  needed to run, operate, and take ownership of the system.</p>
+
+  <h3>6.1 Architecture at a glance</h3>
+  <div class="card">
+    <p style="margin-bottom:4px;"><strong>Two deployable units in one Git monorepo:</strong></p>
+    <ul style="margin-bottom:0;">
+      <li><strong>Front end</strong> — a React 18 single-page app built with Vite. Static
+        assets served by <strong>Vercel</strong>. Talks to the back end over HTTPS + a
+        WebSocket.</li>
+      <li><strong>Back end</strong> — a Node.js/Express API with a socket.io real-time
+        layer and an embedded SQLite database, hosted on <strong>Railway</strong>. Serves a
+        JSON API and issues JWTs; stores media in Cloudflare R2 object storage.</li>
+    </ul>
+  </div>
+
+  <h3>6.2 Repository layout (monorepo)</h3>
+  <table>
+    <tr><th style="width:26%;">Path</th><th>What it is</th><th>Deploys to</th></tr>
+    <tr><td><code>/</code> (root: <code>src/</code>, <code>index.html</code>)</td><td>Vite front end (React). Root directory <code>.</code></td><td>Vercel</td></tr>
+    <tr><td><code>/server</code></td><td>Express + socket.io API, own <code>package.json</code>, own ESLint + Vitest, SQLite migrations. Root directory <code>server</code></td><td>Railway</td></tr>
+    <tr><td><code>/server/src/migrations</code></td><td>60 sequential SQL migrations (run on boot)</td><td>—</td></tr>
+    <tr><td><code>/scripts/qa</code></td><td>End-to-end QA harness + smoke suite (Playwright-driven)</td><td>—</td></tr>
+    <tr><td><code>/audit/handoff</code></td><td>This guide and its source documents</td><td>—</td></tr>
+  </table>
+
+  <h3>6.3 Technology stack</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4>Front end</h4>
+      <p class="small" style="margin-bottom:0;">React 18 · React-DOM · Vite (build) ·
+      socket.io-client · inline styles from a design-token file mapped to CSS variables ·
+      ESLint (react-hooks rules-of-hooks enforced) · no CSS framework, no state library.</p>
+    </div>
+    <div class="card">
+      <h4>Back end</h4>
+      <p class="small" style="margin-bottom:0;">Node ≥20 · Express · socket.io · JWT
+      (<code>jsonwebtoken</code>) · bcrypt · <strong>better-sqlite3</strong> (embedded,
+      synchronous) · helmet · cors · express-rate-limit · Vitest (431 tests).</p>
+    </div>
+  </div>
+
+  <h3>6.4 External services &amp; APIs the site depends on</h3>
+  <table>
+    <tr><th style="width:22%;">Service</th><th>Used for</th><th>Library / access</th><th>Config keys</th></tr>
+    <tr><td><strong>Cloudflare R2</strong> (object storage)</td><td>Profile photos, voice notes, attachments. Accessed via the S3 API with presigned upload/download URLs.</td><td><code>@aws-sdk/client-s3</code> + <code>s3-request-presigner</code></td><td><code>R2_ACCOUNT_ID</code>, <code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td></tr>
+    <tr><td><strong>Resend</strong> (email)</td><td>Verification, password reset, transactional email.</td><td><code>resend</code></td><td><code>RESEND_API_KEY</code>, <code>EMAIL_FROM</code></td></tr>
+    <tr><td><strong>Web Push (VAPID)</strong></td><td>Match/message push notifications to browsers.</td><td><code>web-push</code></td><td><code>VAPID_PUBLIC_KEY</code>, <code>VAPID_PRIVATE_KEY</code>, <code>VAPID_CONTACT_EMAIL</code></td></tr>
+    <tr><td><strong>socket.io</strong> (real-time)</td><td>Live message/match delivery. JWT-authenticated on the handshake; auto-rejects on suspend/ban/token-bump.</td><td><code>socket.io</code> / <code>-client</code></td><td>(shares JWT)</td></tr>
+    <tr><td><strong>geoip-lite</strong></td><td>Coarse (city-level) location from IP — bundled, no external call.</td><td><code>geoip-lite</code></td><td>—</td></tr>
+    <tr><td><strong>Payment provider</strong></td><td>Not yet chosen — scaffold ready (Section 5D).</td><td>pluggable interface</td><td><code>BILLING_PROVIDER</code> + provider keys</td></tr>
+  </table>
+  <p class="note">The front end reaches the back end through a single variable,
+  <code>VITE_API_URL</code>, baked in at build time. There are no other third-party
+  scripts or trackers on the front end.</p>
+
+  <h3>6.5 Data &amp; storage</h3>
+  <ul>
+    <li><strong>Database:</strong> SQLite via <code>better-sqlite3</code>, a single file on
+      the Railway volume (<code>DB_PATH</code>). 60 sequential migrations run at boot.
+      Synchronous access (simplifies concurrency reasoning). Suitable for launch scale;
+      a move to Postgres is a known future step if volume demands it.</li>
+    <li><strong>Media:</strong> never stored in the DB — only an R2 object key is kept; bytes
+      live in Cloudflare R2 behind unguessable keys, served via presigned URLs.</li>
+    <li><strong>Backups:</strong> an optional secondary bucket key exists
+      (<code>R2_BACKUP_BUCKET</code>); wire your own DB volume backup cadence on Railway.</li>
+  </ul>
+
+  <h3>6.6 Deploy pipeline (current)</h3>
+  <ul>
+    <li><strong>Front end (Vercel):</strong> auto-deploys the <code>master</code> branch on
+      push (~35 s). Build: <code>vite build</code> with <code>VITE_API_URL</code> set in the
+      environment. Output is static; no server functions.</li>
+    <li><strong>Back end (Railway):</strong> deployed via the Railway CLI
+      (<code>server/scripts/deploy.mjs</code> runs <code>railway up</code> and then blocks
+      until <code>/health</code> reports the new commit SHA — so a broken deploy can't pass
+      silently). Root directory is <code>server</code>; start command <code>node src/index.js</code>.</li>
+    <li><strong>Health check:</strong> <code>GET /health</code> returns
+      <code>{ status, sha, db }</code> — the deployed Git SHA and DB status.</li>
+    <li><strong>Quality gates:</strong> front-end ESLint (0 errors, rules-of-hooks enforced),
+      a Playwright smoke suite (<code>scripts/qa/smoke.mjs</code>, 11 checks), and back-end
+      Vitest (431 tests).</li>
+  </ul>
+
+  <h3>6.7 Live environment (to be transferred to you)</h3>
+  <dl class="kv">
+    <dt>Front-end URL</dt><dd><code>spectrum-dating-eta.vercel.app</code> (Vercel; will become your domain)</dd>
+    <dt>Back-end URL</dt><dd><code>spectrum-dating-server-production.up.railway.app</code> (Railway)</dd>
+    <dt>Front-end host</dt><dd>Vercel — static SPA, root directory <code>.</code></dd>
+    <dt>Back-end host</dt><dd>Railway — Node service, root directory <code>server</code>, plus a persistent volume for the SQLite DB</dd>
+    <dt>Object storage</dt><dd>Cloudflare R2 bucket (default <code>spectrum-dating-photos</code>)</dd>
+  </dl>
+</div>
+
+<!-- ============ 7. MIGRATION ============ -->
+<div class="section">
+  <h2>7 · Moving it to your own accounts &amp; domain</h2>
+  <p class="lead">The system is designed to move to your infrastructure with configuration
+  only — no code changes. Recommended order:</p>
+  <ol>
+    <li><strong>Take the repository.</strong> Transfer or fork the Git monorepo into your
+      own GitHub organization.</li>
+    <li><strong>Stand up storage.</strong> Create a Cloudflare R2 bucket (+ a public URL /
+      custom domain for it) and generate an access key pair. Note the six
+      <code>R2_*</code> values.</li>
+    <li><strong>Stand up the back end (Railway or equivalent).</strong> New project → root
+      directory <code>server</code> → attach a persistent volume for the SQLite file
+      (<code>DB_PATH</code>) → set all back-end environment variables (Section 6.4 + 5A) →
+      deploy. Migrations run automatically on first boot. Confirm <code>/health</code>.</li>
+    <li><strong>Stand up the front end (Vercel or equivalent).</strong> Import the repo →
+      root directory <code>.</code> → set <code>VITE_API_URL</code> to your back-end URL →
+      deploy.</li>
+    <li><strong>Point your domain.</strong> Add your custom domain in Vercel and update the
+      back end's allowed-origin / public-origin variables to match. Update
+      <code>APP_URL</code> so email links use your domain.</li>
+    <li><strong>Turn on services.</strong> Add the Resend key + verified domain, generate and
+      add VAPID keys, set <code>ADMIN_EMAILS</code>, and (when ready) the payment + T&amp;S
+      vendor keys.</li>
+    <li><strong>Seed / clean data.</strong> Decide on the demo profiles and purge test/troll
+      accounts (Section 5F).</li>
+  </ol>
+  <div class="card accent">
+    <h4>What does <em>not</em> need to change</h4>
+    <p style="margin-bottom:0;">Application code, database schema/migrations, the billing
+    interface, feature gating, and the front-end build. Everything environment-specific is
+    an environment variable. The only build-time value the front end needs is
+    <code>VITE_API_URL</code>.</p>
+  </div>
+
+  <h3>Local development quick start</h3>
+  <ul class="small">
+    <li>Back end: <code>cd server &amp;&amp; npm install &amp;&amp; npm run dev</code> (needs the env vars; SQLite auto-creates).</li>
+    <li>Front end: <code>npm install &amp;&amp; VITE_API_URL=http://localhost:&lt;port&gt; npm run dev</code>.</li>
+    <li>Tests: back end <code>cd server &amp;&amp; npm test</code> (Vitest); front-end lint <code>npx eslint .</code>; E2E smoke <code>node scripts/qa/smoke.mjs</code>.</li>
+  </ul>
+</div>
+
+<!-- ============ 8. BACKLOG ============ -->
+<div class="section">
+  <h2>8 · Remaining backlog (tracked, non-blocking)</h2>
+  <p class="lead">None of these block launch. They are the polish/robustness items left after
+  the hardening pass — recorded so your team can prioritize them. A nightly automated audit
+  keeps this list refreshed.</p>
+
+  <h3>Robustness &amp; correctness</h3>
+  <ul>
+    <li>Password re-entry on account deletion (a hijacked session can currently delete an account).</li>
+    <li>Ban-evasion ledger (salted email/device hash checked at registration) — pairs with the SMS vendor (5E).</li>
+    <li>Quarantine-on-reject for media instead of immediate delete (preserves CSAM evidence).</li>
+    <li>Orphaned-attachment cleanup on account deletion; drop a legacy token-in-query-string fallback on the export endpoint.</li>
+    <li>Add direct reporter reasons for off-platform harm and minor-safety; add pagination to the admin reports/audit-log endpoints.</li>
+    <li>Name/pronoun screening extension (troll input passes today) — pairs with the test-data purge (5F).</li>
+  </ul>
+
+  <h3>Product &amp; UX polish</h3>
+  <ul>
+    <li>Trim the Companion catalog copy to shipped features (or build the rest) — Section 5D.</li>
+    <li>Add an annual-plan selector if the annual price stays; rename "Top Picks" copy.</li>
+    <li>Orientation opt-out parity with gender; clearer labels on the profile hub's icon buttons.</li>
+    <li>Friendlier empty-Discover and pre-photo onboarding states; reframe the completeness checklist away from a "grade".</li>
+  </ul>
+
+  <h3>Engineering &amp; tech-debt</h3>
+  <ul>
+    <li>Introduce a schema-migrations ledger (migrations currently re-run idempotently each boot).</li>
+    <li>Subset the display serif font; key admin tables by id rather than index.</li>
+    <li>Refresh/retire stale status docs and the small pool of stale QA driver assertions.</li>
+    <li>Longer term: evaluate SQLite → Postgres when volume warrants.</li>
+  </ul>
+
+  <div class="card">
+    <p style="margin-bottom:0;" class="small"><strong>Companion source documents</strong> (in
+    <code>/audit/handoff</code>, also delivered separately): <code>CLIENT_ACTIONS.md</code>
+    (the client to-do list), <code>BACKLOG.md</code> (the full severity-ranked engineering
+    backlog with exact file:line references), and <code>HANDOFF_SUMMARY.md</code> (a
+    one-page status). This guide consolidates and supersedes them for handoff.</p>
+  </div>
+</div>
+
+<p style="text-align:center; color:#8a978f; font-size:8.5pt; margin-top:20px;">
+  Spectrum Dating — Product &amp; Engineering Handoff Guide · Calm by design.
+</p>
+
+</body>
+</html>
