@@ -364,7 +364,6 @@ export default function MatchesListScreen({
   onToggleArchived,
   onUnarchive,
   // ── Merged surface (Phase 1) ──
-  likedYou = null,
   pendingMatches = [],
   onStartConversation,
   startingMatchId = null,
@@ -846,8 +845,10 @@ export default function MatchesListScreen({
               </div>
             )}
 
-            {/* Liked-you inbox — act in place (merged from the Matches tab). */}
-            {likedYou}
+            {/* B20 — the "Liked you" inbox lives in the Likes tab now; rendering
+                a duplicate here directly contradicted the banner above ("People
+                who liked you are in the Likes tab"). Removed so the banner is
+                truthful and there's one home for incoming likes. */}
 
             <SectionList
               title="Active conversations"
@@ -860,7 +861,7 @@ export default function MatchesListScreen({
             {/* Feature 3 — conversation-cap context. Static explanation (not a
                 live status), shown only when there's actually someone new to
                 start with — otherwise it's pure noise. */}
-            {capReached && (newMatches.length > 0 || likedYou) && (
+            {capReached && newMatches.length > 0 && (
               <div
                 style={{
                   marginBottom: 16,

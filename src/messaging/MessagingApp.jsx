@@ -570,6 +570,10 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
     <>
       <Suspense fallback={<ConversationFallback />}>
         <ConversationScreen
+          // Per-thread key: without it the desktop 2-pane layout reuses one
+          // ConversationScreen instance across conversations, bleeding draft
+          // text / attachments / ended-state to the wrong person (B2).
+          key={currentConvo.id}
           conversationId={currentConvo.id}
           otherUser={currentConvo.otherUser}
           started={currentConvo.started}
@@ -584,7 +588,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       </Suspense>
       {showUnmatchSheet && (
         <UnmatchSheet
-          displayName={currentConvo.otherUser.displayName}
+          displayName={currentConvo.otherUser?.displayName || "this person"}
           onConfirm={handleUnmatchConfirm}
           onCancel={handleUnmatchCancel}
         />
@@ -594,7 +598,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
 
   const blockReportPane = currentConvo && (
     <BlockReportScreen
-      displayName={currentConvo.otherUser.displayName}
+      displayName={currentConvo.otherUser?.displayName || "this person"}
       onSubmit={handleBlockReportSubmit}
       onBack={handleBlockReportBack}
       // Needed #10 — the specific message being flagged (null = header report).

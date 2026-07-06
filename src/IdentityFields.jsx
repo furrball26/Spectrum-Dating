@@ -137,7 +137,12 @@ function inputStyle() {
 }
 
 // ─── Gender field: common list + "More options" + self-describe ────────────────
-export function GenderField({ gender, setGender, genderCustom, setGenderCustom, idPrefix = "gender", required = false, error = "" }) {
+// `chosen` (optional) distinguishes an EXPLICIT "Prefer not to say" opt-out from
+// the untouched default. When a caller tracks it (onboarding's required step),
+// the opt-out pill only reads as selected once the user actually taps it — so a
+// required gender field can't look pre-answered while still failing validation
+// (B4). Callers that don't pass it keep the old behavior (empty = opt-out shown).
+export function GenderField({ gender, setGender, genderCustom, setGenderCustom, idPrefix = "gender", required = false, error = "", chosen }) {
   const advancedSelected = MORE_VALUES.has(gender) || gender === GENDER_SELF_DESCRIBE;
   const [expanded, setExpanded] = useState(false);
   const showMore = expanded || advancedSelected;
@@ -159,7 +164,7 @@ export function GenderField({ gender, setGender, genderCustom, setGenderCustom, 
       </span>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <Pill label="Prefer not to say" active={!gender} onClick={() => pick("")} />
+        <Pill label="Prefer not to say" active={chosen === undefined ? !gender : (chosen && !gender)} onClick={() => pick("")} />
         {GENDER_COMMON.map((o) => (
           <Pill key={o.value} label={o.label} active={gender === o.value} onClick={() => pick(o.value)} />
         ))}

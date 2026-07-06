@@ -981,7 +981,7 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
 // ─── Step 4: Who you'd like to meet (optional) ─────────────────────────────────
 
 function Step4({
-  gender, setGender,
+  gender, setGender, genderChosen, setGenderChosen,
   genderCustom, setGenderCustom,
   orientation, setOrientation,
   relationshipStructure, setRelationshipStructure,
@@ -1010,7 +1010,11 @@ function Step4({
 
       <GenderField
         gender={gender}
-        setGender={setGender}
+        // Any pick (a specific gender OR the "Prefer not to say" opt-out) marks
+        // the required field as answered so validation passes and the opt-out
+        // pill reads as selected only after an explicit tap (B4).
+        setGender={(v) => { setGenderChosen(true); setGender(v); }}
+        chosen={genderChosen}
         genderCustom={genderCustom}
         setGenderCustom={setGenderCustom}
         idPrefix="ob-gender"
@@ -1234,6 +1238,11 @@ export default function OnboardingScreen({ onComplete }) {
   // Step 4 fields — who you'd like to meet (optional)
   const [gender, setGender] = useState("");
   const [genderCustom, setGenderCustom] = useState(""); // self-describe free text
+  // Gender is required at sign-up, but "" is a REAL, inclusive value ("Prefer
+  // not to say" → matchable-everyone gender_group server-side). So we track an
+  // explicit-choice flag, mirroring `seekingChosen`, instead of failing on `!gender`
+  // — otherwise the opt-out looks selected yet can never pass validation (B4).
+  const [genderChosen, setGenderChosen] = useState(false);
   const [orientation, setOrientation] = useState(""); // comma-joined; display only
   const [relationshipStructure, setRelationshipStructure] = useState(""); // D-14; display only
   const [pronouns, setPronouns] = useState("");
@@ -1342,7 +1351,10 @@ export default function OnboardingScreen({ onComplete }) {
   // PUT /profile/me can't globally require these without breaking partial edits.
   function validateMeetStep() {
     const errs = {};
-    if (!gender) {
+    // Passes on an EXPLICIT choice — including the "Prefer not to say" opt-out
+    // (gender === "" with genderChosen true), which persists as an inclusive,
+    // match-everyone value. Fails only when the user has picked nothing at all.
+    if (!gender && !genderChosen) {
       errs.gender = "Choose your gender to continue.";
     } else if (gender === GENDER_SELF_DESCRIBE && !genderCustom.trim()) {
       errs.gender = "Add a short description of your gender.";
@@ -1683,6 +1695,8 @@ export default function OnboardingScreen({ onComplete }) {
           <Step4
             gender={gender}
             setGender={setGender}
+            genderChosen={genderChosen}
+            setGenderChosen={setGenderChosen}
             genderCustom={genderCustom}
             setGenderCustom={setGenderCustom}
             orientation={orientation}

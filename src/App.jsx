@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 // socket.io-client is loaded lazily (dynamic import inside the authed socket
 // effect) so it stays off the logged-out critical path — see the socket effect.
-import SuggestionScreen from "./SuggestionScreen.jsx";
-import MessagingApp from "./messaging/MessagingApp.jsx";
-import LikesScreen from "./LikesScreen.jsx";
 import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
@@ -12,10 +9,15 @@ import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
 import { computeCompleteness } from "./completeness.js";
 
 // ── Code-split screens ──────────────────────────────────────────────────────
-// Screens that are never the first paint are lazy-loaded so they ship in their
-// own chunk instead of the main bundle. SuggestionScreen (Discover, first authed
-// screen), MessagingApp, and MatchesScreen stay eager above. lazy() calls live at
-// module scope (never inside a component).
+// Screens that are never the FIRST PAINT are lazy-loaded so they ship in their
+// own chunk instead of the main bundle — a logged-out visitor should not have to
+// download the whole authed app (B6). SuggestionScreen (Discover), MessagingApp,
+// and LikesScreen are all behind auth + a tab switch, and each is already
+// rendered inside a <Suspense fallback={<ScreenFallback/>}> boundary below, so
+// lazy() just works. lazy() calls live at module scope (never inside a component).
+const SuggestionScreen = lazy(() => import("./SuggestionScreen.jsx"));
+const MessagingApp = lazy(() => import("./messaging/MessagingApp.jsx"));
+const LikesScreen = lazy(() => import("./LikesScreen.jsx"));
 const ProfileScreen = lazy(() => import("./ProfileScreen.jsx"));
 const ProfileHub = lazy(() => import("./ProfileHub.jsx"));
 const SafetyScreen = lazy(() => import("./SafetyScreen.jsx"));

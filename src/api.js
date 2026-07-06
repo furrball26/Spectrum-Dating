@@ -672,10 +672,12 @@ export async function getAdminStats(demo = false) {
     reports: s.reports || { open: 0, reviewed: 0, actioned: 0, dismissed: 0 },
     pendingAttachments: s.pendingAttachments ?? 0,
     pendingProfilePhotos: s.pendingProfilePhotos ?? 0,
+    pendingProfileAudio: s.pendingProfileAudio ?? 0,
     pendingVerifications: s.pendingVerifications ?? 0,
     oldestOpenReportAt: s.oldestOpenReportAt ?? null,
     oldestPendingAttachmentAt: s.oldestPendingAttachmentAt ?? null,
     oldestPendingProfilePhotoAt: s.oldestPendingProfilePhotoAt ?? null,
+    oldestPendingProfileAudioAt: s.oldestPendingProfileAudioAt ?? null,
     oldestPendingVerificationAt: s.oldestPendingVerificationAt ?? null,
   };
 }
@@ -691,10 +693,12 @@ export async function getQueueCounts() {
     reports: s.reports || { open: 0 },
     pendingAttachments: s.pendingAttachments ?? 0,
     pendingProfilePhotos: s.pendingProfilePhotos ?? 0,
+    pendingProfileAudio: s.pendingProfileAudio ?? 0,
     pendingVerifications: s.pendingVerifications ?? 0,
     oldestOpenReportAt: s.oldestOpenReportAt ?? null,
     oldestPendingAttachmentAt: s.oldestPendingAttachmentAt ?? null,
     oldestPendingProfilePhotoAt: s.oldestPendingProfilePhotoAt ?? null,
+    oldestPendingProfileAudioAt: s.oldestPendingProfileAudioAt ?? null,
     oldestPendingVerificationAt: s.oldestPendingVerificationAt ?? null,
   };
 }
