@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Fragment } from "react";
 import EmptyConversationState from "./EmptyConversationState.jsx";
-import { sendMessage, deleteMessage, toggleReaction as apiToggleReaction, getConversation, getUserId, getUserProfile, getStarters, uploadAttachmentIntent, confirmAttachment } from "../api.js";
+import { sendMessage, deleteMessage, getConversation, getUserId, getUserProfile, getStarters, uploadAttachmentIntent, confirmAttachment } from "../api.js";
 import { onSocket, joinConversation, leaveConversation, subscribeConnection } from "../socketClient.js";
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
@@ -24,27 +24,6 @@ function usePrefersReduced() {
   }, []);
   return prefersReduced;
 }
-
-// CHAT-3 — coarse pointer (touch) detection. On touch there is no hover, so the
-// reaction ＋ can't rely on hover to become visible; we resting-show it instead.
-function useCoarsePointer() {
-  const [coarse, setCoarse] = useState(
-    () => window.matchMedia("(pointer: coarse)").matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(pointer: coarse)");
-    const handler = (e) => setCoarse(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return coarse;
-}
-
-
-// Shared frozen empty-reactions object. Passed to every bubble that has no
-// reactions so React.memo(MessageBubble) sees a STABLE reference (an inline `{}`
-// would be a fresh object each render and defeat the memo for those bubbles).
-const EMPTY_REACTIONS = Object.freeze({});
 
 // Small, muted match-name label shown above the FIRST bubble in an OTHER-person
 // run (and just after a day divider). Own messages get no label — right side +
@@ -74,191 +53,6 @@ const RATE_LIMIT_SECONDS = 60;
 // Composer textarea auto-grow ceiling (~6 lines at 16px/1.5 + padding); scrolls
 // beyond this so a long message stays readable without pushing the log offscreen.
 const COMPOSE_MAX_HEIGHT = 160;
-
-// --- Feature 1: Reaction constants ---
-const REACTION_EMOJIS = [
-  { emoji: "♥", name: "heart" },
-  { emoji: "👍", name: "thumbs up" },
-  { emoji: "😊", name: "smiling face" },
-  { emoji: "😄", name: "grinning face" },
-  { emoji: "🤔", name: "thinking face" },
-];
-const MAX_REACTION_TYPES = 5;
-
-// --- Feature 1: ReactionPicker ---
-// Viewport-safe: after mount (and on resize) we measure the popover against the
-// window and shift it horizontally so it never clips off either edge. For
-// own/right-aligned messages it opens toward the left; for others toward the
-// right. It may wrap to a second row on very narrow screens.
-const PICKER_VIEWPORT_MARGIN = 8;
-function ReactionPicker({ onSelect, onClose, reactButtonRef, isOwn = false }) {
-  const containerRef = useRef(null);
-  const firstButtonRef = useRef(null);
-  // Horizontal offset (px) applied to keep the popover inside the viewport.
-  const [shiftX, setShiftX] = useState(0);
-
-  useEffect(() => {
-    firstButtonRef.current?.focus();
-  }, []);
-
-  // Clamp into the viewport once laid out, and again on resize/orientation.
-  useEffect(() => {
-    function clamp() {
-      const el = containerRef.current;
-      if (!el) return;
-      // Reset any prior shift before measuring so we read the natural position.
-      el.style.transform = "translateX(0px)";
-      const rect = el.getBoundingClientRect();
-      const vw = window.innerWidth;
-      let dx = 0;
-      if (rect.right > vw - PICKER_VIEWPORT_MARGIN) {
-        dx = vw - PICKER_VIEWPORT_MARGIN - rect.right;
-      }
-      if (rect.left + dx < PICKER_VIEWPORT_MARGIN) {
-        dx = PICKER_VIEWPORT_MARGIN - rect.left;
-      }
-      setShiftX(dx);
-    }
-    clamp();
-    window.addEventListener("resize", clamp);
-    return () => window.removeEventListener("resize", clamp);
-  }, []);
-
-  useEffect(() => {
-    function handleKey(e) {
-      if (e.key === "Escape") {
-        onClose();
-        reactButtonRef.current?.focus();
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose, reactButtonRef]);
-
-  return (
-    <div
-      ref={containerRef}
-      // PROD-4 — role="group" (NOT toolbar): a toolbar promises arrow-key roving
-      // focus we don't implement; each emoji is its own Tab stop. The honest role
-      // is a labelled group. Escape closes and restores focus (see effect above).
-      role="group"
-      aria-label="React with an emoji"
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        justifyContent: "center",
-        gap: 4,
-        padding: "6px 8px",
-        background: t.surface,
-        border: `1px solid ${t.border}`,
-        borderRadius: 24,
-        boxShadow: t.shadow.md,
-        position: "absolute",
-        bottom: "calc(100% + 6px)",
-        // Anchor toward the side that keeps it on-screen, then fine-clamp via
-        // transform. Own (right-aligned) messages open leftward.
-        ...(isOwn ? { right: 0 } : { left: 0 }),
-        transform: `translateX(${shiftX}px)`,
-        maxWidth: `calc(100vw - ${PICKER_VIEWPORT_MARGIN * 2}px)`,
-        zIndex: 250,
-      }}
-    >
-      {REACTION_EMOJIS.map(({ emoji, name }, idx) => (
-        <button
-          key={emoji}
-          ref={idx === 0 ? firstButtonRef : undefined}
-          type="button"
-          aria-label={`React with ${name}`}
-          onClick={() => onSelect(emoji)}
-          style={{
-            background: "transparent",
-            border: "none",
-            fontSize: 22,
-            cursor: "pointer",
-            padding: "4px 6px",
-            borderRadius: 8,
-            minHeight: 44,
-            minWidth: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {emoji}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// --- Feature 1: ReactionPill (extracted for useFocusable — A11y Blockers 1 & 2) ---
-function ReactionPill({ emoji, name, count, youReacted, onToggle }) {
-  const f = useFocusable();
-  const pillStyles = {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    padding: "10px 12px",
-    borderRadius: 20,
-    border: `1px solid ${youReacted ? t.accentFill : t.border}`,
-    background: youReacted ? t.accentFill : t.surfaceAlt,
-    color: youReacted ? "#fff" : t.text,
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-    minHeight: 44,
-  };
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      {...f}
-      style={{
-        ...pillStyles,
-        ...f.style,
-      }}
-      aria-label={`${name}, ${count} reaction${count !== 1 ? "s" : ""}. ${youReacted ? "You reacted. Tap to remove." : "Tap to react."}`}
-    >
-      <span aria-hidden="true">{emoji}</span>
-      <span>{count}</span>
-    </button>
-  );
-}
-
-// --- Feature 1: ReactionPills ---
-function ReactionPills({ messageId, msgReactions, currentUserId, onToggle }) {
-  const entries = Object.entries(msgReactions || {}).filter(
-    ([, data]) => data.count > 0
-  );
-  if (entries.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 4,
-      }}
-    >
-      {entries.map(([emoji, data]) => {
-        const count = data.count;
-        const youReacted = data.youReacted;
-        const emojiData = REACTION_EMOJIS.find((r) => r.emoji === emoji);
-        const emojiName = emojiData ? emojiData.name : emoji;
-        return (
-          <ReactionPill
-            key={emoji}
-            emoji={emoji}
-            name={emojiName}
-            count={count}
-            youReacted={youReacted}
-            onToggle={() => onToggle(messageId, emoji)}
-          />
-        );
-      })}
-    </div>
-  );
-}
 
 // --- Feature 2: message photo attachment (in-bubble) ---
 // Renders an approved image, or a calm "pending review" placeholder for the
@@ -615,14 +409,13 @@ function MessageMenu({ messageId, isOwn, onDelete, onReport, onClose, anchorRef 
 }
 
 // Message bubble — Security Fix 1: accept currentUserId prop
-// Feature 1: reactions wired in via props
 //
 // Perf: wrapped in React.memo so a keystroke in the composer (which lives on the
 // parent ConversationScreen) doesn't re-render every bubble in the thread. This
-// only holds if the callback props (onRequestDelete / onToggleReaction / onRetry)
-// are useCallback-stable and the object props (message / msgReactions) keep
-// referential identity between renders — both are true at the call site. Default
-// shallow prop comparison is correct here; no custom comparator needed.
+// only holds if the callback props (onRequestDelete / onRetry) are
+// useCallback-stable and the object prop (message) keeps referential identity
+// between renders — both are true at the call site. Default shallow prop
+// comparison is correct here; no custom comparator needed.
 const MessageBubble = memo(function MessageBubble({
   message,
   onRequestDelete,
@@ -630,8 +423,6 @@ const MessageBubble = memo(function MessageBubble({
   recipientNudgeDismissed = false,
   onDismissRecipientNudge,
   currentUserId,
-  msgReactions,
-  onToggleReaction,
   onRetry,
   onEnlargeImage,
   showSent = false,
@@ -643,70 +434,11 @@ const MessageBubble = memo(function MessageBubble({
   otherPhotoUrl,
 }) {
   const prefersReduced = usePrefersReduced();
-  const coarsePointer = useCoarsePointer();
   const isOwn = message.senderId === currentUserId;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const menuAnchorRef = useRef(null);
   const fDots = useFocusable();
-  const fReact = useFocusable();
-  const reactButtonRef = useRef(null);
-
-  const reactionCount = Object.keys(msgReactions || {}).filter(
-    (emoji) => (msgReactions[emoji]?.count || 0) > 0
-  ).length;
-  const reactionCapReached = reactionCount >= MAX_REACTION_TYPES;
-  const showReactBtn = !message.deleted && !reactionCapReached;
-
-  // CHAT-2 — hold-to-react (long-press) on the bubble. A touchstart arms a
-  // ~450ms timer; a touchmove past a small threshold (i.e. a scroll) or an early
-  // touchend cancels it, so scrolling the thread never fires. On fire we open the
-  // same ReactionPicker (reusing `pickerOpen`) and suppress the next contextmenu
-  // (native long-press menu / text selection). Touch-only; the ＋ button and
-  // keyboard path are untouched. All refs live above the early return (React #310).
-  const longPressTimer = useRef(null);
-  const touchStart = useRef(null);
-  const longPressFired = useRef(false);
-  const LONG_PRESS_MS = 450;
-  const LONG_PRESS_MOVE_TOL = 10;
-  const clearLongPress = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-    touchStart.current = null;
-  }, []);
-  const handleBubbleTouchStart = useCallback((e) => {
-    if (!showReactBtn) return;
-    if (!e.touches || e.touches.length !== 1) return;
-    longPressFired.current = false;
-    const tch = e.touches[0];
-    touchStart.current = { x: tch.clientX, y: tch.clientY };
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => {
-      longPressFired.current = true;
-      longPressTimer.current = null;
-      if (typeof navigator !== "undefined" && navigator.vibrate && !prefersReduced) {
-        try { navigator.vibrate(8); } catch { /* haptics optional */ }
-      }
-      setPickerOpen(true);
-    }, LONG_PRESS_MS);
-  }, [showReactBtn, prefersReduced]);
-  const handleBubbleTouchMove = useCallback((e) => {
-    if (!touchStart.current || !e.touches || !e.touches[0]) return;
-    const tch = e.touches[0];
-    const dx = Math.abs(tch.clientX - touchStart.current.x);
-    const dy = Math.abs(tch.clientY - touchStart.current.y);
-    if (dx > LONG_PRESS_MOVE_TOL || dy > LONG_PRESS_MOVE_TOL) clearLongPress();
-  }, [clearLongPress]);
-  const handleBubbleContextMenu = useCallback((e) => {
-    // Suppress the native long-press menu only when our long-press just fired.
-    if (longPressFired.current) e.preventDefault();
-  }, []);
-  useEffect(() => () => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  }, []);
 
   // Own → right, other → left. The other side reserves an avatar gutter so
   // subsequent bubbles in a run line up under the first bubble (which shows the
@@ -802,17 +534,9 @@ const MessageBubble = memo(function MessageBubble({
           position: "relative",
           // Dual cap: hug content (fit-content) but cap the measure. 34rem ≈ 66ch
           // protects readability on wide panes; 88% is the mobile ceiling. The
-          // bubble sizes this box; hover controls float ABSOLUTELY on the outer
-          // edge so they never widen the row (which previously stopped own
-          // bubbles from hugging the right at narrow widths).
-          // CHAT-1: those floated controls sit at the bubble's OUTER edge, so on a
-          // narrow screen a max-width bubble pushed them ~44px past the viewport →
-          // horizontal overflow (scrollWidth > clientWidth). Reserve their footprint
-          // in the cap so nothing overflows: own can show ⋯+＋ (~96px), other just
-          // ＋ beyond the avatar gutter. On wide panes the 34rem cap still wins.
-          maxWidth: isOwn
-            ? "min(88%, 34rem, calc(100% - 96px))"
-            : `min(88%, 34rem, calc(100% - ${OTHER_GUTTER + 52}px))`,
+          // bubble sizes this box; the ⋯ options control floats ABSOLUTELY on the
+          // outer edge (opacity 0 until hover/focus) so it never widens the row.
+          maxWidth: "min(88%, 34rem)",
           width: "fit-content",
           // Reserve the avatar gutter on the other side so run bubbles align.
           marginLeft: isOwn ? 0 : OTHER_GUTTER,
@@ -836,9 +560,10 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Hover/focus controls (⋯ own-only, ＋ all). Absolutely anchored to the
-            bubble's OUTER edge — own on the left, other on the right — so they
-            never consume row width and the bubble hugs the correct side. */}
+        {/* Hover/focus ⋯ options control (own = Delete; other = Report).
+            Absolutely anchored to the bubble's OUTER edge — own on the left,
+            other on the right — so it never consumes row width and the bubble
+            hugs the correct side. Opacity 0 until hover/focus. */}
         <div
           style={{
             position: "absolute",
@@ -880,72 +605,9 @@ const MessageBubble = memo(function MessageBubble({
               ⋯
             </button>
           )}
-
-          {showReactBtn && (
-            <div style={{ position: "relative" }}>
-              <button
-                ref={reactButtonRef}
-                type="button"
-                aria-label="Add reaction"
-                aria-expanded={pickerOpen}
-                onClick={() => setPickerOpen((v) => !v)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  // CHAT-3 — stronger contrast than textMuted so it reads clearly.
-                  color: t.textSoft,
-                  fontSize: 20,
-                  cursor: "pointer",
-                  padding: "4px 6px",
-                  borderRadius: 6,
-                  minHeight: 44,
-                  minWidth: 44,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  // CHAT-3 — touch has no hover, so gate on coarse pointer: rest at a
-                  // low-but-visible 0.7 (the discoverable fallback for hold-to-react),
-                  // full on press/focus. Fine pointers keep the hover-reveal behavior.
-                  opacity:
-                    hovered || pickerOpen || fReact.style.outline !== "none"
-                      ? 1
-                      : coarsePointer
-                        ? 0.7
-                        : 0,
-                  transition: prefersReduced ? "none" : "opacity 120ms",
-                  flexShrink: 0,
-                  ...fReact.style,
-                }}
-                onFocus={(e) => { fReact.onFocus(e); setHovered(true); }}
-                onBlur={(e) => { fReact.onBlur(e); setHovered(false); }}
-              >
-                ＋
-              </button>
-              {pickerOpen && (
-                <ReactionPicker
-                  onSelect={(emoji) => {
-                    onToggleReaction(message.id, emoji);
-                    setPickerOpen(false);
-                    reactButtonRef.current?.focus();
-                  }}
-                  onClose={() => {
-                    setPickerOpen(false);
-                    reactButtonRef.current?.focus();
-                  }}
-                  reactButtonRef={reactButtonRef}
-                  isOwn={isOwn}
-                />
-              )}
-            </div>
-          )}
         </div>
 
         <div
-          onTouchStart={handleBubbleTouchStart}
-          onTouchMove={handleBubbleTouchMove}
-          onTouchEnd={clearLongPress}
-          onTouchCancel={clearLongPress}
-          onContextMenu={handleBubbleContextMenu}
           style={{
             // own = green-tinted bubble (tail lower-right), other = surface bubble
             // (tail lower-left). Other bubble needs a visible border (≥3:1 vs the
@@ -1011,29 +673,6 @@ const MessageBubble = memo(function MessageBubble({
           onReport={() => onReportMessage(message)}
           onDismiss={() => onDismissRecipientNudge && onDismissRecipientNudge(message.id)}
         />
-      )}
-
-      {/* Reaction pills — in tab order after the bubble, aligned to the bubble's
-          side (own→right, other→left) and inset past the avatar gutter.
-          D18 — pull the pill up so it slightly overlaps the bubble's lower edge,
-          reading as attached to its message rather than floating below it. */}
-      {reactionCount > 0 && (
-        <div
-          style={{
-            maxWidth: "min(88%, 34rem)",
-            marginLeft: isOwn ? 0 : OTHER_GUTTER,
-            marginTop: -10,
-            display: "flex",
-            justifyContent: isOwn ? "flex-end" : "flex-start",
-          }}
-        >
-          <ReactionPills
-            messageId={message.id}
-            msgReactions={msgReactions}
-            currentUserId={currentUserId}
-            onToggle={onToggleReaction}
-          />
-        </div>
       )}
 
       {/* F4 — calm "Sent" micro-state. Only ever shown on the user's own most
@@ -2316,10 +1955,6 @@ export default function ConversationScreen({
   const [rateLimitStatus, setRateLimitStatus] = useState("");
   const rateLimitTimerRef = useRef(null);
 
-  // --- Feature 1: Reaction state ---
-  // reactions: { [messageId]: { [emoji]: Set of userIds } }
-  const [reactions, setReactions] = useState({});
-
   // --- Message pagination state ---
   const [hasMore, setHasMore] = useState(false);
   const [oldestCursor, setOldestCursor] = useState(null);
@@ -2369,16 +2004,6 @@ export default function ConversationScreen({
         setEnded(!!data.conversation?.ended);
         setHasMore(data.hasMore ?? false);
         setOldestCursor(msgs.length > 0 ? msgs[0].id : null);
-        // Hydrate reactions from server
-        const rxMap = {};
-        msgs.forEach(msg => {
-          if (msg.reactions && msg.reactions.length > 0) {
-            const emojiMap = {};
-            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
-            rxMap[msg.id] = emojiMap;
-          }
-        });
-        setReactions(rxMap);
       })
       .catch(() => setApiError('Could not load messages. Please try again.'))
       .finally(() => setApiLoading(false));
@@ -2454,14 +2079,6 @@ export default function ConversationScreen({
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, deleted: true, body: null } : m));
     });
 
-    const offReaction = onSocket("reaction_update", (payload) => {
-      if (!forThisThread(payload)) return;
-      const { messageId, reactions } = payload || {};
-      const emojiMap = {};
-      (reactions || []).forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
-      setReactions(prev => ({ ...prev, [messageId]: emojiMap }));
-    });
-
     // Mirror the shared connection's status into the offline indicator, and
     // re-emit the room join whenever it (re)connects.
     const offConnection = subscribeConnection((connected) => {
@@ -2472,7 +2089,6 @@ export default function ConversationScreen({
     return () => {
       offMessage();
       offDeleted();
-      offReaction();
       offConnection();
       // Unregistering the handlers is the "leave": the shared connection stays
       // up. The server manages room membership itself (no leave_conversation
@@ -2556,51 +2172,6 @@ export default function ConversationScreen({
       if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
       if (attachScanTimerRef.current) clearTimeout(attachScanTimerRef.current);
     };
-  }, []);
-
-  // --- Feature 1: toggleReaction ---
-  // useCallback-stable so React.memo on MessageBubble holds across composer
-  // keystrokes. Only uses setReactions (stable) + module-level helpers → deps [].
-  const toggleReaction = useCallback(async (messageId, emoji) => {
-    if (!REACTION_EMOJIS.some(r => r.emoji === emoji)) return;
-    // Optimistic update
-    setReactions(prev => {
-      const cur = prev[messageId]?.[emoji] || { count: 0, youReacted: false };
-      return {
-        ...prev,
-        [messageId]: {
-          ...(prev[messageId] || {}),
-          [emoji]: {
-            count: cur.youReacted ? cur.count - 1 : cur.count + 1,
-            youReacted: !cur.youReacted,
-          },
-        },
-      };
-    });
-    try {
-      const result = await apiToggleReaction(messageId, emoji);
-      // Update with authoritative server state
-      const reactionMap = {};
-      (result.reactions || []).forEach(r => {
-        reactionMap[r.emoji] = { count: r.count, youReacted: r.userReacted };
-      });
-      setReactions(prev => ({ ...prev, [messageId]: reactionMap }));
-    } catch {
-      // Revert optimistic update on failure
-      setReactions(prev => {
-        const cur = prev[messageId]?.[emoji] || { count: 0, youReacted: false };
-        return {
-          ...prev,
-          [messageId]: {
-            ...(prev[messageId] || {}),
-            [emoji]: {
-              count: cur.youReacted ? cur.count + 1 : cur.count - 1,
-              youReacted: !cur.youReacted,
-            },
-          },
-        };
-      });
-    }
   }, []);
 
   // --- Feature 2: Photo attachment handlers ---
@@ -2939,18 +2510,6 @@ export default function ConversationScreen({
       setMessages(prev => [...olderMsgs, ...prev]);
       setHasMore(data.hasMore ?? false);
       setOldestCursor(olderMsgs.length > 0 ? olderMsgs[0].id : null);
-      // Hydrate reactions for the newly-loaded older messages
-      setReactions(prev => {
-        const rxMap = { ...prev };
-        olderMsgs.forEach(msg => {
-          if (msg.reactions && msg.reactions.length > 0) {
-            const emojiMap = {};
-            msg.reactions.forEach(r => { emojiMap[r.emoji] = { count: r.count, youReacted: r.userReacted }; });
-            rxMap[msg.id] = emojiMap;
-          }
-        });
-        return rxMap;
-      });
     } catch {
       // Silently ignore — the button stays and the user can retry.
     } finally {
@@ -3463,8 +3022,6 @@ export default function ConversationScreen({
                   recipientNudgeDismissed={dismissedNudges.has(msg.id)}
                   onDismissRecipientNudge={dismissMessageNudge}
                   currentUserId={currentUserId}
-                  msgReactions={reactions[msg.id] || EMPTY_REACTIONS}
-                  onToggleReaction={toggleReaction}
                   onRetry={retrySend}
                   onEnlargeImage={setEnlargedImage}
                   showSent={msg.id === sentMessageId}
