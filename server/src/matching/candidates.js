@@ -115,6 +115,15 @@ export function getCandidates(db, viewerId, viewerInterests, opts = {}) {
       AND p.bio != ''
       AND p.photo_url != ''
       AND p.paused = 0
+      -- Suspend/ban lives on users (users.suspended / users.banned) and only
+      -- bumps token_version — it does NOT pause the profile. Without this a
+      -- suspended or banned member (who can't even log in) still surfaces as a
+      -- live, swipeable candidate to everyone, so a ban wouldn't actually remove
+      -- them from Discover. Mirror the same exclusion in /matching/activity.
+      AND NOT EXISTS (
+        SELECT 1 FROM users u
+        WHERE u.id = p.user_id AND (u.suspended = 1 OR u.banned = 1)
+      )
       AND (SELECT COUNT(*) FROM user_interests WHERE user_id = p.user_id) > 0
   `).all().filter(p => !excludeIds.has(p.user_id));
 

@@ -534,6 +534,12 @@ router.get('/activity', requireAuth, (req, res) => {
         WHERE (bl.blocker_id = ? AND bl.blocked_id = s.swiper_id)
            OR (bl.blocker_id = s.swiper_id AND bl.blocked_id = ?)
       )
+      -- Never surface a suspended/banned liker (they can't act, and a ban
+      -- should remove them from every discovery surface). Mirrors the deck.
+      AND NOT EXISTS (
+        SELECT 1 FROM users u
+        WHERE u.id = s.swiper_id AND (u.suspended = 1 OR u.banned = 1)
+      )
     ORDER BY s.created_at DESC
     LIMIT 20
   `).all(userId, userId, userId, userId, userId, userId);
@@ -566,6 +572,14 @@ router.get('/activity', requireAuth, (req, res) => {
         SELECT 1 FROM blocks bl
         WHERE (bl.blocker_id = m.user_a_id AND bl.blocked_id = m.user_b_id)
            OR (bl.blocker_id = m.user_b_id AND bl.blocked_id = m.user_a_id)
+      )
+      -- Drop the match if EITHER party is suspended/banned (symmetric over the
+      -- pair, so no extra bind param). The viewer can't be suspended — their
+      -- token would be invalid — so this only ever hides the OTHER person.
+      AND NOT EXISTS (
+        SELECT 1 FROM users u
+        WHERE (u.id = m.user_a_id OR u.id = m.user_b_id)
+          AND (u.suspended = 1 OR u.banned = 1)
       )
     ORDER BY m.matched_at DESC
     LIMIT 10

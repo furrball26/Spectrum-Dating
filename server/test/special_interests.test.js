@@ -206,3 +206,23 @@ describe('D-17: special_interests adds soft-score weight (reorders, never exclud
     expect(sharerRow.whyReasons).toContain('You could both talk for hours about trains');
   });
 });
+
+// Moderation effectiveness: suspend/ban lives on users (users.suspended /
+// users.banned) and does NOT pause the profile, so before this fix a
+// suspended/banned member — who can't even log in — still surfaced as a live,
+// swipeable candidate to everyone. A ban must remove them from Discover.
+describe('deck excludes suspended and banned members', () => {
+  it('a normal candidate is present; suspended and banned ones are not', () => {
+    const viewer = makeUser();
+    const normal = makeUser();
+    const suspended = makeUser();
+    const banned = makeUser();
+    db.prepare('UPDATE users SET suspended = 1 WHERE id = ?').run(suspended);
+    db.prepare('UPDATE users SET banned = 1 WHERE id = ?').run(banned);
+
+    const deck = candidateIdSet(viewer);
+    expect(deck.has(normal)).toBe(true);
+    expect(deck.has(suspended)).toBe(false);
+    expect(deck.has(banned)).toBe(false);
+  });
+});
