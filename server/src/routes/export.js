@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import archiver from 'archiver';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import { requireAuth, verifyToken, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
+import { requireAuth, signPurposeToken, verifyPurposeToken } from '../middleware/auth.js';
 import { assembleOwnProfile } from './profile.js';
 import { getObjectBytes, r2Configured } from '../storage/r2.js';
 import { coarseLabel } from '../utils/time.js';
@@ -24,23 +24,19 @@ const exportLimiter = rateLimit({
 
 // Resolve the requester for an export download. Accept, in order of preference:
 //   1. An Authorization header (already resolved into req.ctx.userId).
-//   2. A short-lived, purpose-scoped export token in ?token= (preferred for
-//      browser download links that can't send custom headers).
-//   3. (Legacy) a full session JWT in ?token= — still honored for backward
-//      compatibility, but the export token above is the intended, low-blast-
-//      radius mechanism.
+//   2. A short-lived, purpose-scoped export token in ?token= (for browser
+//      download links that can't send custom headers).
+// A full session JWT in ?token= is NO LONGER accepted: putting a full-power,
+// long-lived token in a URL (server logs, Referer, browser history) is a
+// needless blast radius. The client mints a 5-minute purpose token via
+// POST /export/token and passes THAT — see createExportToken/getExportArchiveUrl
+// on the client. (T8 hardening.)
 // Returns the userId, or null after having already sent the 401 response.
 function resolveExportUser(req, res) {
   let userId = req.ctx?.userId ?? null;
   if (!userId && req.query.token) {
     const purpose = verifyPurposeToken(req.query.token, 'export');
-    if (purpose) {
-      userId = purpose.sub;
-    } else {
-      // Legacy session-JWT fallback. verifyToken runs the same
-      // version/suspension/existence check as requireAuth.
-      userId = verifyToken(req.query.token);
-    }
+    if (purpose) userId = purpose.sub;
     if (!userId) {
       res.status(401).json({ error: 'Invalid token.' });
       return null;

@@ -325,4 +325,15 @@ describe('GET /export/archive — auth', () => {
     const { status } = await fetchArchive('/export/archive', { token: 'not-a-real-token' });
     expect(status).toBe(401);
   });
+
+  it('rejects a full SESSION JWT in ?token= (legacy path removed — T8)', async () => {
+    // A valid session token is fine in the Authorization HEADER, but must NOT be
+    // accepted in the URL query — only a purpose-scoped export token is.
+    const me = makeUser();
+    const sessionJwt = signToken(me);
+    const viaHeader = await fetchArchive('/export/archive', { header: sessionJwt });
+    expect(viaHeader.status).toBe(200); // header path still works
+    const viaQuery = await fetchArchive('/export/archive', { token: sessionJwt });
+    expect(viaQuery.status).toBe(401); // same token in the URL is refused
+  });
 });
