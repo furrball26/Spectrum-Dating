@@ -50,12 +50,17 @@ export const TIER_CATALOG = {
     price: '$8.99/mo',
     priceNote: 'or $54/yr (about $4.50/mo). One honest price. Cancel in one tap.',
     tagline: 'Companion helps you — it never ranks you. Pure comfort and capability.',
+    // HONESTY (product law): this list is exactly the three capabilities the paid
+    // tier actually gates today — advanced filters (matching.js requirePaid),
+    // the best-fits shortlist (GET /best-fits requirePaid), and recording audio
+    // answers (audio.js requirePaid). Items that were advertised but NOT built —
+    // AI draft/tone help, a higher photo cap, short-video answers, relocation
+    // matching — were removed so we never charge for something that doesn't ship.
+    // Add a line back here only when the matching capability is genuinely live.
     features: [
-      'Conversation companion — autism-aware draft help and gentle tone check (opt-in, never auto-sent)',
-      'Express-yourself media — higher photo cap plus audio and short-video prompt answers',
       'Deeper compatibility filters and saved filter sets',
       'A considered selection — a small, calm shortlist of higher-fit people (no expiry, no countdown)',
-      'Relocation matching — set a place you are genuinely moving to and match there',
+      'Audio prompt answers — record short, spoken answers on your profile (opt-in; playback stays free for everyone)',
     ],
   },
 };

@@ -125,8 +125,11 @@ describe('Hardening #1: POST /messaging/report enforces the reason enum', () => 
     expect(row.details).toBe('they kept messaging after I asked to stop');
   });
 
-  it('accepts every canonical enum value', async () => {
-    for (const reason of ['harassment', 'inappropriate', 'spam', 'fake_profile', 'other']) {
+  it('accepts every canonical enum value (incl. the severe minor_safety / off_platform_harm)', async () => {
+    // minor_safety is offered by the reporter UI and off_platform_harm is a
+    // severe clause in communityStandards — both must be acceptable at the
+    // endpoint, or the most serious safety report 400s and never files.
+    for (const reason of ['harassment', 'inappropriate', 'spam', 'fake_profile', 'minor_safety', 'off_platform_harm', 'other']) {
       const reporter = makeUser();
       const reported = makeUser();
       const r = await api('/messaging/report', {
@@ -134,6 +137,8 @@ describe('Hardening #1: POST /messaging/report enforces the reason enum', () => 
         body: { reportedUserId: reported, reason },
       });
       expect(r.status).toBe(201);
+      const row = db.prepare('SELECT reason FROM reports WHERE reporter_id = ?').get(reporter);
+      expect(row.reason).toBe(reason);
     }
   });
 });

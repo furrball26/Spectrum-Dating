@@ -706,7 +706,13 @@ router.delete('/blocked/:userId', requireAuth, (req, res) => {
 // arbitrary free-text reason. Same set the /block route enforces via
 // VALID_REASONS above; kept as its own constant so the report surface documents
 // its own contract. Free-text `details` stays free text (that's its job).
-const REPORT_REASONS = ['harassment', 'inappropriate', 'spam', 'fake_profile', 'other'];
+// Must stay a SUPERSET of the reporter-facing options in src/safetyReasons.js.
+// 'minor_safety' is offered by the UI ("a minor, a threat, or something illegal")
+// and 'off_platform_harm' is a severe clause in communityStandards.js — both were
+// missing here, so a user filing the most serious safety report was rejected with
+// a 400 and the report never reached the moderation queue. Both map to their
+// severe clause (immediate removal + legal referral) via standardForReason().
+const REPORT_REASONS = ['harassment', 'inappropriate', 'spam', 'fake_profile', 'minor_safety', 'off_platform_harm', 'other'];
 
 router.post('/report', requireAuth, safetyActionLimiter, (req, res) => {
   const { db, userId } = req.ctx;
