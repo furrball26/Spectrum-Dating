@@ -1234,8 +1234,8 @@ export async function reviewProfileAudio(id, decision, note) {
 
 // ─── Account ───────────────────────────────────────────────────────────────────
 
-export async function deleteAccount() {
-  const res = await apiFetch('/account/me', { method: 'DELETE' });
+export async function deleteAccount(password) {
+  const res = await apiFetch('/account/me', { method: 'DELETE', body: { password } });
   clearAuth();
   return res;
 }

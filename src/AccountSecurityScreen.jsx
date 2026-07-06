@@ -198,13 +198,15 @@ function DeleteAccountSection({ onAccountDeleted }) {
 function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
   const cancelRef = useRef(null);
   const inputRef = useRef(null);
+  const passwordRef = useRef(null);
   const confirmRef = useRef(null);
   const prefersReduced = usePrefersReduced();
   const [confirmText, setConfirmText] = useState("");
+  const [password, setPassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
-  const canConfirm = confirmText.trim() === "DELETE" && !deleting;
+  const canConfirm = confirmText.trim() === "DELETE" && password.length > 0 && !deleting;
 
   // Focus the input on open
   useEffect(() => {
@@ -218,7 +220,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
       return;
     }
     if (e.key === "Tab") {
-      const els = [cancelRef.current, inputRef.current, confirmRef.current].filter(Boolean);
+      const els = [inputRef.current, passwordRef.current, confirmRef.current, cancelRef.current].filter(Boolean);
       const idx = els.indexOf(document.activeElement);
       if (e.shiftKey) {
         if (idx <= 0) { e.preventDefault(); els[els.length - 1]?.focus(); }
@@ -233,11 +235,11 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
     setDeleting(true);
     setError("");
     try {
-      await deleteAccount();
+      await deleteAccount(password);
       onAccountDeleted?.();
-    } catch {
+    } catch (err) {
       setDeleting(false);
-      setError("Could not delete your account. Please try again.");
+      setError(safeErrorMessage(err, "Could not delete your account. Please try again."));
     }
   }
 
@@ -307,6 +309,26 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
           onBlur={(e) => { e.target.style.outline = "none"; }}
           style={inputStyle(false)}
           placeholder="DELETE"
+        />
+
+        <label
+          htmlFor="delete-confirm-password"
+          style={{ display: "block", fontWeight: 600, fontSize: 14, color: t.text, margin: "14px 0 6px" }}
+        >
+          Enter your password to confirm
+        </label>
+        <input
+          ref={passwordRef}
+          id="delete-confirm-password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          disabled={deleting}
+          onChange={(e) => setPassword(e.target.value)}
+          onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
+          onBlur={(e) => { e.target.style.outline = "none"; }}
+          style={inputStyle(false)}
+          placeholder="Your password"
         />
 
         {error && (
