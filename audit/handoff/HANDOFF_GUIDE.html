@@ -271,6 +271,23 @@
   <p class="note">One flagged "race condition" was investigated and found to be a false
   positive (the database layer is synchronous, so the sequence can't interleave) — it was
   documented rather than "fixed", to avoid adding needless complexity.</p>
+
+  <h3>4.1 Follow-up tech-debt &amp; polish pass</h3>
+  <p>A second pass then worked down the tech-debt and polish tier. Also shipped and live:</p>
+  <table>
+    <tr><th style="width:26%;">Area</th><th>Fix</th></tr>
+    <tr><td><strong>Privacy hardening</strong></td><td>The "download my data" export no longer puts a full session token in the URL — it mints a short-lived, purpose-scoped token instead (a session token in a URL leaks via logs/Referer/history). Legacy path removed and locked with a test.</td></tr>
+    <tr><td><strong>Validation</strong></td><td>Age-range preferences are now validated on single-field updates too, so a Discover-filter change can't silently persist an inverted range that empties the deck.</td></tr>
+    <tr><td><strong>Admin calm</strong></td><td>Report cards no longer all expand their decision form at once (the suggested action is pre-selected and the panel opens on tap); the Ban button is hidden for already-banned members; "skip for now" persists for the session so a refresh doesn't resurface it.</td></tr>
+    <tr><td><strong>Accessibility</strong></td><td>Screen-reader label on the profile modal; reduced-sensory fallbacks for decorative illustrations in the messaging surfaces; visible labels on the profile-hub icon buttons.</td></tr>
+    <tr><td><strong>Calm copy</strong></td><td>Completeness cue reframed from a "3 of 7" score into a gentle optional checklist; empty-Discover distinguishes "still finding people" from "widen your filters"; a proactive "add one photo to continue" onboarding hint; the review padlock softened to a shield; the "Top Picks" ranking framing retired in favor of "Best fits" app-wide.</td></tr>
+    <tr><td><strong>Inclusivity</strong></td><td>Orientation now has a "Prefer not to say" opt-out, matching gender.</td></tr>
+    <tr><td><strong>Code hygiene</strong></td><td>Dead code from the removed reactions feature culled; QA drivers refreshed to match the current app; a stale internal deploy doc corrected.</td></tr>
+  </table>
+  <p class="note">Two flagged tech-debt items were reviewed and deliberately <em>not</em> changed:
+  the migration runner (already idempotent and carefully guarded — a schema-ledger rewrite is
+  a needless risk on the boot path) and font subsetting (fonts are already self-hosted and
+  render-non-blocking). Both are documented rather than churned.</p>
 </div>
 
 <!-- ============ 5. CLIENT ACTIONS ============ -->
@@ -401,7 +418,7 @@
       <h4>Back end</h4>
       <p class="small" style="margin-bottom:0;">Node ≥20 · Express · socket.io · JWT
       (<code>jsonwebtoken</code>) · bcrypt · <strong>better-sqlite3</strong> (embedded,
-      synchronous) · helmet · cors · express-rate-limit · Vitest (431 tests).</p>
+      synchronous) · helmet · cors · express-rate-limit · Vitest (433 tests).</p>
     </div>
   </div>
 
@@ -503,35 +520,34 @@
 <!-- ============ 8. BACKLOG ============ -->
 <div class="section">
   <h2>8 · Remaining backlog (tracked, non-blocking)</h2>
-  <p class="lead">None of these block launch. They are the polish/robustness items left after
-  the hardening pass — recorded so your team can prioritize them. A nightly automated audit
-  keeps this list refreshed.</p>
+  <p class="lead">None of these block launch. Most of the original polish/tech-debt backlog was
+  closed in the two passes above (Section 4); what remains here either needs a vendor/decision
+  from you, or is deliberately deferred. A nightly automated audit keeps this list refreshed.</p>
 
-  <h3>Robustness &amp; correctness</h3>
+  <h3>Robustness &amp; safety (needs a decision or a vendor)</h3>
   <ul>
     <li>Password re-entry on account deletion (a hijacked session can currently delete an account).</li>
     <li>Ban-evasion ledger (salted email/device hash checked at registration) — pairs with the SMS vendor (5E).</li>
-    <li>Quarantine-on-reject for media instead of immediate delete (preserves CSAM evidence).</li>
-    <li>Orphaned-attachment cleanup on account deletion; drop a legacy token-in-query-string fallback on the export endpoint.</li>
-    <li>Add direct reporter reasons for off-platform harm and minor-safety; add pagination to the admin reports/audit-log endpoints.</li>
-    <li>Name/pronoun screening extension (troll input passes today) — pairs with the test-data purge (5F).</li>
+    <li>Quarantine-on-reject for media instead of immediate delete (preserves CSAM evidence) — pairs with the CSAM vendor (5E).</li>
+    <li>Name/pronoun screening extension (some troll input passes today) — pairs with the test-data purge (5F).</li>
+    <li>Add direct reporter reasons for off-platform harm and minor-safety; add pagination to the admin reports/audit-log endpoints (both fine at launch scale).</li>
   </ul>
 
-  <h3>Product &amp; UX polish</h3>
+  <h3>Product &amp; UX (needs your call)</h3>
   <ul>
-    <li>Trim the Companion catalog copy to shipped features (or build the rest) — Section 5D.</li>
-    <li>Add an annual-plan selector if the annual price stays; rename "Top Picks" copy.</li>
-    <li>Orientation opt-out parity with gender; clearer labels on the profile hub's icon buttons.</li>
-    <li>Friendlier empty-Discover and pre-photo onboarding states; reframe the completeness checklist away from a "grade".</li>
+    <li>Trim the Companion catalog copy to shipped features, or build the rest — Section 5D. (We can trim on your say-so.)</li>
+    <li>Add an annual-plan selector if the annual price stays — Section 5D.</li>
   </ul>
 
-  <h3>Engineering &amp; tech-debt</h3>
+  <h3>Engineering &amp; tech-debt (longer term)</h3>
   <ul>
-    <li>Introduce a schema-migrations ledger (migrations currently re-run idempotently each boot).</li>
-    <li>Subset the display serif font; key admin tables by id rather than index.</li>
-    <li>Refresh/retire stale status docs and the small pool of stale QA driver assertions.</li>
-    <li>Longer term: evaluate SQLite → Postgres when volume warrants.</li>
+    <li>Evaluate SQLite → Postgres when volume warrants (not needed at launch scale).</li>
+    <li>Reviewed and deliberately left as-is: the boot-time migration runner (already idempotent + guarded) and font subsetting (already self-hosted, non-blocking).</li>
   </ul>
+  <p class="note">Closed in the Section 4 passes (no longer outstanding): the export-token leak,
+  age-range validation, dead-code cull, admin report/queue polish, all the accessibility-AA and
+  reduced-sensory work, the calm-copy reframes, orientation opt-out, the "Top Picks" rename, and
+  the stale QA drivers/status doc.</p>
 
   <div class="card">
     <p style="margin-bottom:0;" class="small"><strong>Companion source documents</strong> (in
