@@ -1024,12 +1024,52 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
       typeof filterInitial.searchRadiusMiles === "number" &&
       filterInitial.searchRadiusMiles > 0 &&
       filterInitial.searchRadiusMiles <= 10;
+    // P3 — a brand-new user who hasn't narrowed ANYTHING (open to everyone, full
+    // 18–99 age range, no radius cap) shouldn't be told to "widen filters they
+    // never touched." Detect the untouched-defaults case so we can show a calm
+    // "still finding people near you" instead of filter-tweaking guidance.
+    const fullAgeRange =
+      (filterInitial.prefAgeMin == null || filterInitial.prefAgeMin <= 18) &&
+      (filterInitial.prefAgeMax == null || filterInitial.prefAgeMax >= 99);
+    const noRadiusCap =
+      !filterInitial.searchRadiusMiles || filterInitial.searchRadiusMiles === 0;
+    const noFiltersNarrowed = noSeeking && fullAgeRange && noRadiusCap;
     return (
       <div style={page}>
         <Header />
         <div style={shell}>
           {paused && <PausedBanner onGoToProfile={onGoToProfile} plainLanguage={plainLanguage} />}
-          {deckEmptyFromStart ? (
+          {deckEmptyFromStart && noFiltersNarrowed ? (
+            // P3 — nothing to widen: the user hasn't set any filters, so this is
+            // simply "we're still finding people near you," not a filter problem.
+            <div style={card}>
+              <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
+                {plainLanguage ? "Still finding people near you." : "We're still finding people near you"}
+              </h1>
+              <p style={{ color: t.textSoft, marginBottom: 16 }}>
+                {plainLanguage
+                  ? "No one to show yet. This is normal for a new account. More people will appear as they join near you. There's nothing you need to fix."
+                  : "There's no one to show just yet — that's normal when you're new here, and nothing's wrong on your end. More people will appear as they join near you."}
+              </p>
+              <p style={{ color: t.textSoft, marginBottom: 18, fontSize: 16 }}>
+                {plainLanguage
+                  ? "You can check again anytime. You can also open Filters to set who you'd like to meet."
+                  : <>You can check back anytime. If you'd like, you can open <strong>Filters</strong> to tell us who you'd like to meet — but you don't have to.</>}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <ActionButton
+                  label="Check again"
+                  kind="interested"
+                  onClick={() => loadCandidates()}
+                />
+                <ActionButton
+                  label="Open Filters"
+                  kind="notnow"
+                  onClick={() => setFiltersOpen(true)}
+                />
+              </div>
+            </div>
+          ) : deckEmptyFromStart ? (
             <div style={card}>
               <h1 ref={endHeadingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, marginTop: 0, fontWeight: 700 }}>
                 {plainLanguage ? "No one to show right now." : "No matches with your current filters"}

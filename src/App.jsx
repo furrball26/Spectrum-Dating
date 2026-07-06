@@ -1710,6 +1710,7 @@ export default function App() {
                   onConsumedInitial={() => setPendingConversation(null)}
                   homeSignal={messagesHomeSignal}
                   plainLanguage={!!a11y.plainLanguage}
+                  reducedSensory={!!a11y.reducedSensory}
                 />
               )}
               {activeTab === "profile" && profileView === "hub" && (

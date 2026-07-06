@@ -9,6 +9,11 @@ import { useFocusable } from "./useFocusable.js";
 // the auth critical path (same chunk App.jsx loads it from once authed).
 const TermsScreen = lazy(() => import("./TermsScreen.jsx"));
 
+// P12 — the enforcement-appeal support address, referenced by BOTH the mailto:
+// convenience link and the visible, copyable plain-text address below it. Kept
+// in one constant so the two can never drift apart.
+const APPEAL_SUPPORT_EMAIL = "support@spectrum-dating.app";
+
 
 function inputStyle(hasError) {
   return {
@@ -309,7 +314,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                   appeal system). A blocked member can't sign in to use the in-app
                   form, so we hand off to the same inbox by email. */}
               <a
-                href={`mailto:support@spectrum-dating.app?subject=${encodeURIComponent(
+                href={`mailto:${APPEAL_SUPPORT_EMAIL}?subject=${encodeURIComponent(
                   enforced.kind === "ban" ? "Account review request (removed)" : "Account review request (suspended)"
                 )}`}
                 style={{
@@ -331,6 +336,25 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
               >
                 Request a review
               </a>
+              {/* P12 — the mailto above fails silently on a device with no mail
+                  client configured, leaving the user stranded. Show the actual
+                  support address as SELECTABLE text so it can always be copied by
+                  hand. userSelect:"all" selects the whole address on one tap. */}
+              <p style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+                If that doesn&apos;t open your email app, you can write to us
+                directly at{" "}
+                <span
+                  style={{
+                    color: t.text,
+                    fontWeight: 600,
+                    userSelect: "all",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {APPEAL_SUPPORT_EMAIL}
+                </span>
+                .
+              </p>
               <button
                 type="button"
                 onClick={() => switchMode("login")}

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { getStarters } from "../api.js";
 import { t } from "../tokens.js";
 import { EmptyMessages } from "../illustrations.jsx";
+import SpectrumMark from "../SpectrumMark.jsx";
 import { useFocusable } from "../useFocusable.js";
 
 
@@ -12,7 +13,7 @@ const FALLBACK_STARTERS = [
   "How do you usually like to spend a quiet weekend?",
 ];
 
-export default function EmptyConversationState({ displayName, conversationId, onSelectStarter, plainLanguage = false }) {
+export default function EmptyConversationState({ displayName, conversationId, onSelectStarter, plainLanguage = false, reducedSensory = false }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [starters, setStarters] = useState(FALLBACK_STARTERS);
   const needsIdeasRef = useRef(null);
@@ -72,8 +73,10 @@ export default function EmptyConversationState({ displayName, conversationId, on
           boxShadow: t.shadow.sm,
         }}
       >
+        {/* P11 — reduced-sensory swaps the decorative line-art for the flat
+            brand mark, matching Discover / Likes empty states. */}
         <div style={{ marginBottom: 16 }}>
-          <EmptyMessages size={96} />
+          {reducedSensory ? <SpectrumMark height={10} /> : <EmptyMessages size={96} />}
         </div>
         <h2
           style={{

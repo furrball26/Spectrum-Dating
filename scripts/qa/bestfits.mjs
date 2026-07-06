@@ -36,11 +36,13 @@ try {
   check("Discover Top Picks button opens the Top Picks surface", /Top Picks/i.test(bodyText));
   check("locked panel names Spectrum Companion (from Discover)", /part of Spectrum Companion/i.test(bodyText));
 
-  // ── Entry 2: Membership → Companion area → "See Top Picks" ───────────────────
+  // ── Entry 2: Membership → Companion area → "See your best fits" ──────────────
+  // P9 — the Membership entry was renamed from "Top Picks" (ranking/scarcity
+  // framing) to "your best fits"; match the new copy.
   await page.goto("http://127.0.0.1:4173/?tab=membership", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
 
-  const entry = page.getByRole("button", { name: /Top Picks/i }).first();
+  const entry = page.getByRole("button", { name: /best fits/i }).first();
   await entry.waitFor({ state: "visible", timeout: 8000 });
   await entry.click();
   await page.waitForTimeout(1800);

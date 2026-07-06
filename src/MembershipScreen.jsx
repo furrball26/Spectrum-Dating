@@ -242,15 +242,18 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
         ))}
       </ul>
 
-      {/* "Top Picks" — the first implemented Companion surface. A clear entry
-          from the Companion area: Companion members open the live shortlist; free
-          members land on its calm locked state. No urgency, no counter. */}
+      {/* "Your best fits" — the first implemented Companion surface. A clear
+          entry from the Companion area: Companion members open the calm,
+          considered selection; free members land on its calm locked state. P9 —
+          renamed away from "Top Picks" (a ranking/scarcity Tinder framing the
+          audit flagged) to "Your best fits," matching the best-fits feature. No
+          urgency, no counter, no leaderboard framing. */}
       {onOpenBestFits && (
         <div style={{ marginTop: 18 }}>
           {isCompanion ? (
-            <PrimaryButton onClick={onOpenBestFits}>Open your Top Picks</PrimaryButton>
+            <PrimaryButton onClick={onOpenBestFits}>Open your best fits</PrimaryButton>
           ) : (
-            <QuietButton onClick={onOpenBestFits}>See “Top Picks”</QuietButton>
+            <QuietButton onClick={onOpenBestFits}>See your best fits</QuietButton>
           )}
         </div>
       )}

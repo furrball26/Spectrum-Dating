@@ -234,14 +234,24 @@ export function GenderField({ gender, setGender, genderCustom, setGenderCustom, 
 }
 
 // ─── Orientation field: optional chip multi-select ─────────────────────────────
-export function OrientationField({ orientation, setOrientation, required = false, error = "" }) {
+// `chosen` (optional) mirrors GenderField: it distinguishes an EXPLICIT "Prefer
+// not to say" opt-out from the untouched default. When a caller tracks it
+// (onboarding's required step, M3), the opt-out pill only reads as selected once
+// the user actually taps it — so orientation gets the SAME forced-disclosure
+// opt-out gender already has (empty/opt-out is display-only and safe, never used
+// in matching). Callers that don't pass it keep the old behavior.
+export function OrientationField({ orientation, setOrientation, required = false, error = "", chosen, onChoose }) {
   const selected = String(orientation || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const optOut = chosen === undefined ? false : (chosen && selected.length === 0);
 
   function toggle(value) {
     const next = selected.includes(value)
       ? selected.filter((x) => x !== value)
       : [...selected, value];
     setOrientation(next.join(","));
+    // Any pick/clear is an explicit choice — records that the required field was
+    // actively answered (mirrors GenderField's setGender wrapper).
+    if (onChoose) onChoose();
   }
 
   return (
@@ -252,10 +262,22 @@ export function OrientationField({ orientation, setOrientation, required = false
       </legend>
       <span style={{ display: "block", fontSize: 14, color: t.textSoft, margin: "0 0 10px", clear: "both" }}>
         {required
-          ? "Choose any that fit — shown on your profile, never used to filter Discover. You can change it later."
+          ? "Choose any that fit, or “Prefer not to say” — shown on your profile, never used to filter Discover. You can change it later."
           : "Optional. Choose any that fit — shown on your profile, never used to filter Discover."}
       </span>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {/* M3 — a "Prefer not to say" opt-out so orientation isn't forced
+            disclosure (gender already offers this). Selecting it clears any
+            picks and marks the required field as explicitly answered. Only shown
+            when the caller tracks `chosen` (the required onboarding step). */}
+        {chosen !== undefined && (
+          <Pill
+            label="Prefer not to say"
+            active={optOut}
+            ariaLabel={optOut ? "Prefer not to say — selected" : "Prefer not to say"}
+            onClick={() => { setOrientation(""); if (onChoose) onChoose(); }}
+          />
+        )}
         {ORIENTATION_OPTIONS.map((o) => (
           <Pill
             key={o.value}

@@ -19,9 +19,12 @@ import { sharedSpecialInterests } from "./specialInterests.js";
 // InterestPills' shared casual interests (case-insensitive, accent fill, ✦). On
 // your OWN card, pass no viewer set so nothing is highlighted — just your chips.
 //
-// The SectionRule (spectrum ramp) stays the one confident brand beat: decorative,
-// aria-hidden, static/flat → reduced-sensory-safe.
-export default function FeaturedInterest({ answer, specialInterests, viewerSpecialInterests = null }) {
+// The SectionRule (spectrum ramp) is the one confident brand beat here:
+// decorative, aria-hidden, static/flat. Under reduced-sensory it's dropped — the
+// same treatment SuggestionScreen gives its decorative SpectrumStrip — so the
+// section falls back to plain type with no brand decoration. `reducedSensory`
+// defaults false, so every other caller keeps the rule unchanged.
+export default function FeaturedInterest({ answer, specialInterests, viewerSpecialInterests = null, reducedSensory = false }) {
   const chips = (Array.isArray(specialInterests) ? specialInterests : []).filter(
     (s) => typeof s === "string" && s.trim()
   );
@@ -53,7 +56,7 @@ export default function FeaturedInterest({ answer, specialInterests, viewerSpeci
       >
         {FEATURED_PROMPT_TITLE}
       </p>
-      <SectionRule style={{ marginTop: 8, marginBottom: 12 }} />
+      {!reducedSensory && <SectionRule style={{ marginTop: 8, marginBottom: 12 }} />}
 
       {/* The matchable chips lead. minWidth:0 on the row + each chip guards the
           truncatable tag text (past overlap/overflow class). */}

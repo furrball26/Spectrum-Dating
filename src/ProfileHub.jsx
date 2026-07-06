@@ -3,7 +3,6 @@ import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { getUserId } from "./api.js";
-import { COMPLETENESS_RAMP } from "./completeness.js";
 import {
   SlidersIcon,
   GearIcon,
@@ -61,6 +60,27 @@ function IconButton({ label, onClick, children, size = 44, style }) {
     >
       {children}
     </button>
+  );
+}
+
+// A labelled header control — the round icon button with a short visible caption
+// beneath it. The three top-right controls (Preferences / Settings /
+// Notifications) were icon-only and ambiguous; the caption names each one in
+// plain words while the IconButton keeps its matching aria-label (the caption is
+// aria-hidden so the accessible name isn't doubled).
+function HeaderControl({ label, onClick, children }) {
+  return (
+    <span style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 }}>
+      <IconButton label={label} onClick={onClick}>
+        {children}
+      </IconButton>
+      <span
+        aria-hidden="true"
+        style={{ fontSize: 12, fontWeight: 500, color: t.textSoft, letterSpacing: "0.01em", lineHeight: 1.2 }}
+      >
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -153,16 +173,17 @@ function HubRow({ icon, title, subtitle, tag, onClick }) {
 }
 
 // Calm completeness cue for the Hub. A first-timer landing on the calm hub
-// otherwise gets NO signal their profile is thin; this quietly shows how many of
-// the 7 differentiator fields are filled and offers the next one — tapping jumps
-// the editor straight to that field. Calm-by-design: a gentle "here's what still
-// helps", never a score to chase — no "%", no urgency, no nagging. Renders
+// otherwise gets NO signal there's more they could add; this quietly names a few
+// OPTIONAL things they could fill in and offers the next one — tapping jumps the
+// editor straight to that field. Calm-by-design: a gentle, optional checklist —
+// never a grade to chase. NO fraction ("3 of 7"), no meter, no "%", no urgency,
+// no nagging (the fraction read like a score, flagged in the audit). Renders
 // nothing before the first load (null) or once every field is filled. Own
 // component so useFocusable stays one-hook-per-instance, above the early return.
 function CompletenessCue({ completeness, onOpenEditField }) {
   const f = useFocusable();
   if (!completeness || completeness.score >= completeness.total) return null;
-  const { score, total, missing } = completeness;
+  const { missing } = completeness;
   const next = missing[0];
   return (
     <button
@@ -188,27 +209,18 @@ function CompletenessCue({ completeness, onOpenEditField }) {
       }}
     >
       <span style={{ flex: 1, minWidth: 0 }}>
-        {/* Slim meter — `score` tiles painted with the brand ramp filling
-            left→right, the rest a quiet track. Decorative (the text states the
-            count), so aria-hidden. */}
-        <span aria-hidden="true" style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-          {Array.from({ length: total }, (_, i) => (
-            <span
-              key={i}
-              style={{
-                flex: 1,
-                height: 6,
-                borderRadius: 3,
-                background: i < score ? COMPLETENESS_RAMP[Math.min(i, COMPLETENESS_RAMP.length - 1)] : t.border,
-              }}
-            />
-          ))}
-        </span>
         <span style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
-          {score} of {total} filled in
+          A few optional things you could add
         </span>
         <span style={{ display: "block", marginTop: 2, fontSize: 14, color: t.textSoft, lineHeight: 1.4 }}>
-          Next: {next.label.toLowerCase()} — it helps matches picture you.
+          {/* Name the missing items as a gentle list (not a count/score); tapping
+              opens the editor on the first one. Whenever there's more than one
+              left, list the first two and stop — never a running tally. The
+              field labels are already imperative ("Add a photo"), so present them
+              directly. */}
+          For example, {next.label.toLowerCase()}
+          {missing[1] ? `, or ${missing[1].label.toLowerCase()}` : ""}. Only if you
+          feel like it — it just helps matches picture you.
         </span>
       </span>
       <span aria-hidden="true" style={{ color: t.textMuted, flexShrink: 0, display: "inline-flex" }}>
@@ -256,21 +268,21 @@ export default function ProfileHub({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "flex-end",
-            gap: 10,
+            gap: 16,
             marginBottom: 8,
           }}
         >
-          <IconButton label="Preferences" onClick={onOpenPreferences}>
+          <HeaderControl label="Preferences" onClick={onOpenPreferences}>
             <SlidersIcon size={22} />
-          </IconButton>
-          <IconButton label="Settings" onClick={onOpenSettings}>
+          </HeaderControl>
+          <HeaderControl label="Settings" onClick={onOpenSettings}>
             <GearIcon size={22} />
-          </IconButton>
-          <IconButton label="Notifications" onClick={onOpenNotifications}>
+          </HeaderControl>
+          <HeaderControl label="Notifications" onClick={onOpenNotifications}>
             <BellIcon size={22} />
-          </IconButton>
+          </HeaderControl>
         </div>
 
         {/* Avatar hero + pencil-to-edit overlay. */}

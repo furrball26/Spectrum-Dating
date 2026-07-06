@@ -7,6 +7,7 @@ import { useViewport } from "./useViewport.js";
 import { GenderField, OrientationField, RelationshipStructureField, GENDER_SELF_DESCRIBE } from "./IdentityFields.jsx";
 import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
 import { normalizeSpecialInterests } from "./specialInterests.js";
+import { ShieldIcon } from "./icons.jsx";
 
 
 function usePrefersReduced() {
@@ -799,7 +800,12 @@ function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, at
           lineHeight: 1.55,
         }}
       >
-        <span aria-hidden="true">🔒</span>
+        {/* Soft shield (P6) — the old 🔒 padlock read as "locked / blocked /
+            punished." A calm shield-with-check reads as "looked after / in
+            review," matching the reassuring copy. */}
+        <span aria-hidden="true" style={{ color: t.accentStrong, display: "inline-flex", flexShrink: 0, marginTop: 1 }}>
+          <ShieldIcon size={18} />
+        </span>
         <span>
           A member of our team takes a look at each photo before others can see it.
           There&apos;s no rush — you can add more later.
@@ -870,6 +876,17 @@ function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, at
       {uploadError && (
         <p role="alert" style={{ margin: "8px 0 0", fontSize: 14, color: t.danger, fontWeight: 500, lineHeight: 1.5 }}>
           {uploadError} You can try adding it again.
+        </p>
+      )}
+
+      {/* Proactive requirement hint (P4). Before this step, Continue looked
+          enabled with no photo, so tapping it produced a surprise rejection.
+          Naming the requirement calmly, up front, means the gate never surprises
+          — the hint shows while no photo is present and gives way to the inline
+          error only once the user has actually tried to continue. */}
+      {photos.length === 0 && !gateError && (
+        <p style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft, fontWeight: 500, lineHeight: 1.5 }}>
+          Add one photo to continue.
         </p>
       )}
 
@@ -983,7 +1000,7 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
 function Step4({
   gender, setGender, genderChosen, setGenderChosen,
   genderCustom, setGenderCustom,
-  orientation, setOrientation,
+  orientation, setOrientation, orientationChosen, setOrientationChosen,
   relationshipStructure, setRelationshipStructure,
   pronouns, setPronouns,
   seeking, setSeeking,
@@ -1025,6 +1042,8 @@ function Step4({
       <OrientationField
         orientation={orientation}
         setOrientation={setOrientation}
+        chosen={orientationChosen}
+        onChoose={() => setOrientationChosen(true)}
         required
         error={attempted ? errors.orientation : ""}
       />
@@ -1244,6 +1263,11 @@ export default function OnboardingScreen({ onComplete }) {
   // — otherwise the opt-out looks selected yet can never pass validation (B4).
   const [genderChosen, setGenderChosen] = useState(false);
   const [orientation, setOrientation] = useState(""); // comma-joined; display only
+  // M3 — orientation is required at sign-up, but "" (Prefer not to say) is a
+  // REAL, valid value: display-only, never used in matching. So we track an
+  // explicit-choice flag mirroring `genderChosen`, instead of failing on an
+  // empty set — otherwise the opt-out looks selected yet can never pass.
+  const [orientationChosen, setOrientationChosen] = useState(false);
   const [relationshipStructure, setRelationshipStructure] = useState(""); // D-14; display only
   const [pronouns, setPronouns] = useState("");
   const [seeking, setSeeking] = useState(""); // comma-joined: "woman,man,nonbinary"
@@ -1359,8 +1383,13 @@ export default function OnboardingScreen({ onComplete }) {
     } else if (gender === GENDER_SELF_DESCRIBE && !genderCustom.trim()) {
       errs.gender = "Add a short description of your gender.";
     }
+    // Passes when at least one orientation is chosen OR the "Prefer not to say"
+    // opt-out was explicitly picked (M3); fails only when the user has touched
+    // neither — mirroring the gender opt-out.
     const orientationSet = orientation.split(",").map((s) => s.trim()).filter(Boolean);
-    if (orientationSet.length === 0) errs.orientation = "Select at least one orientation.";
+    if (orientationSet.length === 0 && !orientationChosen) {
+      errs.orientation = "Choose your sexuality, or select “Prefer not to say.”";
+    }
     // Passes when a specific option is selected OR "open to everyone" was
     // explicitly picked; fails only when the user has touched neither.
     const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
@@ -1701,6 +1730,8 @@ export default function OnboardingScreen({ onComplete }) {
             setGenderCustom={setGenderCustom}
             orientation={orientation}
             setOrientation={setOrientation}
+            orientationChosen={orientationChosen}
+            setOrientationChosen={setOrientationChosen}
             relationshipStructure={relationshipStructure}
             setRelationshipStructure={setRelationshipStructure}
             pronouns={pronouns}

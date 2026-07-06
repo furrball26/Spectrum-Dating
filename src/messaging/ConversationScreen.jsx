@@ -1824,6 +1824,9 @@ export default function ConversationScreen({
   // "Back to Matches" control is hidden.
   hideBack = false,
   plainLanguage = false,
+  // P11 — threaded to the empty state + the match-profile modal so their
+  // decorative illustrations honor the reduced-sensory preference.
+  reducedSensory = false,
 }) {
   // Guard: a deleted/suspended partner can arrive with no otherUser payload.
   // Default to {} so the existing `otherUser.displayName || ""` fallbacks take
@@ -2736,7 +2739,7 @@ export default function ConversationScreen({
       }}
     >
       {viewingProfile && (
-        <MatchProfileModal userId={otherUser.userId} onClose={() => setViewingProfile(false)} />
+        <MatchProfileModal userId={otherUser.userId} onClose={() => setViewingProfile(false)} reducedSensory={reducedSensory} />
       )}
       {/* Fixed header */}
       <div
@@ -2871,6 +2874,7 @@ export default function ConversationScreen({
             conversationId={conversationId}
             onSelectStarter={(text) => setComposeValue(text)}
             plainLanguage={plainLanguage}
+            reducedSensory={reducedSensory}
           />
         </div>
       ) : (

@@ -14,7 +14,7 @@ import ReportModal from "./ReportModal.jsx";
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
 
-export default function MatchProfileModal({ userId, onClose }) {
+export default function MatchProfileModal({ userId, onClose, reducedSensory = false }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,7 +120,12 @@ export default function MatchProfileModal({ userId, onClose }) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        // P10 — point the dialog at the person's name heading so screen-reader
+        // users hear WHOSE profile this is, not a generic "Profile." aria-label
+        // stays as the fallback name for the loading/error states, where the
+        // heading (and its id) isn't in the tree yet.
         aria-label="Profile"
+        aria-labelledby={profile ? "match-profile-heading" : undefined}
         style={{
           position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
           width: "min(94vw, 460px)", maxHeight: "88vh", overflowY: "auto",
@@ -159,7 +164,7 @@ export default function MatchProfileModal({ userId, onClose }) {
                 </div>
               )}
 
-              <h1 ref={headingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, fontWeight: 700, margin: "16px 0 2px", color: t.text, outline: "none" }}>
+              <h1 id="match-profile-heading" ref={headingRef} tabIndex={-1} style={{ fontFamily: t.serif, fontSize: 26, fontWeight: 700, margin: "16px 0 2px", color: t.text, outline: "none" }}>
                 {profile.displayName}{typeof profile.age === "number" ? `, ${profile.age}` : ""}
                 {profile.verified && <VerifiedBadge style={{ marginLeft: 10, position: "relative", top: -3 }} />}
               </h1>
@@ -257,6 +262,7 @@ export default function MatchProfileModal({ userId, onClose }) {
                           answer={featured?.answer}
                           specialInterests={special}
                           viewerSpecialInterests={viewerSpecialInterests}
+                          reducedSensory={reducedSensory}
                         />
                       </div>
                     )}

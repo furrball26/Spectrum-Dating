@@ -5,6 +5,7 @@ import Avatar from "../Avatar.jsx";
 import SectionRule from "../SectionRule.jsx";
 import Skeleton from "../Skeleton.jsx";
 import { EmptyMessages } from "../illustrations.jsx";
+import SpectrumMark from "../SpectrumMark.jsx";
 import ErrorState from "../ErrorState.jsx";
 import { useFocusable } from "../useFocusable.js";
 
@@ -353,6 +354,10 @@ export default function MatchesListScreen({
   onArchive,
   selectedConversationId = null,
   plainLanguage = false,
+  // P11 — reduced-sensory swaps the decorative EmptyMessages line-art for the
+  // flat brand mark (mirrors SuggestionScreen / LikesScreen). Product law: all
+  // decoration needs a reduced-sensory fallback.
+  reducedSensory = false,
   // Server-authoritative active-conversation cap (falls back to the module
   // default if the server didn't send one).
   activeCap = CONVERSATION_CAP,
@@ -893,7 +898,7 @@ export default function MatchesListScreen({
             {conversations.length === 0 && pendingRows.length === 0 && (
               <div style={{ textAlign: "center", marginTop: 48 }}>
                 <div style={{ marginBottom: 16 }}>
-                  <EmptyMessages size={104} />
+                  {reducedSensory ? <SpectrumMark height={10} /> : <EmptyMessages size={104} />}
                 </div>
                 <p style={{ color: t.textSoft, margin: 0 }}>
                   {archivedCount > 0

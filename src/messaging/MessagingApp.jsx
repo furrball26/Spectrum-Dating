@@ -48,7 +48,7 @@ function ConversationFallback() {
 // data the caller already had. `initialConversationId` remains as the id-only
 // legacy path. `onConsumedInitial` lets App clear the pending deep-link so a
 // later visit to Messages doesn't re-open the same thread (stale-pending bug).
-export default function MessagingApp({ onUnreadCount, onActivityCount, initialConversation, initialConversationId, onConsumedInitial, homeSignal = 0, plainLanguage = false }) {
+export default function MessagingApp({ onUnreadCount, onActivityCount, initialConversation, initialConversationId, onConsumedInitial, homeSignal = 0, plainLanguage = false, reducedSensory = false }) {
   const viewport = useViewport(); // "mobile" | "tablet" | "desktop"
   const isDesktop = viewport === "desktop";
   // Seed usable only when it carries enough to render a thread header.
@@ -540,6 +540,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
       activeCap={activeCap}
       selectedConversationId={isDesktop ? selectedConversationId : null}
       plainLanguage={plainLanguage}
+      reducedSensory={reducedSensory}
       showingArchived={showingArchived}
       archivedConversations={archivedConversations}
       archivedLoading={archivedLoading}
@@ -584,6 +585,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
           onArchive={handleArchive}
           hideBack={isDesktop}
           plainLanguage={plainLanguage}
+          reducedSensory={reducedSensory}
         />
       </Suspense>
       {showUnmatchSheet && (
@@ -677,7 +679,7 @@ export default function MessagingApp({ onUnreadCount, onActivityCount, initialCo
         />
       )}
       {viewingUserId && (
-        <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+        <MatchProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} reducedSensory={reducedSensory} />
       )}
     </>
   );
