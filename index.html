@@ -98,7 +98,7 @@
         try {
           var p = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
           var v = p && typeof p.theme === "string" ? p.theme : "dim";
-          th = ["dim", "navy", "lightblue", "pink", "pride", "trans"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
+          th = ["dim", "navy", "lightblue", "pastel", "pink", "pride", "trans"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
         } catch (e) { /* fall through to dim */ }
         document.documentElement.dataset.theme = th;
       })();
@@ -361,54 +361,54 @@
          mauve-shifted so the true-red danger states stay unmistakable.
          Readable pink on pastel means wine/plum text ramps (AA-checked). */
       :root[data-theme="pink"] {
-        --c-bg: #FAF3F2;
-        --c-bg-gradient: linear-gradient(150deg, #FBF4F3 0%, #F3E9E9 100%);
+        --c-bg: #FCE9F0;
+        --c-bg-gradient: linear-gradient(150deg, #FDEDF3 0%, #F8D8E6 100%);
         --c-surface: #FFFFFF;
-        --c-surfaceAlt: #F4E9E8;
-        --c-cardBorder: #D8C2C8;
+        --c-surfaceAlt: #FAD9E6;
+        --c-cardBorder: #E7BDCE;
         --sh-sm: 0 1px 2px rgba(52,40,44,0.06), 0 3px 10px rgba(52,40,44,0.08);
         --sh-md: 0 2px 4px rgba(52,40,44,0.07), 0 12px 28px rgba(52,40,44,0.11);
         --sh-lg: 0 4px 12px rgba(52,40,44,0.10), 0 24px 48px rgba(52,40,44,0.15);
         --c-clayText: #8A6B3E;
-        --c-text: #372B2F;
-        --c-textSoft: #645159;
-        --c-textMuted: #77626B;
-        --c-accent: #A05A70;
-        --c-accentStrong: #8A4560;
-        --c-accentFill: #8A4560;
+        --c-text: #3A2430;
+        --c-textSoft: #6B4A58;
+        --c-textMuted: #855F70;
+        --c-accent: #B23A6E;
+        --c-accentStrong: #97285A;
+        --c-accentFill: #97285A;
         --c-positive: #5E9459;
         --c-positiveFill: #3F7A38;
-        --c-border: #E4D3D6;
-        --c-borderLight: #F0E4E6;
-        --c-focus: #372B2F;
+        --c-border: #EDCBD8;
+        --c-borderLight: #F6E2EB;
+        --c-focus: #3A2430;
         --c-danger: #B23A3A;
         --c-dangerFill: #B23A3A;
         --c-positiveText: #4C7A47;
         --c-warning: #B8860B;
         --c-warningFill: #8A6508;
         --c-warningBorder: #8A6508;
-        --c-mutedFill: #6E5A62;
+        --c-mutedFill: #7A5666;
         --c-dangerSurface: #FBEFEF;
         --c-warningSurface: #FBF6E9;
         --c-warningSurfaceText: #6E5206;
         --c-sand: #E7D9C4;
         --c-clay: #C9A875;
         --c-teal: #4F8A8B;
-        --c-green50: #F7EDEE;
-        --c-green100: #EFDEE1;
-        --c-green200: #E2C6CC;
-        --c-green300: #D0A8B2;
-        --c-green400: #B27E90;
-        --c-green500: #A05A70;
-        --c-green600: #945064;
-        --c-green700: #8A4560;
-        --c-green800: #6E3750;
-        --c-green900: #372B2F;
-        --c-formBorder: #94787F;
-        --c-bubbleOwn: #F5DFE3;
-        --c-bubbleOwnBorder: #E2BEC7;
+        --c-green50: #FCE7EF;
+        --c-green100: #F9D6E2;
+        --c-green200: #F2BACE;
+        --c-green300: #E695B2;
+        --c-green400: #D2628B;
+        --c-green500: #B23A6E;
+        --c-green600: #A22F60;
+        --c-green700: #97285A;
+        --c-green800: #7A2049;
+        --c-green900: #3A2430;
+        --c-formBorder: #A87E8E;
+        --c-bubbleOwn: #FAD2E1;
+        --c-bubbleOwnBorder: #EFB0C7;
         --c-bubbleOther: #FFFFFF;
-        --c-tombstone: #77626B;
+        --c-tombstone: #855F70;
         --c-scrimRgb: 52, 40, 44;
       }
       /* ── Pride — a QUIET violet theme; the rainbow lives in exactly two
@@ -481,23 +481,23 @@
          signature — own message bubbles in pale pink on the pale blue field.
          The working accent is a deepened AA-passing trans blue. */
       :root[data-theme="trans"] {
-        --c-bg: #F3F8FB;
-        --c-bg-gradient: linear-gradient(150deg, #F4F9FC 0%, #EBF3F8 100%);
+        --c-bg: #E4F2FB;
+        --c-bg-gradient: linear-gradient(150deg, #E8F4FC 0%, #D5EBF7 100%);
         --c-surface: #FFFFFF;
-        --c-surfaceAlt: #EAF3F8;
-        --c-cardBorder: #BDD2DE;
+        --c-surfaceAlt: #DBEDF8;
+        --c-cardBorder: #A9CFE4;
         --sh-sm: 0 1px 2px rgba(30,45,56,0.06), 0 3px 10px rgba(30,45,56,0.08);
         --sh-md: 0 2px 4px rgba(30,45,56,0.07), 0 12px 28px rgba(30,45,56,0.11);
         --sh-lg: 0 4px 12px rgba(30,45,56,0.10), 0 24px 48px rgba(30,45,56,0.15);
         --c-clayText: #946985;
         /* Flag stripes across the six tiles: blue / pink / white / white /
            pink / blue (the white tiles read via the mark's tile edges). */
-        --mark-1: #5BCEFA;
-        --mark-2: #F5A9B8;
+        --mark-1: #4BB8EE;
+        --mark-2: #F49CB0;
         --mark-3: #FFFFFF;
         --mark-4: #FFFFFF;
-        --mark-5: #F5A9B8;
-        --mark-6: #5BCEFA;
+        --mark-5: #F49CB0;
+        --mark-6: #4BB8EE;
         --c-text: #23323B;
         --c-textSoft: #4C5E69;
         --c-textMuted: #5F717C;
@@ -506,8 +506,8 @@
         --c-accentFill: #21607C;
         --c-positive: #5E9459;
         --c-positiveFill: #3F7A38;
-        --c-border: #CEDEE7;
-        --c-borderLight: #E2EDF3;
+        --c-border: #BFD9E8;
+        --c-borderLight: #DCEBF4;
         --c-focus: #23323B;
         --c-danger: #B44343;
         --c-dangerFill: #B44343;
@@ -538,6 +538,68 @@
         --c-bubbleOther: #FFFFFF;
         --c-tombstone: #5F717C;
         --c-scrimRgb: 30, 45, 56;
+      }
+      /* ── Pastel — a soft, low-saturation daylight theme: light-yellow paper,
+         a calm lavender accent, and a full pastel spectrum in the mark tiles
+         (yellow / green / blue / lavender / blue / pink). NOT an identity theme;
+         functional colors are AA on the pale field. */
+      :root[data-theme="pastel"] {
+        --c-bg: #FCF8E6;
+        --c-bg-gradient: linear-gradient(150deg, #FDFAEC 0%, #F4F1DF 100%);
+        --c-surface: #FFFFFF;
+        --c-surfaceAlt: #F5F0DC;
+        --c-cardBorder: #DED6BE;
+        --sh-sm: 0 1px 2px rgba(47,44,34,0.06), 0 3px 10px rgba(47,44,34,0.08);
+        --sh-md: 0 2px 4px rgba(47,44,34,0.07), 0 12px 28px rgba(47,44,34,0.11);
+        --sh-lg: 0 4px 12px rgba(47,44,34,0.10), 0 24px 48px rgba(47,44,34,0.15);
+        --c-clayText: #8A6B3E;
+        /* pastel spectrum in the mark tiles: yellow, green, blue, lavender, blue, pink */
+        --mark-1: #F4D06A;
+        --mark-2: #B7DCA6;
+        --mark-3: #A7C7E7;
+        --mark-4: #B9A7DE;
+        --mark-5: #A7C7E7;
+        --mark-6: #F4B6C2;
+        --c-text: #2F2C22;
+        --c-textSoft: #5C5747;
+        --c-textMuted: #706A58;
+        --c-accent: #6E5FA8;
+        --c-accentStrong: #5A4B92;
+        --c-accentFill: #5A4B92;
+        --c-positive: #5E9459;
+        --c-positiveFill: #3F7A38;
+        --c-border: #E5DDC5;
+        --c-borderLight: #F1EBD9;
+        --c-focus: #2F2C22;
+        --c-danger: #B23A3A;
+        --c-dangerFill: #B23A3A;
+        --c-positiveText: #4C7A47;
+        --c-warning: #B8860B;
+        --c-warningFill: #8A6508;
+        --c-warningBorder: #8A6508;
+        --c-mutedFill: #6A6456;
+        --c-dangerSurface: #FBEFEA;
+        --c-warningSurface: #FBF6E4;
+        --c-warningSurfaceText: #6E5206;
+        --c-sand: #E7D9C4;
+        --c-clay: #C9A875;
+        --c-teal: #4F8A8B;
+        --c-green50: #F1EEF8;
+        --c-green100: #E5E0F1;
+        --c-green200: #D2C9E6;
+        --c-green300: #B6A9D6;
+        --c-green400: #8B7ABC;
+        --c-green500: #6E5FA8;
+        --c-green600: #62539A;
+        --c-green700: #5A4B92;
+        --c-green800: #473A75;
+        --c-green900: #2F2C22;
+        --c-formBorder: #8A8272;
+        --c-bubbleOwn: #EAE4F6;
+        --c-bubbleOwnBorder: #D3C8EA;
+        --c-bubbleOther: #FFFFFF;
+        --c-tombstone: #706A58;
+        --c-scrimRgb: 47, 44, 34;
       }
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }

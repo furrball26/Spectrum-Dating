@@ -60,12 +60,13 @@ const THEME_CARDS = [
   { key: "light",     label: "Light",      note: "",                 bg: "#F5F3EE", surface: "#FFFFFF", border: "#C7D2CA", accent: "#3E6660", text: "#24332D" },
   { key: "navy",      label: "Navy",       note: "",                 bg: "#121A2B", surface: "#1C2740", border: "#3A4B6B", accent: "#33518A", text: "#E5EAF3" },
   { key: "lightblue", label: "Light blue", note: "",                 bg: "#F2F5F9", surface: "#FFFFFF", border: "#BFCEDC", accent: "#2F5675", text: "#22303F" },
-  { key: "pink",      label: "Pink",       note: "",                 bg: "#FAF3F2", surface: "#FFFFFF", border: "#D8C2C8", accent: "#8A4560", text: "#372B2F" },
+  { key: "pastel",    label: "Pastel",     note: "Soft yellow, lavender, and pastels", bg: "#FCF8E6", surface: "#FFFFFF", border: "#DED6BE", accent: "#5A4B92", text: "#2F2C22", stripes: ["#F4D06A", "#B7DCA6", "#A7C7E7", "#B9A7DE", "#F4B6C2"] },
+  { key: "pink",      label: "Pink",       note: "",                 bg: "#FCE9F0", surface: "#FFFFFF", border: "#E7BDCE", accent: "#97285A", text: "#3A2430" },
   // Identity themes — named honestly (the rendered colors are what an onlooker
   // recognizes, not the menu label; euphemisms only patronize). The flag shows
   // in the swatch stripe; the UI itself stays a calm single-accent theme.
   { key: "pride",     label: "Pride",      note: "Calm violet, rainbow in the logo", bg: "#F7F5F2", surface: "#FFFFFF", border: "#CCC5D4", accent: "#5A3E8C", text: "#2B2833", stripes: ["#B5544C", "#C08A45", "#B29A45", "#5E9459", "#4F7DA6", "#7B5EA7"] },
-  { key: "trans",     label: "Trans pride", note: "Soft blue, pink message bubbles",  bg: "#F3F8FB", surface: "#FFFFFF", border: "#BDD2DE", accent: "#21607C", text: "#23323B", stripes: ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"] },
+  { key: "trans",     label: "Trans pride", note: "Soft blue, pink message bubbles",  bg: "#E4F2FB", surface: "#FFFFFF", border: "#A9CFE4", accent: "#21607C", text: "#23323B", stripes: ["#4BB8EE", "#F49CB0", "#FFFFFF", "#F49CB0", "#4BB8EE"] },
 ];
 
 const IDENTITY_KEYS = ["pride", "trans"];
@@ -166,7 +167,8 @@ function ThemeCard({ card, active, onClick, describedBy }) {
         {card.stripes && (
           <span style={{ display: "flex", flexDirection: "column", width: 10, height: 18, borderRadius: 3, overflow: "hidden", border: `1px solid ${card.border}`, marginLeft: "auto" }}>
             {card.stripes.map((s, i) => (
-              <span key={i} style={{ flex: 1, background: s }} />
+              // Inset hairline so a white flag stripe reads against the swatch.
+              <span key={i} style={{ flex: 1, background: s, boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.08)" }} />
             ))}
           </span>
         )}

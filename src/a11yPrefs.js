@@ -13,7 +13,7 @@ export const A11Y_KEY = "spectrum_a11y";
 // to the dim default (never to a surprise theme). Keep in sync with the theme
 // blocks in index.html, the pre-paint bootstrap script there, and the picker
 // in SettingsScreen.
-export const THEMES = ["dim", "light", "navy", "lightblue", "pink", "pride", "trans"];
+export const THEMES = ["dim", "light", "navy", "lightblue", "pastel", "pink", "pride", "trans"];
 
 // Identity-flag themes are a visible signal to anyone who can see the screen.
 // They reset to the neutral default on sign-out / auth expiry (see clearAuth

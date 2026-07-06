@@ -40,6 +40,10 @@ export default function SpectrumMark({ height = 18, gap, radius = 2, style }) {
           rx={radius}
           ry={radius}
           fill={c}
+          // Hairline edge so a white flag tile (trans theme) reads on a white
+          // header surface. Scales with height; near-invisible on colored tiles.
+          stroke="rgba(0,0,0,0.10)"
+          strokeWidth={Math.max(0.5, height * 0.045)}
         />
       ))}
     </svg>
