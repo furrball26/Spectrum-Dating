@@ -321,12 +321,17 @@ router.get('/region-safety', requireAuth, (req, res) => {
   // stored or logged. The client shows a calm, optional "hide your profile"
   // prompt when this is true.
   const me = db.prepare('SELECT gender, dist_city FROM profiles WHERE user_id = ?').get(userId);
-  const transAtRisk =
-    isTransSpectrumGender(me?.gender) && isTransRiskState(stateFromCity(me?.dist_city));
+  const homeStateAtRisk = isTransRiskState(stateFromCity(me?.dist_city));
+  const transAtRisk = isTransSpectrumGender(me?.gender) && homeStateAtRisk;
 
-  // Return ONLY the booleans + the member's OWN country code back to that same
+  // homeStateAtRisk is the GENDER-INDEPENDENT state signal (is the member's
+  // stated home state one that has enacted anti-trans law?). The client combines
+  // it — and the country `atRisk` — with the gender the member is CURRENTLY
+  // choosing, to show a calm inline note in the gender section at selection time
+  // (the stored-gender transAtRisk above drives the separate load-time banner).
+  // Return ONLY these booleans + the member's OWN country code back to that same
   // member. Nothing here is persisted or logged.
-  return res.json({ atRisk, country: country || '', transAtRisk });
+  return res.json({ atRisk, country: country || '', transAtRisk, homeStateAtRisk });
 });
 
 // POST /profile/verification-request

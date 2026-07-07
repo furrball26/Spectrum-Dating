@@ -135,10 +135,10 @@ describe('GET /profile/region-safety', () => {
     expect(res.json.country).toBe('');
   });
 
-  it('returns ONLY { atRisk, country, transAtRisk } — no other fields leak', async () => {
+  it('returns ONLY { atRisk, country, homeStateAtRisk, transAtRisk } — no other fields leak', async () => {
     mockGeo = { country: 'UG', region: '04' };
     const res = await api('/profile/region-safety', { token: token() });
-    expect(Object.keys(res.json).sort()).toEqual(['atRisk', 'country', 'transAtRisk']);
+    expect(Object.keys(res.json).sort()).toEqual(['atRisk', 'country', 'homeStateAtRisk', 'transAtRisk']);
   });
 
   it('requires auth (401 for anon)', async () => {
@@ -177,6 +177,14 @@ describe('GET /profile/region-safety — trans home-region alert (transAtRisk)',
     return id;
   }
   const check = async (id) => (await api('/profile/region-safety', { token: signToken(id, 0) })).json.transAtRisk;
+  const full = async (id) => (await api('/profile/region-safety', { token: signToken(id, 0) })).json;
+
+  it('homeStateAtRisk is GENDER-INDEPENDENT (true for a cis member in a listed state)', async () => {
+    mockGeo = { country: 'US', region: '' };
+    const r = await full(makeProfiled('woman', 'Austin, TX'));
+    expect(r.homeStateAtRisk).toBe(true);  // the state is flagged...
+    expect(r.transAtRisk).toBe(false);     // ...but they aren't trans, so no load-banner
+  });
 
   it('flags a trans member whose home state has enacted anti-trans law', async () => {
     mockGeo = { country: 'US', region: '' };
