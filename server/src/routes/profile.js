@@ -7,8 +7,9 @@ import { emailConfigured } from '../email/resend.js';
 import { listPhotos, listPublicPhotos } from './photos.js';
 import { listPublicAudio, listOwnAudio } from './audio.js';
 import { ageFromDob } from '../utils/time.js';
-import { coarseCity, isGeocodable } from '../utils/metros.js';
+import { coarseCity, isGeocodable, stateFromCity } from '../utils/metros.js';
 import { containsSlur } from '../utils/nameScreen.js';
+import { isTransRiskState, isTransSpectrumGender } from '../data/transSafety.js';
 import { newId } from '../utils/ids.js';
 import {
   ALL_PROMPTS,
@@ -306,14 +307,26 @@ router.get('/me', requireAuth, (req, res) => {
 // telemetry. This endpoint writes NOTHING (no table, no column, no row). It is
 // protective, not tracking. Defined BEFORE `/:userId` so the literal path wins.
 router.get('/region-safety', requireAuth, (req, res) => {
+  const { db, userId } = req.ctx;
   // `trust proxy = 1` (src/index.js) yields the real client IP behind Railway's
   // proxy. lookupGeo is offline (geoip-lite) — zero network egress, and it keeps
   // only the country/region ISO codes, never the raw IP.
   const { country } = lookupGeo(req.ip);
   const atRisk = isHostileRegion(country);
-  // Return ONLY the boolean + the member's OWN country code back to that same
+
+  // Trans home-region alert (separate signal from the IP/country one above): is
+  // this member trans/gender-diverse AND is their STATED HOME STATE one that has
+  // enacted anti-trans law? Based on the member's OWN stored profile (gender +
+  // coarse city), computed for and returned to that same member — nothing new is
+  // stored or logged. The client shows a calm, optional "hide your profile"
+  // prompt when this is true.
+  const me = db.prepare('SELECT gender, dist_city FROM profiles WHERE user_id = ?').get(userId);
+  const transAtRisk =
+    isTransSpectrumGender(me?.gender) && isTransRiskState(stateFromCity(me?.dist_city));
+
+  // Return ONLY the booleans + the member's OWN country code back to that same
   // member. Nothing here is persisted or logged.
-  return res.json({ atRisk, country: country || '' });
+  return res.json({ atRisk, country: country || '', transAtRisk });
 });
 
 // POST /profile/verification-request

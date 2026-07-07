@@ -32,6 +32,8 @@ const { optionalAuth, signToken } = await import('../src/middleware/auth.js');
 const { contextMiddleware } = await import('../src/middleware/context.js');
 const profileRouter = (await import('../src/routes/profile.js')).default;
 const { isHostileRegion, HOSTILE_REGIONS } = await import('../src/data/hostileRegions.js');
+const { isTransRiskState, isTransSpectrumGender } = await import('../src/data/transSafety.js');
+const { stateFromCity } = await import('../src/utils/metros.js');
 
 const db = getDb();
 
@@ -133,10 +135,10 @@ describe('GET /profile/region-safety', () => {
     expect(res.json.country).toBe('');
   });
 
-  it('returns ONLY { atRisk, country } — no other fields leak', async () => {
+  it('returns ONLY { atRisk, country, transAtRisk } — no other fields leak', async () => {
     mockGeo = { country: 'UG', region: '04' };
     const res = await api('/profile/region-safety', { token: token() });
-    expect(Object.keys(res.json).sort()).toEqual(['atRisk', 'country']);
+    expect(Object.keys(res.json).sort()).toEqual(['atRisk', 'country', 'transAtRisk']);
   });
 
   it('requires auth (401 for anon)', async () => {
@@ -163,6 +165,66 @@ describe('GET /profile/region-safety', () => {
     for (const c of cols) {
       expect(/region|hostile|country|at_risk|geo/i.test(c)).toBe(false);
     }
+  });
+});
+
+describe('GET /profile/region-safety — trans home-region alert (transAtRisk)', () => {
+  // Country stays SAFE for all of these so the trans signal is isolated from the
+  // IP/country signal.
+  function makeProfiled(gender, distCity) {
+    const id = makeUser(`t_${Math.random().toString(36).slice(2, 8)}@t.dev`);
+    db.prepare('UPDATE profiles SET gender = ?, dist_city = ? WHERE user_id = ?').run(gender, distCity, id);
+    return id;
+  }
+  const check = async (id) => (await api('/profile/region-safety', { token: signToken(id, 0) })).json.transAtRisk;
+
+  it('flags a trans member whose home state has enacted anti-trans law', async () => {
+    mockGeo = { country: 'US', region: '' };
+    expect(await check(makeProfiled('trans-woman', 'Austin, TX'))).toBe(true);
+  });
+
+  it('does NOT flag a trans member in a non-listed state', async () => {
+    mockGeo = { country: 'US', region: '' };
+    expect(await check(makeProfiled('trans-woman', 'Seattle, WA'))).toBe(false);
+  });
+
+  it('covers the broader nonbinary umbrella, not just binary trans', async () => {
+    mockGeo = { country: 'US', region: '' };
+    expect(await check(makeProfiled('nonbinary', 'Miami, FL'))).toBe(true);
+  });
+
+  it('does NOT flag a cis member even in a listed state', async () => {
+    mockGeo = { country: 'US', region: '' };
+    expect(await check(makeProfiled('woman', 'Austin, TX'))).toBe(false);
+  });
+
+  it('does NOT flag a trans member with no stated city', async () => {
+    mockGeo = { country: 'US', region: '' };
+    expect(await check(makeProfiled('trans-man', ''))).toBe(false);
+  });
+});
+
+describe('transSafety + stateFromCity helpers', () => {
+  it('isTransRiskState matches listed states case-insensitively, misses others', () => {
+    expect(isTransRiskState('TX')).toBe(true);
+    expect(isTransRiskState('tx')).toBe(true);
+    expect(isTransRiskState('CA')).toBe(false);
+    expect(isTransRiskState('')).toBe(false);
+    expect(isTransRiskState(null)).toBe(false);
+  });
+  it('isTransSpectrumGender covers the umbrella but not cis/intersex/questioning', () => {
+    for (const g of ['trans-man', 'trans-woman', 'nonbinary', 'genderfluid', 'agender']) {
+      expect(isTransSpectrumGender(g)).toBe(true);
+    }
+    for (const g of ['woman', 'man', 'intersex', 'questioning', '', null]) {
+      expect(isTransSpectrumGender(g)).toBe(false);
+    }
+  });
+  it('stateFromCity parses the uppercase 2-letter state, else empty', () => {
+    expect(stateFromCity('Austin, TX')).toBe('TX');
+    expect(stateFromCity('Phoenix, AZ 85004')).toBe('AZ');
+    expect(stateFromCity('Seattle')).toBe('');
+    expect(stateFromCity('')).toBe('');
   });
 });
 

@@ -55,6 +55,15 @@ function parse(distCity) {
   return { city, state };
 }
 
+// The UPPERCASE 2-letter state code from a stored "City, ST" string, or '' when
+// there's no parseable 2-letter state. Used by the trans home-region alert to
+// key off the member's stated home state. Only returns a value for a clean
+// 2-letter code so partial/foreign locations never accidentally match a US set.
+export function stateFromCity(distCity) {
+  const { state } = parse(distCity);
+  return /^[a-z]{2}$/.test(state) ? state.toUpperCase() : '';
+}
+
 // ── Coarse public location label ─────────────────────────────────────────────
 // Strip any ZIP/postal code from a stored "City, ST 12345" value so strangers
 // browsing Discover/matches see "Phoenix, AZ" but NEVER a precise ZIP (privacy
