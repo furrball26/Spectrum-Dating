@@ -32,7 +32,7 @@ const OnboardingScreen = lazy(() => import("./OnboardingScreen.jsx"));
 const RequireCityScreen = lazy(() => import("./RequireCityScreen.jsx"));
 const TermsScreen = lazy(() => import("./TermsScreen.jsx"));
 import { isLoggedIn, clearAuth, getToken, getUserId, signOut, getProfile, getPushVapidKey, savePushSubscription, removePushSubscription, verifyEmail, resendVerification, sendPageview, getRegionSafety, updateProfile } from "./api.js";
-import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY } from "./regionSafety.js";
+import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY, shouldShowTransAlert, TRANS_ALERT_SESSION_KEY } from "./regionSafety.js";
 import { connectSocket, disconnectSocket, onSocket } from "./socketClient.js";
 import { t } from "./tokens.js";
 import { useViewport } from "./useViewport.js";
@@ -754,6 +754,98 @@ function RegionSafetyBanner({ paused, busy, onHide, onDismiss }) {
   );
 }
 
+// ── Trans home-region safety alert (calm-by-design) ──────────────────────────
+// Companion to RegionSafetyBanner. Shown at most once per session when the
+// backend flags that the member is trans/gender-diverse AND their stated HOME
+// state has enacted anti-trans law (computed server-side from their own profile;
+// nothing is stored). Same calm amber `sand` surface, same Hide + Dismiss layout
+// and focus/aria treatment — warm and supportive, never alarmist. Offers to HIDE
+// the profile (reuses the same pause mechanism → paused=true) plus a Dismiss.
+// The country/legal-danger banner takes priority: this one renders only when
+// that one is NOT showing (see the render gate), so at most one appears.
+function TransSafetyBanner({ paused, busy, onHide, onDismiss }) {
+  const fHide = useFocusable();
+  const fDismiss = useFocusable();
+  return (
+    <div
+      role="status"
+      style={{
+        background: t.sand,
+        borderBottom: `1px solid ${t.warningBorder}`,
+        padding: "12px 20px",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: t.layout.maxContent,
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          fontSize: 14,
+          color: t.text,
+        }}
+      >
+        {/* minWidth:0 so the message can shrink/wrap next to the buttons
+            (flex-row truncation invariant). */}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {paused
+            ? "Your profile is hidden — you're not visible in Discover. You can turn it back on anytime from your profile."
+            : "The area you've set as home has laws that can affect trans people's rights. You're welcome here — if you'd like, you can hide your profile so you're not visible in Discover."}
+        </span>
+        {!paused && (
+          <button
+            type="button"
+            onClick={onHide}
+            disabled={busy}
+            {...fHide}
+            style={{
+              background: "none",
+              border: `1px solid ${t.warningBorder}`,
+              color: t.text,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: busy ? "not-allowed" : "pointer",
+              padding: "6px 12px",
+              borderRadius: 8,
+              whiteSpace: "nowrap",
+              ...fHide.style,
+            }}
+          >
+            {busy ? "Hiding…" : "Hide my profile"}
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={onDismiss}
+          {...fDismiss}
+          style={{
+            background: "none",
+            border: "none",
+            color: t.text,
+            fontSize: 20,
+            lineHeight: 1,
+            cursor: "pointer",
+            // 44px hit target without enlarging the glyph (matches the other banners).
+            width: 44,
+            height: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            borderRadius: 6,
+            ...fDismiss.style,
+          }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Inactivity warning banner (WCAG 2.2.1) ───────────────────────────────────
 // Fixed top banner shown when the user has been idle. Appears before the abrupt
 // 401 logout so the user can extend their session.
@@ -966,6 +1058,17 @@ export default function App() {
   const dismissRegionAlert = useCallback(() => {
     setRegionAlertDismissed(true);
     try { sessionStorage.setItem(REGION_ALERT_SESSION_KEY, "1"); } catch { /* no-op */ }
+  }, []);
+  // Trans home-region alert — separate flag + separate session gate from the
+  // country/at-risk banner above (shown at most once per session, never nags).
+  // Reuses myPaused + handleRegionHide/regionHideBusy (same pause mechanism).
+  const [transAtRisk, setTransAtRisk] = useState(false);
+  const [transAlertDismissed, setTransAlertDismissed] = useState(() => {
+    try { return !!sessionStorage.getItem(TRANS_ALERT_SESSION_KEY); } catch { return false; }
+  });
+  const dismissTransAlert = useCallback(() => {
+    setTransAlertDismissed(true);
+    try { sessionStorage.setItem(TRANS_ALERT_SESSION_KEY, "1"); } catch { /* no-op */ }
   }, []);
   const handleRegionHide = useCallback(async () => {
     setRegionHideBusy(true);
@@ -1271,13 +1374,17 @@ export default function App() {
   // call entirely if the member already dismissed the banner this session.
   // Best-effort and protective: any failure is swallowed so it never blocks the app.
   useEffect(() => {
-    if (!authed || onboarding || regionAlertDismissed) return;
+    if (!authed || onboarding || (regionAlertDismissed && transAlertDismissed)) return;
     let cancelled = false;
     getRegionSafety()
-      .then((r) => { if (!cancelled && r && r.atRisk === true) setRegionAtRisk(true); })
+      .then((r) => {
+        if (cancelled || !r) return;
+        if (r.atRisk === true) setRegionAtRisk(true);
+        if (r.transAtRisk === true) setTransAtRisk(true);
+      })
       .catch(() => { /* protective, best-effort — never block the app */ });
     return () => { cancelled = true; };
-  }, [authed, onboarding, regionAlertDismissed]);
+  }, [authed, onboarding, regionAlertDismissed, transAlertDismissed]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -1531,6 +1638,18 @@ export default function App() {
                 busy={regionHideBusy}
                 onHide={handleRegionHide}
                 onDismiss={dismissRegionAlert}
+              />
+            )}
+            {/* Calm priority: show AT MOST ONE safety banner at a time. The
+                country/legal-danger banner above is a more acute risk, so it
+                wins; the trans home-region banner shows only when it is NOT. */}
+            {shouldShowTransAlert(transAtRisk, transAlertDismissed) &&
+              !shouldShowRegionAlert(regionAtRisk, regionAlertDismissed) && (
+              <TransSafetyBanner
+                paused={myPaused}
+                busy={regionHideBusy}
+                onHide={handleRegionHide}
+                onDismiss={dismissTransAlert}
               />
             )}
             {/* App-level header / wordmark */}

@@ -17,3 +17,18 @@ export const REGION_ALERT_SESSION_KEY = "spectrum:regionAlertSeen";
 export function shouldShowRegionAlert(atRisk, seenThisSession) {
   return atRisk === true && !seenThisSession;
 }
+
+// sessionStorage key for the separate "trans home-region" banner. Kept distinct
+// from REGION_ALERT_SESSION_KEY so dismissing one never suppresses the other —
+// they warn about different things (acute travel/legal danger vs. the member's
+// stated HOME state having anti-trans law). Same session scope + calm intent.
+export const TRANS_ALERT_SESSION_KEY = "spectrum:transAlertSeen";
+
+// Show the trans-home-region banner iff the backend flagged the member as
+// trans-at-risk AND they have not already seen/dismissed it this session. Strict
+// `=== true` mirrors shouldShowRegionAlert so a missing/malformed field never
+// trips the alert. (Priority — showing at most one banner at a time — is decided
+// by the caller, not here.)
+export function shouldShowTransAlert(transAtRisk, seenThisSession) {
+  return transAtRisk === true && !seenThisSession;
+}

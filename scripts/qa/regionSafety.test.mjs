@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY } from "../../src/regionSafety.js";
+import { shouldShowRegionAlert, REGION_ALERT_SESSION_KEY, shouldShowTransAlert, TRANS_ALERT_SESSION_KEY } from "../../src/regionSafety.js";
 
 test("shows when at-risk and not yet seen this session", () => {
   assert.equal(shouldShowRegionAlert(true, null), true);
@@ -35,4 +35,33 @@ test("only a strict boolean true trips the alert (no truthy coercion)", () => {
 
 test("exports a stable session-storage key", () => {
   assert.equal(REGION_ALERT_SESSION_KEY, "spectrum:regionAlertSeen");
+});
+
+// ── Trans home-region banner gating (mirrors shouldShowRegionAlert) ───────────
+test("trans: shows when at-risk and not yet seen this session", () => {
+  assert.equal(shouldShowTransAlert(true, null), true);
+  assert.equal(shouldShowTransAlert(true, undefined), true);
+  assert.equal(shouldShowTransAlert(true, ""), true);
+});
+
+test("trans: does NOT show once seen/dismissed this session", () => {
+  assert.equal(shouldShowTransAlert(true, "1"), false);
+});
+
+test("trans: never shows when not at-risk, regardless of the seen flag", () => {
+  assert.equal(shouldShowTransAlert(false, null), false);
+  assert.equal(shouldShowTransAlert(false, "1"), false);
+});
+
+test("trans: only a strict boolean true trips the alert (no truthy coercion)", () => {
+  for (const v of [1, "true", "yes", {}, [], "US"]) {
+    assert.equal(shouldShowTransAlert(v, null), false, `transAtRisk=${JSON.stringify(v)} must not show`);
+  }
+  assert.equal(shouldShowTransAlert(null, null), false);
+  assert.equal(shouldShowTransAlert(undefined, null), false);
+});
+
+test("trans: exports a stable, distinct session-storage key", () => {
+  assert.equal(TRANS_ALERT_SESSION_KEY, "spectrum:transAlertSeen");
+  assert.notEqual(TRANS_ALERT_SESSION_KEY, REGION_ALERT_SESSION_KEY);
 });
