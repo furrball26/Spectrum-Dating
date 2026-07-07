@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { t } from "./tokens.js";
 import { useFocusable } from "./useFocusable.js";
+import { isTransSpectrumGender } from "./transSpectrum.js";
 
 // The 3 everyday options shown up-front (these also happen to be the matchable
 // core, but the picker treats them as plain display values).
@@ -142,10 +143,17 @@ function inputStyle() {
 // the opt-out pill only reads as selected once the user actually taps it — so a
 // required gender field can't look pre-answered while still failing validation
 // (B4). Callers that don't pass it keep the old behavior (empty = opt-out shown).
-export function GenderField({ gender, setGender, genderCustom, setGenderCustom, idPrefix = "gender", required = false, error = "", chosen }) {
+// `locationAtRisk` (optional) — when true AND the live-selected gender is on the
+// trans/nonbinary umbrella, a calm inline safety note renders under the options
+// (contextual companion to the load-time TransSafetyBanner). Off by default, so
+// non-required/other callers stay unchanged.
+export function GenderField({ gender, setGender, genderCustom, setGenderCustom, idPrefix = "gender", required = false, error = "", chosen, locationAtRisk = false }) {
   const advancedSelected = MORE_VALUES.has(gender) || gender === GENDER_SELF_DESCRIBE;
   const [expanded, setExpanded] = useState(false);
   const showMore = expanded || advancedSelected;
+  // Contextual safety note: keyed off the LIVE selection, so it appears/vanishes
+  // as the member picks. Calm-by-design — quiet helper text, no icon/animation.
+  const showSafetyNote = locationAtRisk === true && isTransSpectrumGender(gender);
 
   function pick(value) {
     setGender(value);
@@ -225,6 +233,14 @@ export function GenderField({ gender, setGender, genderCustom, setGenderCustom, 
             placeholder="e.g. Demigirl"
           />
         </div>
+      )}
+
+      {showSafetyNote && (
+        <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.55, margin: "12px 0 0", maxWidth: 520 }}>
+          Heads up — the place you&apos;ve set as home, or where you appear to be, has
+          laws that can affect trans people&apos;s rights. You&apos;re welcome here. You can
+          hide your profile anytime from Safety.
+        </p>
       )}
 
       {error && (

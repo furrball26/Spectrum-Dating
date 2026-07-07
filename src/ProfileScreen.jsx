@@ -2927,7 +2927,7 @@ function ProfilePreviewModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", initialOpenSection = null, initialPreview = false, initialJumpField = null }) {
+export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", initialOpenSection = null, initialPreview = false, initialJumpField = null, locationAtRisk = false }) {
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -4841,6 +4841,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               genderCustom={genderCustom}
               setGenderCustom={setGenderCustom}
               idPrefix="profile-gender"
+              locationAtRisk={locationAtRisk}
             />
 
             <OrientationField orientation={orientation} setOrientation={setOrientation} />

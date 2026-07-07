@@ -1070,6 +1070,12 @@ export default function App() {
     setTransAlertDismissed(true);
     try { sessionStorage.setItem(TRANS_ALERT_SESSION_KEY, "1"); } catch { /* no-op */ }
   }, []);
+  // homeStateAtRisk — GENDER-INDEPENDENT signal: the member's STATED HOME STATE
+  // has enacted anti-trans law (does NOT drive the load banners; it feeds the
+  // contextual gender-field note only). `locationAtRisk` = country-legal-risk OR
+  // home-state-risk, the single boolean the gender note keys off.
+  const [homeStateAtRisk, setHomeStateAtRisk] = useState(false);
+  const locationAtRisk = regionAtRisk || homeStateAtRisk;
   const handleRegionHide = useCallback(async () => {
     setRegionHideBusy(true);
     try {
@@ -1373,18 +1379,24 @@ export default function App() {
   // risk (the lookup is transient server-side — never stored or logged). Skip the
   // call entirely if the member already dismissed the banner this session.
   // Best-effort and protective: any failure is swallowed so it never blocks the app.
+  // Note: the fetch runs during onboarding too (no `onboarding` guard), so the
+  // contextual gender-field note has atRisk/homeStateAtRisk at the moment of
+  // disclosure. The LOAD banners can't leak into onboarding regardless — they
+  // render only in the post-onboarding app shell (the `onboarding ?` branch
+  // shows OnboardingScreen instead), so no explicit banner gate is needed here.
   useEffect(() => {
-    if (!authed || onboarding || (regionAlertDismissed && transAlertDismissed)) return;
+    if (!authed) return;
     let cancelled = false;
     getRegionSafety()
       .then((r) => {
         if (cancelled || !r) return;
         if (r.atRisk === true) setRegionAtRisk(true);
         if (r.transAtRisk === true) setTransAtRisk(true);
+        if (r.homeStateAtRisk === true) setHomeStateAtRisk(true);
       })
       .catch(() => { /* protective, best-effort — never block the app */ });
     return () => { cancelled = true; };
-  }, [authed, onboarding, regionAlertDismissed, transAlertDismissed]);
+  }, [authed]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -1585,7 +1597,7 @@ export default function App() {
         : onboarding
         ? (
           <Suspense fallback={<ScreenFallback />}>
-            <OnboardingScreen onComplete={() => setOnboarding(false)} />
+            <OnboardingScreen onComplete={() => setOnboarding(false)} locationAtRisk={locationAtRisk} />
           </Suspense>
         )
         : needsCity
@@ -1872,6 +1884,7 @@ export default function App() {
                   onOpenSettings={() => { setPrevTab("profile"); setActiveTab("settings"); }}
                   onOpenMembership={() => { setPrevTab("profile"); setActiveTab("membership"); }}
                   tier={tier}
+                  locationAtRisk={locationAtRisk}
                 />
               )}
               {activeTab === "notifications" && (

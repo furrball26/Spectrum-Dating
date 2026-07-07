@@ -1029,7 +1029,7 @@ function Step4({
   seeking, setSeeking,
   seekingChosen, setSeekingChosen,
   prefAgeMin, prefAgeMax, setPrefAgeMin, setPrefAgeMax,
-  errors, attempted,
+  errors, attempted, locationAtRisk = false,
 }) {
   const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
   // Gender / sexuality / seeking are REQUIRED at sign-up (owner). "Open to
@@ -1060,6 +1060,7 @@ function Step4({
         idPrefix="ob-gender"
         required
         error={attempted ? errors.gender : ""}
+        locationAtRisk={locationAtRisk}
       />
 
       <OrientationField
@@ -1252,7 +1253,7 @@ function Step5({
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function OnboardingScreen({ onComplete }) {
+export default function OnboardingScreen({ onComplete, locationAtRisk = false }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1774,6 +1775,7 @@ export default function OnboardingScreen({ onComplete }) {
             setPrefAgeMax={setPrefAgeMax}
             errors={meetStepErrors}
             attempted={attempted}
+            locationAtRisk={locationAtRisk}
           />
         )}
         {step === 6 && (
