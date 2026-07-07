@@ -233,6 +233,13 @@
     <li>Enforcement: warn / suspend / ban with due-process notices; banned/suspended
       members are removed from every discovery surface.</li>
     <li>In-app Terms of Service and Safety Center; identity-theme reset/revert.</li>
+    <li><strong>Region-safety alerts</strong> — two calm, optional "you can hide your profile"
+      prompts: one when a member appears (by IP) to be in a country that criminalizes same-sex
+      intimacy, and one for trans/gender-diverse members whose stated home <em>state</em> has
+      enacted anti-trans law. Both are protective and privacy-preserving (nothing extra is
+      stored or logged) and offer a one-tap profile hide. <em>The flagged US-state list is a
+      reviewable, client-owned literal (see §5F) — it's a legal-fact list, not a judgment of
+      any place, and must be kept current by your team.</em></li>
   </ul>
 
   <h3>Membership / billing <span class="pill">scaffold — needs a provider</span></h3>
@@ -366,6 +373,13 @@
       before launch you should still purge the test/troll rows for a clean database (we can
       run the admin wipe once <code>ADMIN_EMAILS</code> is set) and decide whether the demo
       personas stay.</li>
+    <li><strong>Own the region-safety lists.</strong> The trans home-state alert (and the
+      country criminalization alert) are driven by plain, reviewable literals in the codebase
+      (<code>server/src/data/transSafety.js</code> and <code>hostileRegions.js</code>). These
+      encode legal facts that change often, in both directions — your team should assign someone
+      to review and update them on a cadence (a wrongly-included state is as much a problem as a
+      missing one). We seeded a conservative starter from MAP / ACLU / the Trans Legislation
+      Tracker as of 2024-06; confirm you're comfortable with the stance and the list.</li>
     <li><strong>Appeal channel.</strong> Due-process copy points to
       <code>support@spectrum-dating.app</code> — confirm that inbox exists and is monitored,
       or ask us to wire an in-app appeal form instead.</li>
