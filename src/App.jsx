@@ -1863,6 +1863,7 @@ export default function App() {
                   onOpenTopPicks={() => { setPrevTab("profile"); setActiveTab("bestFits"); }}
                   onOpenSafety={() => { setPrevTab("profile"); setActiveTab("safety"); }}
                   onOpenAccount={() => { setPrevTab("profile"); setActiveTab("account"); }}
+                  onSignOut={handleSignOut}
                 />
               )}
               {activeTab === "profile" && profileView !== "hub" && (

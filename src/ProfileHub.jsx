@@ -230,6 +230,39 @@ function CompletenessCue({ completeness, onOpenEditField }) {
   );
 }
 
+// Sign out — a calm, quiet control at the very bottom of the hub. Matches the
+// SignOutButton in the profile editor (transparent, bordered, soft text, 44px
+// tap target) so the two read as the same action. Full-width on the hub so it's
+// easy to reach as the last thing on the page.
+function HubSignOut({ onSignOut }) {
+  const f = useFocusable();
+  return (
+    <div style={{ marginTop: 28, display: "flex", justifyContent: "center" }}>
+      <button
+        type="button"
+        onClick={onSignOut}
+        {...f}
+        style={{
+          background: "transparent",
+          border: `1px solid ${t.border}`,
+          borderRadius: 10,
+          color: t.textSoft,
+          fontSize: 16,
+          fontWeight: 500,
+          cursor: "pointer",
+          padding: "10px 24px",
+          minHeight: 44,
+          width: "100%",
+          maxWidth: 320,
+          ...f.style,
+        }}
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
 export default function ProfileHub({
   displayName,
   photoUrl,
@@ -246,6 +279,7 @@ export default function ProfileHub({
   onOpenTopPicks,
   onOpenSafety,
   onOpenAccount,
+  onSignOut,
 }) {
   const isCompanion = tier === "companion";
   const name = displayName || "Your profile";
@@ -374,6 +408,7 @@ export default function ProfileHub({
             onClick={onOpenSafety}
           />
         </div>
+        {onSignOut && <HubSignOut onSignOut={onSignOut} />}
       </div>
     </div>
   );
