@@ -63,6 +63,10 @@ const THEME_CARDS = [
   { key: "lightblue", label: "Light blue", note: "Cool and quiet",   bg: "#F2F5F9", surface: "#FFFFFF", border: "#BFCEDC", accent: "#2F5675", text: "#22303F" },
   { key: "pastel",    label: "Pastel",     note: "Soft yellow, lavender, and pastels", bg: "#FCF8E6", surface: "#FFFFFF", border: "#DED6BE", accent: "#5A4B92", text: "#2F2C22", stripes: ["#F4D06A", "#B7DCA6", "#A7C7E7", "#B9A7DE", "#F4B6C2"] },
   { key: "pink",      label: "Pink",       note: "Soft and warm",    bg: "#FCE9F0", surface: "#FFFFFF", border: "#E7BDCE", accent: "#97285A", text: "#3A2430" },
+  // Seasonal / celebration theme — a muted Pan-African palette (NOT an identity
+  // theme; it persists across logout like the neutral themes). Red/black/green
+  // show only in the swatch stripe; the UI itself stays a calm green accent.
+  { key: "heritage",  label: "Black History Month", note: "Warm near-black, deep green accent", bg: "#1A1512", surface: "#2A211D", border: "#4A3B32", accent: "#3C7A45", text: "#F0E7DD", stripes: ["#B84A3E", "#2C2C2C", "#4E8C55"] },
   // Identity themes — named honestly (the rendered colors are what an onlooker
   // recognizes, not the menu label; euphemisms only patronize). The flag shows
   // in the swatch stripe; the UI itself stays a calm single-accent theme.

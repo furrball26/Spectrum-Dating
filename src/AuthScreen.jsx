@@ -33,6 +33,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const plain = usePlainLanguage();
   const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register" | "forgot" | "check-email"
   const [email, setEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,17 +54,20 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   const headingRef = useRef(null);
   const errorRef = useRef(null);
   const emailRef = useRef(null);
+  const confirmEmailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
   // Move focus to the offending field (inline error) or the form-level notice so
   // the problem is announced and reachable (M2 / D13).
   useEffect(() => {
     if (fieldErrors.email && emailRef.current) emailRef.current.focus();
+    else if (fieldErrors.confirmEmail && confirmEmailRef.current) confirmEmailRef.current.focus();
     else if (fieldErrors.password && passwordRef.current) passwordRef.current.focus();
     else if (fieldErrors.confirmPassword && confirmPasswordRef.current) confirmPasswordRef.current.focus();
     else if (error && errorRef.current) errorRef.current.focus();
   }, [error, fieldErrors]);
   const fEmail = useFocusable();
+  const fConfirmEmail = useFocusable();
   const fPassword = useFocusable();
   const fConfirm = useFocusable();
   const fSubmit = useFocusable();
@@ -91,6 +95,16 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     setError("");
     setFieldErrors({});
     if (!email.trim()) { setFieldErrors({ email: "Please enter your email." }); return; }
+    // Sign-up requires confirming the email so a typo can't send the verification
+    // link (and the account) to an address the user can never reach. Checked here,
+    // before the reset/login branches, but only enforced in register mode below.
+    if (mode === "register") {
+      if (!confirmEmail.trim()) { setFieldErrors({ confirmEmail: "Please confirm your email." }); return; }
+      if (confirmEmail.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        setFieldErrors({ confirmEmail: "Emails don't match." });
+        return;
+      }
+    }
 
     // Forgot-password: request a reset link. Always show the same confirmation
     // (success or not) so we never reveal whether an email is registered.
@@ -158,6 +172,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
     setEnforced(null);
     // Never let a stale confirm value block a later login/reset submit.
     setConfirmPassword("");
+    setConfirmEmail("");
   }
 
   // Live confirm-password feedback (sign-up only): once they've started typing a
@@ -165,6 +180,13 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
   // The submit-time check writes fieldErrors.confirmPassword (empty / mismatch).
   const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
   const confirmErr = fieldErrors.confirmPassword || (confirmMismatch ? "Passwords don't match." : null);
+
+  // Live confirm-email feedback (sign-up only): once they've typed a confirmation,
+  // warn calmly the moment it diverges (case-insensitive, like the submit check)
+  // and clear it as they fix it.
+  const confirmEmailMismatch =
+    confirmEmail.length > 0 && confirmEmail.trim().toLowerCase() !== email.trim().toLowerCase();
+  const confirmEmailErr = fieldErrors.confirmEmail || (confirmEmailMismatch ? "Emails don't match." : null);
 
   // Terms overlay — reachable pre-auth from the sign-up agreement line. All hooks
   // above have already run, so this early return is React #310-safe.
@@ -508,6 +530,42 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 </span>
               )}
             </div>
+
+            {/* Confirm email (sign-up only) — a typo'd address would send the
+                verification link (and the account) somewhere the user can't reach. */}
+            {mode === "register" && (
+            <div style={{ marginBottom: 16 }}>
+              <label
+                htmlFor="auth-confirm-email"
+                style={{ display: "block", fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}
+              >
+                {plain ? "Type your email again" : "Confirm email"}
+              </label>
+              <input
+                id="auth-confirm-email"
+                ref={confirmEmailRef}
+                type="email"
+                autoComplete="email"
+                value={confirmEmail}
+                onChange={e => { setConfirmEmail(e.target.value); if (fieldErrors.confirmEmail) setFieldErrors((p) => ({ ...p, confirmEmail: undefined })); }}
+                style={{ ...inputStyle(!!confirmEmailErr), ...fConfirmEmail.style }}
+                onFocus={fConfirmEmail.onFocus}
+                onBlur={fConfirmEmail.onBlur}
+                aria-required="true"
+                aria-invalid={confirmEmailErr ? "true" : undefined}
+                aria-describedby={confirmEmailErr ? "auth-confirm-email-error" : undefined}
+              />
+              {confirmEmailErr && (
+                <span
+                  id="auth-confirm-email-error"
+                  role="alert"
+                  style={{ display: "block", fontSize: 14, color: t.danger, marginTop: 6 }}
+                >
+                  {confirmEmailErr}
+                </span>
+              )}
+            </div>
+            )}
 
             {/* Password */}
             {mode !== "forgot" && (

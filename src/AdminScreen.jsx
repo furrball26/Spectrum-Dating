@@ -762,9 +762,18 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
 
   function openPanel(which) {
     setLocalError("");
-    // Re-prefill from the auto-fill packet when (re)opening the suggested action;
-    // any other action starts empty so the moderator writes a bespoke reason.
-    setReason(suggested && which === suggested.action ? (suggested.notice || "") : "");
+    // Pre-fill the prepared member-facing notice for WHICHEVER action is opened.
+    // The backend now ships a per-action `notices` map ({ warn, ban, dismiss })
+    // so opening Warn fills the warn wording and Ban fills the ban wording, even
+    // when it isn't the suggested action. requiresHumanReason ('other') clauses
+    // ship empty notices, so those correctly stay blank (moderator must type).
+    // Fallback preserves the old behaviour when no notices map is present.
+    const perAction = suggested?.notices?.[which];
+    setReason(
+      perAction != null
+        ? perAction
+        : (suggested && which === suggested.action ? (suggested.notice || "") : "")
+    );
     autoFocusPanel.current = true;
     setPanel(which);
   }

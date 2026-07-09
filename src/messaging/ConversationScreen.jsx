@@ -437,8 +437,18 @@ const MessageBubble = memo(function MessageBubble({
   const isOwn = message.senderId === currentUserId;
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  // Needed #1 — inappropriate-content handling. A RECEIVED message the backend
+  // flagged renders COLLAPSED (calm muted placeholder) until the recipient taps
+  // "Show message"; the SENDER's own flagged message shows a gentle, dismissible
+  // heads-up. Both are local UI state, declared here (before the deleted early
+  // return) so all hooks run unconditionally (React #310).
+  const [revealed, setRevealed] = useState(false);
+  const [headsUpDismissed, setHeadsUpDismissed] = useState(false);
   const menuAnchorRef = useRef(null);
   const fDots = useFocusable();
+  const fReveal = useFocusable();
+  const fInlineReport = useFocusable();
+  const fHeadsUpDismiss = useFocusable();
 
   // Own → right, other → left. The other side reserves an avatar gutter so
   // subsequent bubbles in a run line up under the first bubble (which shows the
@@ -624,7 +634,69 @@ const MessageBubble = memo(function MessageBubble({
           }}
         >
           {srSender}
-          {message.body}
+          {!isOwn && message.flaggedInappropriate && !revealed ? (
+            // Collapsed by default for a RECEIVED flagged message. Calm + muted —
+            // no alarm colors. A quiet inline "Show message" reveals the body in
+            // place; once revealed, an inline Report affordance surfaces below it
+            // (reusing the existing onReportMessage plumbing).
+            <span style={{ display: "block" }}>
+              <span style={{ color: t.textMuted, fontStyle: "italic" }}>
+                This message may contain strong or explicit language.
+              </span>
+              <button
+                type="button"
+                onClick={() => setRevealed(true)}
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  background: "transparent",
+                  border: "none",
+                  padding: "4px 2px",
+                  minHeight: 32,
+                  color: t.accentStrong,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: t.sans,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  ...fReveal.style,
+                }}
+                onFocus={fReveal.onFocus}
+                onBlur={fReveal.onBlur}
+              >
+                Show message
+              </button>
+            </span>
+          ) : (
+            <>
+              {message.body}
+              {!isOwn && message.flaggedInappropriate && revealed && onReportMessage && (
+                <button
+                  type="button"
+                  onClick={() => onReportMessage(message)}
+                  style={{
+                    display: "block",
+                    marginTop: 8,
+                    background: "transparent",
+                    border: "none",
+                    padding: "4px 2px",
+                    minHeight: 32,
+                    color: t.accentStrong,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    fontFamily: t.sans,
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    ...fInlineReport.style,
+                  }}
+                  onFocus={fInlineReport.onFocus}
+                  onBlur={fInlineReport.onBlur}
+                >
+                  Report this message
+                </button>
+              )}
+            </>
+          )}
           {/* Photo attachment — only ever render an approved image with a
               publicUrl. The sender sees a gentle pending-review state for their
               own just-sent photo; the other party never sees non-approved ones. */}
@@ -662,6 +734,58 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
       </div>
+
+      {/* Needed #1 (sender) — a gentle, non-blocking heads-up when the user's OWN
+          just-sent message came back flagged. It never blocks the send and never
+          alters the message; it's dismissible and calm/muted (no alarm colors). */}
+      {isOwn && message.flaggedInappropriate && !headsUpDismissed && (
+        <div
+          role="note"
+          aria-label="A gentle heads-up about your message"
+          style={{
+            marginTop: 4,
+            marginBottom: 2,
+            maxWidth: "min(88%, 34rem)",
+            alignSelf: "flex-end",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 12px",
+            background: t.surfaceAlt,
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            color: t.textSoft,
+            fontSize: 13.5,
+            lineHeight: 1.45,
+          }}
+        >
+          <span style={{ flex: 1, minWidth: 0 }}>
+            Heads-up: this message may read as strong or explicit to the other person.
+          </span>
+          <button
+            type="button"
+            onClick={() => setHeadsUpDismissed(true)}
+            aria-label="Dismiss this heads-up"
+            style={{
+              flexShrink: 0,
+              background: "transparent",
+              border: "none",
+              color: t.textMuted,
+              fontSize: 13.5,
+              fontWeight: 600,
+              fontFamily: t.sans,
+              cursor: "pointer",
+              padding: "4px 8px",
+              minHeight: 32,
+              ...fHeadsUpDismiss.style,
+            }}
+            onFocus={fHeadsUpDismiss.onFocus}
+            onBlur={fHeadsUpDismiss.onBlur}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Needed #6 (recipient) — calm, muted, dismissible "Does this feel off?"
           affordance under a received message that trips a safety signal. One-tap
@@ -2306,6 +2430,9 @@ export default function ConversationScreen({
           },
           timeLabel: saved.timeLabel || "Today",
           deleted: false,
+          // Carry the server's inappropriate-content flag so the sender heads-up
+          // (Needed #1) can render on the user's own just-sent message.
+          flaggedInappropriate: !!saved.flaggedInappropriate,
         };
         setMessages((prev) => [...prev, newMsg]);
         if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
@@ -2364,8 +2491,9 @@ export default function ConversationScreen({
 
     try {
       const saved = await sendMessage(conversationId, body);
-      // Replace temp with server message (clear any prior failed flag)
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false } : m));
+      // Replace temp with server message (clear any prior failed flag). Carry the
+      // server's inappropriate-content flag through so the sender heads-up shows.
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false, flaggedInappropriate: !!saved.flaggedInappropriate } : m));
       setSendStatus("Message sent.");
     } catch (err) {
       if (err.status === 409 && err.code === "CONVERSATION_ENDED") {
@@ -2422,7 +2550,7 @@ export default function ConversationScreen({
     setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, failed: false } : m));
     try {
       const saved = await sendMessage(conversationId, failedMsg.body);
-      setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false } : m));
+      setMessages(prev => prev.map(m => m.id === failedMsg.id ? { ...m, id: saved.id, timeLabel: saved.timeLabel || 'Today', failed: false, flaggedInappropriate: !!saved.flaggedInappropriate } : m));
       setSendStatus("Message sent.");
     } catch (err) {
       if (err.status === 409 && err.code === "CONVERSATION_ENDED") {

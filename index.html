@@ -98,7 +98,7 @@
         try {
           var p = JSON.parse(localStorage.getItem("spectrum_a11y") || "null");
           var v = p && typeof p.theme === "string" ? p.theme : "dim";
-          th = ["dim", "navy", "lightblue", "pastel", "pink", "pride", "trans", "bisexual", "lesbian", "pansexual", "nonbinary", "asexual"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
+          th = ["dim", "navy", "lightblue", "pastel", "pink", "heritage", "pride", "trans", "bisexual", "lesbian", "pansexual", "nonbinary", "asexual"].indexOf(v) >= 0 ? v : (v === "light" ? "" : "dim");
         } catch (e) { /* fall through to dim */ }
         document.documentElement.dataset.theme = th;
       })();
@@ -905,6 +905,73 @@
         --c-bubbleOther: #FFFFFF;
         --c-tombstone: #706A58;
         --c-scrimRgb: 47, 44, 34;
+      }
+      /* ── Heritage (Black History Month) — a CELEBRATION theme, NOT an identity
+         theme (it lives in THEMES, not IDENTITY_THEMES: heritage is not a
+         safety-sensitive disclosure force-hidden on logout). Pan-African palette
+         held DELIBERATELY MUTED and low-stim: a warm near-black field, deep green
+         as the working accent, red + black + green in the mark tiles only, and
+         warm gold for highlights. No loud primary red/green anywhere in the UI
+         chrome. Body text clears ≥4.5:1 on the surfaces below; shadows are
+         black-based like every dark theme. */
+      :root[data-theme="heritage"] {
+        --c-bg: #1A1512;
+        --c-bg-gradient: linear-gradient(150deg, #1A1512 0%, #171210 100%);
+        --c-surface: #2A211D;
+        --c-surfaceAlt: #322722;
+        --c-cardBorder: #4A3B32;
+        --sh-sm: 0 1px 2px rgba(0,0,0,0.28), 0 3px 10px rgba(0,0,0,0.32);
+        --sh-md: 0 2px 4px rgba(0,0,0,0.30), 0 12px 28px rgba(0,0,0,0.42);
+        --sh-lg: 0 4px 12px rgba(0,0,0,0.36), 0 24px 48px rgba(0,0,0,0.52);
+        --c-clayText: #E3C67E;
+        /* Pan-African flag across the six mark tiles: red / red / black / black /
+           green / green (muted, ~65% saturation — recognizable, calm on page). */
+        --mark-1: #B84A3E;
+        --mark-2: #B84A3E;
+        --mark-3: #2C2C2C;
+        --mark-4: #2C2C2C;
+        --mark-5: #4E8C55;
+        --mark-6: #4E8C55;
+        --c-text: #F0E7DD;
+        --c-textSoft: #C8BBAE;
+        --c-textMuted: #AC9E90;
+        --c-accent: #7CB985;
+        --c-accentStrong: #8FC898;
+        --c-accentFill: #3C7A45;
+        --c-positive: #7FB87A;
+        --c-positiveFill: #2F6A2A;
+        --c-border: #3E322B;
+        --c-borderLight: #322822;
+        --c-focus: #F0E7DD;
+        --c-danger: #E08585;
+        --c-dangerFill: #9E3B3B;
+        --c-positiveText: #7FB87A;
+        --c-warning: #D9B45A;
+        --c-warningFill: #806508;
+        --c-warningBorder: #D9B45A;
+        --c-mutedFill: #6A5B4E;
+        --c-dangerSurface: #3A2626;
+        --c-warningSurface: #33301E;
+        --c-warningSurfaceText: #E9DFC0;
+        --c-sand: #3A352B;
+        --c-clay: #C9A875;
+        --c-teal: #6FA39A;
+        --c-green50: #20281F;
+        --c-green100: #263021;
+        --c-green200: #2E3B2C;
+        --c-green300: #3E5540;
+        --c-green400: #5E8A62;
+        --c-green500: #7CB985;
+        --c-green600: #8FC898;
+        --c-green700: #9FD4A6;
+        --c-green800: #B6E0BB;
+        --c-green900: #F0E7DD;
+        --c-formBorder: #8A7A6B;
+        --c-bubbleOwn: #33463A;
+        --c-bubbleOwnBorder: #46594B;
+        --c-bubbleOther: #2A211D;
+        --c-tombstone: #9E8F81;
+        --c-scrimRgb: 0, 0, 0;
       }
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }
