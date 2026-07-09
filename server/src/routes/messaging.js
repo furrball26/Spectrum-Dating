@@ -472,9 +472,14 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
     emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeLabel, attachment: attachmentPayload });
   }
 
-  // Async push to recipient — tier-aware, don't await
+  // Async push to recipient — tier-aware, don't await.
+  // Default (never-configured) is the CALM 'name_only' tier: a gentle "X sent you
+  // a message" with no content — never the full-content 'in_app' blast, which no
+  // Notifications option even offers (the UI is Off / Silent / Name-only). The
+  // 'in_app' branch below is retained only for legacy rows; the UI's "Off" maps to
+  // 'none' (truly silent). Calm-by-design: never louder than the member chose.
   const recipientProfile = db.prepare('SELECT notification_tier FROM profiles WHERE user_id = ?').get(otherId);
-  const tier = recipientProfile?.notification_tier || 'in_app';
+  const tier = recipientProfile?.notification_tier || 'name_only';
 
   let pushPayload = null;
   if (tier === 'in_app') {

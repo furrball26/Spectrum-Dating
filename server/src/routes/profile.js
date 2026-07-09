@@ -109,7 +109,10 @@ function validateFacetList(val, label, errors, opts = {}) {
   }
 }
 
-const VALID_NOTIFICATION_TIERS = ['in_app', 'silent_push', 'name_only'];
+// 'none' = truly silent (the UI's "Off"); 'silent_push'/'name_only' = calm nudges.
+// 'in_app' (full-content) is retained only for legacy rows — no UI option selects
+// it and the default is 'name_only' (see messaging.js push logic).
+const VALID_NOTIFICATION_TIERS = ['none', 'in_app', 'silent_push', 'name_only'];
 const VALID_RADII = [0, 25, 50, 100, 250]; // miles; 0 = anywhere (no radius filter)
 // D-11/D-12 — expanded gender ENUM (DISPLAY). The three legacy core values plus
 // 'other'/'' are kept; the rest are new self-identify options. This is what the
