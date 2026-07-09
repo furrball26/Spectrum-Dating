@@ -23,6 +23,14 @@ const BLOCKLIST = [
   // "Shit/shat/shart").
   'shit', 'shart', 'dipshit', 'bullshit', 'asshole', 'dumbass', 'jackass',
   'bitch', 'twat', 'wanker',
+  // Customer-reported: common cuss words in usernames. Same rule — whole-word,
+  // never a real name (so still false-positive safe; deliberately omits
+  // name-colliding words like dick/cock/willy). The `deleet` collapse also
+  // catches spaced/leeted variants ("f u c k").
+  'fuck', 'fucker', 'motherfucker', 'fuckface', 'fuckwit', 'fuckhead',
+  'fuckboy', 'fuckboi', 'fucktard', 'clusterfuck', 'dumbfuck', 'fuckoff',
+  'pussy', 'prick', 'cocksucker', 'dickhead', 'douchebag', 'douche',
+  'jerkoff', 'jackoff', 'blowjob', 'cumshot',
 ];
 
 // Normalize a candidate token: lowercase, undo leetspeak, drop non-letters.

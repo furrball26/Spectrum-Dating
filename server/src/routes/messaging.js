@@ -5,6 +5,7 @@ import { safetyActionLimiter } from '../middleware/rateLimits.js';
 import { newId } from '../utils/ids.js';
 import { coarseLabel } from '../utils/time.js';
 import { classifySafetySignal } from '../utils/safetySignals.js';
+import { classifyInappropriate } from '../utils/messageContent.js';
 
 // F23 — conversation-list wayfinding. Server-side truncation of the last-message
 // snippet so the client never receives more than it renders (and so we don't leak
@@ -270,6 +271,12 @@ router.get('/conversations/:id', requireAuth, (req, res) => {
     // hydrates msg.reactions). Deleted messages carry no reactions.
     reactions: m.deleted ? [] : getReactionSummary(db, m.id, userId),
     attachment: m.deleted ? null : attachmentFor(m.id),
+    // "Hide inappropriate by default" — a strong/explicit body is flagged so the
+    // client renders it COLLAPSED for the RECIPIENT (reveal + report on tap). The
+    // message is never blocked or altered; the SENDER always sees their own.
+    // Only meaningful for the OTHER party's messages, but computed for all so a
+    // client can render its own consistently. Deleted bodies carry no flag.
+    flaggedInappropriate: m.deleted ? false : classifyInappropriate(m.body),
   }));
 
   res.json({
@@ -462,6 +469,11 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
 
   const timeLabel = coarseLabel(now);
 
+  // "Hide inappropriate by default" — flag strong/explicit bodies so the
+  // recipient's client can collapse them (reveal + report on tap). Computed once
+  // for both the realtime emit and the sender's response.
+  const flaggedInappropriate = classifyInappropriate(body);
+
   // Serialized attachment for the response + realtime emit (only when linked).
   const attachmentPayload = attachment
     ? { id: attachment.id, publicUrl: attachment.public_url, mimeType: attachment.mime_type, status: attachment.upload_status }
@@ -469,7 +481,7 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
 
   const { io } = req.app.locals;
   if (io) {
-    emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeLabel, attachment: attachmentPayload });
+    emitNewMessage(io, req.params.id, { id: messageId, senderId: userId, body, deleted: false, timeLabel, attachment: attachmentPayload, flaggedInappropriate });
   }
 
   // Async push to recipient — tier-aware, don't await.
@@ -517,7 +529,7 @@ router.post('/conversations/:id/messages', requireAuth, messageLimiter, async (r
     notifyUser(db, otherId, pushPayload).catch(() => {});
   }
 
-  const response = { messageId, timeLabel };
+  const response = { messageId, timeLabel, flaggedInappropriate };
   if (attachmentPayload) response.attachment = attachmentPayload;
   res.status(201).json(response);
 });
