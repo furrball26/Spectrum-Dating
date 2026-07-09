@@ -1623,7 +1623,14 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
   // mark, a warm line, and a single clear button to enter. No confetti / sound /
   // motion / countdown — the user decides when to continue.
   if (celebrating) {
-    const firstName = (displayName.trim().split(/\s+/)[0]) || "";
+    // Greet with the WHOLE display name — the first time the app says the user's
+    // name it must not mangle it (slicing at the first space turned "Sam Rivers"
+    // into "Sam").
+    const fullName = displayName.trim();
+    // The "moat" step (6) is optional/skippable; only claim we captured comm /
+    // sensory prefs when the user actually provided some (don't assert data we
+    // never collected).
+    const sharedCommSensory = !!(commDirectness || commCadence || sensoryEnvironment);
     return (
       <div style={page}>
         <div
@@ -1647,32 +1654,39 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
               outline: "none",
             }}
           >
-            {plain ? "You're done" : "You're all set"}{firstName ? `, ${firstName}` : ""}.
+            {plain ? "You're done" : "You're all set"}{fullName ? `, ${fullName}` : ""}.
           </h1>
+          {/* Softened from "Your profile is ready" — the Hub immediately offers
+              "a few optional things you could add", so claiming the profile is
+              complete here contradicts it. This says only that they can start. */}
           <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.6 }}>
             {plain
-              ? "Your profile is ready. There is no rush."
-              : "Your profile is ready. Take your time — there's no rush here."}
+              ? "You're ready to explore. There is no rush."
+              : "You're ready to start exploring. Take your time — there's no rush here."}
           </p>
           {/* D-5 — a quiet "made for you" beat: name the promise, tying the
-              forms they just filled to why Spectrum is different. Calm, framed. */}
-          <p
-            style={{
-              margin: "0 0 28px",
-              padding: "14px 16px",
-              background: t.surfaceAlt,
-              border: `1px solid ${t.borderLight}`,
-              borderRadius: 14,
-              fontSize: 15,
-              color: t.textSoft,
-              lineHeight: 1.6,
-              textAlign: "left",
-            }}
-          >
-            {plain
-              ? "You told us how you like to talk and what your senses need. We match on that, not just photos."
-              : "You told us how you communicate and what your senses need. From here, that's what we match on — not just photos."}
-          </p>
+              forms they just filled to why Spectrum is different. Only shown when
+              the user actually gave comm/sensory prefs (Step 6 is optional) — we
+              never claim to have collected what they skipped. */}
+          {sharedCommSensory && (
+            <p
+              style={{
+                margin: "0 0 28px",
+                padding: "14px 16px",
+                background: t.surfaceAlt,
+                border: `1px solid ${t.borderLight}`,
+                borderRadius: 14,
+                fontSize: 15,
+                color: t.textSoft,
+                lineHeight: 1.6,
+                textAlign: "left",
+              }}
+            >
+              {plain
+                ? "You told us how you like to talk and what your senses need. We match on that, not just photos."
+                : "You told us how you communicate and what your senses need. From here, that's what we match on — not just photos."}
+            </p>
+          )}
           <button
             type="button"
             onClick={onComplete}

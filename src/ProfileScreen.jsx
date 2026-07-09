@@ -14,7 +14,7 @@ import { splitFeaturedPrompt } from "./featuredPrompt.js";
 import FeaturedInterest from "./FeaturedInterest.jsx";
 import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
 import { normalizeSpecialInterests } from "./specialInterests.js";
-import { COMPLETENESS_FIELDS, COMPLETENESS_RAMP, computeCompleteness } from "./completeness.js";
+import { computeCompleteness } from "./completeness.js";
 import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // ProfileScreen — Spectrum Dating
@@ -2179,9 +2179,8 @@ function CompletenessChipButton({ label, chipStyle, onClick }) {
   );
 }
 
-function ProfileCompletenessNudge({ score, total, missing, onJump }) {
+function ProfileCompletenessNudge({ missing, onJump }) {
   if (missing.length === 0) return null;
-  const pct = Math.round((score / total) * 100);
   const chipStyle = {
     display: "inline-block",
     padding: "4px 10px",
@@ -2205,52 +2204,19 @@ function ProfileCompletenessNudge({ score, total, missing, onJump }) {
         boxShadow: t.shadow.sm,
       }}
     >
-      {/* Header row */}
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+      {/* Header — de-scored to match the calm Hub cue (CompletenessCue). No
+          fraction, no meter, no "%": those read as a grade to chase and count as
+          a fabricated metric (calm-by-design hard rule). Just a gentle title and
+          the actionable missing-field chips below. */}
+      <div style={{ marginBottom: 10 }}>
         <span style={{ fontFamily: t.serif, fontSize: 17, fontWeight: 700, color: t.text }}>
-          Profile completeness
+          A few optional things you could add
         </span>
-        <span style={{ fontSize: 14, color: t.textSoft }}>{score}/{total}</span>
-      </div>
-
-      {/* Tile bar — D-8: the completeness meter IS the brand spectrum, filling
-          left→right across the green→teal→clay→sand ramp so it reads as a
-          deliberate centerpiece. Literal ramp hex (not the --mark-* vars) so it
-          stays brand-green→sand in every theme — never a new flag surface under
-          the identity themes. Taller tiles give the meter presence. */}
-      <div
-        role="progressbar"
-        aria-valuenow={score}
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-label={`${pct}% complete — ${score} of ${total} profile sections filled`}
-        style={{ display: "flex", gap: 5, marginBottom: 14 }}
-      >
-        {Array.from({ length: total }).map((_, i) => {
-          const litColor = COMPLETENESS_RAMP[
-            Math.round((i / Math.max(1, total - 1)) * (COMPLETENESS_RAMP.length - 1))
-          ];
-          const lit = i < score;
-          return (
-            <div
-              key={i}
-              aria-hidden="true"
-              style={{
-                flex: 1,
-                height: 12,
-                borderRadius: 5,
-                background: lit ? litColor : t.surfaceAlt,
-                border: `1.5px solid ${lit ? "rgba(36,51,45,0.12)" : t.border}`,
-                transition: `background 220ms cubic-bezier(0.2,0,0,1)`,
-              }}
-            />
-          );
-        })}
       </div>
 
       {/* Missing-field chips */}
       <p style={{ margin: "0 0 8px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-        Adding these helps matches understand you better:
+        Only if you feel like it — each one just helps matches picture you:
       </p>
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 6 }}>
         {/* Every missing-field chip is an actionable shortcut that jumps to
@@ -2421,7 +2387,7 @@ function AudienceToggle({ value, onChange }) {
 // Read-only card view of how the user's profile appears to candidates on
 // Discover. Mirrors the SuggestionScreen card layout without importing it.
 function ProfilePreviewModal({
-  displayName, tagline, bio, pronouns, commNote, interests, specialInterests,
+  displayName, tagline, bio, pronouns, distCity, commNote, interests, specialInterests,
   commDirectness, commLiteral, commCadence,
   sensoryEnvironment, sensoryLighting, socialDuration,
   contextCard, occupation, languages, helpsMe, hardForMe,
@@ -2691,6 +2657,15 @@ function ProfilePreviewModal({
                   }}>
                     {tagline}
                   </p>
+                )}
+                {/* Coarse location — the one public field the self-preview used
+                    to omit. Onboarding tells the user this is shown, and every
+                    Discover card renders "Near {city}"; mirror that format/place
+                    exactly so "how others see you" is truthful. */}
+                {distCity && distCity.trim() && (
+                  <div style={{ fontSize: 14, color: t.textMuted, fontWeight: 500, letterSpacing: "0.02em", marginTop: 2 }}>
+                    Near {distCity}
+                  </div>
                 )}
               </div>
             </div>
@@ -4001,6 +3976,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           tagline={tagline}
           bio={bio}
           pronouns={pronouns}
+          distCity={distCity}
           commNote={commNote}
           interests={interests}
           specialInterests={specialInterests}
@@ -4152,12 +4128,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           {/* Profile-completeness nudge (backlog #4): shown after first load,
               hidden automatically once all 8 differentiator fields are filled. */}
           {(() => {
-            const { score, total, missing } = computeCompleteness({
+            const { missing } = computeCompleteness({
               photos, tagline, bio, gender, pronouns, seeking,
               commDirectness, commLiteral, commCadence,
               sensoryEnvironment, sensoryLighting, prompts,
             });
-            return <ProfileCompletenessNudge score={score} total={total} missing={missing} onJump={jumpToField} />;
+            return <ProfileCompletenessNudge missing={missing} onJump={jumpToField} />;
           })()}
 
           {/* F17/D19 — discoverable, one-tap "Take a break" control near the top
@@ -5015,10 +4991,15 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                   { value: "long-term", label: "Long-term relationship", desc: plain ? "Shown as a reason someone sees you." : "This will be listed in the reasons why someone sees you." },
                   { value: "friendship", label: "Friendship first", desc: plain ? "Shown as a reason someone sees you." : "This will be listed in the reasons why someone sees you." },
                   { value: "open", label: "Open to either", desc: plain ? "Shown as a reason someone sees you." : "This will be listed in the reasons why someone sees you." },
+                  // Onboarding offers a "Still figuring it out" goal stored as ""
+                  // (see OnboardingScreen Step3 GOALS); without a matching editor
+                  // option a user who chose it saw nothing selected. This maps to
+                  // the same "" value so the editor reflects that choice.
+                  { value: "", label: plain ? "Not sure yet" : "Still figuring it out", desc: plain ? "You can decide later. Not shown to others." : "You can decide this later — it isn't shown to others." },
                 ].map(({ value, label, desc }) => (
-                  <div key={value}>
+                  <div key={value || "figuring"}>
                     <label
-                      htmlFor={`rel-${value}`}
+                      htmlFor={`rel-${value || "figuring"}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -5031,18 +5012,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     >
                       <input
                         type="radio"
-                        id={`rel-${value}`}
+                        id={`rel-${value || "figuring"}`}
                         name="relationship-goal"
                         value={value}
                         checked={relGoal === value}
-                        aria-describedby={`rel-${value}-desc`}
+                        aria-describedby={`rel-${value || "figuring"}-desc`}
                         onChange={() => setRelGoal(value)}
                         style={{ accentColor: t.accentStrong, width: 18, height: 18, flexShrink: 0 }}
                       />
                       <span>{label}</span>
                     </label>
                     <span
-                      id={`rel-${value}-desc`}
+                      id={`rel-${value || "figuring"}-desc`}
                       style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
                     >
                       {desc}

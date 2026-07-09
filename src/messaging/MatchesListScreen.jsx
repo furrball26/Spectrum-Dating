@@ -666,7 +666,7 @@ export default function MatchesListScreen({
             outline: "none",
           }}
         >
-          Your matches
+          Messages
         </h1>
         <SectionRule style={{ marginTop: 8, marginBottom: 20 }} />
 
