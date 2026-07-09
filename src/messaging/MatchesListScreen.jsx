@@ -515,7 +515,7 @@ export default function MatchesListScreen({
             letterSpacing: "-0.01em",
           }}
         >
-          Your matches
+          Messages
         </h1>
         <ErrorState
           title="Couldn't load your matches"
@@ -539,7 +539,7 @@ export default function MatchesListScreen({
             letterSpacing: "-0.01em",
           }}
         >
-          Your matches
+          Messages
         </h1>
         <MatchesListSkeleton />
       </div>
