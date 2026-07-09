@@ -123,5 +123,14 @@ export function suggestionForReport(reasonValue, priorWarnCount = 0, opts = {}) 
     requiresHumanReason: !!clause.requiresHumanReason,
     legalReferral: !!clause.legalReferral,
     notice: buildNotice(clause, action, opts),
+    // Per-action notices so the console can pre-fill the CORRECT member-facing
+    // wording for WHICHEVER rung the moderator opens — not just the suggested one
+    // (a warn reads "received a warning", a ban reads "removed"). dismiss and the
+    // human-reason 'other' clause stay empty (buildNotice returns '' for both).
+    notices: {
+      warn: buildNotice(clause, 'warn', opts),
+      ban: buildNotice(clause, 'ban', opts),
+      dismiss: '',
+    },
   };
 }
