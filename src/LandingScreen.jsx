@@ -3,6 +3,7 @@ import SpectrumMark from "./SpectrumMark.jsx";
 import AnimatedSpectrumMark from "./AnimatedSpectrumMark.jsx";
 import { ShieldIcon, GearIcon, HeartIcon, SealCheckIcon } from "./icons.jsx";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // LandingScreen — the calm public front door for Spectrum Dating.
 // Mobile-first, generous whitespace, low-stimulation. No autoplay motion;
@@ -136,6 +137,7 @@ const STEPS = [
 ];
 
 export default function LandingScreen({ onGetStarted, onSignIn }) {
+  const plain = usePlainLanguage();
   const section = {
     width: "100%",
     maxWidth: 760,
@@ -238,7 +240,9 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               color: t.text,
             }}
           >
-            Matched on how you communicate and what your senses need — not just photos.
+            {plain
+              ? "Matched on how you talk and what your senses need. Not just photos."
+              : "Matched on how you communicate and what your senses need — not just photos."}
           </h1>
           <p
             style={{
@@ -248,8 +252,9 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               margin: "0 auto 36px",
             }}
           >
-            No typing dots. No “online now.” No rush. A calmer way to date,
-            made with and for autistic adults.
+            {plain
+              ? "No typing dots. No “online now.” No rush. A calm way to date, made for autistic adults."
+              : "No typing dots. No “online now.” No rush. A calmer way to date, made with and for autistic adults."}
           </p>
 
           <div
@@ -260,11 +265,11 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               justifyContent: "center",
             }}
           >
-            <PrimaryButton onClick={onGetStarted}>Create your profile</PrimaryButton>
+            <PrimaryButton onClick={onGetStarted}>{plain ? "Make your profile" : "Create your profile"}</PrimaryButton>
             <TertiaryButton onClick={onSignIn}>Sign in</TertiaryButton>
           </div>
           <p style={{ margin: "16px 0 0", fontSize: 14, color: t.textMuted }}>
-            Free to join. Leave whenever you like.
+            {plain ? "Free to join. Leave any time." : "Free to join. Leave whenever you like."}
           </p>
 
           {/* Product glimpse — a finished, branded discovery card (no faces) so
@@ -348,7 +353,9 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               What you won’t find here
             </h2>
             <p style={{ margin: "0 0 20px", fontSize: 16, color: t.textSoft }}>
-              We left out the things that make dating apps exhausting.
+              {plain
+                ? "We left out the things that make dating apps tiring."
+                : "We left out the things that make dating apps exhausting."}
             </p>
             <ul
               style={{
@@ -630,9 +637,9 @@ export default function LandingScreen({ onGetStarted, onSignIn }) {
               Ready when you are.
             </h2>
             <p style={{ margin: "0 0 24px", fontSize: 16, color: t.textSoft }}>
-              Free to join. Leave whenever you like.
+              {plain ? "Free to join. Leave any time." : "Free to join. Leave whenever you like."}
             </p>
-            <PrimaryButton onClick={onGetStarted}>Create your profile</PrimaryButton>
+            <PrimaryButton onClick={onGetStarted}>{plain ? "Make your profile" : "Create your profile"}</PrimaryButton>
           </div>
         </section>
         </main>

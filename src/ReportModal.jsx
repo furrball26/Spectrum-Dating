@@ -3,6 +3,7 @@ import { reportUser, blockUser } from "./api.js";
 import { t } from "./tokens.js";
 import { SAFETY_REASONS } from "./safetyReasons.js";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // Native control wired to the app's shared focus ring (t.focus) instead of the
 // UA outline, so keyboard focus looks consistent with the rest of the app (A5).
@@ -17,6 +18,7 @@ function FocusRingInput({ style, ...props }) {
 // actually landed (E27). Extracted from SuggestionScreen so the Matches page
 // can offer the same calm block/report flow on people who liked you.
 export default function ReportModal({ candidate, onClose, onBlocked, audioId }) {
+  const plain = usePlainLanguage();
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   // Block and report are independent choices. Default: report on (this is the
@@ -212,8 +214,12 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
             </h2>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.55 }}>
               {audioId
-                ? "Flag this voice note for our team to re-listen to. You can also block them if you'd like — neither is required."
-                : "Choose what you'd like to do — you can block, report, or both. Neither is required."}
+                ? (plain
+                  ? "Send this voice note to our team to check. You can block them too if you want. You don't have to do either."
+                  : "Flag this voice note for our team to re-listen to. You can also block them if you'd like — neither is required.")
+                : (plain
+                  ? "Pick what you want to do. You can block, report, or both. You don't have to do either."
+                  : "Choose what you'd like to do — you can block, report, or both. Neither is required.")}
             </p>
             {failed && (
               <div
@@ -234,7 +240,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
             )}
             <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
               <legend style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 10 }}>
-                What would you like to do?
+                {plain ? "What do you want to do?" : "What would you like to do?"}
               </legend>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, fontSize: 16, color: t.text, cursor: "pointer" }}>
                 <FocusRingInput
@@ -260,7 +266,9 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
                 <span>
                   <span style={{ display: "block", fontWeight: 600 }}>Report to our team</span>
                   <span style={{ display: "block", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-                    Flag this for our team — you don't have to block them. It's private and low-stakes.
+                    {plain
+                      ? "Tell our team about this. You don't have to block them. It stays private."
+                      : "Flag this for our team — you don't have to block them. It's private and low-stakes."}
                   </span>
                 </span>
               </label>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { t } from "./tokens.js";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 import {
   TERMS_UPDATED,
   TERMS_UPDATED_NOTE,
@@ -59,6 +60,7 @@ const bodyText = {
 };
 
 export default function TermsScreen({ onBack }) {
+  const plain = usePlainLanguage();
   const headingRef = useRef(null);
   useEffect(() => {
     headingRef.current?.focus();
@@ -92,10 +94,10 @@ export default function TermsScreen({ onBack }) {
             outline: "none",
           }}
         >
-          Terms &amp; Community Standards
+          {plain ? "Our Rules & Terms" : "Terms & Community Standards"}
         </h1>
         <p style={{ margin: "0 0 24px", fontSize: 14, color: t.textMuted }}>
-          Last updated: {TERMS_UPDATED} · {TERMS_UPDATED_NOTE}
+          {plain ? "Changed on " : "Last updated: "}{TERMS_UPDATED} · {TERMS_UPDATED_NOTE}
         </p>
 
         {/* The short version — a calm summary card, clearly marked as a summary,

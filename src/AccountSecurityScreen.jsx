@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { changePassword, changeEmail, deleteAccount, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // AccountSecurityScreen — Spectrum Dating
 // Split out of ProfileScreen so the dating profile and account controls live in
@@ -56,6 +57,7 @@ function inputStyle(hasError) {
 // ── Account & security: change password / change email ────────────────────────
 // Relocated from ProfileScreen intact.
 function AccountSecuritySection() {
+  const plain = usePlainLanguage();
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [pwStatus, setPwStatus] = useState("");
@@ -75,10 +77,13 @@ function AccountSecuritySection() {
   async function submitPw(e) {
     e.preventDefault();
     setPwStatus("");
-    if (newPw.length < 8) { setPwStatus("New password must be at least 8 characters."); return; }
+    if (newPw.length < 8) {
+      setPwStatus(plain ? "Use at least 8 characters." : "New password must be at least 8 characters.");
+      return;
+    }
     setPwBusy(true);
-    try { await changePassword(curPw, newPw); setPwStatus("✓ Password updated."); setCurPw(""); setNewPw(""); }
-    catch (err) { setPwStatus(safeErrorMessage(err, "Couldn't change your password right now. Please try again.")); }
+    try { await changePassword(curPw, newPw); setPwStatus(plain ? "✓ Password changed." : "✓ Password updated."); setCurPw(""); setNewPw(""); }
+    catch (err) { setPwStatus(safeErrorMessage(err, plain ? "Could not change your password. Please try again." : "Couldn't change your password right now. Please try again.")); }
     finally { setPwBusy(false); }
   }
   async function submitEmail(e) {
@@ -87,9 +92,13 @@ function AccountSecuritySection() {
     setEmBusy(true);
     try {
       const r = await changeEmail(newEmail, emPw);
-      setEmStatus(r.emailVerified ? "✓ Email updated." : "✓ Email updated — check your inbox to verify.");
+      setEmStatus(
+        r.emailVerified
+          ? (plain ? "✓ Email changed." : "✓ Email updated.")
+          : (plain ? "✓ Email changed — check your inbox to verify it." : "✓ Email updated — check your inbox to verify.")
+      );
       setNewEmail(""); setEmPw("");
-    } catch (err) { setEmStatus(safeErrorMessage(err, "Couldn't change your email right now. Please try again.")); }
+    } catch (err) { setEmStatus(safeErrorMessage(err, plain ? "Could not change your email. Please try again." : "Couldn't change your email right now. Please try again.")); }
     finally { setEmBusy(false); }
   }
 
@@ -101,15 +110,15 @@ function AccountSecuritySection() {
   return (
     <div style={{ marginTop: 4 }}>
       <form onSubmit={submitPw} style={{ marginBottom: 22 }}>
-        <FieldLabel htmlFor="cur-pw">Change password</FieldLabel>
+        <FieldLabel htmlFor="cur-pw">{plain ? "Set a new password" : "Change password"}</FieldLabel>
         <input id="cur-pw" type="password" autoComplete="current-password" aria-label="Current password"
           placeholder="Current password"
           value={curPw} onChange={(e) => setCurPw(e.target.value)} style={field} />
         <input type="password" autoComplete="new-password" aria-label="New password"
-          placeholder="New password (min 8 chars)"
+          placeholder={plain ? "New password (8 or more characters)" : "New password (min 8 chars)"}
           value={newPw} onChange={(e) => setNewPw(e.target.value)} style={field} />
         <button type="submit" disabled={pwBusy} style={submitBtn(pwBusy)}>
-          {pwBusy ? "Saving…" : "Update password"}
+          {pwBusy ? "Saving…" : (plain ? "Save password" : "Update password")}
         </button>
         {pwStatus && (
           isPwOk
@@ -119,14 +128,14 @@ function AccountSecuritySection() {
       </form>
 
       <form onSubmit={submitEmail}>
-        <FieldLabel htmlFor="new-email">Change email</FieldLabel>
+        <FieldLabel htmlFor="new-email">{plain ? "Set a new email" : "Change email"}</FieldLabel>
         <input id="new-email" type="email" autoComplete="email" placeholder="New email"
           value={newEmail} onChange={(e) => setNewEmail(e.target.value)} style={field} />
         <input type="password" autoComplete="current-password" aria-label="Current password"
           placeholder="Current password"
           value={emPw} onChange={(e) => setEmPw(e.target.value)} style={field} />
         <button type="submit" disabled={emBusy} style={submitBtn(emBusy)}>
-          {emBusy ? "Saving…" : "Update email"}
+          {emBusy ? "Saving…" : (plain ? "Save email" : "Update email")}
         </button>
         {emStatus && (
           isEmOk
@@ -141,6 +150,7 @@ function AccountSecuritySection() {
 // ── Danger zone: account deletion ────────────────────────────────────────────
 // Relocated from ProfileScreen intact.
 function DeleteAccountSection({ onAccountDeleted }) {
+  const plain = usePlainLanguage();
   const [showDialog, setShowDialog] = useState(false);
   const triggerRef = useRef(null);
   const f = useFocusable();
@@ -156,10 +166,12 @@ function DeleteAccountSection({ onAccountDeleted }) {
           margin: "0 0 4px",
         }}
       >
-        Danger zone
+        {plain ? "Warning" : "Danger zone"}
       </h2>
       <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}>
-        Deleting your account is permanent and cannot be undone.
+        {plain
+          ? "Deleting your account is forever. You cannot undo it."
+          : "Deleting your account is permanent and cannot be undone."}
       </p>
       <button
         ref={triggerRef}
@@ -196,6 +208,7 @@ function DeleteAccountSection({ onAccountDeleted }) {
 }
 
 function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
+  const plain = usePlainLanguage();
   const cancelRef = useRef(null);
   const inputRef = useRef(null);
   const passwordRef = useRef(null);
@@ -239,7 +252,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
       onAccountDeleted?.();
     } catch (err) {
       setDeleting(false);
-      setError(safeErrorMessage(err, "Could not delete your account. Please try again."));
+      setError(safeErrorMessage(err, plain ? "Could not delete your account. Try again." : "Could not delete your account. Please try again."));
     }
   }
 
@@ -285,14 +298,16 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
           Delete your account?
         </h2>
         <p id="delete-account-body" style={{ color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
-          This permanently deletes your profile, matches, and messages. This cannot be undone.
+          {plain
+            ? "This deletes your profile, matches, and messages for good. You cannot undo it."
+            : "This permanently deletes your profile, matches, and messages. This cannot be undone."}
         </p>
 
         <label
           htmlFor="delete-confirm-input"
           style={{ display: "block", fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 6 }}
         >
-          Type DELETE to confirm
+          {plain ? "Type the word DELETE to confirm" : "Type DELETE to confirm"}
         </label>
         <input
           ref={inputRef}
@@ -315,7 +330,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
           htmlFor="delete-confirm-password"
           style={{ display: "block", fontWeight: 600, fontSize: 14, color: t.text, margin: "14px 0 6px" }}
         >
-          Enter your password to confirm
+          {plain ? "Type your password to confirm" : "Enter your password to confirm"}
         </label>
         <input
           ref={passwordRef}
@@ -418,6 +433,7 @@ function BackButton({ onClick }) {
 }
 
 export default function AccountSecurityScreen({ onBack, onAccountDeleted }) {
+  const plain = usePlainLanguage();
   const headingRef = useRef(null);
 
   useEffect(() => {
@@ -454,11 +470,12 @@ export default function AccountSecurityScreen({ onBack, onAccountDeleted }) {
           tabIndex={-1}
           style={{ fontFamily: t.serif, fontSize: 28, fontWeight: 700, margin: "18px 0 6px", color: t.text, outline: "none" }}
         >
-          Account &amp; security
+          {plain ? "Your account" : "Account & security"}
         </h1>
         <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
-          Manage your sign-in details. Your dating profile lives on the Profile
-          screen — this is just your account.
+          {plain
+            ? "Change your sign-in details here. Your dating profile is on the Profile screen."
+            : "Manage your sign-in details. Your dating profile lives on the Profile screen — this is just your account."}
         </p>
 
         <div style={card}>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { t } from "./tokens.js";
 import { getBillingTiers, getMyEntitlement, startCheckout, cancelSubscription, safeErrorMessage } from "./api.js";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // Membership — the member-facing billing/entitlements screen (reached from
 // Settings). Design law: audit/BILLING_ARCHITECTURE.md + MONETIZATION_STRATEGY §4.
@@ -185,6 +186,7 @@ function TierCard({ tier, current }) {
 // calm locked state (muted, "Included with Companion") + the Upgrade CTA. No
 // shaming, no urgency — just a clear, gentle difference the client can point at.
 function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, comingSoon, onOpenBestFits }) {
+  const plain = usePlainLanguage();
   const features = companionTier?.features || [];
   return (
     <div
@@ -202,8 +204,12 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
         {isCompanion
-          ? "These extras are unlocked for you. Companion only ever adds comfort and capability — it never gates matching, messaging, or safety."
-          : "Companion adds comfort and capability on top of everything you already have for free. Matching, messaging, safety, and seeing who likes you always stay free."}
+          ? (plain
+            ? "These extra features are on for you. Companion only adds more features — it never blocks matching, messaging, or safety."
+            : "These extras are unlocked for you. Companion only ever adds comfort and capability — it never gates matching, messaging, or safety.")
+          : (plain
+            ? "Companion adds more features on top of everything you already get for free. Matching, messaging, safety, and seeing who likes you always stay free."
+            : "Companion adds comfort and capability on top of everything you already have for free. Matching, messaging, safety, and seeing who likes you always stay free.")}
       </p>
 
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -261,7 +267,7 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
       {!isCompanion && (
         <div style={{ marginTop: 18 }}>
           <PrimaryButton onClick={onUpgrade} disabled={checkoutBusy}>
-            {checkoutBusy ? "One moment…" : "Upgrade to Companion"}
+            {checkoutBusy ? "One moment…" : plain ? "Get Companion" : "Upgrade to Companion"}
           </PrimaryButton>
           {comingSoon && (
             <p
@@ -287,6 +293,7 @@ function CompanionArea({ companionTier, isCompanion, onUpgrade, checkoutBusy, co
 }
 
 export default function MembershipScreen({ onBack, tier: initialTier, onTierChange, onOpenBestFits }) {
+  const plain = usePlainLanguage();
   const [tiers, setTiers] = useState([]);
   const [entitlement, setEntitlement] = useState(
     initialTier ? { tier: initialTier, status: "active", source: "none" } : null
@@ -384,13 +391,14 @@ export default function MembershipScreen({ onBack, tier: initialTier, onTierChan
           {isCompanion && <CompanionBadge />}
         </div>
         <p style={{ margin: "0 0 8px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
-          Spectrum is free forever — safety, accessibility, matching, messaging, and
-          seeing who likes you never cost anything. Companion is one optional plan
-          that adds comfort and capability on top.
+          {plain
+            ? "Spectrum is free forever — safety, accessibility, matching, messaging, and seeing who likes you never cost money. Companion is one optional plan that adds more features."
+            : "Spectrum is free forever — safety, accessibility, matching, messaging, and seeing who likes you never cost anything. Companion is one optional plan that adds comfort and capability on top."}
         </p>
         <p style={{ margin: "0 0 24px", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
-          One honest published price. No countdowns, no fake discounts, no pressure.
-          You can cancel in one tap.
+          {plain
+            ? "One clear price. No countdowns, no fake discounts, no pressure. You can cancel in one tap."
+            : "One honest published price. No countdowns, no fake discounts, no pressure. You can cancel in one tap."}
         </p>
 
         {loading ? (
@@ -398,7 +406,9 @@ export default function MembershipScreen({ onBack, tier: initialTier, onTierChan
         ) : loadError ? (
           <div style={cardStyle}>
             <p style={{ margin: "0 0 12px", fontSize: 15, color: t.text }}>
-              We couldn't load membership details just now.
+              {plain
+                ? "We couldn't load your membership right now."
+                : "We couldn't load membership details just now."}
             </p>
             <QuietButton onClick={load}>Try again</QuietButton>
           </div>
@@ -414,9 +424,9 @@ export default function MembershipScreen({ onBack, tier: initialTier, onTierChan
                   <CompanionBadge small />
                 </div>
                 <p style={{ margin: "0 0 14px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
-                  Thank you for supporting Spectrum. You can manage or cancel anytime —
-                  cancelling keeps everything in the free plan; nothing about matching,
-                  messaging, or safety changes.
+                  {plain
+                    ? "Thank you for supporting Spectrum. You can manage or cancel anytime. If you cancel, you keep the free plan; matching, messaging, and safety do not change."
+                    : "Thank you for supporting Spectrum. You can manage or cancel anytime — cancelling keeps everything in the free plan; nothing about matching, messaging, or safety changes."}
                 </p>
                 {isDemoGrant && (
                   <p style={{ margin: "0 0 14px", fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
@@ -424,7 +434,7 @@ export default function MembershipScreen({ onBack, tier: initialTier, onTierChan
                   </p>
                 )}
                 <QuietButton onClick={handleCancel} disabled={cancelBusy}>
-                  {cancelBusy ? "Working…" : "Manage / Cancel"}
+                  {cancelBusy ? "Working…" : plain ? "Manage or cancel" : "Manage / Cancel"}
                 </QuietButton>
                 {cancelError && (
                   <p role="alert" style={{ margin: "12px 0 0", fontSize: 14, color: t.danger, lineHeight: 1.5 }}>
@@ -436,7 +446,9 @@ export default function MembershipScreen({ onBack, tier: initialTier, onTierChan
 
             {cancelDone && !isCompanion && (
               <p role="status" style={{ margin: "0 0 20px", fontSize: 14, color: t.accentStrong, lineHeight: 1.55, background: t.green50, border: `1px solid ${t.green300}`, borderRadius: 12, padding: "12px 14px" }}>
-                You're now on Spectrum (Free). Everything you use every day stays exactly the same.
+                {plain
+                  ? "You're now on Spectrum (Free). Everything you use every day stays the same."
+                  : "You're now on Spectrum (Free). Everything you use every day stays exactly the same."}
               </p>
             )}
 

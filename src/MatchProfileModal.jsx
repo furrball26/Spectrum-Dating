@@ -10,11 +10,13 @@ import { splitFeaturedPrompt } from "./featuredPrompt.js";
 import FeaturedInterest from "./FeaturedInterest.jsx";
 import AudioAnswerCard from "./AudioAnswer.jsx";
 import ReportModal from "./ReportModal.jsx";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // Read-only view of a MATCHED person's profile. Opened by tapping their avatar
 // in Matches or in a conversation. Fetches GET /profile/:userId (match-gated).
 
 export default function MatchProfileModal({ userId, onClose, reducedSensory = false }) {
+  const plain = usePlainLanguage();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -203,7 +205,7 @@ export default function MatchProfileModal({ userId, onClose, reducedSensory = fa
 
               {chips.length > 0 && (
                 <div style={{ margin: "14px 0" }}>
-                  <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>How they communicate</h2>
+                  <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>{plain ? "How they talk" : "How they communicate"}</h2>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {chips.map((c) => (
                       <span key={c} style={{ padding: "5px 13px", borderRadius: 24, fontSize: 14, background: t.surface, color: t.textSoft, border: `1px solid ${t.border}` }}>{c}</span>
@@ -242,7 +244,7 @@ export default function MatchProfileModal({ userId, onClose, reducedSensory = fa
 
               {profile.contextCard && profile.contextCard.trim() && (
                 <div style={{ margin: "14px 0", padding: "12px 16px", background: t.green50, borderRadius: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>In their words</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 4 }}>{plain ? "In their own words" : "In their words"}</div>
                   <p style={{ fontStyle: "italic", color: t.text, margin: 0 }}>"{profile.contextCard}"</p>
                 </div>
               )}
@@ -285,7 +287,7 @@ export default function MatchProfileModal({ userId, onClose, reducedSensory = fa
                   quiet "Report this voice note" affordance. */}
               {Array.isArray(profile.audio) && profile.audio.filter((a) => a && a.url).length > 0 && (
                 <div style={{ margin: "14px 0" }}>
-                  <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>In their voice</h2>
+                  <h2 style={{ fontFamily: t.serif, fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>{plain ? "Voice notes" : "In their voice"}</h2>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {profile.audio.filter((a) => a && a.url).map((a) => (
                       <AudioAnswerCard

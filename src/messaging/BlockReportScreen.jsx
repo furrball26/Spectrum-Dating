@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
 import { SAFETY_REASONS } from "../safetyReasons.js";
 import { useFocusable } from "../useFocusable.js";
+import { usePlainLanguage } from "../PlainLanguageContext.jsx";
 
 
 // Advisory fix 2 — dynamic prefers-reduced-motion (replaces static snapshot)
@@ -21,6 +22,7 @@ function usePrefersReduced() {
 const MAX_DETAILS = 500;
 
 export default function BlockReportScreen({ displayName, onSubmit, onBack, pinnedMessage = null }) {
+  const plain = usePlainLanguage();
   const headingRef = useRef(null);
   const confirmRef = useRef(null);
 
@@ -203,8 +205,9 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack, pinne
         </h1>
         {!submitted && (
           <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}>
-            Choose what you'd like to do. You can block, report, or both — whatever feels
-            right. Neither is required.
+            {plain
+              ? "Pick what you want to do. You can block, report, or both. You don't have to do either."
+              : "Choose what you'd like to do. You can block, report, or both — whatever feels right. Neither is required."}
           </p>
         )}
 
@@ -322,7 +325,7 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack, pinne
                   padding: 0,
                 }}
               >
-                What would you like to do?
+                {plain ? "What do you want to do?" : "What would you like to do?"}
               </legend>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -330,13 +333,17 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack, pinne
                   checked={doBlock}
                   onChange={() => setDoBlock((v) => !v)}
                   title="Block them"
-                  description={`${displayName} won't be able to message you, and you won't see each other again.`}
+                  description={plain
+                    ? `${displayName} can't message you. You won't see each other again.`
+                    : `${displayName} won't be able to message you, and you won't see each other again.`}
                 />
                 <ActionOption
                   checked={doReport}
                   onChange={() => setDoReport((v) => !v)}
                   title="Report to our team"
-                  description="Flag this for our team — you don't have to block them. It's private, low-stakes, and there's no wrong reason to reach out."
+                  description={plain
+                    ? "Tell our team about this. You don't have to block them. It stays private."
+                    : "Flag this for our team — you don't have to block them. It's private, low-stakes, and there's no wrong reason to reach out."}
                 />
               </div>
 

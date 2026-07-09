@@ -15,6 +15,7 @@ import FeaturedInterest from "./FeaturedInterest.jsx";
 import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
 import { normalizeSpecialInterests } from "./specialInterests.js";
 import { COMPLETENESS_FIELDS, COMPLETENESS_RAMP, computeCompleteness } from "./completeness.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // ProfileScreen — Spectrum Dating
 // Built to docs/specs/profile-screen.md + docs/architecture/profile-a11y.md
@@ -483,6 +484,7 @@ function inputStyle(hasError) {
 
 // ─── Unsaved-changes dialog (P-23, P-24, P-25) ───────────────────────────────
 function UnsavedDialog({ onSave, onDiscard, onCancel }) {
+  const plain = usePlainLanguage();
   const saveRef = useRef(null);
   const discardRef = useRef(null);
   const prefersReduced = usePrefersReduced();
@@ -548,10 +550,12 @@ function UnsavedDialog({ onSave, onDiscard, onCancel }) {
           id="unsaved-heading"
           style={{ fontFamily: t.serif, fontSize: 22, margin: "0 0 10px", fontWeight: 700 }}
         >
-          You have unsaved changes.
+          {plain ? "You have changes you didn't save." : "You have unsaved changes."}
         </h2>
         <p id="unsaved-body" style={{ color: t.textSoft, margin: "0 0 24px" }}>
-          Save your changes, or discard them and leave.
+          {plain
+            ? "Save your changes, or leave without saving."
+            : "Save your changes, or discard them and leave."}
         </p>
         {/* DOM order: Discard first, Save and leave second — per spec */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -595,7 +599,7 @@ function UnsavedDialog({ onSave, onDiscard, onCancel }) {
             onFocus={fDiscard.onFocus}
             onBlur={fDiscard.onBlur}
           >
-            Discard changes
+            {plain ? "Leave without saving" : "Discard changes"}
           </button>
         </div>
       </div>
@@ -2928,6 +2932,9 @@ function ProfilePreviewModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpenSafety, onOpenSettings, onOpenMembership, tier = "free", initialOpenSection = null, initialPreview = false, initialJumpField = null, locationAtRisk = false }) {
+  // Plain-language preference (a11y.plainLanguage) via global context. Declared as
+  // the very first hook so it precedes every early return (React #310 gate).
+  const plain = usePlainLanguage();
   // Photo gallery (up to 6, one primary)
   const [photos, setPhotos] = useState([]); // [{ id, url, isPrimary, position }]
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -3446,8 +3453,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     setPaused(next); // optimistic
     setTagAnnouncement(
       next
-        ? "Your profile is paused. You won't appear in Discover. You can turn it back on anytime."
-        : "Your profile is active again. You're back in Discover."
+        ? (plain
+            ? "Your profile is paused. You won't show up in Discover. You can turn it back on anytime."
+            : "Your profile is paused. You won't appear in Discover. You can turn it back on anytime.")
+        : (plain
+            ? "Your profile is on again. You're back in Discover."
+            : "Your profile is active again. You're back in Discover.")
     );
     setTimeout(() => setTagAnnouncement(""), 1500);
     try {
@@ -3458,7 +3469,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       cacheProfile({ ...(savedProfile || {}), paused: next });
     } catch {
       setPaused(!next); // revert
-      setTagAnnouncement("Couldn't update your pause setting. Please try again.");
+      setTagAnnouncement(plain ? "Couldn't change your pause setting. Please try again." : "Couldn't update your pause setting. Please try again.");
       setTimeout(() => setTagAnnouncement(""), 1500);
     } finally {
       setPauseBusy(false);
@@ -3611,16 +3622,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   // ── Validate + save
   async function handleSave() {
     setHasSaveAttempted(true);
-    const nameErr = displayName.trim() === "" ? "Enter a display name to continue." : "";
+    const nameErr = displayName.trim() === ""
+      ? (plain ? "Please enter a name." : "Enter a display name to continue.")
+      : "";
     const intErr  = interests.length === 0
-      ? "Choose at least one interest so we can find people you might connect with."
+      ? (plain ? "Please pick at least one interest." : "Choose at least one interest so we can find people you might connect with.")
       : "";
 
     setDisplayNameError(nameErr);
     setInterestsError(intErr);
 
     if (nameErr || intErr) {
-      setSaveErrorSummary("Please fix the errors below before saving.");
+      setSaveErrorSummary(plain ? "Please fix the errors below, then save." : "Please fix the errors below before saving.");
       // P-7: focus the FIRST invalid field. If that field lives inside a
       // collapsible section, force the section open first so the node isn't
       // `hidden` (which would dead-end focus/scroll), then focus + scroll it on
@@ -3732,7 +3745,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             .map((p) => ({ promptKey: p.promptKey, answer: p.answer.trim() }))
         );
       } catch {
-        setSaveErrorSummary("Your profile saved, but your prompts couldn't be saved. Please try again.");
+        setSaveErrorSummary(plain ? "Your profile saved, but your answers didn't. Please try again." : "Your profile saved, but your prompts couldn't be saved. Please try again.");
       }
       cacheProfile(currentProfile);  // keep localStorage in sync for SuggestionScreen
       setSavedProfile(currentProfile);
@@ -3848,7 +3861,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: t.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: t.textSoft, fontSize: 16 }}>Loading your profile…</p>
+        <p style={{ color: t.textSoft, fontSize: 16 }}>{plain ? "Loading…" : "Loading your profile…"}</p>
       </div>
     );
   }
@@ -4144,12 +4157,16 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           >
             <div style={{ minWidth: 200, flex: 1 }}>
               <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text }}>
-                {paused ? "Your profile is paused" : "Take a break"}
+                {paused ? "Your profile is paused" : (plain ? "Pause your profile" : "Take a break")}
               </p>
               <p style={{ margin: "2px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
                 {paused
-                  ? "You won't appear in Discover. Your matches and messages stay. Turn it back on whenever you're ready."
-                  : "Pause your profile anytime. You'll disappear from Discover, but keep your matches and messages."}
+                  ? (plain
+                      ? "You won't show up in Discover. Your matches and messages stay. Turn it back on when you want."
+                      : "You won't appear in Discover. Your matches and messages stay. Turn it back on whenever you're ready.")
+                  : (plain
+                      ? "You can pause anytime. You won't show up in Discover, but you keep your matches and messages."
+                      : "Pause your profile anytime. You'll disappear from Discover, but keep your matches and messages.")}
               </p>
             </div>
             <button
@@ -4232,7 +4249,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 placeholder=""
               />
               <HelperText id="display-name-hint">
-                30 characters maximum. Shown as your name on match cards.
+                {plain
+                  ? "Up to 30 letters. This is your name on cards."
+                  : "30 characters maximum. Shown as your name on match cards."}
               </HelperText>
               {/* P-4, P-5: counter visible only after first keystroke */}
               <div
@@ -4262,10 +4281,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 onFocus={(e) => { e.target.style.outline = `2px solid ${t.focus}`; e.target.style.outlineOffset = "2px"; }}
                 onBlur={(e) => { e.target.style.outline = "none"; }}
                 style={inputStyle(false)}
-                placeholder="One sentence about you (optional)"
+                placeholder={plain ? "One sentence about you (you can skip this)" : "One sentence about you (optional)"}
               />
               <HelperText id="tagline-hint">
-                80 characters maximum. Optional — shown under your name on match cards.
+                {plain
+                  ? "Up to 80 letters. You can skip this. It shows under your name."
+                  : "80 characters maximum. Optional — shown under your name on match cards."}
               </HelperText>
             </div>
 
@@ -4290,10 +4311,12 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                   minHeight: 88,
                   lineHeight: 1.55,
                 }}
-                placeholder="Anything you'd like people to know (optional)"
+                placeholder={plain ? "Anything you want people to know (you can skip this)" : "Anything you'd like people to know (optional)"}
               />
               <HelperText id="bio-hint">
-                500 characters maximum. Optional — shown on your profile card.
+                {plain
+                  ? "Up to 500 letters. You can skip this. It shows on your profile."
+                  : "500 characters maximum. Optional — shown on your profile card."}
               </HelperText>
               {/* P-4, P-5 */}
               <div
@@ -4327,9 +4350,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             cardStyle={card}
           >
             {/* ── Prompts ── */}
-            <SubHeading>Prompts</SubHeading>
+            <SubHeading>{plain ? "Questions" : "Prompts"}</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
-              Answer up to 3 prompts — an easy way to share who you are without a blank page.
+              {plain
+                ? "Answer up to 3 questions. An easy way to share about you."
+                : "Answer up to 3 prompts — an easy way to share who you are without a blank page."}
             </p>
 
             {prompts.map((p, idx) => (
@@ -4379,7 +4404,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               id="interests-helper"
               style={{ fontSize: 14, color: t.textSoft, margin: "0 0 14px" }}
             >
-              Select at least one. These help us find people you'll connect with.
+              {plain
+                ? "Pick at least one. These help us find people for you."
+                : "Select at least one. These help us find people you'll connect with."}
             </p>
 
             {/* Selected tags list (P-10, P-11) */}
@@ -4609,11 +4636,11 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 clearly-labelled place, so our differentiator reads as intentional
                 rather than generic form-fill. Every field keeps its existing
                 input/id/save logic — this is re-parenting + re-heading only. ── */}
-            <SubHeading>How to connect with me</SubHeading>
+            <SubHeading>{plain ? "How to talk to me" : "How to connect with me"}</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.6 }}>
-              The heart of your profile — a calm, one-stop place to tell people how
-              to reach you well. All optional, and shown on your profile — share as
-              much or as little as you like.
+              {plain
+                ? "One place to tell people how to reach you. You can skip any of it, and share as much or as little as you like."
+                : "The heart of your profile — a calm, one-stop place to tell people how to reach you well. All optional, and shown on your profile — share as much or as little as you like."}
             </p>
 
             {/* commNote — the short free-text "about talking" line (was in the
@@ -4633,7 +4660,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 placeholder="e.g. Prefers to text first · Slow replies are fine · No surprise calls please"
               />
               <HelperText id="communication-style-hint">
-                120 characters maximum. Optional — shown on match cards as "About talking: [your text]".
+                {plain
+                  ? "Up to 120 letters. You can skip this. It shows on match cards."
+                  : "120 characters maximum. Optional — shown on match cards as \"About talking: [your text]\"."}
               </HelperText>
             </div>
 
@@ -4702,7 +4731,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 placeholder="e.g. I info-dump when excited, it means I like you."
               />
               <HelperText id="context-card-hint">
-                Optional. Share anything that helps people connect with you — e.g. "I info-dump when excited, it means I like you."
+                {plain
+                  ? "You can skip this. Share anything that helps people talk with you."
+                  : "Optional. Share anything that helps people connect with you — e.g. \"I info-dump when excited, it means I like you.\""}
               </HelperText>
               <div
                 role="status"
@@ -4763,18 +4794,18 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <FacetListEditor
                 id="helps-me"
                 label="Things that help me"
-                helper="Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."
+                helper={plain ? "Up to 5 short items — e.g. “Clear plans”, “Text over calls”. You can skip this." : "Up to 5 short items — e.g. “Clear plans”, “Text over calls”. Optional."}
                 items={helpsMe}
                 onChange={setHelpsMe}
-                addLabel={helpsMe.length === 0 ? "Add something that helps" : "Add another"}
+                addLabel={helpsMe.length === 0 ? (plain ? "Add one" : "Add something that helps") : (plain ? "Add one more" : "Add another")}
               />
               <FacetListEditor
                 id="hard-for-me"
                 label="Things that are hard for me"
-                helper="Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."
+                helper={plain ? "Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. You can skip this." : "Up to 5 short items — e.g. “Loud places”, “Last-minute changes”. Optional."}
                 items={hardForMe}
                 onChange={setHardForMe}
-                addLabel={hardForMe.length === 0 ? "Add something that's hard" : "Add another"}
+                addLabel={hardForMe.length === 0 ? (plain ? "Add one" : "Add something that's hard") : (plain ? "Add one more" : "Add another")}
               />
             </div>
 
@@ -4783,7 +4814,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             {/* ── More about you (F28 facets: occupation + languages) ── */}
             <SubHeading>More about you</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px", lineHeight: 1.6 }}>
-              A few optional details that give people predictable context. Share as much or as little as you like.
+              {plain
+                ? "A few details you can add. Share as much or as little as you like."
+                : "A few optional details that give people predictable context. Share as much or as little as you like."}
             </p>
 
             {/* Occupation / study */}
@@ -4802,7 +4835,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 placeholder="e.g. Librarian · Studying biology"
               />
               <HelperText id="occupation-hint">
-                80 characters maximum. Optional.
+                {plain ? "Up to 80 letters. You can skip this." : "80 characters maximum. Optional."}
               </HelperText>
             </div>
 
@@ -4822,7 +4855,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 placeholder="e.g. English, ASL"
               />
               <HelperText id="languages-hint">
-                120 characters maximum. Optional.
+                {plain ? "Up to 120 letters. You can skip this." : "120 characters maximum. Optional."}
               </HelperText>
             </div>
 
@@ -4865,7 +4898,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 placeholder="e.g. she/her, they/them"
               />
               <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}>
-                Shown on your profile so people address you correctly.
+                {plain
+                  ? "Shown on your profile so people use the right words for you."
+                  : "Shown on your profile so people address you correctly."}
               </span>
             </div>
 
@@ -4875,13 +4910,15 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 that used to sit here moved to "Looking for"). ── */}
             <SubHeading>Lifestyle</SubHeading>
             <p style={{ fontSize: 14, color: t.textSoft, margin: "0 0 18px" }}>
-              All optional. Anything you share here is shown on your profile.
+              {plain
+                ? "You can skip all of these. Anything you add here shows on your profile."
+                : "All optional. Anything you share here is shown on your profile."}
             </p>
 
             <LifestyleSelect
               id="wants-children"
               label="Do you want children?"
-              helper="Optional — shown on your profile."
+              helper={plain ? "You can skip this. Shows on your profile." : "Optional — shown on your profile."}
               value={wantsChildren}
               onChange={setWantsChildren}
               options={[
@@ -4895,7 +4932,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <LifestyleSelect
               id="smoking"
               label="Smoking"
-              helper="Optional — shown on your profile."
+              helper={plain ? "You can skip this. Shows on your profile." : "Optional — shown on your profile."}
               value={smoking}
               onChange={setSmoking}
               options={[
@@ -4909,7 +4946,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <LifestyleSelect
               id="drinking"
               label="Drinking"
-              helper="Optional — shown on your profile."
+              helper={plain ? "You can skip this. Shows on your profile." : "Optional — shown on your profile."}
               value={drinking}
               onChange={setDrinking}
               options={[
@@ -4938,7 +4975,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             cardStyle={card}
           >
             {/* ── What I'm looking for (relationship goal) ── */}
-            <SubHeading>What I'm looking for</SubHeading>
+            <SubHeading>{plain ? "What I want" : "What I'm looking for"}</SubHeading>
             <fieldset
               style={{
                 border: "none",
@@ -4949,9 +4986,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
               <legend style={srOnly}>What are you looking for?</legend>
               <div style={{ clear: "both" }}>
                 {[
-                  { value: "long-term", label: "Long-term relationship", desc: "This will be listed in the reasons why someone sees you." },
-                  { value: "friendship", label: "Friendship first", desc: "This will be listed in the reasons why someone sees you." },
-                  { value: "open", label: "Open to either", desc: "This will be listed in the reasons why someone sees you." },
+                  { value: "long-term", label: "Long-term relationship", desc: plain ? "Shown as a reason someone sees you." : "This will be listed in the reasons why someone sees you." },
+                  { value: "friendship", label: "Friendship first", desc: plain ? "Shown as a reason someone sees you." : "This will be listed in the reasons why someone sees you." },
+                  { value: "open", label: "Open to either", desc: plain ? "Shown as a reason someone sees you." : "This will be listed in the reasons why someone sees you." },
                 ].map(({ value, label, desc }) => (
                   <div key={value}>
                     <label
@@ -4996,7 +5033,9 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
             <fieldset style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
               <legend style={srOnly}>Who do you want to meet?</legend>
               <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
-                Choose who you'd like to meet, or stay open to everyone.
+                {plain
+                  ? "Pick who you want to meet, or stay open to everyone."
+                  : "Choose who you'd like to meet, or stay open to everyone."}
               </span>
               {[
                 { value: "woman", label: "Women" },
@@ -5473,6 +5512,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
 // archive is streamed with Content-Disposition: attachment, so clicking a
 // temporary anchor triggers the browser's own save without leaving this page.
 function DownloadDataSection() {
+  const plain = usePlainLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -5524,8 +5564,9 @@ function DownloadDataSection() {
         <p role="alert" style={{ margin: "10px 0 0", fontSize: 14, color: t.danger }}>{error}</p>
       )}
       <p style={{ margin: "10px 0 0", fontSize: 14, color: t.textMuted }}>
-        A ZIP with a readable page of your profile and conversations, plus
-        your photos and a machine-readable copy.
+        {plain
+          ? "A ZIP file with your profile, your chats, and your photos."
+          : "A ZIP with a readable page of your profile and conversations, plus your photos and a machine-readable copy."}
       </p>
     </div>
   );
@@ -5543,6 +5584,7 @@ function DownloadDataSection() {
 // quiet and uncluttered. Purely lowers anxiety around the existing (free) team
 // review; it does not touch the request/pending/rejected/verified logic.
 function VerificationGuide() {
+  const plain = usePlainLanguage();
   const panel = {
     background: t.surfaceAlt,
     border: `1px solid ${t.borderLight}`,
@@ -5571,7 +5613,7 @@ function VerificationGuide() {
     <div>
       {/* Step-by-step: what actually happens after you ask */}
       <div style={panel}>
-        <p style={heading}>What happens when you ask for a review</p>
+        <p style={heading}>{plain ? "What happens when you ask" : "What happens when you ask for a review"}</p>
         <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
           {steps.map((s, i) => (
             <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -5602,7 +5644,7 @@ function VerificationGuide() {
 
       {/* What it is — and isn't (honest framing that reduces anxiety) */}
       <div style={panel}>
-        <p style={heading}>What this is — and isn't</p>
+        <p style={heading}>{plain ? "What this is and is not" : "What this is — and isn't"}</p>
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
           {isList.map((s, i) => (
             <li key={`is-${i}`} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -5621,7 +5663,7 @@ function VerificationGuide() {
 
       {/* Gentle, optional tips — friendly, never gates or pressure */}
       <div style={{ ...panel, margin: 0 }}>
-        <p style={heading}>A couple of things that help</p>
+        <p style={heading}>{plain ? "Two things that help" : "A couple of things that help"}</p>
         <p style={{ margin: "0 0 10px", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
           These aren't required — just two things that help the review go smoothly.
         </p>
@@ -5801,6 +5843,7 @@ function AddButton({ onAdd }) {
 
 // ── Add-a-prompt button ───────────────────────────────────────────────────────
 function AddPromptButton({ onClick, disabled }) {
+  const plain = usePlainLanguage();
   const f = useFocusable();
   return (
     <button
@@ -5823,7 +5866,7 @@ function AddPromptButton({ onClick, disabled }) {
       }}
     >
       <span aria-hidden="true" style={{ marginRight: 6 }}>+</span>
-      Add a prompt
+      {plain ? "Add a question" : "Add a prompt"}
     </button>
   );
 }
@@ -5856,6 +5899,7 @@ function ExpandAllToggle({ allExpanded, onClick }) {
 
 // ── Save button (P-26: disabled not hidden) ───────────────────────────────────
 function SaveButton({ disabled, onClick, saveButtonRef }) {
+  const plain = usePlainLanguage();
   const f = useFocusable();
   return (
     <button
@@ -5880,7 +5924,7 @@ function SaveButton({ disabled, onClick, saveButtonRef }) {
       onFocus={f.onFocus}
       onBlur={f.onBlur}
     >
-      Save changes
+      {plain ? "Save" : "Save changes"}
     </button>
   );
 }

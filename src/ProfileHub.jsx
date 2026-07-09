@@ -3,6 +3,7 @@ import Avatar from "./Avatar.jsx";
 import VerifiedBadge from "./VerifiedBadge.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { getUserId } from "./api.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 import {
   SlidersIcon,
   GearIcon,
@@ -281,6 +282,7 @@ export default function ProfileHub({
   onOpenAccount,
   onSignOut,
 }) {
+  const plain = usePlainLanguage();
   const isCompanion = tier === "companion";
   const name = displayName || "Your profile";
 
@@ -362,7 +364,7 @@ export default function ProfileHub({
             {verified && <VerifiedBadge />}
           </div>
           <p style={{ margin: "6px 0 0", color: t.textSoft, fontSize: 15 }}>
-            Tap the pencil to edit your full profile.
+            {plain ? "Tap the pencil to edit your profile." : "Tap the pencil to edit your full profile."}
           </p>
         </div>
 
@@ -373,13 +375,17 @@ export default function ProfileHub({
           <HubRow
             icon={<EyeIcon size={22} />}
             title="How others see you"
-            subtitle="Preview your card the way matches do."
+            subtitle={plain ? "See your card the way matches do." : "Preview your card the way matches do."}
             onClick={onOpenPreview}
           />
           <HubRow
             icon={<SparkleIcon size={22} />}
             title="Membership"
-            subtitle={isCompanion ? "Spectrum Companion" : "See what Companion adds — everything you use daily is free."}
+            subtitle={isCompanion
+              ? "Spectrum Companion"
+              : (plain
+                ? "See what Companion adds. Everything you use daily is free."
+                : "See what Companion adds — everything you use daily is free.")}
             tag={isCompanion ? "Companion" : "Free"}
             onClick={onOpenMembership}
           />
@@ -390,21 +396,25 @@ export default function ProfileHub({
             // known, chosen action (preview what Companion adds) rather than an
             // inviting row that dead-ends at a gate.
             subtitle={isCompanion
-              ? "A calm, curated set of people who may fit well."
-              : "Part of Companion — preview what it adds."}
+              ? (plain
+                ? "A calm set of people who may be a good fit."
+                : "A calm, curated set of people who may fit well.")
+              : (plain
+                ? "Part of Companion — see what it adds."
+                : "Part of Companion — preview what it adds.")}
             tag={isCompanion ? undefined : "Companion"}
             onClick={onOpenTopPicks}
           />
           <HubRow
             icon={<LockIcon size={22} />}
             title="Account & Security"
-            subtitle="Password, email, and account controls."
+            subtitle={plain ? "Password, email, and account settings." : "Password, email, and account controls."}
             onClick={onOpenAccount}
           />
           <HubRow
             icon={<ShieldIcon size={22} />}
             title="Safety Center"
-            subtitle="Blocking, reporting, and support resources."
+            subtitle={plain ? "Block, report, and get help." : "Blocking, reporting, and support resources."}
             onClick={onOpenSafety}
           />
         </div>

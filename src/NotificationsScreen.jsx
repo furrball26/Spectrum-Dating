@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getProfile, updateProfile } from "./api.js";
 import { t } from "./tokens.js";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // NotificationsScreen — Spectrum Dating
 // Split out of ProfileScreen so notification preferences live on their own calm
@@ -21,16 +22,17 @@ import { useFocusable } from "./useFocusable.js";
 // before the (supported) early return — one hook, above the return (React #310).
 function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
   const f = useFocusable();
+  const plain = usePlainLanguage();
   if (!supported) return null;
 
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
       <div>
         <p style={{ margin: 0, fontSize: 16, fontWeight: 500, color: t.text }}>
-          Push notifications
+          {plain ? "Phone alerts" : "Push notifications"}
         </p>
         <p style={{ margin: "2px 0 0", fontSize: 14, color: t.textSoft }}>
-          Get notified about new matches and messages
+          {plain ? "Tell me about new matches and messages." : "Get notified about new matches and messages"}
         </p>
       </div>
       <button
@@ -51,7 +53,11 @@ function NotificationToggle({ enabled, supported, onEnable, onDisable }) {
           transition: `background ${t.motion.base} ${t.motion.standard}`,
           ...f.style,
         }}
-        aria-label={enabled ? "Disable push notifications" : "Enable push notifications"}
+        aria-label={
+          plain
+            ? (enabled ? "Turn off phone alerts" : "Turn on phone alerts")
+            : (enabled ? "Disable push notifications" : "Enable push notifications")
+        }
       >
         <span
           aria-hidden="true"
@@ -103,19 +109,25 @@ const NOTIF_TIERS = [
     value: "in_app",
     id: "notif-off",
     label: "Off",
+    labelPlain: "Off",
     desc: "You'll see a dot when you have new messages. Nothing will appear on your lock screen.",
+    descPlain: "You'll see a dot for new messages. Nothing shows on your lock screen.",
   },
   {
     value: "silent_push",
     id: "notif-silent",
     label: "Silent push",
+    labelPlain: "Silent buzz",
     desc: "Your phone will nudge you, but without showing any text.",
+    descPlain: "Your phone buzzes, but shows no words.",
   },
   {
     value: "name_only",
     id: "notif-name",
     label: "Name only",
+    labelPlain: "Name only",
     desc: "Your phone shows who messaged you, but not what they said.",
+    descPlain: "Your phone shows who wrote you, not what they said.",
   },
 ];
 
@@ -127,6 +139,7 @@ export default function NotificationsScreen({
   onDisablePush,
 }) {
   const headingRef = useRef(null);
+  const plain = usePlainLanguage();
   const [notifTier, setNotifTier] = useState("in_app");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -197,11 +210,12 @@ export default function NotificationsScreen({
           tabIndex={-1}
           style={{ fontFamily: t.serif, fontSize: 28, fontWeight: 700, margin: "18px 0 6px", color: t.text, outline: "none" }}
         >
-          Notifications
+          {plain ? "Alerts" : "Notifications"}
         </h1>
         <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
-          Choose how, and how quietly, Spectrum lets you know about new matches
-          and messages. Nothing here is urgent — set it to whatever feels calm.
+          {plain
+            ? "Choose how Spectrum tells you about new matches and messages. You can pick what feels calm."
+            : "Choose how, and how quietly, Spectrum lets you know about new matches and messages. Nothing here is urgent — set it to whatever feels calm."}
         </p>
 
         {pushSupported && (
@@ -220,10 +234,10 @@ export default function NotificationsScreen({
             <legend
               style={{ fontWeight: 600, fontSize: 16, color: t.text, marginBottom: 12, float: "left", width: "100%" }}
             >
-              Notification style
+              {plain ? "Alert style" : "Notification style"}
             </legend>
             <div style={{ clear: "both" }}>
-              {NOTIF_TIERS.map(({ value, id, label, desc }) => (
+              {NOTIF_TIERS.map(({ value, id, label, labelPlain, desc, descPlain }) => (
                 <div key={value} style={{ marginBottom: 8 }}>
                   {/* Entire row is the touch target. */}
                   <label
@@ -249,13 +263,13 @@ export default function NotificationsScreen({
                       onChange={() => changeTier(value)}
                       style={{ accentColor: t.accentStrong, width: 18, height: 18, flexShrink: 0 }}
                     />
-                    <span>{label}</span>
+                    <span>{plain ? labelPlain : label}</span>
                   </label>
                   <span
                     id={`${id}-desc`}
                     style={{ display: "block", fontSize: 14, color: t.textSoft, marginLeft: 30, marginBottom: 4 }}
                   >
-                    {desc}
+                    {plain ? descPlain : desc}
                   </span>
                 </div>
               ))}
@@ -274,7 +288,7 @@ export default function NotificationsScreen({
             )}
             {saveState === "error" && (
               <span role="alert" style={{ fontSize: 14, color: t.danger }}>
-                Couldn't save that just now. Please try again.
+                {plain ? "Could not save. Please try again." : "Couldn't save that just now. Please try again."}
               </span>
             )}
           </div>

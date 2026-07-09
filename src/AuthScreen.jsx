@@ -3,6 +3,7 @@ import { register, login, forgotPassword, resendVerification, safeErrorMessage }
 import { t } from "./tokens.js";
 import SpectrumMark from "./SpectrumMark.jsx";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // The Terms & Community Standards screen, shown as a logged-out overlay when the
 // sign-up "Terms and Community Standards" link is tapped. Lazy so it stays out of
@@ -29,6 +30,7 @@ function inputStyle(hasError) {
 }
 
 export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
+  const plain = usePlainLanguage();
   const [mode, setMode] = useState(initialMode === "register" ? "register" : "login"); // "login" | "register" | "forgot" | "check-email"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -247,7 +249,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
             marginBottom: 32,
           }}
         >
-          Dating at your own pace.
+          {plain ? "Date when you feel ready. No rush." : "Dating at your own pace."}
         </p>
 
         {/* Card */}
@@ -273,10 +275,10 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
             }}
           >
             {enforced ? (enforced.kind === "ban" ? "Account removed" : "Account suspended")
-              : mode === "login" ? "Welcome back"
+              : mode === "login" ? (plain ? "Sign in" : "Welcome back")
               : mode === "forgot" ? "Reset your password"
-              : mode === "check-email" ? "Check your inbox"
-              : "Create your account"}
+              : mode === "check-email" ? (plain ? "Check your email" : "Check your inbox")
+              : (plain ? "Create an account" : "Create your account")}
           </h1>
 
           {enforced ? (
@@ -366,12 +368,12 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
           ) : mode === "check-email" ? (
             <div>
               <p style={{ margin: "0 0 6px", fontSize: 16, color: t.textSoft, lineHeight: 1.6 }}>
-                We sent a verification link to{" "}
+                {plain ? "We sent an email to " : "We sent a verification link to "}
                 <strong style={{ color: t.text }}>{email}</strong>.
-                Click the link to confirm your account.
+                {plain ? " Open it and click the link to finish." : " Click the link to confirm your account."}
               </p>
               <p style={{ margin: "0 0 20px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-                Can't find it? Check your spam folder.
+                {plain ? "Don't see it? Look in your spam folder." : "Can't find it? Check your spam folder."}
               </p>
 
               {/* Resend */}
@@ -423,7 +425,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                   cursor: "pointer",
                 }}
               >
-                Continue to app →
+                {plain ? "Continue" : "Continue to app →"}
               </button>
               <p style={{ marginTop: 12, fontSize: 14, color: t.textMuted, textAlign: "center", lineHeight: 1.5 }}>
                 You can verify later — a reminder will appear at the top of the app.
@@ -447,7 +449,9 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
           <form onSubmit={handleSubmit} noValidate>
             {mode === "forgot" && (
               <p style={{ margin: "0 0 16px", fontSize: 14, color: t.textSoft, lineHeight: 1.55 }}>
-                Enter your email and we'll send you a link to set a new password.
+                {plain
+                  ? "Type your email. We'll send you a link to make a new password."
+                  : "Enter your email and we'll send you a link to set a new password."}
               </p>
             )}
             {/* Form-level error (server failures not tied to one field). Kept
@@ -620,7 +624,7 @@ export default function AuthScreen({ onAuth, initialMode = "login", onBack }) {
                 ...fSubmit.style,
               }}
             >
-              {loading ? "Please wait…" : mode === "login" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Create account"}
+              {loading ? "Please wait…" : mode === "login" ? "Sign in" : mode === "forgot" ? (plain ? "Send me a reset link" : "Send reset link") : "Create account"}
             </button>
 
             {/* Sign-up agreement line — calm, factual, no hard checkbox this pass.

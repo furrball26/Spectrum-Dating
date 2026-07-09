@@ -6,6 +6,7 @@ import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
+import { PlainLanguageProvider } from "./PlainLanguageContext.jsx";
 import { computeCompleteness } from "./completeness.js";
 
 // ── Code-split screens ──────────────────────────────────────────────────────
@@ -1522,6 +1523,7 @@ export default function App() {
   }, [authed]);
 
   return (
+    <PlainLanguageProvider value={!!a11y.plainLanguage}>
     <>
       <div role="status" aria-live="assertive" aria-atomic="true" style={srOnly}>
         {authMessage}
@@ -2073,5 +2075,6 @@ export default function App() {
       </>
       )}
     </>
+    </PlainLanguageProvider>
   );
 }

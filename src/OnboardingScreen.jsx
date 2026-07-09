@@ -8,6 +8,7 @@ import { GenderField, OrientationField, RelationshipStructureField, GENDER_SELF_
 import SpecialInterestsInput from "./SpecialInterestsInput.jsx";
 import { normalizeSpecialInterests } from "./specialInterests.js";
 import { ShieldIcon } from "./icons.jsx";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 
 function usePrefersReduced() {
@@ -401,6 +402,7 @@ function RemoveChipButton({ tag, onRemove }) {
 // ─── Step 1: Basics ────────────────────────────────────────────────────────────
 
 function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, setDateOfBirth, distCity, setDistCity, errors, attempted }) {
+  const plain = usePlainLanguage();
   const [nameTouched, setNameTouched] = useState(false);
   const maxDob = maxDobToday();
 
@@ -426,7 +428,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
           autoComplete="name"
           autoFocus
         />
-        <HelperText id="ob-display-name-hint">Up to 30 characters. Shown as your name to matches.</HelperText>
+        <HelperText id="ob-display-name-hint">{plain ? "Up to 30 letters. This is the name others see." : "Up to 30 characters. Shown as your name to matches."}</HelperText>
         <div
           role="status"
           aria-live="polite"
@@ -451,7 +453,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
           style={inputStyle(false)}
           placeholder=""
         />
-        <HelperText id="ob-tagline-hint">One line that tells people what you&apos;re about</HelperText>
+        <HelperText id="ob-tagline-hint">{plain ? "One short line about you." : "One line that tells people what you’re about"}</HelperText>
       </div>
 
       <div style={{ marginBottom: 20 }}>
@@ -469,7 +471,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
           onBlur={(e) => { e.target.style.outline = "none"; }}
           style={{ ...inputStyle(attempted && !!errors.dateOfBirth), minHeight: 44 }}
         />
-        <HelperText id="ob-dob-hint">You must be 18 or older to use Spectrum Dating.</HelperText>
+        <HelperText id="ob-dob-hint">{plain ? "You must be 18 or older." : "You must be 18 or older to use Spectrum Dating."}</HelperText>
         <InlineError id="ob-dob-error">{attempted ? errors.dateOfBirth : ""}</InlineError>
       </div>
 
@@ -491,8 +493,9 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
           placeholder="e.g. Portland, OR"
         />
         <HelperText id="ob-dist-city-hint">
-          Your general city or area — we only ever show a coarse location to
-          others, never a precise address.
+          {plain
+            ? "Your city or area only. We never show your exact address."
+            : "Your general city or area — we only ever show a coarse location to others, never a precise address."}
         </HelperText>
         <InlineError id="ob-dist-city-error">{attempted ? errors.distCity : ""}</InlineError>
       </div>
@@ -503,6 +506,7 @@ function Step1({ displayName, setDisplayName, tagline, setTagline, dateOfBirth, 
 // ─── Step 2: Bio + Interests ───────────────────────────────────────────────────
 
 function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefersReduced }) {
+  const plain = usePlainLanguage();
   const [bioTouched, setBioTouched] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -574,7 +578,7 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
           }}
           placeholder=""
         />
-        <HelperText id="ob-bio-hint">Minimum 20 characters, up to 500.</HelperText>
+        <HelperText id="ob-bio-hint">{plain ? "At least 20 letters, up to 500." : "Minimum 20 characters, up to 500."}</HelperText>
         <div
           role="status"
           aria-live="polite"
@@ -592,7 +596,9 @@ function Step2({ bio, setBio, interests, setInterests, errors, attempted, prefer
           Interests <span aria-hidden="true" style={{ color: t.danger, marginLeft: 3 }}>*</span>
         </p>
         <p id="ob-interests-hint" style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft }}>
-          Pick at least one — these help us find people you'll connect with.
+          {plain
+            ? "Pick at least one."
+            : "Pick at least one — these help us find people you'll connect with."}
         </p>
 
         {/* Selected chips */}
@@ -793,16 +799,21 @@ function OnboardAddPhotoTile({ onAdd, uploading, disabled, invalid, tileRef }) {
 }
 
 function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, attempted }) {
+  const plain = usePlainLanguage();
   const atMax = photos.length >= ONBOARDING_MAX_PHOTOS;
   const gateError = attempted ? errors.photos : "";
   return (
     <>
       <p style={{ margin: "0 0 8px", fontSize: 16, color: t.text, lineHeight: 1.55, fontWeight: 600 }}>
-        Add at least one photo <span aria-hidden="true" style={{ color: t.danger }}>*</span>
+        {plain ? "Add a photo " : "Add at least one photo "}<span aria-hidden="true" style={{ color: t.danger }}>*</span>
       </p>
       <p style={{ margin: "0 0 16px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
-        A photo helps people feel they&apos;re connecting with a real person. You can
-        add up to {ONBOARDING_MAX_PHOTOS}, and change them anytime in your profile.
+        {plain ? (
+          <>A photo shows people you are a real person. You can add up to {ONBOARDING_MAX_PHOTOS}. You can change them later.</>
+        ) : (
+          <>A photo helps people feel they&apos;re connecting with a real person. You can
+          add up to {ONBOARDING_MAX_PHOTOS}, and change them anytime in your profile.</>
+        )}
       </p>
 
       {/* Calm review note — mirrors the SAFETY-2 pending-review copy so it reads
@@ -830,8 +841,9 @@ function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, at
           <ShieldIcon size={18} />
         </span>
         <span>
-          A member of our team takes a look at each photo before others can see it.
-          There&apos;s no rush — you can add more later.
+          {plain
+            ? "Our team checks each photo before others can see it. You can add more later."
+            : "A member of our team takes a look at each photo before others can see it. There’s no rush — you can add more later."}
         </span>
       </div>
 
@@ -898,7 +910,7 @@ function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, at
       {/* Upload failure — calm, retry is simply tapping Add photo again. */}
       {uploadError && (
         <p role="alert" style={{ margin: "8px 0 0", fontSize: 14, color: t.danger, fontWeight: 500, lineHeight: 1.5 }}>
-          {uploadError} You can try adding it again.
+          {uploadError}{plain ? " Try again." : " You can try adding it again."}
         </p>
       )}
 
@@ -909,7 +921,7 @@ function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, at
           error only once the user has actually tried to continue. */}
       {photos.length === 0 && !gateError && (
         <p style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft, fontWeight: 500, lineHeight: 1.5 }}>
-          Add one photo to continue.
+          {plain ? "Add one photo." : "Add one photo to continue."}
         </p>
       )}
 
@@ -921,18 +933,19 @@ function StepPhotos({ photos, uploading, uploadError, onAdd, tileRef, errors, at
 // ─── Step 3: Communication ─────────────────────────────────────────────────────
 
 function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, errors, attempted }) {
+  const plain = usePlainLanguage();
   const GOALS = [
     { value: "long-term", label: "Long-term relationship" },
     { value: "friendship", label: "Friendship" },
     { value: "open", label: "Open to anything" },
-    { value: "", label: "Still figuring it out" },
+    { value: "", label: plain ? "Not sure yet" : "Still figuring it out" },
   ];
 
   return (
     <>
       {/* Communication note */}
       <div style={{ marginBottom: 28 }}>
-        <FieldLabel htmlFor="ob-comm-note">How you prefer to connect</FieldLabel>
+        <FieldLabel htmlFor="ob-comm-note">{plain ? "How you like to talk" : "How you prefer to connect"}</FieldLabel>
         <textarea
           id="ob-comm-note"
           maxLength={120}
@@ -951,7 +964,9 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
           placeholder=""
         />
         <HelperText id="ob-comm-note-hint">
-          Tell matches how you like to connect — for example: written messages, clear back-and-forth, or a slower pace. Whatever fits you.
+          {plain
+            ? "Tell matches how you like to talk. For example: written messages, or a slower pace."
+            : "Tell matches how you like to connect — for example: written messages, clear back-and-forth, or a slower pace. Whatever fits you."}
         </HelperText>
       </div>
 
@@ -967,12 +982,12 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
             width: "100%",
           }}
         >
-          What are you looking for?
+          {plain ? "What do you want to find?" : "What are you looking for?"}
         </legend>
         <div style={{ clear: "both" }}>
           {GOALS.map(({ value, label }) => (
             <label
-              key={label}
+              key={value || "figuring"}
               htmlFor={`ob-goal-${value || "figuring"}`}
               style={{
                 display: "flex",
@@ -1011,8 +1026,9 @@ function Step3({ commNote, setCommNote, relationshipGoal, setRelationshipGoal, e
           lineHeight: 1.55,
         }}
       >
-        You&apos;re in control of who can reach you. Only people you and they have both
-        said yes to can message you — no one can message you out of the blue.
+        {plain
+          ? "You control who can reach you. Only people you both said yes to can message you. No one can message you first without a match."
+          : "You’re in control of who can reach you. Only people you and they have both said yes to can message you — no one can message you out of the blue."}
       </p>
     </>
   );
@@ -1031,6 +1047,7 @@ function Step4({
   prefAgeMin, prefAgeMax, setPrefAgeMin, setPrefAgeMax,
   errors, attempted, locationAtRisk = false,
 }) {
+  const plain = usePlainLanguage();
   const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
   // Gender / sexuality / seeking are REQUIRED at sign-up (owner). "Open to
   // everyone" is the empty-seeking state, so an EXPLICIT pick has to be
@@ -1043,9 +1060,15 @@ function Step4({
   return (
     <>
       <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
-        This helps us shape your Discover deck. A few fields are required (marked
-        with <span aria-hidden="true" style={{ color: t.danger }}>*</span>); the
-        rest are optional, and you can adjust any of it anytime in your profile.
+        {plain ? (
+          <>This helps us pick who to show you. Some fields are required (marked
+          with <span aria-hidden="true" style={{ color: t.danger }}>*</span>). The
+          rest are optional. You can change any of it later.</>
+        ) : (
+          <>This helps us shape your Discover deck. A few fields are required (marked
+          with <span aria-hidden="true" style={{ color: t.danger }}>*</span>); the
+          rest are optional, and you can adjust any of it anytime in your profile.</>
+        )}
       </p>
 
       <GenderField
@@ -1091,7 +1114,7 @@ function Step4({
           style={inputStyle(false)}
           placeholder="e.g. she/her, they/them"
         />
-        <HelperText id="ob-pronouns-hint">Shown on your profile so people address you correctly.</HelperText>
+        <HelperText id="ob-pronouns-hint">{plain ? "Shown on your profile so people use the right words for you." : "Shown on your profile so people address you correctly."}</HelperText>
       </div>
 
       <fieldset aria-required="true" style={{ border: "none", margin: "0 0 20px", padding: 0 }}>
@@ -1105,7 +1128,7 @@ function Step4({
           <span style={{ fontWeight: 400, fontSize: 14, color: t.textSoft, marginLeft: 6 }}>(required)</span>
         </legend>
         <span style={{ display: "block", fontSize: 14, color: t.textSoft, marginBottom: 10, clear: "both" }}>
-          Choose who you'd like to meet, or stay open to everyone.
+          {plain ? "Choose who you want to meet, or stay open to everyone." : "Choose who you'd like to meet, or stay open to everyone."}
         </span>
         {[
           { value: "woman", label: "Women" },
@@ -1177,21 +1200,25 @@ function Step5({
   specialInterests, setSpecialInterests,
   prefersReduced,
 }) {
+  const plain = usePlainLanguage();
+  const selectHelper = plain
+    ? "Shown on your profile. You can change it later."
+    : "Shown on your profile. Change it anytime.";
   return (
     <>
       <p style={{ margin: "0 0 8px", fontSize: 16, color: t.text, lineHeight: 1.55, fontWeight: 600 }}>
-        This is how Spectrum matches you differently.
+        {plain ? "This is how Spectrum matches you." : "This is how Spectrum matches you differently."}
       </p>
       <p style={{ margin: "0 0 22px", fontSize: 16, color: t.textSoft, lineHeight: 1.55 }}>
-        We match on how you communicate and what your senses need — not just
-        photos. It's optional and you can change it anytime, but this is the part
-        that helps us find people who genuinely fit how you connect.
+        {plain
+          ? "We match on how you talk and what your senses need, not just photos. This is optional. You can change it anytime."
+          : "We match on how you communicate and what your senses need — not just photos. It's optional and you can change it anytime, but this is the part that helps us find people who genuinely fit how you connect."}
       </p>
 
       <LabelledSelect
         id="ob-comm-directness"
         label="Directness"
-        helper="Shown on your profile. Change it anytime."
+        helper={selectHelper}
         value={commDirectness}
         onChange={setCommDirectness}
         options={[
@@ -1204,7 +1231,7 @@ function Step5({
       <LabelledSelect
         id="ob-comm-cadence"
         label="Reply pace"
-        helper="Shown on your profile. Change it anytime."
+        helper={selectHelper}
         value={commCadence}
         onChange={setCommCadence}
         options={[
@@ -1218,7 +1245,7 @@ function Step5({
       <LabelledSelect
         id="ob-sensory-environment"
         label="Preferred setting"
-        helper="Shown on your profile. Change it anytime."
+        helper={selectHelper}
         value={sensoryEnvironment}
         onChange={setSensoryEnvironment}
         options={[
@@ -1237,8 +1264,9 @@ function Step5({
           Could talk for hours about
         </p>
         <p style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-          A few topics you love going deep on — we use these to suggest people who
-          light up about the same things. Optional, and easy to change later.
+          {plain
+            ? "A few topics you love. We use these to suggest people who like the same things. Optional."
+            : "A few topics you love going deep on — we use these to suggest people who light up about the same things. Optional, and easy to change later."}
         </p>
         <SpecialInterestsInput
           items={specialInterests}
@@ -1324,6 +1352,7 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
   const prefersReduced = usePrefersReduced();
   const viewport = useViewport();
   const isMobile = viewport === "mobile";
+  const plain = usePlainLanguage();
 
   // Focus heading on step change
   useEffect(() => {
@@ -1344,32 +1373,32 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
 
   function validateStep1() {
     const errs = {};
-    if (!displayName.trim()) errs.displayName = "Enter a display name to continue.";
+    if (!displayName.trim()) errs.displayName = plain ? "Enter a display name." : "Enter a display name to continue.";
     if (!dateOfBirth) {
-      errs.dateOfBirth = "Enter your date of birth to continue.";
+      errs.dateOfBirth = plain ? "Enter your date of birth." : "Enter your date of birth to continue.";
     } else {
       const age = ageFromDob(dateOfBirth);
       if (age === null) {
         errs.dateOfBirth = "Enter a valid date of birth.";
       } else if (age < 18) {
-        errs.dateOfBirth = "You must be 18 or older to use Spectrum Dating.";
+        errs.dateOfBirth = plain ? "You must be 18 or older." : "You must be 18 or older to use Spectrum Dating.";
       }
     }
-    if (!distCity.trim()) errs.distCity = "Please enter your city or area.";
+    if (!distCity.trim()) errs.distCity = plain ? "Enter your city or area." : "Please enter your city or area.";
     return errs;
   }
 
   function validateStep2() {
     const errs = {};
-    if (bio.trim().length < 20) errs.bio = "Your bio needs to be at least 20 characters.";
-    if (interests.length === 0) errs.interests = "Choose at least one interest so we can find people you might connect with.";
+    if (bio.trim().length < 20) errs.bio = plain ? "Your bio needs at least 20 letters." : "Your bio needs to be at least 20 characters.";
+    if (interests.length === 0) errs.interests = plain ? "Choose at least one interest." : "Choose at least one interest so we can find people you might connect with.";
     return errs;
   }
 
   // Photo step gate — at least ONE uploaded photo (pending review counts).
   function validatePhotoStep() {
     const errs = {};
-    if (photos.length === 0) errs.photos = "Add at least one photo to continue.";
+    if (photos.length === 0) errs.photos = plain ? "Add at least one photo." : "Add at least one photo to continue.";
     return errs;
   }
 
@@ -1408,22 +1437,22 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
     // (gender === "" with genderChosen true), which persists as an inclusive,
     // match-everyone value. Fails only when the user has picked nothing at all.
     if (!gender && !genderChosen) {
-      errs.gender = "Choose your gender to continue.";
+      errs.gender = plain ? "Choose your gender." : "Choose your gender to continue.";
     } else if (gender === GENDER_SELF_DESCRIBE && !genderCustom.trim()) {
-      errs.gender = "Add a short description of your gender.";
+      errs.gender = plain ? "Describe your gender." : "Add a short description of your gender.";
     }
     // Passes when at least one orientation is chosen OR the "Prefer not to say"
     // opt-out was explicitly picked (M3); fails only when the user has touched
     // neither — mirroring the gender opt-out.
     const orientationSet = orientation.split(",").map((s) => s.trim()).filter(Boolean);
     if (orientationSet.length === 0 && !orientationChosen) {
-      errs.orientation = "Choose your sexuality, or select “Prefer not to say.”";
+      errs.orientation = plain ? "Choose your sexuality, or pick “Prefer not to say.”" : "Choose your sexuality, or select “Prefer not to say.”";
     }
     // Passes when a specific option is selected OR "open to everyone" was
     // explicitly picked; fails only when the user has touched neither.
     const seekingSet = seeking.split(",").map((s) => s.trim()).filter(Boolean);
     if (seekingSet.length === 0 && !seekingChosen) {
-      errs.seeking = "Let us know who you're hoping to meet.";
+      errs.seeking = plain ? "Choose who you want to meet." : "Let us know who you're hoping to meet.";
     }
     return errs;
   }
@@ -1465,7 +1494,7 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
     // the finish handler too so the requirement can't be bypassed.
     if (photos.length === 0) {
       setAttempted(true);
-      setError("Add at least one photo before finishing.");
+      setError(plain ? "Add at least one photo first." : "Add at least one photo before finishing.");
       setStep(3);
       return;
     }
@@ -1547,14 +1576,23 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
     boxShadow: t.shadow.md,
   };
 
-  const stepHeadings = [
-    "Let's start with the basics",
-    "Tell people about you",
-    "Add a photo",
-    "How you communicate",
-    "Who you'd like to meet",
-    "How you communicate best",
-  ];
+  const stepHeadings = plain
+    ? [
+        "The basics",
+        "About you",
+        "Add a photo",
+        "How you like to talk",
+        "Who you want to meet",
+        "How you talk best",
+      ]
+    : [
+        "Let's start with the basics",
+        "Tell people about you",
+        "Add a photo",
+        "How you communicate",
+        "Who you'd like to meet",
+        "How you communicate best",
+      ];
   const TOTAL_STEPS = stepHeadings.length;
 
   // ── Continue / Save button ────────────────────────────────────────────────────
@@ -1609,10 +1647,12 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
               outline: "none",
             }}
           >
-            You're all set{firstName ? `, ${firstName}` : ""}.
+            {plain ? "You're done" : "You're all set"}{firstName ? `, ${firstName}` : ""}.
           </h1>
           <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 20px", lineHeight: 1.6 }}>
-            Your profile is ready. Take your time — there's no rush here.
+            {plain
+              ? "Your profile is ready. There is no rush."
+              : "Your profile is ready. Take your time — there's no rush here."}
           </p>
           {/* D-5 — a quiet "made for you" beat: name the promise, tying the
               forms they just filled to why Spectrum is different. Calm, framed. */}
@@ -1629,8 +1669,9 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
               textAlign: "left",
             }}
           >
-            You told us how you communicate and what your senses need. From here,
-            that's what we match on — not just photos.
+            {plain
+              ? "You told us how you like to talk and what your senses need. We match on that, not just photos."
+              : "You told us how you communicate and what your senses need. From here, that's what we match on — not just photos."}
           </p>
           <button
             type="button"
@@ -1649,7 +1690,7 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
               ...fContinue.style,
             }}
           >
-            Enter Spectrum
+            {plain ? "Go to the app" : "Enter Spectrum"}
           </button>
         </div>
       </div>
@@ -1832,7 +1873,9 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
             onFocus={fContinue.onFocus}
             onBlur={fContinue.onBlur}
           >
-            {isLastStep ? (saving ? "Saving…" : "Save & start exploring") : "Continue"}
+            {isLastStep
+              ? (saving ? "Saving…" : (plain ? "Save and finish" : "Save & start exploring"))
+              : (plain ? "Next" : "Continue")}
           </button>
 
           {/* Skip — only on the optional step (5). Calm-by-design: the moat step
@@ -1858,7 +1901,7 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
               onFocus={fSkip.onFocus}
               onBlur={fSkip.onBlur}
             >
-              {isLastStep ? "I'll add this later" : "Skip this step"}
+              {isLastStep ? (plain ? "Add this later" : "I'll add this later") : (plain ? "Skip" : "Skip this step")}
             </button>
           )}
 

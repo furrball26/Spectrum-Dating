@@ -7,6 +7,7 @@ import { submitFeedback, getProfile, updateProfile } from "./api.js";
 // importers.
 import { A11Y_KEY, DEFAULT_A11Y, readA11y } from "./a11yPrefs.js";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 export { A11Y_KEY, DEFAULT_A11Y, readA11y };
 
@@ -266,6 +267,7 @@ const FEEDBACK_MAX = 2000;
 // F3 — member-facing feedback. A small, calm "tell us what felt wrong" surface.
 // No pressure: plain language, optional, gentle success + graceful error.
 function FeedbackSection() {
+  const plain = usePlainLanguage();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -298,12 +300,12 @@ function FeedbackSection() {
         htmlFor="feedback-message"
         style={{ display: "block", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 6 }}
       >
-        Tell us what felt wrong
+        {plain ? "Tell us what went wrong" : "Tell us what felt wrong"}
       </label>
       <p style={{ margin: "0 0 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-        If something felt confusing, uncomfortable, or off, we'd like to know.
-        This goes straight to our team. No pressure — share as much or as little
-        as you like.
+        {plain
+          ? "If something felt confusing or wrong, tell us. It goes to our team. Say as much or as little as you like."
+          : "If something felt confusing, uncomfortable, or off, we'd like to know. This goes straight to our team. No pressure — share as much or as little as you like."}
       </p>
       <textarea
         id="feedback-message"
@@ -353,13 +355,13 @@ function FeedbackSection() {
             color: "#fff",
           }}
         >
-          {status === "sending" ? "Sending…" : "Send feedback"}
+          {status === "sending" ? "Sending…" : plain ? "Send" : "Send feedback"}
         </button>
       </div>
 
       {status === "sent" && (
         <p role="status" style={{ margin: "12px 0 0", fontSize: 14, color: t.accentStrong, lineHeight: 1.5 }}>
-          Thank you — we've received your note. It really helps.
+          {plain ? "Thank you. We got your note." : "Thank you — we've received your note. It really helps."}
         </p>
       )}
       {status === "error" && (
@@ -376,6 +378,7 @@ function FeedbackSection() {
 // PUT /profile/me { weeklyDigest }. Optimistic with revert-on-failure so the
 // switch always reflects what's actually saved. Off by default.
 function DigestSection() {
+  const plain = usePlainLanguage();
   const [enabled, setEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false); // profile fetched yet?
   const [saving, setSaving] = useState(false);
@@ -421,13 +424,16 @@ function DigestSection() {
         id="digest-weekly"
         first
         label="Weekly email digest"
-        description="A calm weekly email with your new matches and unread counts. Off by default — turn it on if a gentle nudge helps. No message content, ever."
+        description={plain
+          ? "One email a week with your new matches and unread counts. Off unless you turn it on. Never any message text."
+          : "A calm weekly email with your new matches and unread counts. Off by default — turn it on if a gentle nudge helps. No message content, ever."}
         checked={enabled}
         onChange={loaded ? handleToggle : () => {}}
       />
       <p style={{ margin: "0 0 14px", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
-        Emails only start once this is on and your email address is verified. You
-        can turn it off here anytime.
+        {plain
+          ? "Emails only start once this is on and your email is verified. You can turn it off here anytime."
+          : "Emails only start once this is on and your email address is verified. You can turn it off here anytime."}
       </p>
       {error && (
         <p role="alert" style={{ margin: "0 0 14px", fontSize: 14, color: t.danger, lineHeight: 1.5 }}>
@@ -497,6 +503,7 @@ function CompanionMarker() {
 }
 
 export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) {
+  const plain = usePlainLanguage();
   const [prefs, setPrefs] = useState(() => readA11y());
   const headingRef = useRef(null);
   // B26 — remembers the user's reduceMotion value from BEFORE Low-Stim forced it
@@ -564,20 +571,23 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
           {tier === "companion" && <CompanionMarker />}
         </div>
         <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft }}>
-          Adjust how Spectrum looks and feels. Changes save instantly and stay on
-          this device.
+          {plain
+            ? "Change how Spectrum looks. Changes save right away and stay on this device."
+            : "Adjust how Spectrum looks and feels. Changes save instantly and stay on this device."}
         </p>
 
         <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "0 2px 4px", color: t.text }}>
           Theme
         </h2>
         <p style={{ margin: "0 2px 12px", fontSize: 14, color: t.textSoft, lineHeight: 1.5 }}>
-          Pick whichever feels comfortable. You can change it anytime.
+          {plain
+            ? "Pick the one you like. You can change it anytime."
+            : "Pick whichever feels comfortable. You can change it anytime."}
         </p>
         <ThemeSegmented value={prefs.theme} onChange={(v) => update("theme", v)} />
 
         <h2 style={{ fontFamily: t.serif, fontSize: 20, fontWeight: 600, margin: "28px 2px 12px", color: t.text }}>
-          Accessibility
+          {plain ? "Easier to use" : "Accessibility"}
         </h2>
 
         <div style={cardStyle}>
@@ -585,43 +595,54 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
             id="a11y-reduced-sensory"
             first
             label="Low stimulation"
-            description="Hide decorative visuals and backgrounds, calm animations, and use a quieter, flatter style."
+            description={plain
+              ? "Hide extra pictures and backgrounds, calm the animations, and use a plainer, flatter look."
+              : "Hide decorative visuals and backgrounds, calm animations, and use a quieter, flatter style."}
             checked={prefs.reducedSensory}
             onChange={(v) => update("reducedSensory", v)}
           />
           <ToggleRow
             id="a11y-plain-language"
             label="Plain language"
-            description="Use shorter, more direct wording on buttons and messages."
+            description={plain
+              ? "Use short, simple words on buttons and messages."
+              : "Use shorter, more direct wording on buttons and messages."}
             checked={prefs.plainLanguage}
             onChange={(v) => update("plainLanguage", v)}
           />
           <ToggleRow
             id="a11y-reduce-motion"
             label="Reduce motion"
-            description="Turn off animations and smooth-scrolling across the app."
+            description={plain
+              ? "Turn off movement and animations across the app."
+              : "Turn off animations and smooth-scrolling across the app."}
             checked={prefs.reduceMotion}
             onChange={(v) => update("reduceMotion", v)}
           />
           <ToggleRow
             id="a11y-high-contrast"
             label="High contrast"
-            description="Deepen colours and text to make things easier to read."
+            description={plain
+              ? "Make colours and text stronger so they are easier to read."
+              : "Deepen colours and text to make things easier to read."}
             checked={prefs.highContrast}
             onChange={(v) => update("highContrast", v)}
           />
           <ToggleRow
             id="a11y-larger-text"
             label="Larger text"
-            description="Enlarge everything by about 15% for easier reading."
+            description={plain
+              ? "Make all text bigger so it is easier to read."
+              : "Enlarge everything by about 15% for easier reading."}
             checked={prefs.largerText}
             onChange={(v) => update("largerText", v)}
           />
         </div>
 
         <p style={{ margin: "20px 2px 0", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
-          These settings only change how the app appears for you. If text still
-          isn't large enough, your browser or device zoom can enlarge it further.
+          {plain
+            ? "These settings only change how the app looks for you. If text is still too small, your browser or device zoom can make it bigger."
+            : "These settings only change how the app appears for you. If text still isn't large enough, your browser or device zoom can enlarge it further."}
         </p>
 
         {/* Membership now lives in its own section on the Profile screen (its
@@ -654,7 +675,9 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
         {onOpenTerms && (
           <LinkRow
             title="Terms & Community Standards"
-            description="The rules that keep Spectrum calm and safe, in plain language."
+            description={plain
+              ? "The rules that keep Spectrum calm and safe."
+              : "The rules that keep Spectrum calm and safe, in plain language."}
             onClick={onOpenTerms}
           />
         )}

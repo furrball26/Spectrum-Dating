@@ -3,6 +3,7 @@ import { t } from "./tokens.js";
 import { getMyReports, getBlockedUsers, unblockUser, withdrawReport } from "./api.js";
 import Button from "./Button.jsx";
 import { useFocusable } from "./useFocusable.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
 // place to prepare for the offline transition: meeting tips, ready-to-use
@@ -252,6 +253,7 @@ function formatReportDate(iso) {
 // ----- main component -------------------------------------------------------
 
 export default function SafetyScreen({ onBack }) {
+  const plain = usePlainLanguage();
   const headingRef = useRef(null);
 
   // copy confirmations (scripts + plan)
@@ -609,11 +611,12 @@ export default function SafetyScreen({ onBack }) {
           tabIndex={-1}
           style={{ fontFamily: t.serif, fontSize: 28, fontWeight: 700, margin: "18px 0 6px", color: t.text, outline: "none" }}
         >
-          Safety Center
+          {plain ? "Safety" : "Safety Center"}
         </h1>
         <p style={{ margin: "0 0 26px", fontSize: 16, color: t.textSoft }}>
-          A calm place to prepare for meeting someone offline. Everything here stays
-          on your device — nothing is sent anywhere unless you choose to share it.
+          {plain
+            ? "A calm place to get ready to meet someone in person. Everything stays on your device unless you choose to share it."
+            : "A calm place to prepare for meeting someone offline. Everything here stays on your device — nothing is sent anywhere unless you choose to share it."}
         </p>
 
         {/* Check-in banner (prominent, calm) when timer elapses */}
@@ -632,7 +635,7 @@ export default function SafetyScreen({ onBack }) {
             }}
           >
             <span style={{ flex: 1, fontSize: 16, color: t.warningSurfaceText, fontWeight: 600 }}>
-              Time to check in — are you safe? Tap to dismiss.
+              {plain ? "Time to check in. Are you safe? Tap to close." : "Time to check in — are you safe? Tap to dismiss."}
             </span>
             <Button variant="secondary" onClick={dismissBanner}>Dismiss</Button>
           </div>
@@ -641,21 +644,21 @@ export default function SafetyScreen({ onBack }) {
         {/* 1. Meeting safely */}
         <Section
           title="Meeting safely"
-          note="A few simple things that help the first time you meet."
+          note={plain ? "A few things that help the first time you meet." : "A few simple things that help the first time you meet."}
         >
           <ul style={{ ...cardStyle, margin: 0, paddingLeft: 36, paddingRight: 18 }}>
-            <li style={{ marginBottom: 8 }}>Meet somewhere public the first time.</li>
+            <li style={{ marginBottom: 8 }}>{plain ? "Meet in a public place the first time." : "Meet somewhere public the first time."}</li>
             <li style={{ marginBottom: 8 }}>Tell someone where you'll be and who you're meeting.</li>
-            <li style={{ marginBottom: 8 }}>Arrange your own way there and back.</li>
-            <li style={{ marginBottom: 8 }}>You can leave at any time — you don't owe anyone an explanation.</li>
-            <li style={{ marginBottom: 0 }}>Trust your gut. If something feels off, it's okay to go.</li>
+            <li style={{ marginBottom: 8 }}>{plain ? "Plan your own way there and back." : "Arrange your own way there and back."}</li>
+            <li style={{ marginBottom: 8 }}>{plain ? "You can leave any time. You don't have to explain why." : "You can leave at any time — you don't owe anyone an explanation."}</li>
+            <li style={{ marginBottom: 0 }}>{plain ? "Trust yourself. If something feels wrong, it's okay to leave." : "Trust your gut. If something feels off, it's okay to go."}</li>
           </ul>
         </Section>
 
         {/* 2. What to say */}
         <Section
           title="What to say"
-          note="Ready-to-use phrases for moments that can be hard to put into words. Read them, or copy one to keep handy."
+          note={plain ? "Phrases you can use when words are hard. Read them, or copy one to keep." : "Ready-to-use phrases for moments that can be hard to put into words. Read them, or copy one to keep handy."}
         >
           <ul style={{ margin: 0, padding: 0 }}>
             {SCRIPTS.map((s) => (
@@ -672,7 +675,7 @@ export default function SafetyScreen({ onBack }) {
         {/* 3. Share a date plan */}
         <Section
           title="Share a date plan"
-          note="Fill this in and share it with a trusted person. It only leaves your device through your own share sheet."
+          note={plain ? "Fill this in and share it with someone you trust. It only leaves your device when you share it." : "Fill this in and share it with a trusted person. It only leaves your device through your own share sheet."}
         >
           <div style={cardStyle}>
             <label style={labelStyle} htmlFor="plan-name">Who you're meeting</label>
@@ -704,7 +707,7 @@ export default function SafetyScreen({ onBack }) {
               style={inputStyle}
             />
 
-            <label style={labelStyle} htmlFor="plan-checkby">Ask me if I'm okay by</label>
+            <label style={labelStyle} htmlFor="plan-checkby">{plain ? "Check I'm okay by" : "Ask me if I'm okay by"}</label>
             <input
               id="plan-checkby"
               type="time"
@@ -713,7 +716,7 @@ export default function SafetyScreen({ onBack }) {
               style={{ ...inputStyle, marginBottom: 18 }}
             />
 
-            <Button variant="primary" onClick={handleSharePlan} style={{ width: "100%" }}>Share plan</Button>
+            <Button variant="primary" onClick={handleSharePlan} style={{ width: "100%" }}>{plain ? "Share this plan" : "Share plan"}</Button>
             {planStatus && (
               <p role="status" aria-live="polite" style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft }}>
                 {planStatus}
@@ -725,7 +728,7 @@ export default function SafetyScreen({ onBack }) {
         {/* Share my location — on-device geolocation → share sheet, nothing stored */}
         <Section
           title="Share my location"
-          note="If you ever feel unsafe, share where you are with someone you trust. Your location is read on your device and only leaves it through your own share sheet — we never see it or store it."
+          note={plain ? "If you feel unsafe, share where you are with someone you trust. Your phone reads your location and only shares it when you choose. We never see it or store it." : "If you ever feel unsafe, share where you are with someone you trust. Your location is read on your device and only leaves it through your own share sheet — we never see it or store it."}
         >
           <div style={cardStyle}>
             <label style={labelStyle} htmlFor="loc-note">A note (optional)</label>
@@ -744,7 +747,7 @@ export default function SafetyScreen({ onBack }) {
               disabled={locBusy}
               style={{ width: "100%" }}
             >
-              {locBusy ? "Getting your location…" : "Share my current location"}
+              {locBusy ? "Getting your location…" : (plain ? "Share where I am" : "Share my current location")}
             </Button>
             {locStatus && (
               <p role="status" aria-live="polite" style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft }}>
@@ -757,7 +760,7 @@ export default function SafetyScreen({ onBack }) {
         {/* 4. Check-in timer */}
         <Section
           title="Check-in timer"
-          note="Set a quiet reminder to check in with yourself. We'll show a gentle banner when the time is up."
+          note={plain ? "Set a quiet reminder to check in with yourself. We'll show a calm banner when the time is up." : "Set a quiet reminder to check in with yourself. We'll show a gentle banner when the time is up."}
         >
           <div style={cardStyle}>
             {timerActive ? (
@@ -778,7 +781,7 @@ export default function SafetyScreen({ onBack }) {
                 >
                   {formatDuration(remaining)}
                 </div>
-                <SecondaryButton onClick={cancelTimer} full>Cancel timer</SecondaryButton>
+                <SecondaryButton onClick={cancelTimer} full>{plain ? "Stop timer" : "Cancel timer"}</SecondaryButton>
               </div>
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -798,22 +801,23 @@ export default function SafetyScreen({ onBack }) {
         {/* Your privacy (backlog #9) — advertises the no-presence design. */}
         <Section title="Your privacy">
           <div style={{ ...cardStyle, color: t.textSoft, fontSize: 16, lineHeight: 1.65 }}>
-            We never show when you're online, when you were last active, or whether
-            you've read a message. You're never put on the spot to reply quickly.
+            {plain
+              ? "We never show when you're online, when you were last here, or if you've read a message. You never have to reply fast."
+              : "We never show when you're online, when you were last active, or whether you've read a message. You're never put on the spot to reply quickly."}
           </div>
         </Section>
 
         {/* Your reports (backlog #10) */}
         <Section
           title="Your reports"
-          note="When you report someone, our team reviews it. You'll see the status update here."
+          note={plain ? "When you report someone, our team looks at it. You'll see updates here." : "When you report someone, our team reviews it. You'll see the status update here."}
         >
           <div style={cardStyle}>
             {reportsLoading ? (
               <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>Loading your reports…</p>
             ) : reportsError ? (
               <p role="alert" style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
-                Couldn't load your reports right now. Please try again later.
+                {plain ? "Could not load your reports. Please try again later." : "Couldn't load your reports right now. Please try again later."}
               </p>
             ) : reports.length === 0 ? (
               <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
@@ -860,7 +864,7 @@ export default function SafetyScreen({ onBack }) {
                             onClick={() => handleWithdraw(r.id, r.reportedName || "this person")}
                             disabled={withdrawing === r.id}
                           >
-                            {withdrawing === r.id ? "Withdrawing…" : "Withdraw"}
+                            {withdrawing === r.id ? "Withdrawing…" : (plain ? "Take back" : "Withdraw")}
                           </Button>
                         )}
                       </div>
@@ -880,14 +884,14 @@ export default function SafetyScreen({ onBack }) {
         {/* Blocked people — review + undo */}
         <Section
           title="Blocked people"
-          note="People you've blocked can't see your profile or message you. You can unblock anyone here."
+          note={plain ? "People you block can't see your profile or message you. You can unblock anyone here." : "People you've blocked can't see your profile or message you. You can unblock anyone here."}
         >
           <div style={cardStyle}>
             {blockedLoading ? (
               <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>Loading your blocked list…</p>
             ) : blockedError ? (
               <p role="alert" style={{ margin: 0, fontSize: 16, color: t.textSoft }}>
-                Couldn't load your blocked list right now. Please try again later.
+                {plain ? "Could not load your blocked list. Please try again later." : "Couldn't load your blocked list right now. Please try again later."}
               </p>
             ) : blocked.length === 0 ? (
               <p style={{ margin: 0, fontSize: 16, color: t.textSoft }}>

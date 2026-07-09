@@ -127,7 +127,11 @@ try {
     await page.getByRole("button", { name: /^Membership\b/ }).first().click().catch(() => {});
     await page.waitForTimeout(1400);
   }
-  const onMembership = () => page.evaluate(() => (document.querySelector("main")?.innerText || "").includes("One honest published price"));
+  // Arrival marker must be a STABLE string (not one that plain-language rewrites,
+  // or it vanishes under the toggle and arrival looks failed). "What Companion
+  // adds" is the free-tier CompanionArea heading — unique to Membership, not
+  // plain-converted.
+  const onMembership = () => page.evaluate(() => (document.querySelector("main")?.innerText || "").includes("What Companion adds"));
 
   async function captureScreens() {
     const out = {};
@@ -155,10 +159,13 @@ try {
   check("Membership screen actually reached (selector integrity)", plainOn.membershipReached && plainOff.membershipReached);
   check("Plain language CHANGES Discover copy (honored)", plainOff.discover !== plainOn.discover,
     `off≠on: ${plainOff.discover !== plainOn.discover}`);
-  check("Plain language does NOTHING on Profile hub (ignored — defect class)",
-    plainOff.profileHub === plainOn.profileHub, "identical text off/on");
-  check("Plain language does NOTHING on Membership (ignored — defect class)",
-    plainOff.membership === plainOn.membership && plainOn.membershipReached, "identical text off/on");
+  // Since the global PlainLanguageProvider landed, the toggle is honored app-wide:
+  // the Profile hub and Membership screen — previously byte-identical off/on —
+  // must now CHANGE their copy when Plain language is on.
+  check("Plain language CHANGES Profile hub copy (now honored app-wide)",
+    plainOff.profileHub !== plainOn.profileHub, "identical text off/on");
+  check("Plain language CHANGES Membership copy (now honored app-wide)",
+    plainOff.membership !== plainOn.membership && plainOn.membershipReached, "identical text off/on");
 
   // ═══ 5. NOTIFICATION TIER radios ═════════════════════════════════════════════
   await gotoTab("Profile");
