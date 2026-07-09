@@ -140,6 +140,10 @@ try {
     out.membership = await mainText();
     return out;
   }
+  // Warm the Profile hub once so its completeness cue (getProfile) is loaded
+  // before the comparison captures — otherwise the first capture races the fetch
+  // and reads a transiently-shorter hub (a load artifact, not a plain-lang diff).
+  await gotoTab("Profile"); await page.waitForTimeout(600);
   const plainOff = await captureScreens();
 
   // turn plain language ON
@@ -192,22 +196,23 @@ try {
   // ═══ 7. LARGER-TEXT SCOPE — does it enlarge the whole app? ════════════════════
   // The a11y wrapper is transform:scale(1.15), but the primary NAV is rendered
   // OUTSIDE that wrapper (so scale can't break position:fixed). Measure the nav's
-  // "Discover" label height with Larger text OFF vs ON — if identical, the nav is
-  // NOT enlarged despite the toggle claiming "Enlarge everything by about 15%".
-  const navLabelBox = () => page.evaluate(() => {
-    const el = [...document.querySelectorAll("nav[aria-label='Primary'] *")]
-      .find((e) => e.textContent.trim() === "Discover" && e.children.length === 0);
-    if (!el) return 0;
-    return Math.round(el.getBoundingClientRect().height * 100) / 100;
+  // "Discover" button height AND a main-content h1 with Larger text OFF vs ON: the
+  // main content should grow ~1.15x while the fixed nav stays fixed — a scope gap
+  // vs the toggle's claim to "Enlarge everything by about 15%".
+  const navBtnH = () => page.evaluate(() => {
+    const b = [...document.querySelectorAll("nav[aria-label='Primary'] button")].find((x) => /Discover/.test(x.textContent));
+    return b ? Math.round(b.getBoundingClientRect().height * 100) / 100 : 0;
   });
-  await gotoTab("Discover");
-  const navOff = await navLabelBox();
+  const mainH1H = () => page.evaluate(() => { const h = document.querySelector("main h1"); return h ? Math.round(h.getBoundingClientRect().height * 100) / 100 : 0; });
+  await gotoTab("Profile");
+  const navOff = await navBtnH(), h1Off = await mainH1H();
   await gotoSettings();
   await toggle("Larger text");
-  await gotoTab("Discover");
-  const navOn = await navLabelBox();
-  check("Larger text: nav label NOT enlarged (scope gap vs 'Enlarge everything')",
-    navOff > 0 && navOff === navOn, `Discover-label h off=${navOff} on=${navOn}`);
+  await gotoTab("Profile");
+  const navOn = await navBtnH(), h1On = await mainH1H();
+  check("Larger text enlarges MAIN content (~1.15x)", h1Off > 0 && h1On > h1Off * 1.1, `h1 off=${h1Off} on=${h1On}`);
+  check("Larger text does NOT enlarge fixed bottom nav (scope gap vs 'Enlarge everything')",
+    navOff > 0 && navOff === navOn, `nav btn h off=${navOff} on=${navOn}`);
   await shot(page, "larger-text-on");
 
   await browser.close();
