@@ -106,20 +106,20 @@ function BackButton({ onClick }) {
 
 const NOTIF_TIERS = [
   {
-    value: "in_app",
+    value: "none",
     id: "notif-off",
     label: "Off",
     labelPlain: "Off",
-    desc: "You'll see a dot when you have new messages. Nothing will appear on your lock screen.",
-    descPlain: "You'll see a dot for new messages. Nothing shows on your lock screen.",
+    desc: "No push notifications at all. New messages simply wait for you in the app — you'll see a dot on the Messages tab when there's something new.",
+    descPlain: "No phone alerts. New messages wait for you in the app. A dot shows on the Messages tab.",
   },
   {
     value: "silent_push",
     id: "notif-silent",
     label: "Silent push",
     labelPlain: "Silent buzz",
-    desc: "Your phone will nudge you, but without showing any text.",
-    descPlain: "Your phone buzzes, but shows no words.",
+    desc: "Your phone will nudge you, but without the message text.",
+    descPlain: "Your phone buzzes, but doesn't show the message text.",
   },
   {
     value: "name_only",
@@ -140,7 +140,9 @@ export default function NotificationsScreen({
 }) {
   const headingRef = useRef(null);
   const plain = usePlainLanguage();
-  const [notifTier, setNotifTier] = useState("in_app");
+  // Default to the backend's own default (name_only) so an untouched UI agrees
+  // with what the server will actually do — never pre-select the retired "in_app".
+  const [notifTier, setNotifTier] = useState("name_only");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   // "" | "saving" | "saved" | "error" — a calm, low-key save state (no toasts).
@@ -155,7 +157,7 @@ export default function NotificationsScreen({
     getProfile()
       .then((data) => {
         if (!alive) return;
-        setNotifTier(data.notificationTier || "in_app");
+        setNotifTier(data.notificationTier || "name_only");
       })
       .catch(() => {
         if (alive) setLoadError("Could not load your notification settings. Check your connection.");

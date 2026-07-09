@@ -908,6 +908,29 @@
       }
       *, *::before, *::after { box-sizing: border-box; }
       img, svg { max-width: 100%; }
+      /* ── High-contrast mode (:root[data-contrast="high"], toggled from the
+         High-contrast a11y pref via App.jsx applyTheme). Two honest, theme-
+         agnostic layers:
+         (1) TOKEN deepen — soft/muted text rises to full-strength text and
+             borders/focus strengthen, so real contrast improves in EVERY theme
+             without hand-picking new colors per theme. This reaches every
+             screen (it's on the document root), including the pre-auth/
+             onboarding first run.
+         (2) MEDIA guard — the app shell keeps a mild contrast() filter, but we
+             EXCLUDE photos/media with a counter-filter so faces/photos are
+             never distorted (contrast(0.87) ≈ inverse of the shell's 1.15). */
+      :root[data-contrast="high"] {
+        --c-textSoft: var(--c-text);
+        --c-textMuted: var(--c-text);
+        --c-border: var(--c-formBorder);
+        --c-borderLight: var(--c-formBorder);
+        --c-focus: var(--c-text);
+      }
+      :root[data-contrast="high"] img,
+      :root[data-contrast="high"] video,
+      :root[data-contrast="high"] canvas {
+        filter: contrast(0.87);
+      }
       html, body, #root { height: 100%; margin: 0; }
       /* Remove the ~300ms double-tap-to-zoom gesture (a common source of
          accidental zoom that then leaves the layout stuck mid-zoom) WITHOUT

@@ -623,8 +623,8 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
             id="a11y-high-contrast"
             label="High contrast"
             description={plain
-              ? "Make colours and text stronger so they are easier to read."
-              : "Deepen colours and text to make things easier to read."}
+              ? "Make text and edges stronger so they are easier to read. Photos are left as they are."
+              : "Deepen text, borders, and focus outlines for easier reading. Your photos are left untouched."}
             checked={prefs.highContrast}
             onChange={(v) => update("highContrast", v)}
           />
@@ -632,8 +632,8 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
             id="a11y-larger-text"
             label="Larger text"
             description={plain
-              ? "Make all text bigger so it is easier to read."
-              : "Enlarge everything by about 15% for easier reading."}
+              ? "Make text and buttons bigger so they are easier to read."
+              : "Make text and controls larger across the app (about 15%) for easier reading."}
             checked={prefs.largerText}
             onChange={(v) => update("largerText", v)}
           />

@@ -456,17 +456,17 @@ export async function markConversationRead(conversationId) {
 }
 
 // The block endpoint only accepts a fixed set of reasons
-// (harassment, spam, fake_profile, other). Report reasons are free-text and
-// include values the block endpoint rejects (e.g. "inappropriate"), which would
+// (harassment, spam, fake_profile, inappropriate, other). Report reasons are
+// free-text and may include values the block endpoint still rejects, which would
 // 400 and — historically — silently fail to block. Canonicalise here at the one
-// boundary so every caller's block succeeds regardless of the report reason.
-const VALID_BLOCK_REASONS = new Set(["harassment", "spam", "fake_profile", "other"]);
+// boundary so every caller's block succeeds regardless of the report reason, and
+// so "inappropriate" is preserved (not silently downgraded to "other").
+const VALID_BLOCK_REASONS = new Set(["harassment", "spam", "fake_profile", "inappropriate", "other"]);
 export function canonicalBlockReason(reason) {
   if (VALID_BLOCK_REASONS.has(reason)) return reason;
   // Map known report-only reasons to the closest valid block reason.
   if (reason === "fake") return "fake_profile";
-  // Everything else (including "inappropriate") falls back to "other" so the
-  // block still lands.
+  // Anything still unrecognised falls back to "other" so the block always lands.
   return "other";
 }
 

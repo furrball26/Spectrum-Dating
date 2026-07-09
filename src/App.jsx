@@ -141,21 +141,20 @@ function NavTab({ label, active, onClick, badgeCount }) {
       onBlur={f.onBlur}
     >
       {label}
+      {/* Calm "there's something new" dot — a presence indicator, NOT a counter
+          (no number; product law forbids unread counts / gamification). */}
       {badgeCount > 0 && (
         <span
-          aria-label={`${badgeCount} unread`}
+          aria-label="new activity"
           style={{
+            width: 9,
+            height: 9,
+            borderRadius: "50%",
             background: t.accentFill,
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            borderRadius: 10,
-            padding: "2px 6px",
-            lineHeight: 1,
+            display: "inline-block",
+            flexShrink: 0,
           }}
-        >
-          {badgeCount}
-        </span>
+        />
       )}
     </button>
   );
@@ -219,28 +218,24 @@ function BottomNavTab({ label, icon, active, onClick, badgeCount, badgeAria, ver
     >
       <span style={{ position: "relative", display: "inline-flex" }}>
         {typeof icon === "function" ? icon(active, vertical ? 22 : 24) : icon}
+        {/* Calm "there's something new" dot — a presence indicator, NOT a
+            counter (no number; product law forbids unread counts). A thin ring
+            in the surface color keeps it legible over the active icon. */}
         {badgeCount > 0 && (
           <span
-            aria-label={badgeAria || `${badgeCount} unread`}
+            aria-label={badgeAria || "new activity"}
             style={{
               position: "absolute",
-              top: -5,
-              right: -9,
-              background: t.accentFill,
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 700,
-              minWidth: 16,
-              height: 16,
+              top: -3,
+              right: -5,
+              width: 9,
+              height: 9,
               boxSizing: "border-box",
-              borderRadius: 8,
-              padding: "0 4px",
-              lineHeight: "16px",
-              textAlign: "center",
+              borderRadius: "50%",
+              background: t.accentFill,
+              boxShadow: `0 0 0 2px ${t.surface}`,
             }}
-          >
-            {badgeCount}
-          </span>
+          />
         )}
       </span>
       {label}
@@ -402,6 +397,11 @@ const FLAG_RIBBONS = {
 function applyTheme(prefs) {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.theme = prefs.theme === "light" ? "" : prefs.theme;
+  // High-contrast token layer (index.html :root[data-contrast="high"]). Set on
+  // the document root — NOT the app wrapper — so it reaches every screen,
+  // including the pre-auth/onboarding first run, and so it deepens text/border
+  // tokens in every theme without distorting photos.
+  document.documentElement.dataset.contrast = prefs.highContrast ? "high" : "";
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", THEME_META_COLOR[prefs.theme] || THEME_META_COLOR.dim);
 }
@@ -418,6 +418,11 @@ function applyTheme(prefs) {
 const LARGER_TEXT_SCALE = 1.15;
 function a11yWrapperStyle(prefs) {
   const style = {};
+  // Mild shell-wide contrast punch. Photos/media are excluded from it via a
+  // counter-filter in index.html (:root[data-contrast="high"] img/video/canvas)
+  // so faces are never distorted; genuine readable contrast comes from the
+  // token layer keyed on data-contrast. Kept as a filter (not removed) so the
+  // effect still reaches non-token decoration.
   if (prefs.highContrast) style.filter = "contrast(1.15)";
   if (prefs.largerText) {
     style.transform = `scale(${LARGER_TEXT_SCALE})`;
@@ -1579,37 +1584,49 @@ export default function App() {
       {!authed
         ? showAuth
           ? (
-            <AuthScreen
-              onAuth={handleAuthed}
-              initialMode={authMode}
-              onBack={() => setShowAuth(false)}
-            />
+            // a11y wrapper reaches the pre-auth flow too, so Larger text / High
+            // contrast apply during the highest-stakes first run. These screens
+            // have no position:fixed descendants, so the transform/filter
+            // containing-block caveat (why the authed nav stays outside) is moot.
+            <div style={a11yWrapperStyle(a11y)}>
+              <AuthScreen
+                onAuth={handleAuthed}
+                initialMode={authMode}
+                onBack={() => setShowAuth(false)}
+              />
+            </div>
           )
           : (
             <>
               <SkipLink />
-              <Suspense fallback={<ScreenFallback />}>
-                <LandingScreen
-                  onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
-                  onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
-                />
-              </Suspense>
+              <div style={a11yWrapperStyle(a11y)}>
+                <Suspense fallback={<ScreenFallback />}>
+                  <LandingScreen
+                    onGetStarted={() => { setAuthMode("register"); setShowAuth(true); }}
+                    onSignIn={() => { setAuthMode("login"); setShowAuth(true); }}
+                  />
+                </Suspense>
+              </div>
             </>
           )
         : onboarding
         ? (
-          <Suspense fallback={<ScreenFallback />}>
-            <OnboardingScreen onComplete={() => setOnboarding(false)} locationAtRisk={locationAtRisk} />
-          </Suspense>
+          <div style={a11yWrapperStyle(a11y)}>
+            <Suspense fallback={<ScreenFallback />}>
+              <OnboardingScreen onComplete={() => setOnboarding(false)} locationAtRisk={locationAtRisk} />
+            </Suspense>
+          </div>
         )
         : needsCity
         ? (
-          <Suspense fallback={<ScreenFallback />}>
-            <RequireCityScreen
-              onComplete={() => setNeedsCity(false)}
-              onSignOut={handleSignOut}
-            />
-          </Suspense>
+          <div style={a11yWrapperStyle(a11y)}>
+            <Suspense fallback={<ScreenFallback />}>
+              <RequireCityScreen
+                onComplete={() => setNeedsCity(false)}
+                onSignOut={handleSignOut}
+              />
+            </Suspense>
+          </div>
         )
         : (
           <>
@@ -2029,7 +2046,7 @@ export default function App() {
                 // MatchesScreen reports a smaller count (someone was acted on).
                 onClick={() => { setPrevTab(activeTab); setActiveTab("matches"); }}
                 badgeCount={activeTab === "matches" ? 0 : activityCount}
-                badgeAria={`${activityCount} ${activityCount === 1 ? "person" : "people"} liked you`}
+                badgeAria="new likes"
               />
               <BottomNavTab
                 vertical={viewport === "desktop"}
@@ -2038,6 +2055,7 @@ export default function App() {
                 active={activeTab === "messages"}
                 onClick={() => { setPrevTab(activeTab); setPendingConversation(null); setActiveTab("messages"); setUnreadCount(0); setMessagesHomeSignal((n) => n + 1); }}
                 badgeCount={activeTab === "messages" ? 0 : unreadCount}
+                badgeAria="new messages"
               />
               <BottomNavTab
                 vertical={viewport === "desktop"}

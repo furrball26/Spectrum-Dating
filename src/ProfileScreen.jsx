@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { getProfile, updateProfile, clearAuth, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, createExportToken, getExportArchiveUrl, requestVerification, updatePhotoDescription, safeErrorMessage, uploadProfilePhoto, validateProfilePhotoFile } from "./api.js";
+import { getProfile, updateProfile, clearAuth, setPrimaryPhoto, deleteProfilePhoto, getPromptCatalog, savePrompts, createExportToken, getExportArchiveUrl, requestVerification, updatePhotoDescription, safeErrorMessage, uploadProfilePhoto, validateProfilePhotoFile, getBillingTiers } from "./api.js";
 import AudioAnswerEditor from "./AudioAnswerEditor.jsx";
 import AudioAnswerCard from "./AudioAnswer.jsx";
 import { t } from "./tokens.js";
@@ -2953,6 +2953,17 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [verifRequestBusy, setVerifRequestBusy] = useState(false);
   const [verifRequestError, setVerifRequestError] = useState("");
 
+  // "What Companion adds" list — rendered from the SAME authoritative source
+  // Membership uses (GET /billing/tiers → companion.features) so the two can't
+  // drift and we never advertise a phantom feature (e.g. the removed AI
+  // "conversation help"). Seeded with the current backer list as an honest,
+  // offline-safe fallback; overwritten by the live catalog on mount.
+  const [companionFeatures, setCompanionFeatures] = useState([
+    "Deeper compatibility filters and saved filter sets",
+    "A considered selection — a small, calm shortlist of higher-fit people (no expiry, no countdown)",
+    "Audio prompt answers — record short, spoken answers on your profile (opt-in; playback stays free for everyone)",
+  ]);
+
   // All form fields (initialised to defaults; overwritten by API load in useEffect)
   const [displayName, setDisplayName] = useState(DEFAULT_PROFILE.displayName);
   const [tagline, setTagline]         = useState(DEFAULT_PROFILE.tagline);
@@ -3086,6 +3097,21 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
     getPromptCatalog()
       .then((cat) => setPromptCatalog(Array.isArray(cat) ? cat : []))
       .catch(() => { /* best-effort — chooser simply shows no options */ });
+  }, []);
+
+  // Fetch the live billing catalog so the "what Companion adds" card lists the
+  // REAL gated features (same source as Membership) — never a hardcoded list
+  // that can drift into advertising something that was removed. Best-effort:
+  // on failure we keep the honest fallback seeded above.
+  useEffect(() => {
+    getBillingTiers()
+      .then((catalog) => {
+        const companion = Array.isArray(catalog) ? catalog.find((x) => x.id === "companion") : null;
+        if (companion && Array.isArray(companion.features) && companion.features.length) {
+          setCompanionFeatures(companion.features);
+        }
+      })
+      .catch(() => { /* keep the honest fallback list */ });
   }, []);
 
   // Load profile from API on mount
@@ -5279,12 +5305,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                     Spectrum Companion is one optional plan that adds:
                   </p>
                   <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-                    {[
-                      "Conversation help when a message feels hard to start",
-                      "Express-yourself media on your profile",
-                      "Deeper filters and saved search sets",
-                      "Best fits — a small, calm set of people we think you'll like",
-                    ].map((add) => (
+                    {companionFeatures.map((add) => (
                       <li key={add} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, lineHeight: 1.5, color: t.textSoft }}>
                         <span aria-hidden="true" style={{ color: t.accentStrong, fontWeight: 700, flexShrink: 0 }}>+</span>
                         <span style={{ minWidth: 0 }}>{add}</span>
