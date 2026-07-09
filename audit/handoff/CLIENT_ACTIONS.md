@@ -14,9 +14,51 @@ Ordered by launch impact. ⛔ = blocks launch · ⚠️ = decide before real use
 | # | Set on Railway | Value / source | Why we can't | Effect until done |
 |---|---|---|---|---|
 | A1 ⛔ | `ADMIN_EMAILS` | your admin email(s) | It's the immutable root-admin allowlist in your prod env; there's no first-run bootstrap and we can't write your secrets. | **The moderation console is unreachable and no photo can be approved → no new user ever becomes visible.** Dead-on-arrival without it. |
-| A2 ⛔ | `RESEND_API_KEY` + `EMAIL_FROM` | your Resend acct + verified domain | Needs your email vendor account + DNS. | Email verification **and password reset** are dead → any user who forgets their password is **permanently locked out**. |
+| A2 ⛔ | `RESEND_API_KEY` (+ optional `EMAIL_FROM`, `APP_URL`) | your Resend acct + verified domain | Needs your email vendor account + DNS. | Email verification **and password reset** are dead → any user who forgets their password is **permanently locked out**. **This is the reported "password reset doesn't work" issue — it is a config gap, not a code gap.** |
 | A3 ⛔ | `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_CONTACT_EMAIL` | generate a VAPID keypair | Keys must live in your prod env. | Push notifications return 503 → users get **zero** match/message pushes (all the subscribe UI works, silently). |
 | A4 🔧 | `QA_BYPASS_SECRET` = `9CprQTzEK1MmnA1zAVvb8CH8tP8Y8` | (provided) | Your prod env. Inert until set; never weakens the real limiter. | QA/automation stops tripping the 20/15-min auth limit. **Never set this in a public-facing env.** |
+
+### A2 in detail — turning on password reset & email verification (~10 min)
+The full self-service flow is **already built and correct** end-to-end
+(`POST /auth/forgot-password` → emails a 1-hour, single-use reset link →
+`POST /auth/reset-password`). It is inert **only** because no email provider key
+is set (`emailConfigured()` returns false, so the send is a silent no-op). Setting
+one key activates **both** password reset and real email-ownership verification —
+no code change:
+1. Create a **[Resend](https://resend.com)** account and generate an **API key**.
+2. **Verify a sending domain** in Resend (add the DNS records they give you), or
+   use their `onboarding@resend.dev` sender for testing only.
+3. On Railway → service `spectrum-dating-server` → **Variables**, set:
+   - `RESEND_API_KEY` — the key from step 1 _(required)_
+   - `EMAIL_FROM` — e.g. `Spectrum Dating <no-reply@yourdomain.com>` _(optional;
+     defaults to the Resend test sender)_
+   - `APP_URL` — _optional; already defaults to the live Vercel URL, which is
+     correct for the current deployment_
+4. **Redeploy the backend.** Reset + verification emails flow immediately.
+
+Until A2 is done, the **admin-only emergency reset** remains available as a manual
+fallback: set `RESET_PASSWORD_EMAIL` + `RESET_PASSWORD_VALUE` on Railway, redeploy
+(the new password is applied once on boot), verify the login, then **unset both**.
+It is completely inert when the vars are absent.
+
+---
+
+## Recently shipped (no client action needed) ✅
+The following customer safety reports were fixed **in code** and are **live** — they
+are noted here only so your team knows they're handled and where the logic lives:
+- **Inappropriate messages are now hidden by default.** A strong/explicit body is
+  flagged server-side (`server/src/utils/messageContent.js`) and rendered
+  **collapsed** for the recipient ("Show message" to reveal, then Report). The
+  sender gets a calm, non-blocking heads-up. Messages are never blocked or altered
+  (calm-by-design).
+- **Usernames are screened for profanity** at save time
+  (`server/src/utils/nameScreen.js`, whole-word + leetspeak-normalized).
+- **Registration now asks users to confirm their email** (typo-guard in
+  `src/AuthScreen.jsx`). True email-ownership verification additionally activates
+  once **A2** above is set.
+- **The moderation console auto-fills the reason for Warn *and* Ban** (per-action
+  notices in `server/src/moderation/communityStandards.js`).
+- **A Black History Month theme** ("heritage") is available in Settings → Appearance.
 
 ## B. Vercel deploy integration ⚠️
 Vercel's GitHub webhook intermittently drops/lags frontend deploys (recurring all
