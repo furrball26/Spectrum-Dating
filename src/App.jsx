@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react"
 import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
+import A11yQuickToggles from "./A11yQuickToggles.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
 import { PlainLanguageProvider } from "./PlainLanguageContext.jsx";
@@ -1573,6 +1574,17 @@ export default function App() {
       <>
       {verifyResult && (
         <VerifyResultBanner result={verifyResult} onDismiss={() => setVerifyResult(null)} />
+      )}
+      {/* Pre-auth + onboarding comfort control — Plain language / Low stimulation
+          reachable on the highest-stakes first-run screens (Landing, Auth, the
+          6-step Onboarding), not just buried in Settings behind auth. Writes to
+          the SAME `spectrum_a11y` prefs via applyA11y, so App state stays the
+          single source of truth and the change carries across
+          Landing → Auth → Onboarding without resetting. Rendered OUTSIDE the
+          a11yWrapperStyle divs so its position:fixed is never broken by the
+          largerText transform / highContrast filter on those wrappers. */}
+      {(!authed || onboarding) && (
+        <A11yQuickToggles prefs={a11y} onChange={applyA11y} />
       )}
       {!authed
         ? showAuth

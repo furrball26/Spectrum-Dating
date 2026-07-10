@@ -10,6 +10,48 @@ import { normalizeSpecialInterests } from "./specialInterests.js";
 import { ShieldIcon } from "./icons.jsx";
 import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
+// ─── Save & resume (draft persistence) ──────────────────────────────────────────
+// The 6-step flow keeps every answer in component state, so closing the tab or
+// navigating away used to LOSE everything — a real bounce trigger for an anxious
+// user. We persist the TEXT/choice fields + the current step to a single JSON
+// snapshot in localStorage and re-hydrate on mount so returning resumes where
+// they left off. Photos are NOT persisted here — they're uploaded to the backend
+// (pending_review) during the photo step, so they survive server-side. The draft
+// is CLEARED on successful completion so a completed/cleared draft never
+// re-hydrates stale answers onto a fresh signup on the same device.
+const ONBOARDING_DRAFT_KEY = "spectrum_onboarding_draft";
+
+function readOnboardingDraft() {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    // localStorage unavailable (private mode) or corrupt JSON — start fresh.
+    return {};
+  }
+}
+
+function clearOnboardingDraft() {
+  try {
+    localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  } catch {
+    // non-fatal
+  }
+}
+
+// Photos are never restored from the draft (they live server-side, not in this
+// snapshot), so never resume PAST the required photo step into a state where the
+// user appears to have no photo. Clamp a saved step beyond photos (step 3) back
+// to the photo step; all text fields are still restored, so they only re-confirm
+// a photo. Anything out of the 1..6 range falls back to step 1.
+function resumeStep(saved) {
+  const s = Number(saved);
+  if (!Number.isFinite(s) || s < 1) return 1;
+  return s > 3 ? 3 : s;
+}
+
 
 function usePrefersReduced() {
   const [prefersReduced, setPrefersReduced] = useState(
@@ -1286,7 +1328,12 @@ function Step5({
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen({ onComplete, locationAtRisk = false }) {
-  const [step, setStep] = useState(1);
+  // Read the saved draft ONCE (useState initializer) and seed every text/choice
+  // field from it, so a returning user resumes where they left off with no
+  // restore-effect flash. Photos are intentionally absent (see the draft notes).
+  const [draft] = useState(readOnboardingDraft);
+
+  const [step, setStep] = useState(() => resumeStep(draft.step));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // D33 — brief "You're all set" arrival beat after a successful save, before
@@ -1294,14 +1341,14 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
   const [celebrating, setCelebrating] = useState(false);
 
   // Step 1 fields
-  const [displayName, setDisplayName] = useState("");
-  const [tagline, setTagline] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [distCity, setDistCity] = useState("");
+  const [displayName, setDisplayName] = useState(() => draft.displayName || "");
+  const [tagline, setTagline] = useState(() => draft.tagline || "");
+  const [dateOfBirth, setDateOfBirth] = useState(() => draft.dateOfBirth || "");
+  const [distCity, setDistCity] = useState(() => draft.distCity || "");
 
   // Step 2 fields
-  const [bio, setBio] = useState("");
-  const [interests, setInterests] = useState([]);
+  const [bio, setBio] = useState(() => draft.bio || "");
+  const [interests, setInterests] = useState(() => Array.isArray(draft.interests) ? draft.interests : []);
 
   // Photo step — at least one uploaded photo is required to finish onboarding.
   // The onboarding user is already authenticated, so this reuses the exact same
@@ -1312,40 +1359,40 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
   const [photoUploadError, setPhotoUploadError] = useState("");
 
   // Step 3 fields
-  const [commNote, setCommNote] = useState("");
-  const [relationshipGoal, setRelationshipGoal] = useState("");
+  const [commNote, setCommNote] = useState(() => draft.commNote || "");
+  const [relationshipGoal, setRelationshipGoal] = useState(() => draft.relationshipGoal || "");
 
   // Step 4 fields — who you'd like to meet (optional)
-  const [gender, setGender] = useState("");
-  const [genderCustom, setGenderCustom] = useState(""); // self-describe free text
+  const [gender, setGender] = useState(() => draft.gender || "");
+  const [genderCustom, setGenderCustom] = useState(() => draft.genderCustom || ""); // self-describe free text
   // Gender is required at sign-up, but "" is a REAL, inclusive value ("Prefer
   // not to say" → matchable-everyone gender_group server-side). So we track an
   // explicit-choice flag, mirroring `seekingChosen`, instead of failing on `!gender`
   // — otherwise the opt-out looks selected yet can never pass validation (B4).
-  const [genderChosen, setGenderChosen] = useState(false);
-  const [orientation, setOrientation] = useState(""); // comma-joined; display only
+  const [genderChosen, setGenderChosen] = useState(() => !!draft.genderChosen);
+  const [orientation, setOrientation] = useState(() => draft.orientation || ""); // comma-joined; display only
   // M3 — orientation is required at sign-up, but "" (Prefer not to say) is a
   // REAL, valid value: display-only, never used in matching. So we track an
   // explicit-choice flag mirroring `genderChosen`, instead of failing on an
   // empty set — otherwise the opt-out looks selected yet can never pass.
-  const [orientationChosen, setOrientationChosen] = useState(false);
-  const [relationshipStructure, setRelationshipStructure] = useState(""); // D-14; display only
-  const [pronouns, setPronouns] = useState("");
-  const [seeking, setSeeking] = useState(""); // comma-joined: "woman,man,nonbinary"
+  const [orientationChosen, setOrientationChosen] = useState(() => !!draft.orientationChosen);
+  const [relationshipStructure, setRelationshipStructure] = useState(() => draft.relationshipStructure || ""); // D-14; display only
+  const [pronouns, setPronouns] = useState(() => draft.pronouns || "");
+  const [seeking, setSeeking] = useState(() => draft.seeking || ""); // comma-joined: "woman,man,nonbinary"
   // Tri-state helper for the required "who do you want to meet?" gate: seeking=""
   // means BOTH "open to everyone" and "untouched", so this flag records that the
   // user has actively made a choice (a specific option OR an explicit
   // "open to everyone"). Empty seeking still saves as match-everyone.
-  const [seekingChosen, setSeekingChosen] = useState(false);
-  const [prefAgeMin, setPrefAgeMin] = useState(18);
-  const [prefAgeMax, setPrefAgeMax] = useState(99);
+  const [seekingChosen, setSeekingChosen] = useState(() => !!draft.seekingChosen);
+  const [prefAgeMin, setPrefAgeMin] = useState(() => Number.isFinite(draft.prefAgeMin) ? draft.prefAgeMin : 18);
+  const [prefAgeMax, setPrefAgeMax] = useState(() => Number.isFinite(draft.prefAgeMax) ? draft.prefAgeMax : 99);
 
   // Step 5 fields — how you communicate, the "moat" (optional)
-  const [commDirectness, setCommDirectness] = useState("");
-  const [commCadence, setCommCadence] = useState("");
-  const [sensoryEnvironment, setSensoryEnvironment] = useState("");
+  const [commDirectness, setCommDirectness] = useState(() => draft.commDirectness || "");
+  const [commCadence, setCommCadence] = useState(() => draft.commCadence || "");
+  const [sensoryEnvironment, setSensoryEnvironment] = useState(() => draft.sensoryEnvironment || "");
   // D-17 Phase 2 — matchable "Could talk for hours about" chips (optional, ≤3×40).
-  const [specialInterests, setSpecialInterests] = useState([]);
+  const [specialInterests, setSpecialInterests] = useState(() => Array.isArray(draft.specialInterests) ? draft.specialInterests : []);
 
   // Validation
   const [attempted, setAttempted] = useState(false);
@@ -1372,6 +1419,38 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
     if (!celebrating) return;
     welcomeRef.current?.focus();
   }, [celebrating]);
+
+  // Save & resume — persist the text/choice answers + current step on every
+  // change so closing the tab or navigating away doesn't lose progress. Photos
+  // are excluded (they're uploaded to the backend, not stored here). Skipped once
+  // we're on the success/celebration beat: the draft is cleared in handleSave, and
+  // re-writing here would resurrect a completed draft for the next fresh signup.
+  useEffect(() => {
+    if (celebrating) return;
+    try {
+      localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({
+        step,
+        displayName, tagline, dateOfBirth, distCity,
+        bio, interests,
+        commNote, relationshipGoal,
+        gender, genderCustom, genderChosen,
+        orientation, orientationChosen, relationshipStructure,
+        pronouns, seeking, seekingChosen, prefAgeMin, prefAgeMax,
+        commDirectness, commCadence, sensoryEnvironment, specialInterests,
+      }));
+    } catch {
+      // localStorage unavailable (private mode) / quota — non-fatal, state still applies.
+    }
+  }, [
+    celebrating, step,
+    displayName, tagline, dateOfBirth, distCity,
+    bio, interests,
+    commNote, relationshipGoal,
+    gender, genderCustom, genderChosen,
+    orientation, orientationChosen, relationshipStructure,
+    pronouns, seeking, seekingChosen, prefAgeMin, prefAgeMax,
+    commDirectness, commCadence, sensoryEnvironment, specialInterests,
+  ]);
 
   // ── Validation per step ──────────────────────────────────────────────────────
 
@@ -1536,6 +1615,9 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
         // D-17 Phase 2 — matchable deep interests (trimmed/deduped/capped 3×40).
         specialInterests: normalizeSpecialInterests(specialInterests),
       });
+      // Profile saved — clear the resume draft so a completed onboarding never
+      // re-hydrates stale answers onto the next fresh signup on this device.
+      clearOnboardingDraft();
       // D33 — show the calm "You're all set" beat instead of jumping straight
       // into Discover. It auto-advances (and is skippable) below.
       setSaving(false);
@@ -1766,6 +1848,18 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
         >
           {stepHeadings[step - 1]}
         </h1>
+
+        {/* Scope-setting — one calm, honest line on the intro step so an anxious
+            user knows the length up front and that progress is recoverable. The
+            resume promise is backed by the draft persistence above (fields + step
+            are saved on change and restored on return). */}
+        {step === 1 && (
+          <p style={{ margin: "-8px 0 24px", fontSize: 15, color: t.textSoft, lineHeight: 1.6 }}>
+            {plain
+              ? "About 5 minutes — 6 short steps. You can stop anytime. We save your place on this device."
+              : "This takes about 5 minutes — 6 short steps. You can stop anytime and pick up where you left off."}
+          </p>
+        )}
 
         {/* Step content */}
         {step === 1 && (
