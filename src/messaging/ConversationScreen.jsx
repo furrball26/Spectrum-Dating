@@ -973,12 +973,18 @@ function HeaderMenu({ onUnmatch, onBlockReport, onArchive, onClose, anchorRef, e
 // mapping as their profile) plus their "In their words" context card, framed
 // gently and with no pressure. Fully collapsible/dismissible; the collapsed
 // state persists per-conversation in localStorage.
-function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
+function WhatToExpectCard({ profile, firstName, collapsed, onToggle, plainLanguage = false }) {
   const f = useFocusable();
   const chips = commChips(profile);
   const hasContext = !!(profile?.contextCard && profile.contextCard.trim());
+  // The person's own "how to talk to me" instructions, gated to a live match by
+  // the same endpoint MatchProfileModal reads. Surfacing them here puts their
+  // stated needs at the top of the conversation where they'll actually be read.
+  const helps = (Array.isArray(profile?.helpsMe) ? profile.helpsMe : []).filter((s) => s && s.trim());
+  const hard = (Array.isArray(profile?.hardForMe) ? profile.hardForMe : []).filter((s) => s && s.trim());
+  const hasNeeds = helps.length > 0 || hard.length > 0;
   // Nothing to show → render nothing (no empty card).
-  if (chips.length === 0 && !hasContext) return null;
+  if (chips.length === 0 && !hasContext && !hasNeeds) return null;
 
   const toggleButton = (
     <button
@@ -1037,7 +1043,7 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
       </p>
 
       {chips.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: hasContext ? 12 : 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: (hasNeeds || hasContext) ? 12 : 0 }}>
           {chips.map((c) => (
             <span
               key={c}
@@ -1053,6 +1059,45 @@ function WhatToExpectCard({ profile, firstName, collapsed, onToggle }) {
               {c}
             </span>
           ))}
+        </div>
+      )}
+
+      {hasNeeds && (
+        <div style={{ padding: "12px 16px", background: t.surface, borderRadius: 12, border: `1px solid ${t.borderLight}`, marginBottom: hasContext ? 12 : 0 }}>
+          {helps.length > 0 && (
+            <div style={{ marginBottom: hard.length > 0 ? 12 : 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 6 }}>
+                {plainLanguage ? "Things that help me" : "What helps me"}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {helps.map((it, i) => (
+                  <span
+                    key={i}
+                    style={{ padding: "5px 13px", borderRadius: 24, fontSize: 14, background: t.green50, color: t.text, border: `1px solid ${t.borderLight}` }}
+                  >
+                    {it}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {hard.length > 0 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.textSoft, marginBottom: 6 }}>
+                {plainLanguage ? "Things that are hard for me" : "Harder for me"}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {hard.map((it, i) => (
+                  <span
+                    key={i}
+                    style={{ padding: "5px 13px", borderRadius: 24, fontSize: 14, background: t.surfaceAlt, color: t.textSoft, border: `1px solid ${t.border}` }}
+                  >
+                    {it}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1970,7 +2015,17 @@ export default function ConversationScreen({
   // messages can be sent. We never learn/show who ended it.
   const [ended, setEnded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [composeValue, setComposeValue] = useState("");
+  // Composer draft persistence — losing a carefully-typed message on a tab
+  // switch, refresh, or back-nav is a disproportionate anxiety/executive-function
+  // cost for ND/ADHD daters. The draft is per-conversation, local-only, and never
+  // transmitted (no typing indicator / product-law tension). Mirrors the
+  // expect/slowstart try/catch localStorage convention used elsewhere here.
+  const draftStorageKey = `spectrum_draft_${conversationId}`;
+  const [composeValue, setComposeValue] = useState(() => {
+    try {
+      return localStorage.getItem(`spectrum_draft_${conversationId}`) || "";
+    } catch { return ""; }
+  });
   const [sendStatus, setSendStatus] = useState("");
   const [socketConnected, setSocketConnected] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
@@ -2125,6 +2180,18 @@ export default function ConversationScreen({
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
+
+  // Composer draft persistence — write the in-progress text per-conversation on
+  // every change so it survives a tab switch, refresh, or back-nav. Cleared on a
+  // successful send (both plaintext and attachment paths); left intact on a
+  // failed/429 send so B3's restore keeps the words. Guarded — storage failures
+  // never break composing.
+  useEffect(() => {
+    try {
+      if (composeValue) localStorage.setItem(draftStorageKey, composeValue);
+      else localStorage.removeItem(draftStorageKey);
+    } catch { /* ignore storage failures */ }
+  }, [composeValue, draftStorageKey]);
 
   // Load messages from API on mount (and on retry via reloadKey).
   // Fetches the most recent PAGE_SIZE messages; older messages are loaded on demand.
@@ -2814,6 +2881,7 @@ export default function ConversationScreen({
       firstName={expectFirstName}
       collapsed={expectCollapsed}
       onToggle={toggleExpect}
+      plainLanguage={plainLanguage}
     />
   );
 

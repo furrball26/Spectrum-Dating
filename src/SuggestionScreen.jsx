@@ -1432,6 +1432,26 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
               <ActionButton label={plainLanguage ? "Hide this person" : "Don't show again"} kind="notnow" onClick={handleSkip} disabled={submitting} />
             </div>
 
+            {/* Quiet explainer so a first-time user knows the difference between
+                the two positive actions before choosing. No urgency, no motion —
+                just plain-language guidance in the muted helper style. */}
+            <p style={{
+              marginTop: 14,
+              marginBottom: 0,
+              maxWidth: 420,
+              marginLeft: "auto",
+              marginRight: "auto",
+              color: t.textMuted,
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              textAlign: "center",
+              minWidth: 0,
+            }}>
+              {plainLanguage
+                ? "Yes means you match only if they also say yes. Send a hello means you write a short message now. They decide whether to reply."
+                : <><strong style={{ fontWeight: 600 }}>Interested</strong> — you'll match only if they say yes too. <strong style={{ fontWeight: 600 }}>Send an intro</strong> — write a short hello now; they choose whether to reply.</>}
+            </p>
+
             <p style={{ marginTop: 20, textAlign: "center" }}>
               <button
                 type="button"
