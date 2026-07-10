@@ -490,6 +490,11 @@ describe('report-an-audio', () => {
     expect(ctx.json.messages).toEqual([]);
     expect(ctx.json.reportedAudioTranscript).toBe('GROOMING EVIDENCE TRANSCRIPT');
     expect(ctx.json.reportedAudioId).toBe(id);
+
+    // B8: the single-report drill-down carries the same evidence, not less.
+    const detail = await api(`/admin/reports/${card.id}`, { token: tok(admin) });
+    expect(detail.status).toBe(200);
+    expect(detail.json.report.reportedAudioTranscript).toBe('GROOMING EVIDENCE TRANSCRIPT');
   });
 });
 

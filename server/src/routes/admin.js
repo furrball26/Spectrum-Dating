@@ -202,6 +202,14 @@ router.get('/reports/:id', requireAuth, requireAdmin, (req, res) => {
       moderatorNote: r.moderator_note,
       createdAt: r.created_at,
       resolvedAt: r.resolved_at,
+      // B8: carry the SAME evidence the list card / context endpoint expose, so a
+      // drill-down that hits /reports/:id can never under-inform a moderator (the
+      // reported-message snapshot, the reporter-pinned message, and — for a
+      // voice-note report with no conversation — the transcript snapshot).
+      reportedMessage: r.reported_message || null,
+      pinnedMessage: r.pinned_message || null,
+      reportedAudioId: r.reported_audio_id || null,
+      reportedAudioTranscript: r.reported_audio_transcript || null,
     },
     reporter: userContext(db, r.reporter_id),
     reported: userContext(db, r.reported_id),
