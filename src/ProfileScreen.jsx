@@ -308,6 +308,7 @@ const DEFAULT_PROFILE = {
   commDirectness: "",     // "" | "direct" | "softened"
   commLiteral: "",        // "" | "literal" | "playful"
   commCadence: "",        // "" | "instant" | "daily" | "whenever"
+  contactComfort: "",     // "" | "text_only" | "voice_ok" | "video_ok"
   sensoryEnvironment: "", // "" | "quiet" | "lively" | "either"
   sensoryLighting: "",    // "" | "dim" | "bright" | "either"
   socialDuration: "",     // "" | "short" | "medium" | "long"
@@ -2388,7 +2389,7 @@ function AudienceToggle({ value, onChange }) {
 // Discover. Mirrors the SuggestionScreen card layout without importing it.
 function ProfilePreviewModal({
   displayName, tagline, bio, pronouns, distCity, commNote, interests, specialInterests,
-  commDirectness, commLiteral, commCadence,
+  commDirectness, commLiteral, commCadence, contactComfort,
   sensoryEnvironment, sensoryLighting, socialDuration,
   contextCard, occupation, languages, helpsMe, hardForMe,
   photos, prompts, audio, promptTextFor, verified, onClose,
@@ -2467,6 +2468,9 @@ function ProfilePreviewModal({
   if (commLiteral === "playful")     chips.push("Playful");
   if (commCadence === "instant")     chips.push("Quick replies");
   if (commCadence === "daily")       chips.push("Replies once a day");
+  if (contactComfort === "text_only") chips.push("Text is best");
+  if (contactComfort === "voice_ok")  chips.push("Voice calls OK");
+  if (contactComfort === "video_ok")  chips.push("Video calls OK");
   if (sensoryEnvironment === "quiet")  chips.push("Quiet settings");
   if (sensoryEnvironment === "lively") chips.push("Lively settings");
   if (sensoryLighting === "dim")     chips.push("Dim lighting");
@@ -2982,6 +2986,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
   const [commDirectness, setCommDirectness]       = useState(DEFAULT_PROFILE.commDirectness);
   const [commLiteral, setCommLiteral]             = useState(DEFAULT_PROFILE.commLiteral);
   const [commCadence, setCommCadence]             = useState(DEFAULT_PROFILE.commCadence);
+  const [contactComfort, setContactComfort]       = useState(DEFAULT_PROFILE.contactComfort);
   const [sensoryEnvironment, setSensoryEnvironment] = useState(DEFAULT_PROFILE.sensoryEnvironment);
   const [sensoryLighting, setSensoryLighting]     = useState(DEFAULT_PROFILE.sensoryLighting);
   const [socialDuration, setSocialDuration]       = useState(DEFAULT_PROFILE.socialDuration);
@@ -3121,6 +3126,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           commDirectness: data.commDirectness || '',
           commLiteral: data.commLiteral || '',
           commCadence: data.commCadence || '',
+          contactComfort: data.contactComfort || '',
           sensoryEnvironment: data.sensoryEnvironment || '',
           sensoryLighting: data.sensoryLighting || '',
           socialDuration: data.socialDuration || '',
@@ -3158,6 +3164,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         setCommDirectness(merged.commDirectness);
         setCommLiteral(merged.commLiteral);
         setCommCadence(merged.commCadence);
+        setContactComfort(merged.contactComfort);
         setSensoryEnvironment(merged.sensoryEnvironment);
         setSensoryLighting(merged.sensoryLighting);
         setSocialDuration(merged.socialDuration);
@@ -3201,7 +3208,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         commNote || relGoal || distCity ||
         wantsChildren || smoking || drinking ||
         dbWantsChildren || dbNonSmoker || dbMustBeLocal || paused ||
-        commDirectness || commLiteral || commCadence ||
+        commDirectness || commLiteral || commCadence || contactComfort ||
         sensoryEnvironment || sensoryLighting || socialDuration || contextCard ||
         occupation || languages || helpsMe.length > 0 || hardForMe.length > 0;
       setIsDirty(hasContent);
@@ -3232,6 +3239,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         commDirectness   !== savedProfile.commDirectness ||
         commLiteral      !== savedProfile.commLiteral ||
         commCadence      !== savedProfile.commCadence ||
+        contactComfort   !== savedProfile.contactComfort ||
         sensoryEnvironment !== savedProfile.sensoryEnvironment ||
         sensoryLighting  !== savedProfile.sensoryLighting ||
         socialDuration   !== savedProfile.socialDuration ||
@@ -3247,7 +3255,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           JSON.stringify([...(savedProfile.interests || [])].sort());
       setIsDirty(dirty);
     }
-  }, [displayName, tagline, bio, interests, specialInterests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
+  }, [displayName, tagline, bio, interests, specialInterests, commNote, relGoal, relStructure, distCity, searchRadius, gender, genderCustom, orientation, pronouns, seeking, prefAgeMin, prefAgeMax, wantsChildren, smoking, drinking, dbWantsChildren, dbNonSmoker, dbMustBeLocal, paused, commDirectness, commLiteral, commCadence, contactComfort, sensoryEnvironment, sensoryLighting, socialDuration, contextCard, occupation, languages, helpsMe, hardForMe, savedProfile]);
 
   // ── Initialise collapsible-section open state once the profile has loaded.
   // Persisted manual choices win; otherwise apply the state-aware defaults from
@@ -3689,6 +3697,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
       commDirectness,
       commLiteral,
       commCadence,
+      contactComfort,
       sensoryEnvironment,
       sensoryLighting,
       socialDuration,
@@ -3728,6 +3737,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
         commDirectness: currentProfile.commDirectness,
         commLiteral: currentProfile.commLiteral,
         commCadence: currentProfile.commCadence,
+        contactComfort: currentProfile.contactComfort,
         sensoryEnvironment: currentProfile.sensoryEnvironment,
         sensoryLighting: currentProfile.sensoryLighting,
         socialDuration: currentProfile.socialDuration,
@@ -3983,6 +3993,7 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
           commDirectness={commDirectness}
           commLiteral={commLiteral}
           commCadence={commCadence}
+          contactComfort={contactComfort}
           sensoryEnvironment={sensoryEnvironment}
           sensoryLighting={sensoryLighting}
           socialDuration={socialDuration}
@@ -4706,6 +4717,19 @@ export default function ProfileScreen({ onDone, onSignOut, onOpenAccount, onOpen
                 { value: "instant", label: "I like quick replies" },
                 { value: "daily", label: "Once a day is great" },
                 { value: "whenever", label: "Whenever works" },
+              ]}
+            />
+
+            <LifestyleSelect
+              id="contact-comfort"
+              label={plain ? "How you'd like to be contacted" : "How I'm comfortable being contacted"}
+              value={contactComfort}
+              onChange={setContactComfort}
+              options={[
+                { value: "", label: "No preference" },
+                { value: "text_only", label: "Text is best" },
+                { value: "voice_ok", label: "Voice calls OK" },
+                { value: "video_ok", label: "Video calls OK" },
               ]}
             />
 

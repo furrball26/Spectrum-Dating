@@ -11,6 +11,9 @@ export function commChips(p) {
   if (p.commLiteral === "playful") c.push("Playful");
   if (p.commCadence === "instant") c.push("Quick replies");
   if (p.commCadence === "daily") c.push("Replies once a day");
+  if (p.contactComfort === "text_only") c.push("Text is best");
+  if (p.contactComfort === "voice_ok") c.push("Voice calls OK");
+  if (p.contactComfort === "video_ok") c.push("Video calls OK");
   if (p.sensoryEnvironment === "quiet") c.push("Quiet settings");
   if (p.sensoryEnvironment === "lively") c.push("Lively settings");
   if (p.sensoryLighting === "dim") c.push("Dim lighting");

@@ -212,6 +212,9 @@ function commStyleChips(person) {
   if (person.commCadence === "instant") chips.push("Quick replies");
   if (person.commCadence === "daily") chips.push("Replies once a day");
   // commCadence "whenever" intentionally skipped (low signal)
+  if (person.contactComfort === "text_only") chips.push("Text is best");
+  if (person.contactComfort === "voice_ok") chips.push("Voice calls OK");
+  if (person.contactComfort === "video_ok") chips.push("Video calls OK");
   if (person.sensoryEnvironment === "quiet") chips.push("Quiet settings");
   if (person.sensoryEnvironment === "lively") chips.push("Lively settings");
   // sensoryEnvironment "either" intentionally skipped
@@ -536,6 +539,7 @@ export default function SuggestionScreen({ onOpenMessages, onOpenConversation, o
           commDirectness: c.commDirectness || '',
           commLiteral: c.commLiteral || '',
           commCadence: c.commCadence || '',
+          contactComfort: c.contactComfort || '',
           sensoryEnvironment: c.sensoryEnvironment || '',
           sensoryLighting: c.sensoryLighting || '',
           socialDuration: c.socialDuration || '',
