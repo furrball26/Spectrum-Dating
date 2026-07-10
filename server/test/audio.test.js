@@ -462,6 +462,35 @@ describe('report-an-audio', () => {
     expect(second.status).toBe(400); // dedup blocks the re-report
     expect(db.prepare('SELECT review_status FROM profile_audio WHERE id = ?').get(id).review_status).toBe('approved'); // not re-flapped
   });
+
+  it('surfaces the audio transcript to moderators in BOTH the reports list and /context', async () => {
+    const admin = makeUser({ email: 'modaudio@t.dev', admin: true });
+    const owner = makeUser();
+    const reporter = makeUser();
+    matchUsers(owner, reporter);
+    const { id } = addAudio(owner, { transcript: 'GROOMING EVIDENCE TRANSCRIPT', status: 'approved' });
+
+    const rep = await api('/messaging/report', {
+      token: tok(reporter), method: 'POST',
+      body: { reportedUserId: owner, reason: 'inappropriate', audioId: id },
+    });
+    expect(rep.status).toBe(201);
+
+    // The report has no conversation — the transcript is the ONLY evidence.
+    const list = await api('/admin/reports?status=open', { token: tok(admin) });
+    expect(list.status).toBe(200);
+    const card = list.json.reports.find((r) => r.reportedAudioId === id);
+    expect(card).toBeTruthy();
+    expect(card.conversationId).toBeFalsy();
+    expect(card.reportedAudioTranscript).toBe('GROOMING EVIDENCE TRANSCRIPT');
+
+    // /context returns the transcript so the evidence panel isn't empty.
+    const ctx = await api(`/admin/reports/${card.id}/context`, { token: tok(admin) });
+    expect(ctx.status).toBe(200);
+    expect(ctx.json.messages).toEqual([]);
+    expect(ctx.json.reportedAudioTranscript).toBe('GROOMING EVIDENCE TRANSCRIPT');
+    expect(ctx.json.reportedAudioId).toBe(id);
+  });
 });
 
 describe('account-deletion cascade + data export', () => {

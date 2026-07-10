@@ -142,6 +142,7 @@ router.get('/reports', requireAuth, requireAdmin, (req, res) => {
     SELECT r.id, r.reporter_id, r.reported_id, r.conversation_id,
            r.reason, r.details, r.status, r.moderator_note,
            r.created_at, r.resolved_at, r.resolved_by, r.reported_message, r.pinned_message,
+           r.reported_audio_id, r.reported_audio_transcript,
            ru.email AS reporter_email, rp.display_name AS reporter_display_name,
            du.email AS reported_email, dp.display_name AS reported_display_name,
            du.suspended AS reported_suspended, du.banned AS reported_banned, du.created_at AS reported_created_at,
@@ -1185,7 +1186,7 @@ router.post('/profile-photos/:id/review', requireAuth, requireAdmin, (req, res) 
 router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
   const { db } = req.ctx;
   const report = db.prepare(
-    'SELECT id, conversation_id, reported_id, reported_message, reported_message_id, pinned_message FROM reports WHERE id = ?'
+    'SELECT id, conversation_id, reported_id, reported_message, reported_message_id, pinned_message, reported_audio_id, reported_audio_transcript FROM reports WHERE id = ?'
   ).get(req.params.id);
   if (!report) return res.status(404).json({ error: 'Report not found.' });
 
@@ -1237,6 +1238,12 @@ router.get('/reports/:id/context', requireAuth, requireAdmin, (req, res) => {
     // surrounding snapshot — in both the live view and the snapshot fallback.
     pinnedMessageId: report.reported_message_id || null,
     pinnedMessage: report.pinned_message || null,
+    // Voice-note report evidence: transcript snapshotted at report time. An audio
+    // report has no conversation, so this is the ONLY evidence the console can
+    // show — render it in the evidence panel like the pinned message. null for
+    // non-audio reports.
+    reportedAudioId: report.reported_audio_id || null,
+    reportedAudioTranscript: report.reported_audio_transcript || null,
   });
 });
 
@@ -1314,6 +1321,12 @@ function serializeReport(r) {
     // (null on the no-message report path). Surfaced on the card so a moderator
     // sees exactly what was flagged without expanding the conversation view.
     pinnedMessage: r.pinned_message || null,
+    // Voice-note (audio) reports carry NO conversation — the evidence is the
+    // transcript snapshotted at report time (survives clip/account deletion).
+    // Surface it (+ the clip id) so a moderator sees what was reported instead of
+    // an empty evidence panel. null for non-audio reports.
+    reportedAudioId: r.reported_audio_id || null,
+    reportedAudioTranscript: r.reported_audio_transcript || null,
     reporter: { email: r.reporter_email, displayName: r.reporter_display_name || '' },
     reported: {
       email: r.reported_email,
