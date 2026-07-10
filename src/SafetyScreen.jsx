@@ -292,6 +292,9 @@ export default function SafetyScreen({ onBack }) {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [reportsError, setReportsError] = useState(false);
   const [withdrawing, setWithdrawing] = useState(null);
+  // Which report a calm in-app confirm dialog is currently asking about
+  // ({ reportId, name }), or null. Replaces the jarring native window.confirm.
+  const [withdrawTarget, setWithdrawTarget] = useState(null);
 
   // Blocked people — fetched on mount; supports unblock.
   const [blocked, setBlocked] = useState([]);
@@ -332,12 +335,10 @@ export default function SafetyScreen({ onBack }) {
     }
   }, []);
 
+  // Runs the actual withdrawal once the user confirms in the calm dialog.
+  // (The confirm step moved to WithdrawConfirmDialog — a styled in-app modal,
+  // not the jarring native window.confirm.)
   const handleWithdraw = useCallback(async (reportId, name) => {
-    // Gentle, shame-free confirm — it's okay to change your mind.
-    const ok = window.confirm(
-      "Withdraw this report? Our team won't review it.\n\nIt's okay to change your mind."
-    );
-    if (!ok) return;
     setWithdrawing(reportId);
     try {
       await withdrawReport(reportId);
@@ -351,6 +352,13 @@ export default function SafetyScreen({ onBack }) {
       setWithdrawing(null);
     }
   }, []);
+
+  const confirmWithdraw = useCallback(() => {
+    if (!withdrawTarget) return;
+    const { reportId, name } = withdrawTarget;
+    setWithdrawTarget(null);
+    handleWithdraw(reportId, name);
+  }, [withdrawTarget, handleWithdraw]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -861,7 +869,7 @@ export default function SafetyScreen({ onBack }) {
                         {r.status === "open" && (
                           <Button
                             variant="secondary"
-                            onClick={() => handleWithdraw(r.id, r.reportedName || "this person")}
+                            onClick={() => setWithdrawTarget({ reportId: r.id, name: r.reportedName || "this person" })}
                             disabled={withdrawing === r.id}
                           >
                             {withdrawing === r.id ? "Withdrawing…" : (plain ? "Take back" : "Withdraw")}
@@ -960,6 +968,163 @@ export default function SafetyScreen({ onBack }) {
           </div>
         </Section>
       </div>
+
+      {withdrawTarget && (
+        <WithdrawConfirmDialog
+          plain={plain}
+          onConfirm={confirmWithdraw}
+          onCancel={() => setWithdrawTarget(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Calm in-app confirmation for withdrawing a report — replaces the jarring
+// native window.confirm. Centered modal matching ReportModal's pattern:
+// focus moves in on open and restores to the trigger on close, Escape cancels,
+// and Tab/Shift+Tab are trapped between the two buttons. No alarm colours or
+// motion — withdrawing is a low-stakes, reversible-feeling choice.
+function WithdrawConfirmDialog({ plain, onConfirm, onCancel }) {
+  const dialogRef = useRef(null);
+  const headingRef = useRef(null);
+  const cancelRef = useRef(null);
+  const confirmRef = useRef(null);
+  const fCancel = useFocusable();
+  const fConfirm = useFocusable();
+
+  // Move focus into the dialog on open, restore to the trigger on close. WCAG 2.4.3.
+  useEffect(() => {
+    const prevFocus = document.activeElement;
+    headingRef.current?.focus();
+    return () => {
+      if (prevFocus && typeof prevFocus.focus === "function") prevFocus.focus();
+    };
+  }, []);
+
+  // Escape cancels; Tab/Shift+Tab trap focus between Cancel and Withdraw. WCAG 2.1.2 / 2.4.3.
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === "Escape") { onCancel(); return; }
+      if (e.key === "Tab") {
+        const focusable = [cancelRef.current, confirmRef.current].filter(Boolean);
+        if (focusable.length === 0) return;
+        const idx = focusable.indexOf(document.activeElement);
+        if (e.shiftKey) {
+          if (idx <= 0) { e.preventDefault(); focusable[focusable.length - 1]?.focus(); }
+        } else if (idx === focusable.length - 1 || idx === -1) {
+          e.preventDefault(); focusable[0]?.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onCancel]);
+
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        onClick={onCancel}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(var(--c-scrimRgb, 36, 51, 45),0.35)",
+          zIndex: 1100,
+        }}
+      />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="withdraw-confirm-heading"
+        aria-describedby="withdraw-confirm-desc"
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: t.surface,
+          borderRadius: 20,
+          padding: "28px 24px",
+          width: "min(90vw, 400px)",
+          maxHeight: "88vh",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+          zIndex: 1101,
+          boxShadow: t.shadow.lg,
+          boxSizing: "border-box",
+          fontFamily: t.sans,
+        }}
+      >
+        <h2
+          id="withdraw-confirm-heading"
+          ref={headingRef}
+          tabIndex={-1}
+          style={{
+            fontFamily: t.serif,
+            fontSize: 20,
+            fontWeight: 700,
+            margin: "0 0 10px",
+            color: t.text,
+            outline: "none",
+          }}
+        >
+          {plain ? "Take back this report?" : "Withdraw this report?"}
+        </h2>
+        <p
+          id="withdraw-confirm-desc"
+          style={{ fontSize: 15, color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}
+        >
+          {plain
+            ? "Our team won't look at it. It's okay to change your mind."
+            : "Our team won't review it. It's okay to change your mind."}
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={onCancel}
+            onFocus={fCancel.onFocus}
+            onBlur={fCancel.onBlur}
+            style={{
+              flex: 1,
+              minHeight: 48,
+              borderRadius: 12,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              background: t.surface,
+              color: t.text,
+              border: `1px solid ${t.border}`,
+              ...fCancel.style,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            ref={confirmRef}
+            type="button"
+            onClick={onConfirm}
+            onFocus={fConfirm.onFocus}
+            onBlur={fConfirm.onBlur}
+            style={{
+              flex: 1,
+              minHeight: 48,
+              borderRadius: 12,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              background: t.dangerFill,
+              color: "#fff",
+              border: "none",
+              ...fConfirm.style,
+            }}
+          >
+            {plain ? "Take back" : "Withdraw"}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

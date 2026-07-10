@@ -39,6 +39,7 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
   const statusRef = useRef(null);
   const fCancel = useFocusable();
   const fSubmit = useFocusable();
+  const fDone = useFocusable();
 
   // B27 — after submit the labelled heading unmounts; move focus to the success
   // status line (rather than letting it fall to <body>) so a screen-reader user
@@ -148,7 +149,9 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
         : "Report submitted. Thank you — our team will take a look."
     );
     setSubmitted(true);
-    setTimeout(onClose, 1600);
+    // No auto-close: a timed dismiss is the countdown/urgency pattern product
+    // law forbids, and an anxious reader may not finish in 1.6s. The user
+    // dismisses the confirmation with the "Done" button when THEY are ready.
   }
 
   return (
@@ -187,14 +190,36 @@ export default function ReportModal({ candidate, onClose, onBlocked, audioId }) 
         }}
       >
         {submitted ? (
-          <p
-            role="status"
-            ref={statusRef}
-            tabIndex={-1}
-            style={{ color: t.textSoft, textAlign: "center", margin: 0, lineHeight: 1.6, outline: "none" }}
-          >
-            {confirmMsg}
-          </p>
+          <div>
+            <p
+              role="status"
+              ref={statusRef}
+              tabIndex={-1}
+              style={{ color: t.textSoft, textAlign: "center", margin: "0 0 20px", lineHeight: 1.6, outline: "none" }}
+            >
+              {confirmMsg}
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              onFocus={fDone.onFocus}
+              onBlur={fDone.onBlur}
+              style={{
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: "pointer",
+                background: t.accentFill,
+                color: "#fff",
+                border: "none",
+                ...fDone.style,
+              }}
+            >
+              Done
+            </button>
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <h2

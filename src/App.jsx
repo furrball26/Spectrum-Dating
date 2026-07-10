@@ -856,13 +856,7 @@ function TransSafetyBanner({ paused, busy, onHide, onDismiss }) {
 // ── Inactivity warning banner (WCAG 2.2.1) ───────────────────────────────────
 // Fixed top banner shown when the user has been idle. Appears before the abrupt
 // 401 logout so the user can extend their session.
-function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
-  const mins = Math.floor(secondsLeft / 60);
-  const secs = secondsLeft % 60;
-  const timeStr = mins > 0
-    ? `${mins}:${String(secs).padStart(2, "0")}`
-    : `${secs} sec${secs !== 1 ? "s" : ""}`;
-
+function InactivityWarningBanner({ onStillHere, btnRef }) {
   function handleKey(e) {
     if (e.key === "Escape") onStillHere();
   }
@@ -894,9 +888,7 @@ function InactivityWarningBanner({ secondsLeft, onStillHere, btnRef }) {
           Still here?
         </p>
         <p id="inactivity-desc" style={{ margin: "3px 0 0", color: t.textSoft, fontSize: 14 }}>
-          You'll be signed out in{" "}
-          <strong style={{ color: t.text, fontVariantNumeric: "tabular-nums" }}>{timeStr}</strong>
-          {" "}due to inactivity.
+          You'll be signed out soon due to inactivity.
         </p>
       </div>
       <button
@@ -1274,7 +1266,9 @@ export default function App() {
   const INACTIVITY_GRACE_S = 120;             // 2-min countdown
 
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
-  const [inactivitySecondsLeft, setInactivitySecondsLeft] = useState(INACTIVITY_GRACE_S);
+  // The banner no longer shows a live number (a per-second countdown is the
+  // urgency pattern product law bans), so we don't track seconds in state — the
+  // grace interval below counts down a local variable purely to fire logout.
   const inactivityTimerRef   = useRef(null);
   const countdownIntervalRef = useRef(null);
   const warningActiveRef     = useRef(false);
@@ -1293,14 +1287,13 @@ export default function App() {
     function startWarningCountdown() {
       warningActiveRef.current = true;
       setShowInactivityWarning(true);
-      setInactivitySecondsLeft(INACTIVITY_GRACE_S);
       requestAnimationFrame(() => stillHereBtnRef.current?.focus());
 
       clearInterval(countdownIntervalRef.current);
       let s = INACTIVITY_GRACE_S;
       countdownIntervalRef.current = setInterval(() => {
         s -= 1;
-        setInactivitySecondsLeft(s);
+        // No visible tick — s just drives the logout below.
         if (s <= 0) {
           clearInterval(countdownIntervalRef.current);
           warningActiveRef.current = false;
@@ -1334,7 +1327,6 @@ export default function App() {
     clearInterval(countdownIntervalRef.current);
     warningActiveRef.current = false;
     setShowInactivityWarning(false);
-    setInactivitySecondsLeft(INACTIVITY_GRACE_S);
     scheduleWarningRef.current?.();
   }
 
@@ -1563,7 +1555,6 @@ export default function App() {
       )}
       {authed && showInactivityWarning && (
         <InactivityWarningBanner
-          secondsLeft={inactivitySecondsLeft}
           onStillHere={handleStillHere}
           btnRef={stillHereBtnRef}
         />

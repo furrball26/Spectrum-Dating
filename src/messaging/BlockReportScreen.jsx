@@ -34,8 +34,11 @@ export default function BlockReportScreen({ displayName, onSubmit, onBack, pinne
   // Block and report are independent, optional choices. Default: block on
   // (this flow is reached from a conversation the user wants to leave), report
   // off (reporting is a separate, deliberate choice) — unless a message was
-  // pinned, in which case report defaults on. At least one is required.
-  const [doBlock, setDoBlock] = useState(true);
+  // pinned, in which case the intent is to report THAT message, not to cut off
+  // the whole person, so block defaults OFF (a checked default reads as a
+  // recommendation to ND users) while report defaults ON. At least one is
+  // required — with a pinned message doReport keeps submit enabled.
+  const [doBlock, setDoBlock] = useState(!hasPinned);
   const [doReport, setDoReport] = useState(hasPinned);
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
