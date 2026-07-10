@@ -69,6 +69,23 @@ export function hasSafetySignal(text) {
 }
 
 /**
+ * Which signal FAMILY a message trips (or null). Off-platform contact is checked
+ * before money so a message that trips both is attributed to the handoff (the
+ * grooming vector). Used to render a pattern-SPECIFIC, teachable safety note —
+ * explicit, literal pattern-naming serves neurodivergent readers better than a
+ * generic reminder. Informational only; never blocks or alters the message.
+ *
+ * @param {string} text
+ * @returns {'off_platform'|'money'|null}
+ */
+export function classifySafetySignal(text) {
+  if (!text || typeof text !== "string") return null;
+  if (CONTACT_PATTERNS.some((re) => re.test(text))) return "off_platform";
+  if (MONEY_PATTERNS.some((re) => re.test(text))) return "money";
+  return null;
+}
+
+/**
  * Needed #6 (sender pre-send nudge) — should we show the calm "Are you sure?"
  * nudge before sending `text`?
  *

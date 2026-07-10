@@ -4,7 +4,7 @@ import { sendMessage, deleteMessage, getConversation, getUserId, getUserProfile,
 import { onSocket, joinConversation, leaveConversation, subscribeConnection } from "../socketClient.js";
 import { t } from "../tokens.js";
 import { commChips } from "../commChips.js";
-import { hasSafetySignal, shouldNudgeBeforeSend } from "./safetySignals.js";
+import { hasSafetySignal, classifySafetySignal, shouldNudgeBeforeSend } from "./safetySignals.js";
 import { hasCrisisSignal } from "./crisisSignals.js";
 import ErrorState from "../ErrorState.jsx";
 import Avatar from "../Avatar.jsx";
@@ -1434,7 +1434,25 @@ function SafetyReassuranceCard({ onDismiss }) {
 // time a risk signal (off-platform contact or money/scam) appears in EITHER
 // person's message. It is a calm, system-style hint — never attributed
 // accusingly to either person, and it never hides or alters any message.
-function SafetyInlineNote() {
+function SafetyInlineNote({ kind = null, plainLanguage = false }) {
+  // Pattern-SPECIFIC, teachable copy — explicit, literal pattern-naming helps
+  // neurodivergent readers far more than a vague reminder. Never accuses a
+  // specific person; never hides or alters any message.
+  let body;
+  if (kind === "off_platform") {
+    body = plainLanguage
+      ? "Someone suggested moving this chat to another app, or shared contact details. Asking to move off the app early is one of the most common scam and grooming patterns. You never have to. It is okay to say no, and you can report it anytime."
+      : "Someone suggested moving this chat to another app or sharing contact details. Asking to move off the app early is one of the most common scam and grooming patterns — you never have to, it's okay to say no, and you can report it anytime.";
+  } else if (kind === "money") {
+    body = plainLanguage
+      ? "Someone brought up money, gift cards, or crypto. Asking for money or gift cards early on is one of the most common scam patterns. You never have to send anything. It is okay to say no, and you can report it anytime."
+      : "Someone brought up money, gift cards, or crypto. Requests for money or gift cards early on are one of the most common scam patterns — you never have to send anything, it's okay to say no, and you can report it anytime.";
+  } else {
+    // Generic fallback (kept for any caller that doesn't pass a kind).
+    body = plainLanguage
+      ? "A gentle reminder: it is safest to keep chatting here for now. We will never ask you to move to another app or send money."
+      : "A gentle reminder: it's safest to keep chatting here for now. We'll never ask you to move to another app or send money — please be careful sharing contact details or money early on.";
+  }
   return (
     <div
       role="note"
@@ -1455,11 +1473,7 @@ function SafetyInlineNote() {
       }}
     >
       <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>🛟</span>
-      <span>
-        A gentle reminder: it's safest to keep chatting here for now. We'll never
-        ask you to move to another app or send money — please be careful sharing
-        contact details or money early on.
-      </span>
+      <span>{body}</span>
     </div>
   );
 }
@@ -2090,7 +2104,10 @@ export default function ConversationScreen({
   // F26 — gentle inline note shown once per conversation when a risk signal is
   // detected in EITHER person's message. Informational only; never blocks/alters
   // any message.
-  const [safetySignalSeen, setSafetySignalSeen] = useState(false);
+  // Holds the FAMILY of the first risk signal seen (null | 'off_platform' |
+  // 'money') so the calm note can name the specific pattern. One-shot: set once,
+  // never recomputed.
+  const [safetySignalKind, setSafetySignalKind] = useState(null);
 
   // Crisis-line auto-routing — when the CURRENT USER'S OWN message expresses
   // self-harm / suicidal-crisis language, quietly surface support (988 / Crisis
@@ -2335,11 +2352,15 @@ export default function ConversationScreen({
   // (from either person) trips a signal, flip a one-shot flag so a single calm
   // note renders. Never blocks, hides, or alters a message — informational only.
   useEffect(() => {
-    if (safetySignalSeen) return;
-    if (messages.some((m) => !m.deleted && hasSafetySignal(m.body))) {
-      setSafetySignalSeen(true);
-    }
-  }, [messages, safetySignalSeen]);
+    if (safetySignalKind) return;
+    const live = messages.filter((m) => !m.deleted && m.body);
+    // Prefer a RECEIVED message so the note can speak to "someone asked you…";
+    // fall back to the user's own (protects them from oversharing too).
+    const received = live.find((m) => m.senderId !== currentUserId && classifySafetySignal(m.body));
+    const own = live.find((m) => classifySafetySignal(m.body));
+    const kind = classifySafetySignal((received || own || {}).body || "");
+    if (kind) setSafetySignalKind(kind);
+  }, [messages, safetySignalKind, currentUserId]);
 
   // Crisis-line auto-routing — if the CURRENT USER'S OWN message (composed or
   // sent) expresses self-harm / crisis language, surface the support note to
@@ -3275,7 +3296,7 @@ export default function ConversationScreen({
             {/* F26 — gentle, once-per-conversation safety note when a risk
                 signal is detected in either person's message. Never blocks or
                 alters any message. */}
-            {safetySignalSeen && <SafetyInlineNote />}
+            {safetySignalKind && <SafetyInlineNote kind={safetySignalKind} plainLanguage={plainLanguage} />}
 
             {/* Crisis-line auto-routing — private, compassionate support note
                 shown ONLY to the person whose own message expressed distress.

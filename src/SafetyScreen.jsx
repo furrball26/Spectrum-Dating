@@ -4,6 +4,7 @@ import { getMyReports, getBlockedUsers, unblockUser, withdrawReport } from "./ap
 import Button from "./Button.jsx";
 import { useFocusable } from "./useFocusable.js";
 import { usePlainLanguage } from "./PlainLanguageContext.jsx";
+import { readQuickExit, writeQuickExit } from "./QuickExitButton.jsx";
 
 // Safety Center — entirely client-side. No backend calls. A calm, predictable
 // place to prepare for the offline transition: meeting tips, ready-to-use
@@ -273,6 +274,14 @@ export default function SafetyScreen({ onBack }) {
   // copy confirmations (scripts + plan)
   const [copiedScript, setCopiedScript] = useState(null);
   const [liveMessage, setLiveMessage] = useState("");
+
+  // Opt-in quick-exit ("leave now"). Client-only pref; App renders the button.
+  const [quickExit, setQuickExit] = useState(() => readQuickExit());
+  const toggleQuickExit = () => {
+    const next = !quickExit;
+    setQuickExit(next);
+    writeQuickExit(next); // persists + fires the sync event App listens for
+  };
 
   // date plan form
   const [planName, setPlanName] = useState("");
@@ -837,6 +846,54 @@ export default function SafetyScreen({ onBack }) {
         </Section>
 
         {/* Your privacy (backlog #9) — advertises the no-presence design. */}
+        <Section
+          title={plain ? "Quick exit" : "Quick exit"}
+          note={plain
+            ? "Show a button that leaves the site right away if you need to."
+            : "Show a button that instantly leaves the site if you ever need to step away fast."}
+        >
+          <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <label htmlFor="quick-exit-switch" style={{ fontSize: 16, color: t.text, lineHeight: 1.5, cursor: "pointer" }}>
+              {plain
+                ? "Show a “Leave now” button. Tapping it goes to another website right away."
+                : "Show a “Quick exit” button. Tapping it leaves for a neutral website immediately, and Back won't return here."}
+            </label>
+            <button
+              id="quick-exit-switch"
+              type="button"
+              role="switch"
+              aria-checked={quickExit}
+              aria-label={plain ? "Show the Leave now button" : "Show the Quick exit button"}
+              onClick={toggleQuickExit}
+              style={{
+                position: "relative",
+                flexShrink: 0,
+                width: 44,
+                height: 26,
+                borderRadius: 13,
+                border: "none",
+                cursor: "pointer",
+                background: quickExit ? t.accentFill : t.mutedFill,
+                transition: `background ${t.motion.base} ${t.motion.gentle}`,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: quickExit ? 21 : 3,
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: `left ${t.motion.base} ${t.motion.gentle}`,
+                }}
+              />
+            </button>
+          </div>
+        </Section>
+
         <Section title="Your privacy">
           <div style={{ ...cardStyle, color: t.textSoft, fontSize: 16, lineHeight: 1.65 }}>
             {plain

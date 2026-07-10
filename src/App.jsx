@@ -5,6 +5,7 @@ import Avatar from "./Avatar.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
 import A11yQuickToggles from "./A11yQuickToggles.jsx";
+import QuickExitButton from "./QuickExitButton.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { readA11y, IDENTITY_THEMES } from "./a11yPrefs.js";
 import { PlainLanguageProvider } from "./PlainLanguageContext.jsx";
@@ -1609,6 +1610,10 @@ export default function App() {
       {(!authed || onboarding) && (
         <A11yQuickToggles prefs={a11y} onChange={applyA11y} />
       )}
+      {/* Opt-in Quick-exit ("leave now"). Self-gating: renders nothing unless the
+          user enabled it in the Safety Center. Rendered app-wide and OUTSIDE the
+          a11yWrapperStyle transforms so its position:fixed is never broken. */}
+      <QuickExitButton />
       {!authed
         ? showAuth
           ? (
