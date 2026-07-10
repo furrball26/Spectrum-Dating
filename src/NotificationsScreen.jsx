@@ -276,6 +276,15 @@ export default function NotificationsScreen({
                 </div>
               ))}
             </div>
+            {/* Honesty note: the tiers govern the TEXT a push shows, not whether
+                the device makes a sound or vibrates. "Silent" can read as "no
+                sound," which would be misleading — name where that actually
+                lives. Copy-only; no new controls. */}
+            <p style={{ margin: "12px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+              {plain
+                ? "Sound and vibration are set on your phone, not here."
+                : "Sound and vibration are controlled by your device's notification settings, not here."}
+            </p>
           </fieldset>
 
           {/* Calm, low-key save state — polite live region, no toast. */}

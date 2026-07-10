@@ -1924,6 +1924,7 @@ export default function App() {
               {activeTab === "account" && (
                 <AccountSecurityScreen
                   onBack={() => setActiveTab(prevTab || "profile")}
+                  onGoToProfile={() => setActiveTab("profile")}
                   onAccountDeleted={() => {
                     setAuthMessage("Your account has been deleted.");
                     setAuthed(false);

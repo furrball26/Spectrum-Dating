@@ -149,7 +149,7 @@ function AccountSecuritySection() {
 
 // ── Danger zone: account deletion ────────────────────────────────────────────
 // Relocated from ProfileScreen intact.
-function DeleteAccountSection({ onAccountDeleted }) {
+function DeleteAccountSection({ onAccountDeleted, onGoToProfile }) {
   const plain = usePlainLanguage();
   const [showDialog, setShowDialog] = useState(false);
   const triggerRef = useRef(null);
@@ -197,6 +197,7 @@ function DeleteAccountSection({ onAccountDeleted }) {
       {showDialog && (
         <DeleteAccountDialog
           onAccountDeleted={onAccountDeleted}
+          onGoToProfile={onGoToProfile}
           onCancel={() => {
             setShowDialog(false);
             requestAnimationFrame(() => triggerRef.current?.focus());
@@ -207,12 +208,13 @@ function DeleteAccountSection({ onAccountDeleted }) {
   );
 }
 
-function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
+function DeleteAccountDialog({ onAccountDeleted, onGoToProfile, onCancel }) {
   const plain = usePlainLanguage();
   const cancelRef = useRef(null);
   const inputRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmRef = useRef(null);
+  const pauseRef = useRef(null);
   const prefersReduced = usePrefersReduced();
   const [confirmText, setConfirmText] = useState("");
   const [password, setPassword] = useState("");
@@ -233,7 +235,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
       return;
     }
     if (e.key === "Tab") {
-      const els = [inputRef.current, passwordRef.current, confirmRef.current, cancelRef.current].filter(Boolean);
+      const els = [pauseRef.current, inputRef.current, passwordRef.current, confirmRef.current, cancelRef.current].filter(Boolean);
       const idx = els.indexOf(document.activeElement);
       if (e.shiftKey) {
         if (idx <= 0) { e.preventDefault(); els[els.length - 1]?.focus(); }
@@ -258,6 +260,7 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
 
   const fCancel = useFocusable();
   const fConfirm = useFocusable();
+  const fPause = useFocusable();
 
   const overlay = {
     position: "fixed",
@@ -302,6 +305,58 @@ function DeleteAccountDialog({ onAccountDeleted, onCancel }) {
             ? "This deletes your profile, matches, and messages for good. You cannot undo it."
             : "This permanently deletes your profile, matches, and messages. This cannot be undone."}
         </p>
+
+        {/* Calmer alternative: an overwhelmed user reaching for "delete" may only
+            need a break. Pause keeps matches + messages and hides them from
+            Discover (ProfileScreen). Offered ABOVE the destructive controls; it
+            does not change any delete behavior/validation. */}
+        <div
+          style={{
+            background: t.green50,
+            border: `1px solid ${t.borderLight}`,
+            borderRadius: 12,
+            padding: "14px 16px",
+            marginBottom: 20,
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 14, color: t.text, lineHeight: 1.6 }}>
+            {plain
+              ? "Just need a break? You can pause your profile instead. You keep your matches and messages, and no one new sees you. You can un-pause anytime."
+              : "Just need a break? You can pause your profile instead — you keep your matches and messages, and no one new sees you. You can un-pause anytime."}
+          </p>
+          {onGoToProfile ? (
+            <button
+              ref={pauseRef}
+              type="button"
+              onClick={() => { if (!deleting) { onGoToProfile(); } }}
+              disabled={deleting}
+              style={{
+                marginTop: 12,
+                minHeight: 44,
+                padding: "10px 18px",
+                borderRadius: 10,
+                border: `1px solid ${t.accentStrong}`,
+                background: "transparent",
+                color: t.accentStrong,
+                fontSize: 16,
+                fontWeight: 600,
+                fontFamily: t.sans,
+                cursor: deleting ? "not-allowed" : "pointer",
+                ...fPause.style,
+              }}
+              onFocus={fPause.onFocus}
+              onBlur={fPause.onBlur}
+            >
+              {plain ? "Pause instead" : "Pause my profile instead"}
+            </button>
+          ) : (
+            <p style={{ margin: "8px 0 0", fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+              {plain
+                ? "You can pause your profile from your Profile screen."
+                : "You can pause your profile anytime from your Profile screen."}
+            </p>
+          )}
+        </div>
 
         <label
           htmlFor="delete-confirm-input"
@@ -432,7 +487,7 @@ function BackButton({ onClick }) {
   );
 }
 
-export default function AccountSecurityScreen({ onBack, onAccountDeleted }) {
+export default function AccountSecurityScreen({ onBack, onAccountDeleted, onGoToProfile }) {
   const plain = usePlainLanguage();
   const headingRef = useRef(null);
 
@@ -484,7 +539,7 @@ export default function AccountSecurityScreen({ onBack, onAccountDeleted }) {
 
         {onAccountDeleted && (
           <div style={card}>
-            <DeleteAccountSection onAccountDeleted={onAccountDeleted} />
+            <DeleteAccountSection onAccountDeleted={onAccountDeleted} onGoToProfile={onGoToProfile} />
           </div>
         )}
       </div>
