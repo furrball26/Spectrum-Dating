@@ -1204,6 +1204,10 @@ function Step5({
   const selectHelper = plain
     ? "Shown on your profile. You can change it later."
     : "Shown on your profile. Change it anytime.";
+  // "Softened" is undefined jargon for a literal reader — spell out both terms.
+  const directnessHelper = plain
+    ? "Direct = plain and to the point. Softened = gentler, more cushioned wording."
+    : "Direct means plain and to the point. Softened means gentler, more cushioned wording.";
   return (
     <>
       <p style={{ margin: "0 0 8px", fontSize: 16, color: t.text, lineHeight: 1.55, fontWeight: 600 }}>
@@ -1218,7 +1222,7 @@ function Step5({
       <LabelledSelect
         id="ob-comm-directness"
         label="Directness"
-        helper={selectHelper}
+        helper={directnessHelper}
         value={commDirectness}
         onChange={setCommDirectness}
         options={[
@@ -1576,22 +1580,28 @@ export default function OnboardingScreen({ onComplete, locationAtRisk = false })
     boxShadow: t.shadow.md,
   };
 
+  // Step 4 (Step3 component) collects a free-text "how you like to talk" note +
+  // relationship goal — it's about connecting and what you want. Step 6 (Step5)
+  // collects the structured matching signals (directness, reply pace, sensory
+  // setting, deep-interest topics). The old headings "How you communicate" /
+  // "How you communicate best" scanned as the same question twice, so each now
+  // names what it actually gathers.
   const stepHeadings = plain
     ? [
         "The basics",
         "About you",
         "Add a photo",
-        "How you like to talk",
+        "How you like to connect",
         "Who you want to meet",
-        "How you talk best",
+        "How we match you",
       ]
     : [
         "Let's start with the basics",
         "Tell people about you",
         "Add a photo",
-        "How you communicate",
+        "How you like to connect",
         "Who you'd like to meet",
-        "How you communicate best",
+        "Your matching preferences",
       ];
   const TOTAL_STEPS = stepHeadings.length;
 

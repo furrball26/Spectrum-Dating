@@ -11,6 +11,20 @@ import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 const CHECKIN_KEY = "spectrum_safety_checkin";
 
+// Calm, low-sensory, low-demand date ideas. A gentle, browsable answer to
+// "where do we even go?" — a real executive-function + sensory-planning barrier.
+// Clearly optional; never prescriptive. Styled list (mirrors "Meeting safely"),
+// not tap-to-copy — these are ideas to browse, not phrases to send.
+const DATE_IDEAS = [
+  { full: "A quiet café at an off-peak time", plain: "A quiet café at a quiet time of day" },
+  { full: "A walk somewhere green", plain: "A walk somewhere green" },
+  { full: "A weekday-morning museum or gallery (fewer crowds)", plain: "A museum or gallery on a weekday morning, when it is less busy" },
+  { full: "A short video call first, before meeting in person", plain: "A short video call first, before you meet in person" },
+  { full: "Something built around a shared interest — a bookshop, an aquarium, a hobby shop", plain: "Something you both like — a bookshop, an aquarium, a hobby shop" },
+  { full: "A parallel activity — doing a low-pressure thing side by side", plain: "Doing a calm thing side by side, next to each other" },
+  { full: "A daytime, time-boxed first meet (“coffee, about an hour”)", plain: "A short daytime meet — like coffee for about an hour" },
+];
+
 
 // ----- shared style helpers -------------------------------------------------
 
@@ -660,6 +674,22 @@ export default function SafetyScreen({ onBack }) {
             <li style={{ marginBottom: 8 }}>{plain ? "Plan your own way there and back." : "Arrange your own way there and back."}</li>
             <li style={{ marginBottom: 8 }}>{plain ? "You can leave any time. You don't have to explain why." : "You can leave at any time — you don't owe anyone an explanation."}</li>
             <li style={{ marginBottom: 0 }}>{plain ? "Trust yourself. If something feels wrong, it's okay to leave." : "Trust your gut. If something feels off, it's okay to go."}</li>
+          </ul>
+        </Section>
+
+        {/* Gentle date ideas — low-sensory, low-demand suggestions for "where do
+            we even go?". Calm styled list mirroring "Meeting safely"; browsable
+            and clearly optional, never prescriptive. No motion, no urgency. */}
+        <Section
+          title="Gentle date ideas"
+          note={plain ? "Ideas, if it helps. No pressure to use any." : "Ideas, if it helps — no pressure to use any."}
+        >
+          <ul style={{ ...cardStyle, margin: 0, paddingLeft: 36, paddingRight: 18 }}>
+            {DATE_IDEAS.map((idea, i) => (
+              <li key={i} style={{ marginBottom: i === DATE_IDEAS.length - 1 ? 0 : 8 }}>
+                {plain ? idea.plain : idea.full}
+              </li>
+            ))}
           </ul>
         </Section>
 

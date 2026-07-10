@@ -65,7 +65,14 @@ export default function LikesScreen({ onOpenConversation, onActivityCount, plain
           matchId: result.matchId || null,
         });
       } else {
-        setError(`${person.displayName || "They"} isn't available anymore.`);
+        // Calm, non-self-blaming: the abrupt "isn't available anymore" read as
+        // "did I do something wrong?" to an anxious user. This names it plainly
+        // and reassures it's not about them.
+        setError(
+          plainLanguage
+            ? "They are no longer on Spectrum. That is not about you."
+            : "They're no longer on Spectrum — that's not about you."
+        );
       }
       removeLiker(person.userId);
     } catch (e) {
