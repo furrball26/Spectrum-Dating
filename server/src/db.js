@@ -78,6 +78,7 @@ const MIGRATIONS = [
   '058_profile_audio.sql',
   '059_report_audio.sql',
   '060_billing_events.sql',
+  '061_contact_comfort.sql',
 ];
 
 // Migrations that rebuild a table (CREATE new / copy / DROP old / RENAME) can't

@@ -171,6 +171,45 @@ describe('F28: validation rejects over-limit input with a calm 400', () => {
   });
 });
 
+describe('contact-comfort preference (migration 061)', () => {
+  it('round-trips a valid enum and defaults to "" ', async () => {
+    const u = makeUser();
+    const before = await api('/profile/me', { token: signToken(u, 0) });
+    expect(before.json.contactComfort).toBe('');
+
+    const put = await api('/profile/me', {
+      token: signToken(u, 0), method: 'PUT', body: { contactComfort: 'text_only' },
+    });
+    expect(put.status).toBe(200);
+    expect(put.json.contactComfort).toBe('text_only');
+
+    const get = await api('/profile/me', { token: signToken(u, 0) });
+    expect(get.json.contactComfort).toBe('text_only');
+  });
+
+  it('rejects an unknown value with a calm 400', async () => {
+    const u = makeUser();
+    const r = await api('/profile/me', {
+      token: signToken(u, 0), method: 'PUT', body: { contactComfort: 'carrier_pigeon' },
+    });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/contactComfort/i);
+  });
+
+  it('is carried on the Discover deck card so the chip can render', async () => {
+    const viewer = makeUser({ interests: ['hiking'] });
+    const subject = makeUser({ interests: ['hiking'] });
+    await api('/profile/me', {
+      token: signToken(subject, 0), method: 'PUT', body: { contactComfort: 'voice_ok' },
+    });
+    const r = await api('/matching/candidates', { token: signToken(viewer, 0) });
+    expect(r.status).toBe(200);
+    const card = r.json.find((c) => c.memberId === subject);
+    expect(card).toBeTruthy();
+    expect(card.contactComfort).toBe('voice_ok');
+  });
+});
+
 describe('F28: payload shape across surfaces', () => {
   it('deck card carries occupation + languages but NOT the helps/hard lists', async () => {
     const viewer = makeUser({ interests: ['hiking'] });

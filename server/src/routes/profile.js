@@ -168,6 +168,8 @@ const VALID_FREQUENCY = ['', 'no', 'sometimes', 'yes']; // smoking & drinking
 const VALID_COMM_DIRECTNESS = ['', 'direct', 'softened'];
 const VALID_COMM_LITERAL = ['', 'literal', 'playful'];
 const VALID_COMM_CADENCE = ['', 'instant', 'daily', 'whenever'];
+// Contact-comfort: how someone is comfortable being contacted beyond text.
+const VALID_CONTACT_COMFORT = ['', 'text_only', 'voice_ok', 'video_ok'];
 const VALID_SENSORY_ENVIRONMENT = ['', 'quiet', 'lively', 'either'];
 const VALID_SENSORY_LIGHTING = ['', 'dim', 'bright', 'either'];
 const VALID_SOCIAL_DURATION = ['', 'short', 'medium', 'long'];
@@ -265,6 +267,7 @@ export function assembleOwnProfile(db, userId) {
     commDirectness: profile.comm_directness || '',
     commLiteral: profile.comm_literal || '',
     commCadence: profile.comm_cadence || '',
+    contactComfort: profile.contact_comfort || '',
     sensoryEnvironment: profile.sensory_environment || '',
     sensoryLighting: profile.sensory_lighting || '',
     socialDuration: profile.social_duration || '',
@@ -524,6 +527,11 @@ router.put('/me', requireAuth, (req, res) => {
       errors.push(`commCadence must be one of: ${VALID_COMM_CADENCE.map(v => v === '' ? '""' : v).join(', ')}.`);
     }
   }
+  if (body.contactComfort !== undefined) {
+    if (!VALID_CONTACT_COMFORT.includes(body.contactComfort)) {
+      errors.push(`contactComfort must be one of: ${VALID_CONTACT_COMFORT.map(v => v === '' ? '""' : v).join(', ')}.`);
+    }
+  }
   if (body.sensoryEnvironment !== undefined) {
     if (!VALID_SENSORY_ENVIRONMENT.includes(body.sensoryEnvironment)) {
       errors.push(`sensoryEnvironment must be one of: ${VALID_SENSORY_ENVIRONMENT.map(v => v === '' ? '""' : v).join(', ')}.`);
@@ -629,6 +637,7 @@ router.put('/me', requireAuth, (req, res) => {
     commDirectness: 'comm_directness',
     commLiteral: 'comm_literal',
     commCadence: 'comm_cadence',
+    contactComfort: 'contact_comfort',
     sensoryEnvironment: 'sensory_environment',
     sensoryLighting: 'sensory_lighting',
     socialDuration: 'social_duration',
@@ -757,6 +766,7 @@ router.put('/me', requireAuth, (req, res) => {
     commDirectness: profile.comm_directness || '',
     commLiteral: profile.comm_literal || '',
     commCadence: profile.comm_cadence || '',
+    contactComfort: profile.contact_comfort || '',
     sensoryEnvironment: profile.sensory_environment || '',
     sensoryLighting: profile.sensory_lighting || '',
     socialDuration: profile.social_duration || '',
@@ -897,6 +907,7 @@ router.get('/:userId', requireAuth, (req, res) => {
     commDirectness: profile.comm_directness || '',
     commLiteral: profile.comm_literal || '',
     commCadence: profile.comm_cadence || '',
+    contactComfort: profile.contact_comfort || '',
     sensoryEnvironment: profile.sensory_environment || '',
     sensoryLighting: profile.sensory_lighting || '',
     socialDuration: profile.social_duration || '',

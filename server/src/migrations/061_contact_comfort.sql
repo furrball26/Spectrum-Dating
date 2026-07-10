@@ -1,0 +1,22 @@
+-- 061 — structured "contact comfort" preference (ND quick-win).
+--
+-- A single, optional enum letting a member signal how they're comfortable being
+-- contacted as things move beyond text — the #1 acute stressor for many autistic
+-- daters (being pushed toward a phone/video call). Until now this could only be
+-- said as free text in the context card, so it was unstructured, unmatchable, and
+-- easy for a partner to miss.
+--
+--   contact_comfort  '' | 'text_only' | 'voice_ok' | 'video_ok'
+--     ''         no stated preference (default; renders no chip)
+--     text_only  "Text is best" — prefers to stay in text
+--     voice_ok   open to voice calls
+--     video_ok   open to video calls
+--
+-- Rendered as a communication chip alongside the existing comm-preference chips
+-- (commChips) on the Discover card, the profile modal, and the What-to-expect
+-- card at the top of a conversation. Not yet a match filter — signal first.
+--
+-- Additive, idempotent, no table rebuild: one ADD COLUMN with a DEFAULT so every
+-- existing row defaults to '' and is unchanged. Re-running is safe (the migration
+-- runner swallows the "duplicate column name" error a second boot would raise).
+ALTER TABLE profiles ADD COLUMN contact_comfort TEXT NOT NULL DEFAULT '';

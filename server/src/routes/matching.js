@@ -38,6 +38,7 @@ function mapCandidateToCard(db, c) {
     commDirectness: c.comm_directness || '',
     commLiteral: c.comm_literal || '',
     commCadence: c.comm_cadence || '',
+    contactComfort: c.contact_comfort || '',
     sensoryEnvironment: c.sensory_environment || '',
     sensoryLighting: c.sensory_lighting || '',
     socialDuration: c.social_duration || '',

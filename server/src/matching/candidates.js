@@ -95,7 +95,7 @@ export function getCandidates(db, viewerId, viewerInterests, opts = {}) {
            p.gender, p.gender_custom, p.gender_group, p.orientation, p.pronouns, p.seeking,
            p.date_of_birth, p.wants_children, p.smoking, p.drinking,
            p.identity_verified, p.paused,
-           p.comm_directness, p.comm_literal, p.comm_cadence,
+           p.comm_directness, p.comm_literal, p.comm_cadence, p.contact_comfort,
            p.sensory_environment, p.sensory_lighting, p.social_duration,
            p.context_card, p.occupation, p.languages,
            p.special_interests,
