@@ -3,6 +3,7 @@ import { updateProfile, safeErrorMessage } from "./api.js";
 import { t } from "./tokens.js";
 import { useFocusable } from "./useFocusable.js";
 import { useViewport } from "./useViewport.js";
+import { usePlainLanguage } from "./PlainLanguageContext.jsx";
 
 // ── Required-city gate ───────────────────────────────────────────────────────
 // A parallel gate to onboarding for LEGACY members: someone who finished
@@ -43,11 +44,16 @@ export default function RequireCityScreen({ onComplete, onSignOut }) {
   const isMobile = viewport === "mobile";
   const fSave = useFocusable();
   const fSignOut = useFocusable();
+  // Plain language read from context (App.jsx never passed a prop, so this gate
+  // ignored the toggle before). Same idiom as OnboardingScreen's city step.
+  const plain = usePlainLanguage();
 
   // Focus the heading on mount so screen-reader users land on the gate's purpose.
   useEffect(() => { headingRef.current?.focus(); }, []);
 
-  const cityError = !distCity.trim() ? "Please enter your city or area." : "";
+  const cityError = !distCity.trim()
+    ? (plain ? "Enter your city or area." : "Please enter your city or area.")
+    : "";
 
   async function handleSave() {
     setAttempted(true);
@@ -105,8 +111,9 @@ export default function RequireCityScreen({ onComplete, onSignOut }) {
           Add your city
         </h1>
         <p style={{ fontSize: 16, color: t.textSoft, margin: "0 0 24px", lineHeight: 1.6 }}>
-          Please add your city so we can show you people nearby. We only ever
-          show a coarse location.
+          {plain
+            ? "Add your city so we can show you people nearby. We only show a rough area, never your exact address."
+            : "Please add your city so we can show you people nearby. We only ever show a coarse location."}
         </p>
 
         <form
@@ -141,8 +148,9 @@ export default function RequireCityScreen({ onComplete, onSignOut }) {
               id="require-dist-city-hint"
               style={{ display: "block", fontSize: 14, color: t.textSoft, marginTop: 4 }}
             >
-              Your general city or area — we only ever show a coarse location to
-              others, never a precise address.
+              {plain
+                ? "Your city or area. We only show a rough area to others, never your exact address."
+                : "Your general city or area — we only ever show a coarse location to others, never a precise address."}
             </span>
             {attempted && cityError && (
               <span
@@ -179,7 +187,7 @@ export default function RequireCityScreen({ onComplete, onSignOut }) {
               ...fSave.style,
             }}
           >
-            {saving ? "Saving…" : "Save and continue"}
+            {saving ? "Saving…" : (plain ? "Save" : "Save and continue")}
           </button>
         </form>
 

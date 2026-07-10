@@ -365,12 +365,19 @@ function StatCard({ label, value, subtext, tone, onClick, ariaLabel, muted }) {
 }
 
 // P1-A — read-only reported-conversation view, lazily fetched on reveal.
-function ReportedContext({ reportId, reportedName }) {
+function ReportedContext({ reportId, reportedName, reportedAudioTranscript }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const f = useFocusable();
+
+  // B1 — the reported voice-note transcript (context value wins once fetched;
+  // else the value carried on the report card). Drives the audio-evidence block
+  // and suppresses the "no conversation" empty state that would otherwise show
+  // for an audio report (which has no conversation by design).
+  const transcript = data?.reportedAudioTranscript ?? reportedAudioTranscript ?? null;
+  const isAudioReport = !!transcript;
 
   function toggle() {
     const next = !open;
@@ -399,11 +406,37 @@ function ReportedContext({ reportId, reportedName }) {
         onFocus={f.onFocus}
         onBlur={f.onBlur}
       >
-        {open ? "Hide reported messages" : "View reported messages"}
+        {isAudioReport
+          ? (open ? "Hide reported voice note" : "View reported voice note")
+          : (open ? "Hide reported messages" : "View reported messages")}
       </button>
 
       {open && (
         <div style={{ marginTop: 12, border: `1px solid ${t.borderLight}`, borderRadius: 12, padding: "12px 14px", background: t.bg }}>
+          {/* B1 — reported voice-note transcript. An audio report has NO
+              conversation, so this snapshotted transcript is the evidence.
+              Prefer the freshly-fetched context value; fall back to the value
+              carried on the list card so it shows even before the fetch lands.
+              Styled like the pinnedMessage evidence block, but calm (not the
+              danger-red "flagged" treatment) — it's evidence, not an alarm. */}
+          {transcript && (
+            <div
+              style={{
+                background: t.surfaceAlt,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: "10px 12px",
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: t.textSoft, marginBottom: 4, letterSpacing: "0.02em" }}>
+                <span aria-hidden="true">🎙 </span>Reported voice note — transcript
+              </div>
+              <p style={{ margin: 0, fontSize: 16, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                {transcript}
+              </p>
+            </div>
+          )}
           {/* Needed #10 — the reporter-pinned message, surfaced prominently at the
               top of the evidence so the moderator sees exactly what was flagged
               even when it fell outside the live-conversation window below. */}
@@ -476,6 +509,10 @@ function ReportedContext({ reportId, reportedName }) {
                 </li>
               ))}
             </ul>
+          ) : isAudioReport ? (
+            // Audio report: the transcript block above IS the evidence; there is
+            // no conversation to fall back to, so show nothing misleading here.
+            null
           ) : data && (data.snapshot || !data.live) ? (
             <div>
               <p style={{ margin: "0 0 8px", fontSize: 13, color: t.textMuted, fontStyle: "italic" }}>
@@ -973,7 +1010,7 @@ function ReportCard({ report, onRefresh, onStatus, onDone }) {
       </p>
 
       {/* P1-A reported-conversation view (read-only) */}
-      <ReportedContext reportId={report.id} reportedName={report.reportedName} />
+      <ReportedContext reportId={report.id} reportedName={report.reportedName} reportedAudioTranscript={report.reportedAudioTranscript} />
 
       {localError && (
         <p role="alert" style={{ color: t.danger, fontSize: 14, margin: "12px 0 0" }}>{localError}</p>

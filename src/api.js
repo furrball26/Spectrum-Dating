@@ -517,6 +517,10 @@ export async function getAdminReports(status = 'open') {
     // Needed #10 — the specific message the reporter pinned (null on the
     // no-message report path). Shown on the card, distinct from the snapshot.
     reportedPinnedMessage: r.pinnedMessage || null,
+    // B1 — reported voice-note transcript (audio reports have no conversation;
+    // the clip's transcript is the evidence). Null on every non-audio report.
+    reportedAudioTranscript: r.reportedAudioTranscript || null,
+    reportedAudioId: r.reportedAudioId || null,
     // P1-B repeat-offender signal. reportCount is the TOTAL reports against this
     // member (incl. the current one); actionedCount how many were actioned;
     // blockedByCount distinct members who blocked them; createdAt account age.
@@ -606,6 +610,11 @@ export async function getReportContext(id) {
     // live message marks the same one for highlighting.
     pinnedMessageId: d?.pinnedMessageId ?? null,
     pinnedMessage: d?.pinnedMessage ?? null,
+    // B1 — reported voice-note evidence. An audio report has no conversation, so
+    // the backend snapshots the clip's transcript onto the report as durable
+    // evidence; render it in the moderation evidence panel. Null on non-audio.
+    reportedAudioTranscript: d?.reportedAudioTranscript ?? null,
+    reportedAudioId: d?.reportedAudioId ?? null,
   };
 }
 

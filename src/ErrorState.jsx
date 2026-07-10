@@ -1,6 +1,7 @@
 import { t } from "./tokens.js";
 import { GenericError } from "./illustrations.jsx";
 import Button from "./Button.jsx";
+import { useReducedSensory } from "./ReducedSensoryContext.jsx";
 
 // A calm, centered load-failure state. Pairs the GenericError glyph with a
 // serif title and soft message, plus an optional "Try again" action. Used for
@@ -12,6 +13,10 @@ import Button from "./Button.jsx";
 //   message  — supporting copy in textSoft
 //   onRetry  — when provided, renders a secondary "Try again" Button
 export default function ErrorState({ title = "Something went wrong", message, onRetry }) {
+  // Low stimulation: drop the decorative GenericError glyph (and its spacer) so
+  // the failure is a calm text-only state. The heading + message still carry all
+  // the meaning. Global via context so no caller has to thread the prop.
+  const reducedSensory = useReducedSensory();
   return (
     <div
       role="alert"
@@ -25,9 +30,11 @@ export default function ErrorState({ title = "Something went wrong", message, on
         margin: "0 auto",
       }}
     >
-      <div style={{ marginBottom: 16 }}>
-        <GenericError size={80} />
-      </div>
+      {!reducedSensory && (
+        <div style={{ marginBottom: 16 }}>
+          <GenericError size={80} />
+        </div>
+      )}
       <h2
         style={{
           fontFamily: t.serif,

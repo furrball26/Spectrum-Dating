@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { t } from "../tokens.js";
 import { useFocusable } from "../useFocusable.js";
+import { usePlainLanguage } from "../PlainLanguageContext.jsx";
 
 
 // Advisory fix 2 — dynamic prefers-reduced-motion (replaces static snapshot)
@@ -22,6 +23,10 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
   const cancelRef = useRef(null);
   const confirmRef = useRef(null);
   const prefersReduced = usePrefersReduced();
+  // Plain language read from context (not a prop — MessagingApp never passed
+  // one, so this confirmation silently ignored the toggle before). This is an
+  // irreversible action; its copy is exactly where plain mode matters most.
+  const plain = usePlainLanguage();
 
   // Move focus into the dialog on open (heading), and restore focus to whatever
   // triggered the sheet (the ⋯ "Conversation options" button — the HeaderMenu
@@ -125,15 +130,25 @@ export default function UnmatchSheet({ displayName, onConfirm, onCancel }) {
             outline: "none",
           }}
         >
-          End your conversation with {displayName}?
+          {plain ? `End your chat with ${displayName}?` : `End your conversation with ${displayName}?`}
         </h2>
         <p style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.65, margin: "0 0 14px" }}>
-          Here's exactly what happens:
+          {plain ? "This is what happens:" : "Here's exactly what happens:"}
         </p>
         <ul style={{ color: t.textSoft, fontSize: 16, lineHeight: 1.6, margin: "0 0 28px", paddingLeft: 20 }}>
-          <li>This ends the conversation and you won't see each other again.</li>
-          <li>{displayName} <strong>won't be told</strong>, and won't know it was you.</li>
-          <li>Your conversation becomes read-only — no one can send new messages.</li>
+          {plain ? (
+            <>
+              <li>The chat ends. You will not see each other again.</li>
+              <li>{displayName} <strong>will not be told</strong>. They will not know it was you.</li>
+              <li>No one can send new messages after this.</li>
+            </>
+          ) : (
+            <>
+              <li>This ends the conversation and you won't see each other again.</li>
+              <li>{displayName} <strong>won't be told</strong>, and won't know it was you.</li>
+              <li>Your conversation becomes read-only — no one can send new messages.</li>
+            </>
+          )}
         </ul>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

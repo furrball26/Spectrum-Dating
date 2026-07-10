@@ -6,7 +6,15 @@
 // All accept a `size` prop (default 112) and keep a 1.5px stroke to match the
 // app's icon language.
 
+import { useReducedSensory } from "./ReducedSensoryContext.jsx";
+
 function Frame({ size = 112, children, label }) {
+  // Low stimulation (a11y.reducedSensory): these are purely decorative
+  // (aria-hidden) empty/error spot illustrations — the surrounding copy already
+  // carries all meaning — so render nothing at all rather than the plate, warm
+  // blob, and line art. Hook is called before the early return (rules-of-hooks).
+  const reducedSensory = useReducedSensory();
+  if (reducedSensory) return null;
   return (
     <svg
       width={size}

@@ -2507,7 +2507,13 @@ export default function ConversationScreen({
         setConsentGateFailed(true);
         setSendStatus("Unable to send. This conversation is no longer available.");
       } else if (err.status === 429) {
-        setMessages(prev => prev.filter(m => m.id !== tempId)); // they can retype after the limit
+        // B3 — a rate-limit must not eat the user's words. Drop the optimistic
+        // bubble (there's no server row) but RESTORE the typed text into the
+        // composer so it survives the wait — mirrors the attachment path, which
+        // never clears composeValue on failure. No duplicate bubble, no double
+        // restore: the temp message is removed and the text lives only here.
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setComposeValue(body);
         setRateLimited(true);
         setSendStatus("You're sending messages quickly. Please wait a moment.");
       } else {
