@@ -352,11 +352,33 @@ const REDUCE_MOTION_CSS = `*, *::before, *::after {
   scroll-behavior: auto !important;
 }`;
 
+// Reading comfort — a MODERATE, layout-safe increase in reading spacing for
+// dyslexic/ADHD readers (WCAG 1.4.12). Deliberately scoped to prose text
+// (paragraphs, list items, and opted-in message/body text via
+// [data-reading-comfort]) — NOT buttons/inputs/nav, where extra tracking would
+// break dense controls. Values are tuned well below the WCAG maxima so the
+// message-log layout invariants (no bubble overlap, page doesn't grow) hold.
+// !important is needed to win over inline lineHeight on prose (matches the
+// user-override intent of reduce-motion above).
+const READING_COMFORT_CSS = `p, li, [data-reading-comfort] {
+  line-height: 1.7 !important;
+  letter-spacing: 0.02em !important;
+  word-spacing: 0.06em !important;
+}`;
+
+// Inject a single <style id="a11y-overrides"> whose content is the CONCATENATION
+// of whichever a11y sheets are wanted (reduce-motion and/or reading-comfort).
+// The element exists iff EITHER is wanted, and is removed only when NEITHER is.
 function applyA11yStylesheet(prefs) {
   if (typeof document === "undefined") return;
   const wantReduceMotion = !!(prefs.reduceMotion || prefs.reducedSensory);
+  const wantReadingComfort = !!prefs.readingComfort;
+  const css = [
+    wantReduceMotion ? REDUCE_MOTION_CSS : "",
+    wantReadingComfort ? READING_COMFORT_CSS : "",
+  ].filter(Boolean).join("\n");
   let el = document.getElementById(A11Y_STYLE_ID);
-  if (!wantReduceMotion) {
+  if (!css) {
     if (el) el.remove();
     return;
   }
@@ -365,7 +387,8 @@ function applyA11yStylesheet(prefs) {
     el.id = A11Y_STYLE_ID;
     document.head.appendChild(el);
   }
-  if (el.textContent !== REDUCE_MOTION_CSS) el.textContent = REDUCE_MOTION_CSS;
+  // Keep the "only rewrite textContent when it changed" optimization.
+  if (el.textContent !== css) el.textContent = css;
 }
 
 // Apply the warm-dim theme by toggling <html data-theme>. The CSS variables

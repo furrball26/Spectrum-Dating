@@ -618,6 +618,10 @@ const MessageBubble = memo(function MessageBubble({
         </div>
 
         <div
+          // Opt this prose bubble into the Reading-comfort spacing sheet
+          // (App.jsx READING_COMFORT_CSS) so message body text gets the extra
+          // line/letter/word spacing when the a11y toggle is on.
+          data-reading-comfort=""
           style={{
             // own = green-tinted bubble (tail lower-right), other = surface bubble
             // (tail lower-left). Other bubble needs a visible border (≥3:1 vs the

@@ -28,6 +28,7 @@ export const DEFAULT_A11Y = {
   theme: "dim", // 'light' | 'dim' — the warm dim theme is the product default
   plainLanguage: false,   // shorter, more literal copy throughout the app
   reducedSensory: false,  // hide decorative illustrations + flatten header mark
+  readingComfort: false,  // extra line/letter/word spacing on body text (dyslexia-friendly, WCAG 1.4.12)
 };
 
 // The warm dim theme is the DEFAULT for anyone who hasn't explicitly chosen a
@@ -72,6 +73,7 @@ export function readA11y() {
       plainLanguage: !!parsed.plainLanguage,
       // Low Stimulation absorbed the former "Calm mode" — migrate any legacy calmMode=true.
       reducedSensory: !!(parsed.reducedSensory || parsed.calmMode),
+      readingComfort: !!parsed.readingComfort,
     };
   } catch {
     return seededDefaults();

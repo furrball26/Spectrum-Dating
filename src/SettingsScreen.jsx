@@ -641,6 +641,15 @@ export default function SettingsScreen({ onBack, onChange, onOpenTerms, tier }) 
             checked={prefs.largerText}
             onChange={(v) => update("largerText", v)}
           />
+          <ToggleRow
+            id="a11y-reading-comfort"
+            label="Reading comfort"
+            description={plain
+              ? "Add more space between letters, words, and lines so text is easier to read."
+              : "More space between letters, words, and lines."}
+            checked={prefs.readingComfort}
+            onChange={(v) => update("readingComfort", v)}
+          />
         </div>
 
         <p style={{ margin: "20px 2px 0", fontSize: 14, color: t.textMuted, lineHeight: 1.6 }}>
